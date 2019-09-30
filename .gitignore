@@ -1,0 +1,16 @@
+target
+ideatarget
+.idea
+.target
+bin
+.cache
+.cache-main
+.cache-tests
+.classpath
+.project
+.tmpBin
+.factorypath
+.settings
+logs
+.DS_Store
+secrets/
