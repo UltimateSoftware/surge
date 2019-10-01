@@ -27,11 +27,41 @@ libraryDependencies ++= Seq(
 )
 ```
 
+In maven for java:
+```xml
+<project>
+
+    ...
+
+    <repositories>
+
+       ...
+
+        <repository>
+            <id>gears-tools-maven-release</id>
+            <url>https://artifactory.mia.ulti.io/artifactory/gt-maven-libs-release/</url>
+        </repository>
+    </repositories>
+
+    <dependencies>
+
+        ...
+
+        <dependency>
+            <groupId>com.ultimatesoftware</groupId>
+            <artifactId>surge-engine-ks-command-javadsl_2.12</artifactId>
+            <version>0.0.4</version>
+        </dependency>
+    </dependencies>
+</project>
+```
 
 ## How does it work
 
 ### Components
+
 High level overview:
+
 ![Kafka Streams Command Components](docs/images/Surge%20Command%20Components.png)
 
 In depth overview:
