@@ -83,17 +83,16 @@ trait TestBoundedContext {
 
   case class Increment(incrementAggregateId: UUID) extends BaseTestCommand {
     val aggregateId: UUID = incrementAggregateId
-    val expectedVersion: Int = ??? // TODO
+    val expectedVersion: Int = 0 // Not used
   }
 
   case class Decrement(decrementAggregateId: UUID) extends BaseTestCommand {
     val aggregateId: UUID = decrementAggregateId
-    val expectedVersion: Int = ??? // TODO
+    val expectedVersion: Int = 0 // Not used
   }
 
-  case class EmptyResource(unused: Option[String]) extends BaseResource[State] {
-    override def id: UUID = ??? // TODO
-    override def version: Int = ??? // TODO
+  case class EmptyResource(id: UUID) extends BaseResource[State] {
+    override def version: Int = 0
   }
 
   trait BusinessLogicTrait extends DomainBusinessLogicAdapter[State, UUID, BaseTestCommand, BaseTestEvent, EmptyResource, DefaultCommandMetadata] {

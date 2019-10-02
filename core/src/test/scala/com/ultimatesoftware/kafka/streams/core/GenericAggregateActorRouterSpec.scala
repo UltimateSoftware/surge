@@ -2,18 +2,17 @@
 
 package com.ultimatesoftware.kafka.streams.core
 
-import java.util.UUID
-
 import akka.actor.{ ActorRef, ActorSystem, Address }
 import akka.testkit.{ TestKit, TestProbe }
 import akka.util.Timeout
 import com.typesafe.config.{ Config, ConfigFactory }
 import com.ultimatesoftware.kafka.KafkaConsumerStateTrackingActor.Register
-import com.ultimatesoftware.kafka.{ KafkaPartitionShardRouterActor, PartitionRegion }
 import com.ultimatesoftware.kafka.streams.{ AggregateStateStoreKafkaStreams, GlobalKTableMetadataHandler, KafkaPartitionMetadata, KafkaStreamsKeyValueStore }
+import com.ultimatesoftware.kafka.{ KafkaPartitionShardRouterActor, PartitionRegion }
 import com.ultimatesoftware.scala.core.kafka.{ HostPort, PartitionAssignments }
 import com.ultimatesoftware.scala.core.monitoring.metrics.NoOpMetricsProvider
 import org.apache.kafka.common.TopicPartition
+import org.mockito.ArgumentMatchers._
 import org.mockito.Mockito._
 import org.scalatest.{ Assertion, BeforeAndAfterAll, Matchers, WordSpecLike }
 import org.scalatestplus.mockito.MockitoSugar
@@ -41,6 +40,7 @@ class GenericAggregateActorRouterSpec extends TestKit(ActorSystem("GenericAggreg
 
     when(mockStateMetaRepo.all()).thenReturn(Future.successful(List.empty))
     when(mockStateMetaRepo.allValues()).thenReturn(Future.successful(List.empty))
+    when(mockStateMetaRepo.get(anyString)).thenReturn(Future.successful(None))
 
     when(mockGlobalKTableStateStore.stateMetaQueryableStore).thenReturn(mockStateMetaRepo)
 

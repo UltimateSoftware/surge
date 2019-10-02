@@ -7,6 +7,9 @@ import Keys._
 lazy val `surge-engine-ks-command-core` = (project in file("core"))
   .settings(
     libraryDependencies ++= Seq(
+      Akka.actor,
+      Akka.remote,
+      Akka.testKit,
       Kafka.kafkaStreams,
       Kafka.kafkaStreamsTestUtils,
       mockitoCore,

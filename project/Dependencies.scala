@@ -7,6 +7,14 @@ import sbt._
 object Dependencies extends AutoPlugin {
   object autoImport {
 
+    object Akka {
+      val version = "2.5.25"
+
+      val actor = "com.typesafe.akka" %% "akka-actor" % version
+      val remote = "com.typesafe.akka" %% "akka-remote" % version
+      val testKit = "com.typesafe.akka" %% "akka-testkit" % version % Test
+    }
+
     object Kafka {
       val kafkaVersion = "2.1.1"
 
