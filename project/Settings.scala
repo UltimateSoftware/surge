@@ -38,7 +38,8 @@ object Settings extends AutoPlugin {
         Some(gearsToolsMavenRelease)
       }
     },
-    publishMavenStyle := true
+    publishMavenStyle := true,
+    Test / parallelExecution := false
   )
 
   override def buildSettings: Seq[Def.Setting[_]] = Seq(
