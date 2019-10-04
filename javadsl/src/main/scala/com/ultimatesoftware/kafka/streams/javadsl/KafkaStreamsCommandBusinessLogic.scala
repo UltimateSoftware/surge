@@ -8,14 +8,14 @@ import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, Met
 
 import scala.concurrent.duration._
 
-abstract class KafkaStreamsCommandBusinessLogic[Agg, AggIdType, Command, Event, Resource, CmdMeta] {
+abstract class KafkaStreamsCommandBusinessLogic[Agg, AggIdType, Command, Event, CmdMeta] {
 
   def stateTopic: KafkaTopic
   def eventsTopic: KafkaTopic
 
   def internalMetadataTopic: KafkaTopic
 
-  def domainBusinessLogicAdapter: DomainBusinessLogicAdapter[Agg, AggIdType, Command, Event, Resource, CmdMeta]
+  def domainBusinessLogicAdapter: DomainBusinessLogicAdapter[Agg, AggIdType, Command, Event, _, CmdMeta]
 
   // Defaults to noops publishing (for now) and 30 second interval on metrics snapshots
   // These can be overridden in the derived applications
@@ -24,8 +24,8 @@ abstract class KafkaStreamsCommandBusinessLogic[Agg, AggIdType, Command, Event, 
 
   def metricsProvider: MetricsProvider
 
-  private[javadsl] def toCore: com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[Agg, AggIdType, Command, Event, Resource, CmdMeta] = {
-    new com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[Agg, AggIdType, Command, Event, Resource, CmdMeta](
+  private[javadsl] def toCore: com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[Agg, AggIdType, Command, Event, CmdMeta] = {
+    new com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[Agg, AggIdType, Command, Event, CmdMeta](
       stateTopic = stateTopic, eventsTopic = eventsTopic, internalMetadataTopic = internalMetadataTopic,
       businessLogicAdapter = domainBusinessLogicAdapter,
       metricsPublisher = metricsPublisher, metricsInterval = metricsInterval)

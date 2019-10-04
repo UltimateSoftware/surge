@@ -18,7 +18,7 @@ import com.ultimatesoftware.scala.core.utils.BlockchainChecksum
 import org.mockito.ArgumentMatchers._
 import org.mockito.Mockito._
 import org.mockito.invocation.InvocationOnMock
-import org.scalatest.{ BeforeAndAfterAll, Matchers, WordSpecLike }
+import org.scalatest.{ BeforeAndAfterAll, Matchers, PartialFunctionValues, WordSpecLike }
 import org.scalatestplus.mockito.MockitoSugar
 import play.api.libs.json.{ Format, JsValue, Json }
 
@@ -26,7 +26,7 @@ import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
 
 class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateActorSpec")) with WordSpecLike with Matchers
-  with BeforeAndAfterAll with MockitoSugar with TestBoundedContext {
+  with BeforeAndAfterAll with MockitoSugar with TestBoundedContext with PartialFunctionValues {
 
   private implicit val timeout: Timeout = Timeout(10.seconds)
   override def afterAll(): Unit = {
@@ -112,8 +112,7 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
       val expectedState = BusinessLogic.processEvent(Some(baseState), expectedEventMessage)
       val expectedResource = BusinessLogic.resourceFromAggregate(expectedState)
 
-      implicit val resourceFmt: Format[EmptyResource] = BusinessLogic.resourceFormat
-      probe.expectMsg(Json.toJson(expectedResource))
+      probe.expectMsg(GenericAggregateActor.CommandSuccess(expectedState))
 
       val expectedStateJson = expectedState.map(s ⇒ Json.toJson(s))
 
@@ -123,6 +122,20 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
         checksum = Some(BlockchainChecksum.calculateChecksum(expectedStateJson, initialStateMessage.checksum)))
 
       verify(mockProducer).publish(testAggregateId, Seq(newState), Seq(expectedEventMessage))
+    }
+
+    "Be able to correctly extract the correct aggregate ID from messages" in {
+      val command1 = GenericAggregateActor.CommandEnvelope(aggregateId = "foobarbaz", meta = DefaultCommandMetadata.empty(), command = "unused")
+      val command2 = GenericAggregateActor.CommandEnvelope(aggregateId = UUID.randomUUID(), meta = DefaultCommandMetadata.empty(), command = "unused")
+
+      val getState1 = GenericAggregateActor.GetState(aggregateId = "foobarbaz")
+      val getState2 = GenericAggregateActor.GetState(aggregateId = UUID.randomUUID())
+
+      GenericAggregateActor.RoutableMessage.extractEntityId[String](command1) shouldEqual command1.aggregateId
+      GenericAggregateActor.RoutableMessage.extractEntityId[UUID](command2) shouldEqual command2.aggregateId
+
+      GenericAggregateActor.RoutableMessage.extractEntityId[String](getState1) shouldEqual getState1.aggregateId
+      GenericAggregateActor.RoutableMessage.extractEntityId[UUID](getState2) shouldEqual getState2.aggregateId
     }
   }
 }

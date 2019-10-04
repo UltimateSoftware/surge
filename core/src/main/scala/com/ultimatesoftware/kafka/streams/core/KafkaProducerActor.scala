@@ -29,7 +29,7 @@ class KafkaProducerActor[Agg, AggIdType, Event](
     assignedPartition: TopicPartition,
     metricsProvider: MetricsProvider,
     stateMetaHandler: GlobalKTableMetadataHandler,
-    aggregateCommandKafkaStreams: KafkaStreamsCommandBusinessLogic[Agg, AggIdType, _, Event, _, _],
+    aggregateCommandKafkaStreams: KafkaStreamsCommandBusinessLogic[Agg, AggIdType, _, Event, _],
     kafkaStreamsImpl: AggregateStateStoreKafkaStreams) {
   import aggregateCommandKafkaStreams.businessLogicAdapter._
 
@@ -81,7 +81,7 @@ private object KafkaProducerActorImpl {
 private class KafkaProducerActorImpl[Agg, Event](
     assignedPartition: TopicPartition, metrics: MetricsProvider,
     stateMetaHandler: GlobalKTableMetadataHandler,
-    aggregateCommandKafkaStreams: KafkaStreamsCommandBusinessLogic[Agg, _, _, Event, _, _],
+    aggregateCommandKafkaStreams: KafkaStreamsCommandBusinessLogic[Agg, _, _, Event, _],
     kafkaStreamsImpl: AggregateStateStoreKafkaStreams) extends Actor with Stash {
 
   import KafkaProducerActorImpl._

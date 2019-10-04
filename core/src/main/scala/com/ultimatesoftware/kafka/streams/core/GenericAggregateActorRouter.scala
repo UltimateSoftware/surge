@@ -8,26 +8,26 @@ import com.ultimatesoftware.kafka.{ KafkaPartitionShardRouterActor, TopicPartiti
 import com.ultimatesoftware.scala.core.monitoring.metrics.MetricsProvider
 import org.apache.kafka.common.TopicPartition
 
-private[streams] final class GenericAggregateActorRouter[Agg, AggIdType, Command, Event, Resource, CmdMeta](
+private[streams] final class GenericAggregateActorRouter[Agg, AggIdType, Command, Event, CmdMeta](
     system: ActorSystem,
     clusterStateTrackingActor: ActorRef,
-    businessLogic: KafkaStreamsCommandBusinessLogic[Agg, AggIdType, Command, Event, Resource, CmdMeta],
+    businessLogic: KafkaStreamsCommandBusinessLogic[Agg, AggIdType, Command, Event, CmdMeta],
     metricsProvider: MetricsProvider,
     stateMetaHandler: GlobalKTableMetadataHandler,
     kafkaStreamsCommand: AggregateStateStoreKafkaStreams) {
 
   val actorRegion: ActorRef = {
-    val shardRegionCreator = new TPRegionProps[Agg, AggIdType, Command, Event, Resource, CmdMeta](businessLogic, metricsProvider, stateMetaHandler,
+    val shardRegionCreator = new TPRegionProps[Agg, AggIdType, Command, Event, CmdMeta](businessLogic, metricsProvider, stateMetaHandler,
       kafkaStreamsCommand)
 
     val shardRouterProps = KafkaPartitionShardRouterActor.props(clusterStateTrackingActor, businessLogic.partitioner, businessLogic.stateTopic,
-      shardRegionCreator, GenericAggregateActor.CommandEnvelope.extractEntityId)
+      shardRegionCreator, GenericAggregateActor.RoutableMessage.extractEntityId)
     system.actorOf(shardRouterProps, name = "RouterActor")
   }
 }
 
-class TPRegionProps[Agg, AggIdType, Command, Event, Resource, CmdMeta](
-    businessLogic: KafkaStreamsCommandBusinessLogic[Agg, AggIdType, Command, Event, Resource, CmdMeta],
+class TPRegionProps[Agg, AggIdType, Command, Event, CmdMeta](
+    businessLogic: KafkaStreamsCommandBusinessLogic[Agg, AggIdType, Command, Event, CmdMeta],
     metricsProvider: MetricsProvider,
     stateMetaHandler: GlobalKTableMetadataHandler,
     kafkaStreamsCommand: AggregateStateStoreKafkaStreams) extends TopicPartitionRegionCreator {

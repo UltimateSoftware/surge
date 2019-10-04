@@ -9,9 +9,9 @@ import com.ultimatesoftware.scala.core.domain._
 import com.ultimatesoftware.scala.core.monitoring.metrics.MetricsProvider
 import org.apache.kafka.common.TopicPartition
 
-class GenericAggregateActorRegionProvider[Agg, AggIdType, Command, Event, Resource, CmdMeta](
+class GenericAggregateActorRegionProvider[Agg, AggIdType, Command, Event, CmdMeta](
     assignedPartition: TopicPartition,
-    businessLogic: KafkaStreamsCommandBusinessLogic[Agg, AggIdType, Command, Event, Resource, CmdMeta],
+    businessLogic: KafkaStreamsCommandBusinessLogic[Agg, AggIdType, Command, Event, CmdMeta],
     stateMetaHandler: GlobalKTableMetadataHandler,
     aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams,
     metricsProvider: MetricsProvider) extends PerShardLogicProvider[AggIdType] {
@@ -42,9 +42,9 @@ class GenericAggregateActorProvider[Agg, AggIdType, Command, Event, Resource, Cm
 }
 
 object PartitionRegionManagementActor {
-  def props[Agg, AggIdType, Command, Event, Resource, CmdMeta](
+  def props[Agg, AggIdType, Command, Event, CmdMeta](
     assignedPartition: TopicPartition,
-    businessLogic: KafkaStreamsCommandBusinessLogic[Agg, AggIdType, Command, Event, Resource, CmdMeta],
+    businessLogic: KafkaStreamsCommandBusinessLogic[Agg, AggIdType, Command, Event, CmdMeta],
     stateMetaHandler: GlobalKTableMetadataHandler,
     aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams,
     metricsProvider: MetricsProvider): Props = {
@@ -52,6 +52,6 @@ object PartitionRegionManagementActor {
     val provider = new GenericAggregateActorRegionProvider(assignedPartition, businessLogic,
       stateMetaHandler, aggregateKafkaStreamsImpl, metricsProvider)
 
-    Shard.props(assignedPartition.toString, provider, GenericAggregateActor.CommandEnvelope.extractEntityId)
+    Shard.props(assignedPartition.toString, provider, GenericAggregateActor.RoutableMessage.extractEntityId)
   }
 }

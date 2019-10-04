@@ -10,7 +10,6 @@ import akka.pattern.pipe
 import com.typesafe.config.{ Config, ConfigFactory }
 import com.ultimatesoftware.akka.cluster.Passivate
 import com.ultimatesoftware.kafka.streams.AggregateStateStoreKafkaStreams
-import com.ultimatesoftware.kafka.streams.core.GenericAggregateActor.CommandEnvelope
 import com.ultimatesoftware.scala.core.domain._
 import com.ultimatesoftware.scala.core.messaging.{ EventMessage, EventProperties, StateMessage }
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, Timer }
@@ -22,9 +21,9 @@ import scala.concurrent.Future
 import scala.concurrent.duration._
 
 private[streams] object GenericAggregateActor {
-  def props[Agg, AggIdType, Command, Event, Resource, CmdMeta](
+  def props[Agg, AggIdType, Command, Event, CmdMeta](
     aggregateId: AggIdType,
-    businessLogic: DomainBusinessLogicAdapter[Agg, AggIdType, Command, Event, Resource, CmdMeta],
+    businessLogic: DomainBusinessLogicAdapter[Agg, AggIdType, Command, Event, _, CmdMeta],
     kafkaProducerActor: KafkaProducerActor[Agg, AggIdType, Event],
     metrics: GenericAggregateActorMetrics,
     kafkaStreamsCommand: AggregateStateStoreKafkaStreams): Props = {
@@ -32,18 +31,30 @@ private[streams] object GenericAggregateActor {
       .withDispatcher("generic-aggregate-actor-dispatcher")
   }
 
+  sealed trait RoutableMessage[AggIdType] {
+    def aggregateId: AggIdType
+  }
   implicit def commandEnvelopeFormat[AggIdType, Cmd, CmdMeta](implicit
     aggIdTypeFormat: Format[AggIdType],
     cmdFormat: Format[Cmd],
     propsFormat: Format[CmdMeta]): Format[CommandEnvelope[AggIdType, Cmd, CmdMeta]] = {
     Json.format[CommandEnvelope[AggIdType, Cmd, CmdMeta]]
   }
-  object CommandEnvelope {
+  object RoutableMessage {
     def extractEntityId[AggIdType]: PartialFunction[Any, AggIdType] = {
-      case GenericAggregateActor.CommandEnvelope(aggId: AggIdType, _, _) ⇒ aggId
+      case routableMessage: RoutableMessage[AggIdType] ⇒ routableMessage.aggregateId
     }
   }
-  case class CommandEnvelope[AggIdType, Cmd, CmdMeta](aggregateId: AggIdType, meta: CmdMeta, command: Cmd)
+  case class CommandEnvelope[AggIdType, Cmd, CmdMeta](aggregateId: AggIdType, meta: CmdMeta, command: Cmd) extends RoutableMessage[AggIdType]
+  case class GetState[AggIdType](aggregateId: AggIdType) extends RoutableMessage[AggIdType]
+
+  case class StateResponse[Agg](aggregateState: Option[Agg])
+
+  sealed trait CommandResponse
+  case class CommandFailure(validationError: Seq[ValidationError])
+
+  implicit def commandSuccessFormat[Agg](implicit format: Format[Agg]): Format[CommandSuccess[Agg]] = Json.format[CommandSuccess[Agg]]
+  case class CommandSuccess[Agg](aggregateState: Option[Agg])
 
   def createMetrics(metricsProvider: MetricsProvider, aggregateName: String): GenericAggregateActorMetrics = {
     GenericAggregateActorMetrics(
@@ -54,13 +65,14 @@ private[streams] object GenericAggregateActor {
   case object Stop
 }
 
-private[core] class GenericAggregateActor[Agg, AggIdType, Command, Event, Resource, CmdMeta](
+private[core] class GenericAggregateActor[Agg, AggIdType, Command, Event, CmdMeta](
     aggregateId: AggIdType,
     kafkaProducerActor: KafkaProducerActor[Agg, AggIdType, Event],
-    businessLogic: DomainBusinessLogicAdapter[Agg, AggIdType, Command, Event, Resource, CmdMeta],
+    businessLogic: DomainBusinessLogicAdapter[Agg, AggIdType, Command, Event, _, CmdMeta],
     metrics: GenericAggregateActor.GenericAggregateActorMetrics,
     kafkaStreamsCommand: AggregateStateStoreKafkaStreams) extends Actor with Stash {
   import context.dispatcher
+  import GenericAggregateActor._
 
   private case class StateAccum(eventProps: EventProperties, stateOpt: Option[Agg])
 
@@ -82,13 +94,15 @@ private[core] class GenericAggregateActor[Agg, AggIdType, Command, Event, Resour
   override def receive: Receive = uninitialized
 
   private def freeToProcess(state: InternalActorState): Receive = {
-    case msg: GenericAggregateActor.CommandEnvelope[AggIdType, Command, CmdMeta] ⇒ handle(state, msg)
+    case msg: CommandEnvelope[AggIdType, Command, CmdMeta] ⇒ handle(state, msg)
+    case msg: GetState[AggIdType] ⇒ sender() ! state.stateOpt
     case ReceiveTimeout ⇒ handlePassivate()
-    case GenericAggregateActor.Stop ⇒ handleStop()
+    case Stop ⇒ handleStop()
   }
 
   private def persistingEvents(state: InternalActorState): Receive = {
     case msg: EventsSuccessfullyPersisted ⇒ handle(state, msg)
+    case msg: CommandFailure              ⇒ handle(state, msg)
     case ReceiveTimeout                   ⇒ // Ignore and drop ReceiveTimeout messages from this state
     case _                                ⇒ stash()
   }
@@ -132,29 +146,31 @@ private[core] class GenericAggregateActor[Agg, AggIdType, Command, Event, Resour
     }.getOrElse(Seq.empty)
   }
 
-  private def handle(state: InternalActorState, commandEnvelope: GenericAggregateActor.CommandEnvelope[AggIdType, Command, CmdMeta]): Unit = {
+  private def handle(state: InternalActorState, commandEnvelope: CommandEnvelope[AggIdType, Command, CmdMeta]): Unit = {
     val startTime = Instant.now
     context.setReceiveTimeout(Duration.Inf)
     context.become(persistingEvents(state))
 
-    val futureEventsPersisted = processCommand(state, commandEnvelope).flatMap { events ⇒
+    val futureEventsPersisted = processCommand(state, commandEnvelope).flatMap {
+      case Right(events) ⇒
+        val baseStateAccum = StateAccum(
+          eventProps = businessLogic.metaToPartialEventProps(commandEnvelope.meta).withSequenceNumber(state.sequenceNumber),
+          stateOpt = state.stateOpt)
 
-      val baseStateAccum = StateAccum(
-        eventProps = businessLogic.metaToPartialEventProps(commandEnvelope.meta).withSequenceNumber(state.sequenceNumber),
-        stateOpt = state.stateOpt)
+        val (currentStateAccum, eventMessages) = newStateAndEventMessages(baseStateAccum, events)
 
-      val (currentStateAccum, eventMessages) = newStateAndEventMessages(baseStateAccum, events)
+        val states = stateMessages(state, currentStateAccum)
 
-      val states = stateMessages(state, currentStateAccum)
-
-      log.trace("GenericAggregateActor for {} sending events to publisher actor", aggregateId)
-      kafkaProducerActor.publish(aggregateId = aggregateId, states = states, events = eventMessages).map { _ ⇒
-        val newActorState = InternalActorState(
-          stateOpt = currentStateAccum.stateOpt,
-          sequenceNumber = currentStateAccum.eventProps.sequenceNumber,
-          stateChecksum = states.flatMap(state ⇒ state.checksum.map(checksum ⇒ state.fullIdentifier -> checksum)).toMap)
-        EventsSuccessfullyPersisted(newActorState, startTime)
-      }
+        log.trace("GenericAggregateActor for {} sending events to publisher actor", aggregateId)
+        kafkaProducerActor.publish(aggregateId = aggregateId, states = states, events = eventMessages).map { _ ⇒
+          val newActorState = InternalActorState(
+            stateOpt = currentStateAccum.stateOpt,
+            sequenceNumber = currentStateAccum.eventProps.sequenceNumber,
+            stateChecksum = states.flatMap(state ⇒ state.checksum.map(checksum ⇒ state.fullIdentifier -> checksum)).toMap)
+          EventsSuccessfullyPersisted(newActorState, startTime)
+        }
+      case Left(validationErrors) ⇒
+        Future.successful(CommandFailure(validationErrors))
     }
 
     futureEventsPersisted.recover {
@@ -165,31 +181,35 @@ private[core] class GenericAggregateActor[Agg, AggIdType, Command, Event, Resour
     }.pipeTo(self)(sender())
   }
 
-  private def processCommand(state: InternalActorState, commandEnvelope: CommandEnvelope[AggIdType, Command, CmdMeta]): Future[Seq[Event]] = {
+  private def processCommand(
+    state: InternalActorState,
+    commandEnvelope: CommandEnvelope[AggIdType, Command, CmdMeta]): Future[Either[Seq[ValidationError], Seq[Event]]] = {
     val commandPlusState = MessagePlusCurrentAggregate(commandEnvelope.command, state.stateOpt)
 
     import ValidationDSL._
-    (commandPlusState mustSatisfy businessLogic.commandValidator).map {
-      case Right(_) ⇒
+    (commandPlusState mustSatisfy businessLogic.commandValidator).map { res ⇒
+      res.map { _ ⇒
         businessLogic.processCommand(state.stateOpt, commandEnvelope.command, commandEnvelope.meta)
           .toOption.getOrElse(Seq.empty)
-      case Left(errors) ⇒
-        // FIXME this should return a result rather than just an empty list of events.  Let another layer see and handle the validation errors
-        Seq.empty
+      }
     }
+  }
+
+  private def handle(state: InternalActorState, failure: CommandFailure): Unit = {
+    context.setReceiveTimeout(receiveTimeout)
+    context.become(freeToProcess(state))
+
+    sender() ! failure
   }
 
   private def handle(state: InternalActorState, msg: EventsSuccessfullyPersisted): Unit = {
     context.setReceiveTimeout(receiveTimeout)
     context.become(freeToProcess(msg.newState))
 
-    // TODO expect response on the other end rather than just json
-    val resource = businessLogic.resourceFromAggregate(msg.newState.stateOpt)
-    implicit val resourceFormat: Format[Resource] = businessLogic.resourceFormat
-    val jsResponse = resource.map(r ⇒ Json.toJson(r)).getOrElse(JsNull)
-    log.trace(s"${businessLogic.aggregateName} $aggregateId returning response $jsResponse")
+    val cmdSuccess = CommandSuccess(msg.newState.stateOpt)
+    //log.trace(s"${businessLogic.aggregateName} $aggregateId returning response ${msg.newState.stateOpt.map(Json.toJson)}")
 
-    sender() ! jsResponse
+    sender() ! cmdSuccess
 
     unstashAll()
   }
@@ -225,7 +245,7 @@ private[core] class GenericAggregateActor[Agg, AggIdType, Command, Event, Resour
 
   private def handlePassivate(): Unit = {
     log.trace(s"GenericAggregateActor for aggregate ${businessLogic.aggregateName} $aggregateId is passivating gracefully")
-    context.parent ! Passivate(GenericAggregateActor.Stop)
+    context.parent ! Passivate(Stop)
   }
 
   private def handleStop(): Unit = {

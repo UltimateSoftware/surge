@@ -8,11 +8,11 @@ import com.ultimatesoftware.scala.core.monitoring.metrics.MetricsPublisher
 
 import scala.concurrent.duration._
 
-private[streams] case class KafkaStreamsCommandBusinessLogic[Agg, AggIdType, Command, Event, Resource, CmdMeta](
+private[streams] case class KafkaStreamsCommandBusinessLogic[Agg, AggIdType, Command, Event, CmdMeta](
     stateTopic: KafkaTopic,
     eventsTopic: KafkaTopic,
     internalMetadataTopic: KafkaTopic,
-    businessLogicAdapter: DomainBusinessLogicAdapter[Agg, AggIdType, Command, Event, Resource, CmdMeta],
+    businessLogicAdapter: DomainBusinessLogicAdapter[Agg, AggIdType, Command, Event, _, CmdMeta],
     metricsPublisher: MetricsPublisher, metricsInterval: FiniteDuration) {
   val partitioner: KafkaPartitioner[String] = PartitionStringUpToColon
 }

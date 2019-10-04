@@ -51,7 +51,7 @@ class GenericAggregateActorRouterSpec extends TestKit(ActorSystem("GenericAggreg
       partitionTracker = partitionTrackerProbe.ref,
       partitioner = kafkaStreamsLogic.partitioner,
       trackedTopic = kafkaStreamsLogic.stateTopic,
-      regionCreator = shardRegionCreator, extractEntityId = GenericAggregateActor.CommandEnvelope.extractEntityId)
+      regionCreator = shardRegionCreator, extractEntityId = GenericAggregateActor.RoutableMessage.extractEntityId)
 
     system.actorOf(props)
   }

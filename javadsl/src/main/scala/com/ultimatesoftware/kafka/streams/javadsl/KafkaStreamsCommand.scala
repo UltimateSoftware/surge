@@ -10,16 +10,16 @@ import com.ultimatesoftware.kafka.streams.{ AggregateStateStoreKafkaStreams, Glo
 
 object KafkaStreamsCommand {
   def apply[Agg, AggIdType, Command, Event, Resource, CmdMeta](
-    businessLogic: KafkaStreamsCommandBusinessLogic[Agg, AggIdType, Command, Event, Resource, CmdMeta]): KafkaStreamsCommand[Agg, AggIdType, Command, Event, Resource, CmdMeta] = {
+    businessLogic: KafkaStreamsCommandBusinessLogic[Agg, AggIdType, Command, Event, CmdMeta]): KafkaStreamsCommand[Agg, AggIdType, Command, Event, CmdMeta] = {
 
     val actorSystem = ActorSystem(s"${businessLogic.domainBusinessLogicAdapter.aggregateName}ActorSystem")
     new KafkaStreamsCommand(actorSystem, businessLogic)
   }
 }
 
-class KafkaStreamsCommand[Agg, AggIdType, Command, Event, Resource, CmdMeta] private (
+class KafkaStreamsCommand[Agg, AggIdType, Command, Event, CmdMeta] private (
     val actorSystem: ActorSystem,
-    businessLogic: KafkaStreamsCommandBusinessLogic[Agg, AggIdType, Command, Event, Resource, CmdMeta]) {
+    businessLogic: KafkaStreamsCommandBusinessLogic[Agg, AggIdType, Command, Event, CmdMeta]) {
 
   private implicit val system: ActorSystem = actorSystem
 
@@ -34,10 +34,10 @@ class KafkaStreamsCommand[Agg, AggIdType, Command, Event, Resource, CmdMeta] pri
   private val kafkaStreamsImpl = new AggregateStateStoreKafkaStreams(
     coreKafkaStreams.businessLogicAdapter.aggregateName,
     coreKafkaStreams.stateTopic, new KafkaStreamsPartitionTrackerActorProvider(stateChangeActor), stateMetaHandler, Some(applicationHostPort))
-  private val actorRouter = new GenericAggregateActorRouter[Agg, AggIdType, Command, Event, Resource, CmdMeta](actorSystem, stateChangeActor,
+  private val actorRouter = new GenericAggregateActorRouter[Agg, AggIdType, Command, Event, CmdMeta](actorSystem, stateChangeActor,
     coreKafkaStreams, businessLogic.metricsProvider, stateMetaHandler, kafkaStreamsImpl)
 
-  def aggregateFor(aggregateId: AggIdType): AggregateRef[AggIdType, Command, CmdMeta] = {
+  def aggregateFor(aggregateId: AggIdType): AggregateRef[AggIdType, Agg, Command, CmdMeta] = {
     new AggregateRef(aggregateId, actorRouter.actorRegion, system)
   }
 

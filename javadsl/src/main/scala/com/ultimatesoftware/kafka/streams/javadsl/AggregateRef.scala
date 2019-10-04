@@ -2,23 +2,32 @@
 
 package com.ultimatesoftware.kafka.streams.javadsl
 
+import java.util.Optional
 import java.util.concurrent.CompletionStage
 
 import akka.actor.{ ActorRef, ActorSystem }
-import akka.pattern.{ ask ⇒ akkaAsk }
-import akka.util.Timeout
-import com.ultimatesoftware.kafka.streams.core.GenericAggregateActor
-import play.api.libs.json.JsValue
+import com.ultimatesoftware.kafka.streams.core.{ AggregateRefTrait, GenericAggregateActor }
 
 import scala.compat.java8.FutureConverters
-import scala.concurrent.duration._
+import scala.compat.java8.OptionConverters._
+import scala.concurrent.ExecutionContext
 
-final class AggregateRef[AggIdType, Cmd, CmdMeta](val aggregateId: AggIdType, region: ActorRef, system: ActorSystem) {
-  private implicit val timeout: Timeout = Timeout(15.seconds)
+final class AggregateRef[AggIdType, Agg, Cmd, CmdMeta](
+    val aggregateId: AggIdType,
+    val region: ActorRef,
+    val system: ActorSystem) extends AggregateRefTrait[AggIdType, Agg, Cmd, CmdMeta] {
 
-  def ask(commandProps: CmdMeta, command: Cmd): CompletionStage[JsValue] = {
+  private implicit val ec: ExecutionContext = ExecutionContext.global
+
+  def getState: CompletionStage[Optional[Agg]] = {
+    FutureConverters.toJava(queryState.map(_.asJava))
+  }
+
+  def ask(commandProps: CmdMeta, command: Cmd): CompletionStage[Optional[Agg]] = {
     val envelope = GenericAggregateActor.CommandEnvelope[AggIdType, Cmd, CmdMeta](aggregateId, commandProps, command)
-    val scalaFuture = (region ? envelope).mapTo[JsValue]
-    FutureConverters.toJava(scalaFuture)
+    val result = askWithRetries(envelope, 0).map { result ⇒
+      result.toOption.flatten.asJava
+    }
+    FutureConverters.toJava(result)
   }
 }
