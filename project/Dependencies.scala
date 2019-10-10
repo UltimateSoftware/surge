@@ -25,9 +25,9 @@ object Dependencies extends AutoPlugin {
     object Ultimate {
       object Surge {
         val akka = "com.ultimatesoftware" %% "surge-akka" % "0.0.4"
-        val kafkaStreams = "com.ultimatesoftware" %% "surge-kafka-streams" % "0.0.4"
+        val kafkaStreams = "com.ultimatesoftware" %% "surge-kafka-streams" % "0.0.5"
         val kafkaStreamsPlusAkka = "com.ultimatesoftware" %% "surge-ks-plus-akka" % "0.0.4"
-        val scalaCore = "com.ultimatesoftware" %% "ulti-scala-core" % "0.0.4"
+        val scalaCore = "com.ultimatesoftware" %% "ulti-scala-core" % "0.0.5"
       }
     }
 
