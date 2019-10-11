@@ -7,23 +7,18 @@ package com.ultimatesoftware.kafka.streams.core
 import java.time.Instant
 import java.util.UUID
 
-import com.ultimatesoftware.scala.core.domain._
+import com.ultimatesoftware.scala.core.domain.{ AggregateCommandModel, CommandProcessor, SimpleJsonAggregateComposer }
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
-import com.ultimatesoftware.scala.core.messaging.{ BaseCommand ⇒ _, BaseEvent ⇒ _, _ }
-import com.ultimatesoftware.scala.core.monitoring.metrics.NoOpsMetricsPublisher
-import com.ultimatesoftware.scala.core.resource.BaseResource
+import com.ultimatesoftware.scala.core.monitoring.metrics.{ NoOpMetricsProvider, NoOpsMetricsPublisher }
 import com.ultimatesoftware.scala.core.validations.AsyncCommandValidator
 import play.api.libs.json._
 
 import scala.concurrent.duration._
-import scala.util.{ Success, Try }
+import scala.util.Success
 
 trait TestBoundedContext {
 
-  case class State(aggregateId: UUID, count: Int, version: Int, timestamp: Instant) extends BaseAggregate {
-    override def isDeleted: Boolean = false
-    override def id: UUID = aggregateId
-  }
+  case class State(aggregateId: UUID, count: Int, version: Int, timestamp: Instant)
 
   implicit val stateFormat: Format[State] = Json.format
   implicit val countIncrementedFormat: Format[CountIncremented] = Json.format
@@ -59,24 +54,21 @@ trait TestBoundedContext {
     }
   }
 
-  sealed trait BaseTestEvent extends BaseEvent[State] {
+  sealed trait BaseTestEvent {
     def aggregateId: UUID
+    def sequenceNumber: Int
     def eventName: String
-
-    override def typeInfo: EventMessageTypeInfo = {
-      DetailedEventMessageTypeInfo(boundedContext = "test", aggregateName = "counter", eventName = eventName, schemaVersion = "1.0.0")
-    }
   }
 
-  case class CountIncremented(aggregateId: UUID, incrementBy: Int, version: Int, timestamp: Instant) extends BaseTestEvent {
+  case class CountIncremented(aggregateId: UUID, incrementBy: Int, sequenceNumber: Int, timestamp: Instant) extends BaseTestEvent {
     val eventName: String = "countIncremented"
   }
 
-  case class CountDecremented(aggregateId: UUID, decrementBy: Int, version: Int, timestamp: Instant) extends BaseTestEvent {
+  case class CountDecremented(aggregateId: UUID, decrementBy: Int, sequenceNumber: Int, timestamp: Instant) extends BaseTestEvent {
     val eventName: String = "countDecremented"
   }
 
-  sealed trait BaseTestCommand extends BaseCommand[State] {
+  sealed trait BaseTestCommand {
     def aggregateId: UUID
     def expectedVersion: Int
   }
@@ -91,31 +83,14 @@ trait TestBoundedContext {
     val expectedVersion: Int = 0 // Not used
   }
 
-  case class EmptyResource(id: UUID) extends BaseResource[State] {
-    override def version: Int = 0
-  }
+  case class TimestampMeta(timestamp: Instant)
 
-  trait BusinessLogicTrait extends DomainBusinessLogicAdapter[State, UUID, BaseTestCommand, BaseTestEvent, EmptyResource, DefaultCommandMetadata] {
-    override def aggregateName: String = "TestCounterAggregate"
+  trait BusinessLogicTrait extends AggregateCommandModel[UUID, State, BaseTestCommand, BaseTestEvent, TimestampMeta, TimestampMeta] {
 
-    override def processCommand(
-      currentAggregate: Option[State],
-      command: BaseTestCommand, props: DefaultCommandMetadata): Try[Seq[BaseTestEvent]] = {
-      val newSequenceNumber = currentAggregate.map(_.version).getOrElse(0) + 1
-      val evt = command match {
-        case Increment(aggregateId) ⇒ CountIncremented(aggregateId, incrementBy = 1,
-          version = newSequenceNumber, timestamp = props.timestamp)
-        case Decrement(aggregateId) ⇒ CountDecremented(aggregateId, decrementBy = 1,
-          version = newSequenceNumber, timestamp = props.timestamp)
-      }
-      Success(Seq(evt))
-    }
+    override def handleEvent: (Option[State], BaseTestEvent, TimestampMeta) ⇒ Option[State] = { (agg, evt, _) ⇒
+      val current = agg.getOrElse(State(evt.aggregateId, 0, 0, Instant.now))
 
-    override def processEvent(currentAggregate: Option[State], eventMessage: EventMessage[BaseTestEvent]): Option[State] = {
-      val event = eventMessage.body
-      val current = currentAggregate.getOrElse(State(event.aggregateId, 0, 0, Instant.now))
-
-      val newState = event match {
+      val newState = evt match {
         case CountIncremented(_, incrementBy, sequenceNumber, _) ⇒
           current.copy(count = current.count + incrementBy, version = sequenceNumber)
         case CountDecremented(_, decrementBy, sequenceNumber, _) ⇒
@@ -124,32 +99,49 @@ trait TestBoundedContext {
       Some(newState)
     }
 
-    override implicit def eventFormat: Format[BaseTestEvent] = baseEventFormat
-    override implicit def commandFormat: Format[BaseTestCommand] = baseCommandFormat
+    override def aggIdFromCommand: BaseTestCommand ⇒ UUID = { _.aggregateId }
+    override def cmdMetaToEvtMeta: TimestampMeta ⇒ TimestampMeta = { identity }
+    override def processCommand: CommandProcessor[State, BaseTestCommand, BaseTestEvent, TimestampMeta] = { (agg, cmd, meta) ⇒
+      val newSequenceNumber = agg.map(_.version).getOrElse(0) + 1
+      val evt = cmd match {
+        case Increment(aggregateId) ⇒ CountIncremented(aggregateId, incrementBy = 1,
+          sequenceNumber = newSequenceNumber, timestamp = meta.timestamp)
+        case Decrement(aggregateId) ⇒ CountDecremented(aggregateId, decrementBy = 1,
+          sequenceNumber = newSequenceNumber, timestamp = meta.timestamp)
+      }
+      Success(Seq(evt))
+    }
 
-    override def resourceFromAggregate(aggregate: Option[State]): Option[EmptyResource] = None
-    override implicit def resourceFormat: Format[EmptyResource] = Json.format[EmptyResource]
-
-    override val commandValidator: AsyncCommandValidator[BaseTestCommand, State] = AsyncCommandValidator[BaseTestCommand, State] { _ ⇒
+    val commandValidator: AsyncCommandValidator[BaseTestCommand, State] = AsyncCommandValidator[BaseTestCommand, State] { _ ⇒
       Seq.empty
     }
 
-    override def extractAggregateId(aggregate: State): UUID = aggregate.aggregateId
-    override def extractCmdAggregateId(command: BaseTestCommand): UUID = command.aggregateId
+    val aggregateComposer: SimpleJsonAggregateComposer[UUID, State] = new SimpleJsonAggregateComposer[UUID, State](stateFormat)
 
-    override def eventTypeInfo(event: BaseTestEvent): EventMessageTypeInfo = event.typeInfo
-
-    override def metaToPartialEventProps(cmdMeta: DefaultCommandMetadata): EventProperties = cmdMeta.toEventProperties
-
-    override def aggregateComposer: AggregateComposer[State, UUID] = new SimpleJsonComposer[State, UUID](stateFormat)
+    val stateKeyExtractor: JsValue ⇒ String = { json ⇒ aggregateComposer.compose(Set(json)).map(_.aggregateId.toString).getOrElse("") }
   }
+
   object BusinessLogic extends BusinessLogicTrait
 
-  val kafkaStreamsLogic = KafkaStreamsCommandBusinessLogic(
+  private val kafkaConfig = KafkaStreamsCommandKafkaConfig[BaseTestEvent](
     stateTopic = KafkaTopic("testStateTopic", compacted = false, None),
     eventsTopic = KafkaTopic("testEventsTopic", compacted = false, None),
     internalMetadataTopic = KafkaTopic("metadataTopic", compacted = false, None),
-    businessLogicAdapter = BusinessLogic,
+    eventKeyExtractor = { evt ⇒ s"${evt.aggregateId}:${evt.sequenceNumber}" },
+    stateKeyExtractor = BusinessLogic.stateKeyExtractor)
+  val formats: SurgeFormatting[BaseTestCommand, BaseTestEvent] = new SurgeFormatting[BaseTestCommand, BaseTestEvent] {
+    override implicit def eventFormat: Format[BaseTestEvent] = baseEventFormat
+    override implicit def commandFormat: Format[BaseTestCommand] = baseCommandFormat
+  }
+  val kafkaStreamsLogic = KafkaStreamsCommandBusinessLogic(
+    aggregateName = "CountAggregate",
+    kafka = kafkaConfig,
+    model = BusinessLogic,
+    formatting = formats,
+    commandValidator = BusinessLogic.commandValidator,
+    aggregateValidator = { (_, _, _) ⇒ true },
+    aggregateComposer = BusinessLogic.aggregateComposer,
+    metricsProvider = NoOpMetricsProvider,
     metricsPublisher = NoOpsMetricsPublisher, metricsInterval = 100.seconds)
 
 }

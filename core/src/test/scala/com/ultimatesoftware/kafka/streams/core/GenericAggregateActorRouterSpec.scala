@@ -16,6 +16,7 @@ import org.mockito.ArgumentMatchers._
 import org.mockito.Mockito._
 import org.scalatest.{ Assertion, BeforeAndAfterAll, Matchers, WordSpecLike }
 import org.scalatestplus.mockito.MockitoSugar
+import play.api.libs.json.JsValue
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -35,7 +36,7 @@ class GenericAggregateActorRouterSpec extends TestKit(ActorSystem("GenericAggreg
 
   private def routerActor(partitionTrackerProbe: TestProbe): ActorRef = {
     val mockGlobalKTableStateStore = mock[GlobalKTableMetadataHandler]
-    val mockKafkaStreamsCommand = mock[AggregateStateStoreKafkaStreams]
+    val mockKafkaStreamsCommand = mock[AggregateStateStoreKafkaStreams[JsValue]]
     val mockStateMetaRepo = mock[KafkaStreamsKeyValueStore[String, KafkaPartitionMetadata]]
 
     when(mockStateMetaRepo.all()).thenReturn(Future.successful(List.empty))
@@ -50,7 +51,7 @@ class GenericAggregateActorRouterSpec extends TestKit(ActorSystem("GenericAggreg
     val props = KafkaPartitionShardRouterActor.props(
       partitionTracker = partitionTrackerProbe.ref,
       partitioner = kafkaStreamsLogic.partitioner,
-      trackedTopic = kafkaStreamsLogic.stateTopic,
+      trackedTopic = kafkaStreamsLogic.kafka.stateTopic,
       regionCreator = shardRegionCreator, extractEntityId = GenericAggregateActor.RoutableMessage.extractEntityId)
 
     system.actorOf(props)
@@ -82,11 +83,11 @@ class GenericAggregateActorRouterSpec extends TestKit(ActorSystem("GenericAggreg
     val hostPort2 = HostPort("bar", 2552)
     val hostPort3 = HostPort("baz", 2552)
     val hostPortLocal = HostPort(localHostname, 2552)
-    val partition1 = new TopicPartition(kafkaStreamsLogic.stateTopic.name, 1)
-    val partition2 = new TopicPartition(kafkaStreamsLogic.stateTopic.name, 2)
-    val partition3 = new TopicPartition(kafkaStreamsLogic.stateTopic.name, 3)
-    val partition4 = new TopicPartition(kafkaStreamsLogic.stateTopic.name, 4)
-    val partition5 = new TopicPartition(kafkaStreamsLogic.stateTopic.name, 5)
+    val partition1 = new TopicPartition(kafkaStreamsLogic.kafka.stateTopic.name, 1)
+    val partition2 = new TopicPartition(kafkaStreamsLogic.kafka.stateTopic.name, 2)
+    val partition3 = new TopicPartition(kafkaStreamsLogic.kafka.stateTopic.name, 3)
+    val partition4 = new TopicPartition(kafkaStreamsLogic.kafka.stateTopic.name, 4)
+    val partition5 = new TopicPartition(kafkaStreamsLogic.kafka.stateTopic.name, 5)
 
     "Correctly follow partition region assignment updates" in {
       val partitionTrackerProbe = TestProbe()

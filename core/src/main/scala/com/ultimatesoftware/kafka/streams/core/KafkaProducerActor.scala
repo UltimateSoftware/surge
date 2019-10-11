@@ -10,9 +10,9 @@ import akka.actor.{ Actor, ActorRef, ActorSystem, Props, Stash }
 import akka.pattern._
 import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
-import com.ultimatesoftware.kafka.streams.{ AggregateStateStoreKafkaStreams, GlobalKTableMetadataHandler, KafkaPartitionMetadata }
+import com.ultimatesoftware.kafka.streams.{ GlobalKTableMetadataHandler, KafkaPartitionMetadata }
 import com.ultimatesoftware.scala.core.kafka._
-import com.ultimatesoftware.scala.core.messaging.{ EventMessage, StateMessage }
+import com.ultimatesoftware.scala.core.messaging.StateMessage
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, Rate, Timer }
 import com.ultimatesoftware.scala.core.utils.JsonUtils
 import org.apache.kafka.clients.producer.{ ProducerConfig, ProducerRecord }
@@ -24,36 +24,32 @@ import play.api.libs.json.JsValue
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
 
-class KafkaProducerActor[Agg, AggIdType, Event](
+class KafkaProducerActor[AggId, Agg, Event](
     actorSystem: ActorSystem,
     assignedPartition: TopicPartition,
     metricsProvider: MetricsProvider,
     stateMetaHandler: GlobalKTableMetadataHandler,
-    aggregateCommandKafkaStreams: KafkaStreamsCommandBusinessLogic[Agg, AggIdType, _, Event, _],
-    kafkaStreamsImpl: AggregateStateStoreKafkaStreams) {
-  import aggregateCommandKafkaStreams.businessLogicAdapter._
+    aggregateCommandKafkaStreams: KafkaStreamsCommandBusinessLogic[AggId, Agg, _, Event, _, _]) {
+
+  import aggregateCommandKafkaStreams.formatting._
 
   private val log = LoggerFactory.getLogger(getClass)
+  private val aggregateName: String = aggregateCommandKafkaStreams.aggregateName
 
   private val publisherActor = actorSystem.actorOf(
     Props(new KafkaProducerActorImpl(
-      assignedPartition, metricsProvider, stateMetaHandler, aggregateCommandKafkaStreams, kafkaStreamsImpl)).withDispatcher("kafka-publisher-actor-dispatcher"))
+      assignedPartition, metricsProvider, stateMetaHandler, aggregateCommandKafkaStreams)).withDispatcher("kafka-publisher-actor-dispatcher"))
 
   private val publishEventsTimer: Timer = metricsProvider.createTimer(s"${aggregateName}PublishEventsTimer")
-  def publish(aggregateId: AggIdType, states: Seq[StateMessage[JsValue]], events: Seq[EventMessage[Event]]): Future[Done] = {
+  def publish(aggregateId: AggId, states: Seq[(String, JsValue)], events: Seq[(String, Event)]): Future[Done] = {
 
-    val eventKeyValuePairs = events.map { event ⇒
+    val eventKeyValuePairs = events.map { eventKV ⇒
       log.trace(s"Publishing event for $aggregateName $aggregateId")
-      s"${event.aggregateId}:${event.sequenceNumber}" -> JsonUtils.gzip(event)
+      eventKV._1 -> JsonUtils.gzip(eventKV._2)
     }
-    val stateKeyValuePairs = states.flatMap { msg ⇒
-      msg.body.map { _ ⇒
-        log.trace(s"Publishing state for $aggregateName $aggregateId")
-        msg.fullIdentifier -> JsonUtils.gzip(msg)
-      } orElse {
-        log.warn(s"Tried to publish StateMessage with no state. This shouldn't happen")
-        None
-      }
+    val stateKeyValuePairs = states.map { stateKv ⇒
+      log.trace(s"Publishing state for $aggregateName $aggregateId")
+      stateKv._1 -> JsonUtils.gzip(stateKv._2)
     }
 
     publishEventsTimer.time {
@@ -81,13 +77,12 @@ private object KafkaProducerActorImpl {
 private class KafkaProducerActorImpl[Agg, Event](
     assignedPartition: TopicPartition, metrics: MetricsProvider,
     stateMetaHandler: GlobalKTableMetadataHandler,
-    aggregateCommandKafkaStreams: KafkaStreamsCommandBusinessLogic[Agg, _, _, Event, _],
-    kafkaStreamsImpl: AggregateStateStoreKafkaStreams) extends Actor with Stash {
+    aggregateCommandKafkaStreams: KafkaStreamsCommandBusinessLogic[_, Agg, _, Event, _, _]) extends Actor with Stash {
 
   import KafkaProducerActorImpl._
-  import context.dispatcher
   import aggregateCommandKafkaStreams._
-  import aggregateCommandKafkaStreams.businessLogicAdapter._
+  import context.dispatcher
+  import kafka._
 
   private val log: Logger = LoggerFactory.getLogger(getClass)
 

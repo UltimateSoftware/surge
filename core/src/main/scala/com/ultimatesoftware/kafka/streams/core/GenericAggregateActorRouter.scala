@@ -7,30 +7,31 @@ import com.ultimatesoftware.kafka.streams.{ AggregateStateStoreKafkaStreams, Glo
 import com.ultimatesoftware.kafka.{ KafkaPartitionShardRouterActor, TopicPartitionRegionCreator }
 import com.ultimatesoftware.scala.core.monitoring.metrics.MetricsProvider
 import org.apache.kafka.common.TopicPartition
+import play.api.libs.json.JsValue
 
-private[streams] final class GenericAggregateActorRouter[Agg, AggIdType, Command, Event, CmdMeta](
+private[streams] final class GenericAggregateActorRouter[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
     system: ActorSystem,
     clusterStateTrackingActor: ActorRef,
-    businessLogic: KafkaStreamsCommandBusinessLogic[Agg, AggIdType, Command, Event, CmdMeta],
+    businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta],
     metricsProvider: MetricsProvider,
     stateMetaHandler: GlobalKTableMetadataHandler,
-    kafkaStreamsCommand: AggregateStateStoreKafkaStreams) {
+    kafkaStreamsCommand: AggregateStateStoreKafkaStreams[JsValue]) {
 
   val actorRegion: ActorRef = {
-    val shardRegionCreator = new TPRegionProps[Agg, AggIdType, Command, Event, CmdMeta](businessLogic, metricsProvider, stateMetaHandler,
+    val shardRegionCreator = new TPRegionProps[AggId, Agg, Command, Event, CmdMeta, EvtMeta](businessLogic, metricsProvider, stateMetaHandler,
       kafkaStreamsCommand)
 
-    val shardRouterProps = KafkaPartitionShardRouterActor.props(clusterStateTrackingActor, businessLogic.partitioner, businessLogic.stateTopic,
+    val shardRouterProps = KafkaPartitionShardRouterActor.props(clusterStateTrackingActor, businessLogic.partitioner, businessLogic.kafka.stateTopic,
       shardRegionCreator, GenericAggregateActor.RoutableMessage.extractEntityId)
     system.actorOf(shardRouterProps, name = "RouterActor")
   }
 }
 
-class TPRegionProps[Agg, AggIdType, Command, Event, CmdMeta](
-    businessLogic: KafkaStreamsCommandBusinessLogic[Agg, AggIdType, Command, Event, CmdMeta],
+class TPRegionProps[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
+    businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta],
     metricsProvider: MetricsProvider,
     stateMetaHandler: GlobalKTableMetadataHandler,
-    kafkaStreamsCommand: AggregateStateStoreKafkaStreams) extends TopicPartitionRegionCreator {
+    kafkaStreamsCommand: AggregateStateStoreKafkaStreams[JsValue]) extends TopicPartitionRegionCreator {
   override def propsFromTopicPartition(topicPartition: TopicPartition): Props = {
     PartitionRegionManagementActor.props(
       assignedPartition = topicPartition,
