@@ -2,10 +2,10 @@
 
 package com.ultimatesoftware.kafka.streams.core
 
-import com.ultimatesoftware.scala.core.domain._
 import com.ultimatesoftware.scala.core.kafka.{ KafkaPartitioner, KafkaTopic, PartitionStringUpToColon }
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, MetricsPublisher }
 import com.ultimatesoftware.scala.core.validations.AsyncCommandValidator
+import com.ultimatesoftware.scala.oss.domain.{ AggregateCommandModel, AggregateComposer }
 import play.api.libs.json.JsValue
 
 import scala.concurrent.duration._

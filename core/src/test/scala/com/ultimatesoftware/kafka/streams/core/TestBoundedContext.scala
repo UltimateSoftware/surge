@@ -1,16 +1,15 @@
-/*
- * Copyright (C) 2017-2019 Ultimate Software Group. <https://www.ultimatesoftware.com>
- */
+// Copyright (C) 2018 Ultimate Software
 
 package com.ultimatesoftware.kafka.streams.core
 
 import java.time.Instant
 import java.util.UUID
 
-import com.ultimatesoftware.scala.core.domain.{ AggregateCommandModel, CommandProcessor, SimpleJsonAggregateComposer }
+import com.ultimatesoftware.scala.core.domain.SimpleJsonAggregateComposer
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ NoOpMetricsProvider, NoOpsMetricsPublisher }
 import com.ultimatesoftware.scala.core.validations.AsyncCommandValidator
+import com.ultimatesoftware.scala.oss.domain.{ AggregateCommandModel, CommandProcessor }
 import play.api.libs.json._
 
 import scala.concurrent.duration._

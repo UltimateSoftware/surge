@@ -5,10 +5,10 @@ package com.ultimatesoftware.kafka.streams.javadsl
 import java.util.Optional
 
 import com.ultimatesoftware.kafka.streams.core.{ KafkaStreamsCommandKafkaConfig, SurgeFormatting }
-import com.ultimatesoftware.scala.core.domain._
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, MetricsPublisher, NoOpsMetricsPublisher }
 import com.ultimatesoftware.scala.core.validations.AsyncCommandValidator
+import com.ultimatesoftware.scala.oss.domain.{ AggregateCommandModel, AggregateComposer }
 import play.api.libs.json.JsValue
 
 import scala.compat.java8.OptionConverters._
