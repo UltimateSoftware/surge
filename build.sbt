@@ -1,8 +1,8 @@
-/*
- * Copyright (C) 2017-2019 Ultimate Software Group. <https://www.ultimatesoftware.com>
- */
+// Copyright (C) 2018 Ultimate Software
 
 import Keys._
+
+skip in publish := true
 
 lazy val `surge-engine-ks-command-core` = (project in file("core"))
   .settings(
