@@ -8,6 +8,7 @@ import java.util.UUID
 import com.ultimatesoftware.scala.core.domain.SimpleJsonAggregateComposer
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ NoOpMetricsProvider, NoOpsMetricsPublisher }
+import com.ultimatesoftware.scala.core.utils.JsonUtils
 import com.ultimatesoftware.scala.core.validations.AsyncCommandValidator
 import com.ultimatesoftware.scala.oss.domain.{ AggregateCommandModel, CommandProcessor }
 import play.api.libs.json._
@@ -128,9 +129,8 @@ trait TestBoundedContext {
     internalMetadataTopic = KafkaTopic("metadataTopic", compacted = false, None),
     eventKeyExtractor = { evt ⇒ s"${evt.aggregateId}:${evt.sequenceNumber}" },
     stateKeyExtractor = BusinessLogic.stateKeyExtractor)
-  val formats: SurgeFormatting[BaseTestCommand, BaseTestEvent] = new SurgeFormatting[BaseTestCommand, BaseTestEvent] {
-    override implicit def eventFormat: Format[BaseTestEvent] = baseEventFormat
-    override implicit def commandFormat: Format[BaseTestCommand] = baseCommandFormat
+  val formats: SurgeFormatting[BaseTestEvent] = new SurgeFormatting[BaseTestEvent] {
+    override def writeEvent(evt: BaseTestEvent): Array[Byte] = JsonUtils.gzip(evt)(baseEventFormat)
   }
   val kafkaStreamsLogic = KafkaStreamsCommandBusinessLogic(
     aggregateName = "CountAggregate",

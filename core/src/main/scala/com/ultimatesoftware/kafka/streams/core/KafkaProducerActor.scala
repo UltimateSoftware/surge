@@ -31,8 +31,6 @@ class KafkaProducerActor[AggId, Agg, Event](
     stateMetaHandler: GlobalKTableMetadataHandler,
     aggregateCommandKafkaStreams: KafkaStreamsCommandBusinessLogic[AggId, Agg, _, Event, _, _]) {
 
-  import aggregateCommandKafkaStreams.formatting._
-
   private val log = LoggerFactory.getLogger(getClass)
   private val aggregateName: String = aggregateCommandKafkaStreams.aggregateName
 
@@ -45,7 +43,7 @@ class KafkaProducerActor[AggId, Agg, Event](
 
     val eventKeyValuePairs = events.map { eventKV ⇒
       log.trace(s"Publishing event for $aggregateName $aggregateId")
-      eventKV._1 -> JsonUtils.gzip(eventKV._2)
+      eventKV._1 -> aggregateCommandKafkaStreams.formatting.writeEvent(eventKV._2)
     }
     val stateKeyValuePairs = states.map { stateKv ⇒
       log.trace(s"Publishing state for $aggregateName $aggregateId")
