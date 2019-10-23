@@ -13,13 +13,12 @@ trait UltiKafkaStreamsCommand[AggId, Agg, Cmd, Event, CmdMeta]
 object UltiKafkaStreamsCommand {
   def create[AggId, Agg, Cmd, Event, CmdMeta](
     ultiBusinessLogic: UltiKafkaStreamsCommandBusinessLogic[AggId, Agg, Cmd, Event, CmdMeta]): UltiKafkaStreamsCommand[AggId, Agg, Cmd, Event, CmdMeta] = {
-    new UltiKafkaStreamsCommand[AggId, Agg, Cmd, Event, CmdMeta] {
-      private val underlying = KafkaStreamsCommand.create(ultiBusinessLogic)
 
-      override val actorSystem: ActorSystem = underlying.actorSystem
-      override val businessLogic: core.KafkaStreamsCommandBusinessLogic[AggId, StatePlusMetadata[Agg], Cmd, EventMessage[Event], CmdMeta, EventProperties] =
-        underlying.businessLogic
-    }
+    val actorSystem = ActorSystem(s"${ultiBusinessLogic.aggregateName}ActorSystem")
+    new UltiKafkaStreamsCommandImpl(actorSystem, ultiBusinessLogic.toCore)
   }
 }
 
+private[javadsl] class UltiKafkaStreamsCommandImpl[AggId, Agg, Command, Event, CmdMeta](
+    val actorSystem: ActorSystem,
+    val businessLogic: core.KafkaStreamsCommandBusinessLogic[AggId, StatePlusMetadata[Agg], Command, EventMessage[Event], CmdMeta, EventProperties]) extends UltiKafkaStreamsCommand[AggId, Agg, Command, Event, CmdMeta]
