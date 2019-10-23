@@ -2,8 +2,8 @@
 
 package com.ultimatesoftware.kafka.streams.javadsl
 
-import com.ultimatesoftware.scala.core.domain.StatePlusMetadata
-import com.ultimatesoftware.scala.core.messaging.{ EventMessage, EventProperties, StateMessage }
+import com.ultimatesoftware.scala.core.domain.{ StateMessage, StatePlusMetadata }
+import com.ultimatesoftware.scala.core.messaging.{ EventMessage, EventProperties }
 import com.ultimatesoftware.scala.core.validations.AsyncCommandValidator
 import play.api.libs.json.JsValue
 

@@ -11,8 +11,8 @@ import akka.pattern._
 import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
 import com.ultimatesoftware.kafka.streams.{ GlobalKTableMetadataHandler, KafkaPartitionMetadata }
+import com.ultimatesoftware.scala.core.domain.StateMessage
 import com.ultimatesoftware.scala.core.kafka._
-import com.ultimatesoftware.scala.core.messaging.StateMessage
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, Rate, Timer }
 import com.ultimatesoftware.scala.core.utils.JsonUtils
 import org.apache.kafka.clients.producer.{ ProducerConfig, ProducerRecord }
