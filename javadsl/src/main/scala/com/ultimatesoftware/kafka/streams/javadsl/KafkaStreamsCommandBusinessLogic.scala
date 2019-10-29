@@ -6,7 +6,7 @@ import java.util.Optional
 
 import com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandKafkaConfig
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
-import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, MetricsPublisher, NoOpsMetricsPublisher }
+import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, MetricsPublisher, NoOpMetricsProvider, NoOpsMetricsPublisher }
 import com.ultimatesoftware.scala.core.validations.AsyncCommandValidator
 import com.ultimatesoftware.scala.oss.domain.{ AggregateCommandModel, AggregateComposer }
 import play.api.libs.json.JsValue
@@ -38,7 +38,7 @@ abstract class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdM
   def metricsPublisher: MetricsPublisher = NoOpsMetricsPublisher
   def metricsInterval: FiniteDuration = 30.seconds
 
-  def metricsProvider: MetricsProvider
+  def metricsProvider: MetricsProvider = NoOpMetricsProvider
 
   private def kafkaConfig = KafkaStreamsCommandKafkaConfig(stateTopic = stateTopic, eventsTopic = eventsTopic,
     internalMetadataTopic = internalMetadataTopic, eventKeyExtractor = eventKeyExtractor, stateKeyExtractor = stateKeyExtractor)

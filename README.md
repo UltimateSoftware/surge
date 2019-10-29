@@ -13,7 +13,7 @@ resolvers ++= Seq(
   "gears-tools-maven-release" at "https://artifactory.mia.ulti.io/artifactory/gt-maven-libs-release/"
 )
 libraryDependencies ++= Seq(
-  "com.ultimatesoftware" %% "surge-engine-ks-command-scaladsl" % "0.0.6"
+  "com.ultimatesoftware" %% "surge-engine-ks-command-scaladsl" % "0.1.0"
 )
 ```
 
@@ -23,7 +23,7 @@ resolvers ++= Seq(
   "gears-tools-maven-release" at "https://artifactory.mia.ulti.io/artifactory/gt-maven-libs-release/"
 )
 libraryDependencies ++= Seq(
-  "com.ultimatesoftware" %% "surge-engine-ks-command-javadsl" % "0.0.6"
+  "com.ultimatesoftware" %% "surge-engine-ks-command-javadsl" % "0.1.0"
 )
 ```
 
@@ -50,7 +50,7 @@ In maven for java:
         <dependency>
             <groupId>com.ultimatesoftware</groupId>
             <artifactId>surge-engine-ks-command-javadsl_2.12</artifactId>
-            <version>0.0.6</version>
+            <version>0.1.0</version>
         </dependency>
     </dependencies>
 </project>

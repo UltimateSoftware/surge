@@ -6,7 +6,10 @@ import akka.actor.ActorSystem
 import com.typesafe.config.ConfigFactory
 import com.ultimatesoftware.kafka.KafkaConsumerStateTrackingActor
 import com.ultimatesoftware.kafka.streams.{ AggregateStateStoreKafkaStreams, GlobalKTableMetadataHandler, KafkaStreamsPartitionTrackerActorProvider }
+import org.slf4j.{ Logger, LoggerFactory }
 import play.api.libs.json.JsValue
+
+import scala.concurrent.{ ExecutionContext, ExecutionContextExecutor }
 
 trait KafkaStreamsCommandTrait[AggId, Agg, Command, Event, CmdMeta, EvtMeta] {
   val actorSystem: ActorSystem

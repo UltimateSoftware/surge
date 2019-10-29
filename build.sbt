@@ -15,8 +15,6 @@ lazy val `surge-engine-ks-command-core` = (project in file("core"))
       mockitoCore,
       scalatest,
       typesafeConfig,
-      Ultimate.Surge.akka,
-      Ultimate.Surge.kafkaStreams,
       Ultimate.Surge.kafkaStreamsPlusAkka,
       Ultimate.Surge.scalaCore
     )

@@ -10,7 +10,7 @@ import akka.Done
 import akka.actor.{ ActorRef, ActorSystem }
 import akka.testkit.{ TestKit, TestProbe }
 import akka.util.Timeout
-import com.ultimatesoftware.kafka.streams.{ AggregateStateStoreKafkaStreams, KafkaPartitionMetadata, KafkaStreamsKeyValueStore, StatePlusPartitionMetadata }
+import com.ultimatesoftware.kafka.streams.{ AggregateStateStoreKafkaStreams, KafkaStreamsKeyValueStore }
 import com.ultimatesoftware.scala.core.monitoring.metrics.NoOpMetricsProvider
 import org.mockito.ArgumentMatchers._
 import org.mockito.Mockito._
@@ -44,9 +44,8 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
     GenericAggregateActor.CommandEnvelope(cmd.aggregateId, TimestampMeta(Instant.now.truncatedTo(ChronoUnit.SECONDS)), cmd)
   }
 
-  private def mockAggregateKeyValueStore(
-    contents: Map[String, StatePlusPartitionMetadata[JsValue]]): KafkaStreamsKeyValueStore[String, StatePlusPartitionMetadata[JsValue]] = {
-    val mockStore = mock[KafkaStreamsKeyValueStore[String, StatePlusPartitionMetadata[JsValue]]]
+  private def mockAggregateKeyValueStore(contents: Map[String, JsValue]): KafkaStreamsKeyValueStore[String, JsValue] = {
+    val mockStore = mock[KafkaStreamsKeyValueStore[String, JsValue]]
     when(mockStore.get(anyString)).thenAnswer((invocation: InvocationOnMock) ⇒ {
       val id = invocation.getArgument[String](0)
       Future.successful(contents.get(id))
@@ -81,10 +80,7 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
       val incrementCmd = Increment(testAggregateId)
       val testEnvelope = envelope(incrementCmd)
 
-      val testAggregateStateMeta = StatePlusPartitionMetadata(
-        Json.toJson(baseState),
-        KafkaPartitionMetadata(topic = "testTopic", partition = 0, offset = 100, key = testAggregateId.toString))
-      val mockStateStore = mockAggregateKeyValueStore(Map(testAggregateId.toString -> testAggregateStateMeta))
+      val mockStateStore = mockAggregateKeyValueStore(Map(testAggregateId.toString -> Json.toJson(baseState)))
       val mockKafkaStreams = mock[AggregateStateStoreKafkaStreams[JsValue]]
       when(mockKafkaStreams.aggregateQueryableStateStore).thenReturn(mockStateStore)
       when(mockKafkaStreams.substatesForAggregate(anyString)(any[ExecutionContext])).thenCallRealMethod

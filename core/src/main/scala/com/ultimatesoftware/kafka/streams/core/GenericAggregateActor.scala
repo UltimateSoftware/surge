@@ -15,7 +15,7 @@ import com.ultimatesoftware.scala.core.validations._
 import org.slf4j.LoggerFactory
 import play.api.libs.json._
 
-import scala.concurrent.Future
+import scala.concurrent.{ ExecutionContext, ExecutionContextExecutor, Future }
 import scala.concurrent.duration._
 
 private[streams] object GenericAggregateActor {
@@ -213,12 +213,39 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
   }
 
   private def fetchState(initializationAttempts: Int): Unit = {
+    if (businessLogic.aggregateComposer.expectSingleEntity) {
+      initFromSingleState(initializationAttempts)
+    } else {
+      initFromSubstates(initializationAttempts)
+    }
+  }
+
+  private def initFromSingleState(initializationAttempts: Int): Unit = {
+    val fetchedStateFut = metrics.stateInitializationTimer.time(
+      kafkaStreamsCommand.aggregateQueryableStateStore.get(aggregateId.toString))
+
+    fetchedStateFut.map { state ⇒
+      val stateSet = state.toSeq.toSet
+      log.trace("GenericAggregateActor for {} fetched {} persisted substate", aggregateId, stateSet.size)
+      val stateOpt = businessLogic.aggregateComposer.compose(stateSet)
+
+      self ! InitializeWithState(stateOpt)
+    } recover {
+      case _: NullPointerException ⇒
+        log.error("Used null for aggregateId - this is weird. Will not try to initialize state again")
+      case exception ⇒
+        log.error(s"Failed to initialize ${businessLogic.aggregateName} actor for aggregate $aggregateId, retrying", exception)
+        context.system.scheduler.scheduleOnce(3.seconds)(initializeState(initializationAttempts + 1))
+    }
+  }
+
+  private def initFromSubstates(initializationAttempts: Int): Unit = {
     val fetchedStateFut = metrics.stateInitializationTimer.time(
       kafkaStreamsCommand.substatesForAggregate(aggregateId.toString))
 
     fetchedStateFut.map { substates ⇒
       log.trace("GenericAggregateActor for {} fetched {} persisted substates", aggregateId, substates.length)
-      val serializedStates = substates.map(_._2.state).toSet
+      val serializedStates = substates.map(_._2).toSet
       val stateOpt = businessLogic.aggregateComposer.compose(serializedStates)
 
       self ! InitializeWithState(stateOpt)
@@ -230,4 +257,5 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
         context.system.scheduler.scheduleOnce(3.seconds)(initializeState(initializationAttempts + 1))
     }
   }
+
 }

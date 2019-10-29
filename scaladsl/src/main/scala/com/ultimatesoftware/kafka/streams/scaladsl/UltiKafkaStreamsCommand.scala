@@ -15,7 +15,14 @@ object UltiKafkaStreamsCommand {
     ultiBusinessLogic: UltiKafkaStreamsCommandBusinessLogic[AggId, Agg, Cmd, Event, CmdMeta]): UltiKafkaStreamsCommand[AggId, Agg, Cmd, Event, CmdMeta] = {
 
     val actorSystem = ActorSystem(s"${ultiBusinessLogic.aggregateName}ActorSystem")
+    apply(actorSystem, ultiBusinessLogic)
+  }
+
+  def apply[AggId, Agg, Cmd, Event, CmdMeta](
+    actorSystem: ActorSystem,
+    ultiBusinessLogic: UltiKafkaStreamsCommandBusinessLogic[AggId, Agg, Cmd, Event, CmdMeta]): UltiKafkaStreamsCommand[AggId, Agg, Cmd, Event, CmdMeta] = {
     new UltiKafkaStreamsCommandImpl(actorSystem, ultiBusinessLogic.toCore)
+
   }
 }
 
