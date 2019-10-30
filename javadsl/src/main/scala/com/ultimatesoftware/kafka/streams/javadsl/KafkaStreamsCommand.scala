@@ -1,4 +1,4 @@
-// Copyright (C) 2018 Ultimate Software
+// Copyright © 2017-2019 Ultimate Software Group. <https://www.ultimatesoftware.com>
 
 package com.ultimatesoftware.kafka.streams.javadsl
 
@@ -6,9 +6,7 @@ import akka.actor.ActorSystem
 import com.ultimatesoftware.kafka.streams.core
 
 trait KafkaStreamsCommand[AggId, Agg, Command, Event, CmdMeta, EvtMeta] extends core.KafkaStreamsCommandTrait[AggId, Agg, Command, Event, CmdMeta, EvtMeta] {
-  def aggregateFor(aggregateId: AggId): AggregateRef[AggId, Agg, Command, CmdMeta] = {
-    new AggregateRef(aggregateId, actorRouter.actorRegion, system)
-  }
+  def aggregateFor(aggregateId: AggId): AggregateRef[AggId, Agg, Command, CmdMeta]
 }
 
 object KafkaStreamsCommand {
@@ -21,4 +19,10 @@ object KafkaStreamsCommand {
 
 private[javadsl] class KafkaStreamsCommandImpl[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
     val actorSystem: ActorSystem,
-    val businessLogic: core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta]) extends KafkaStreamsCommand[AggId, Agg, Command, Event, CmdMeta, EvtMeta]
+    val businessLogic: core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta])
+  extends KafkaStreamsCommand[AggId, Agg, Command, Event, CmdMeta, EvtMeta] with core.KafkaStreamsCommandImpl[AggId, Agg, Command, Event, CmdMeta, EvtMeta] {
+
+  def aggregateFor(aggregateId: AggId): AggregateRef[AggId, Agg, Command, CmdMeta] = {
+    new AggregateRefImpl(aggregateId, actorRouter.actorRegion, system)
+  }
+}

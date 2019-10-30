@@ -1,4 +1,4 @@
-// Copyright (C) 2018 Ultimate Software
+// Copyright © 2017-2019 Ultimate Software Group. <https://www.ultimatesoftware.com>
 
 package com.ultimatesoftware.kafka.streams.scaladsl
 
@@ -28,4 +28,11 @@ object UltiKafkaStreamsCommand {
 
 private[scaladsl] class UltiKafkaStreamsCommandImpl[AggId, Agg, Command, Event, CmdMeta](
     val actorSystem: ActorSystem,
-    val businessLogic: core.KafkaStreamsCommandBusinessLogic[AggId, StatePlusMetadata[Agg], Command, EventMessage[Event], CmdMeta, EventProperties]) extends UltiKafkaStreamsCommand[AggId, Agg, Command, Event, CmdMeta]
+    val businessLogic: core.KafkaStreamsCommandBusinessLogic[AggId, StatePlusMetadata[Agg], Command, EventMessage[Event], CmdMeta, EventProperties])
+  extends UltiKafkaStreamsCommand[AggId, Agg, Command, Event, CmdMeta]
+  with core.KafkaStreamsCommandImpl[AggId, StatePlusMetadata[Agg], Command, EventMessage[Event], CmdMeta, EventProperties] {
+
+  override def aggregateFor(aggregateId: AggId): AggregateRef[AggId, StatePlusMetadata[Agg], Command, CmdMeta] = {
+    new AggregateRefImpl(aggregateId, actorRouter.actorRegion, system)
+  }
+}

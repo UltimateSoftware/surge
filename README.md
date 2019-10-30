@@ -97,6 +97,16 @@ more times before giving up.  If there are no in flight messages for the aggrega
 query the aggregate state KTable by aggregate ID to initialize with the most up to date state
 before processing the command as normal.
 
+### Recommended Configurations
+
+#### Aggregate idle timeout
+Under the hood, we're using a Kafka Streams KTable to index aggregate state.  The KTable performs a
+flush every `KAFKA_STREAMS_COMMIT_INTERVAL_MS` milliseconds (default 3000).
+This flush notifies the stateful producer actor that an aggregate state in the KTable is completely
+up to date.  It is therefore recommended to keep aggregates in memory for at least this long, that
+way they are not impacted by the KTable flush delay.  The aggregate timeout can be configured with
+`AGGREGATE_ACTOR_IDLE_TIMEOUT` and defaults to `30 seconds`.
+
 
 ## Running
 

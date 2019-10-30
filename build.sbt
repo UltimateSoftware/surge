@@ -26,11 +26,19 @@ lazy val `surge-engine-ks-command-scaladsl` = (project in file("scaladsl"))
 lazy val `surge-engine-ks-command-javadsl` = (project in file("javadsl"))
   .dependsOn(`surge-engine-ks-command-core`)
 
+lazy val `surge-test-engine-ks-command-javadsl` = (project in file("test-engine-javadsl"))
+  .dependsOn(`surge-engine-ks-command-javadsl`)
+
+lazy val `surge-test-engine-ks-command-scaladsl` = (project in file("test-engine-scaladsl"))
+  .dependsOn(`surge-engine-ks-command-scaladsl`)
+
 lazy val root = project
   .aggregate(
     `surge-engine-ks-command-core`,
     `surge-engine-ks-command-javadsl`,
-    `surge-engine-ks-command-scaladsl`
+    `surge-engine-ks-command-scaladsl`,
+    `surge-test-engine-ks-command-javadsl`,
+    `surge-test-engine-ks-command-scaladsl`
   )
   .settings(
     skip in publish := true

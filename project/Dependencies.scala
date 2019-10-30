@@ -1,6 +1,4 @@
-/*
- * Copyright (C) 2017-2019 Ultimate Software Group. <https://www.ultimatesoftware.com>
- */
+// Copyright © 2017-2019 Ultimate Software Group. <https://www.ultimatesoftware.com>
 
 import sbt._
 
@@ -24,7 +22,7 @@ object Dependencies extends AutoPlugin {
 
     object Ultimate {
       object Surge {
-        val kafkaStreamsPlusAkka = "com.ultimatesoftware" %% "surge-ks-plus-akka" % "0.1.0"
+        val kafkaStreamsPlusAkka = "com.ultimatesoftware" %% "surge-common" % "0.1.3"
         val scalaCore = "com.ultimatesoftware" %% "ulti-scala-core" % "0.1.0"
       }
     }

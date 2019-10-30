@@ -1,4 +1,4 @@
-// Copyright (C) 2018 Ultimate Software
+// Copyright © 2017-2019 Ultimate Software Group. <https://www.ultimatesoftware.com>
 
 package com.ultimatesoftware.kafka.streams.javadsl
 
@@ -12,10 +12,15 @@ import scala.compat.java8.FutureConverters
 import scala.compat.java8.OptionConverters._
 import scala.concurrent.ExecutionContext
 
-final class AggregateRef[AggIdType, Agg, Cmd, CmdMeta](
+trait AggregateRef[AggIdType, Agg, Cmd, Meta] {
+  def getState: CompletionStage[Optional[Agg]]
+  def ask(commandProps: Meta, command: Cmd): CompletionStage[Optional[Agg]]
+}
+
+final class AggregateRefImpl[AggIdType, Agg, Cmd, CmdMeta](
     val aggregateId: AggIdType,
     val region: ActorRef,
-    val system: ActorSystem) extends AggregateRefTrait[AggIdType, Agg, Cmd, CmdMeta] {
+    val system: ActorSystem) extends AggregateRef[AggIdType, Agg, Cmd, CmdMeta] with AggregateRefTrait[AggIdType, Agg, Cmd, CmdMeta] {
 
   private implicit val ec: ExecutionContext = ExecutionContext.global
 

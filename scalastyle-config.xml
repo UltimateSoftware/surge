@@ -8,7 +8,7 @@
  </check>
  <check level="warning" class="org.scalastyle.file.HeaderMatchesChecker" enabled="true">
   <parameters>
-   <parameter name="header"><![CDATA[// Copyright (C) 2018 Ultimate Software]]></parameter>
+   <parameter name="header"><![CDATA[// Copyright © 2017-2019 Ultimate Software Group. <https://www.ultimatesoftware.com>]]></parameter>
   </parameters>
  </check>
  <check level="warning" class="org.scalastyle.scalariform.SpacesAfterPlusChecker" enabled="true"></check>

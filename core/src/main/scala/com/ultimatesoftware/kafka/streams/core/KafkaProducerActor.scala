@@ -1,4 +1,4 @@
-// Copyright (C) 2018 Ultimate Software
+// Copyright © 2017-2019 Ultimate Software Group. <https://www.ultimatesoftware.com>
 
 package com.ultimatesoftware.kafka.streams.core
 
@@ -204,6 +204,8 @@ private class KafkaProducerActorImpl[Agg, Event](
   }
 
   private def recoveringBacklog(endOffset: Long): Receive = {
+    case msg: Initialize     ⇒ handle(msg)
+    case FailedToInitialize  ⇒ context.system.scheduler.scheduleOnce(3.seconds)(retryInitializeState())
     case msg: StateProcessed ⇒ handleFromRecoveringState(endOffset, msg)
     case FlushMessages       ⇒ // Ignore from this state
     case _                   ⇒ stash()
@@ -217,23 +219,29 @@ private class KafkaProducerActorImpl[Agg, Event](
     case FlushMessages                ⇒ handleFlushMessages(state)
   }
 
-  private def initializeState(): Unit = {
-    val futureInitializeMessage = kafkaPublisher.initTransactions().flatMap { _ ⇒
-      val emptyEventMessage = JsonUtils.gzip(StateMessage.empty[JsValue])
-      val flushRecord = new ProducerRecord[String, Array[Byte]](assignedPartition.topic(), assignedPartition.partition(), "", emptyEventMessage)
+  private def sendFlushRecord: Future[InternalMessage] = {
+    val emptyEventMessage = JsonUtils.gzip(StateMessage.empty[JsValue])
+    val flushRecord = new ProducerRecord[String, Array[Byte]](assignedPartition.topic(), assignedPartition.partition(), "", emptyEventMessage)
 
-      nonTransactionalStatePublisher.putRecord(flushRecord).map { flushRecordMeta ⇒
-        val flushRecordOffset = flushRecordMeta.wrapped.offset()
-        log.debug("Flush Record for partition {} is at offset {}", assignedPartition, flushRecordOffset)
+    nonTransactionalStatePublisher.putRecord(flushRecord).map { flushRecordMeta ⇒
+      val flushRecordOffset = flushRecordMeta.wrapped.offset()
+      log.debug("Flush Record for partition {} is at offset {}", assignedPartition, flushRecordOffset)
 
-        Initialize(flushRecordOffset)
-      } recover {
-        case e ⇒
-          log.error("Failed to initialize kafka producer actor state", e)
-          FailedToInitialize
-      }
+      Initialize(flushRecordOffset)
+    } recover {
+      case e ⇒
+        log.error("Failed to initialize kafka producer actor state", e)
+        FailedToInitialize
     }
+  }
+
+  private def initializeState(): Unit = {
+    val futureInitializeMessage = kafkaPublisher.initTransactions().flatMap(_ ⇒ sendFlushRecord)
     futureInitializeMessage pipeTo self
+  }
+
+  private def retryInitializeState(): Unit = {
+    sendFlushRecord pipeTo self
   }
 
   private def refreshStateMeta(): Unit = {
@@ -302,13 +310,13 @@ private class KafkaProducerActorImpl[Agg, Event](
       }
       val records = eventRecords ++ stateRecords
 
-      log.trace(s"KafkaPublisherActor partition {} writing {} events to Kafka", assignedPartition, eventRecords.length)
-      log.trace(s"KafkaPublisherActor partition {} writing {} states to Kafka", assignedPartition, stateRecords.length)
+      log.info(s"KafkaPublisherActor partition {} writing {} events to Kafka", assignedPartition, eventRecords.length)
+      log.info(s"KafkaPublisherActor partition {} writing {} states to Kafka", assignedPartition, stateRecords.length)
       eventsPublishedRate.mark(eventMessages.length)
       val futureMsg = kafkaPublisherTimer.time {
         kafkaPublisher.beginTransaction()
         Future.sequence(kafkaPublisher.putRecords(records)).map { recordMeta ⇒
-          log.trace(s"KafkaPublisherActor partition {} committing transaction", assignedPartition)
+          log.info(s"KafkaPublisherActor partition {} committing transaction", assignedPartition)
           kafkaPublisher.commitTransaction()
           EventsPublished(senders, recordMeta.filter(_.wrapped.topic() == stateTopic.name))
         } recover {
@@ -333,6 +341,7 @@ private class KafkaProducerActorImpl[Agg, Event](
     val noRecordsInFlight = state.inFlightForAggregate(aggregateId).isEmpty
 
     if (noRecordsInFlight) {
+      aggregateStateCurrentRate.mark()
       sender() ! noRecordsInFlight
     } else {
       context.become(processing(state.addPendingInitialization(sender(), isAggregateStateCurrent)))

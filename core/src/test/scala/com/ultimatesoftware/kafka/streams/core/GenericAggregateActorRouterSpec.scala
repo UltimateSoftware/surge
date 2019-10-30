@@ -32,7 +32,7 @@ class GenericAggregateActorRouterSpec extends TestKit(ActorSystem("GenericAggreg
   }
 
   private val config: Config = ConfigFactory.load()
-  private val localHostname = config.getString("akka.remote.netty.tcp.hostname")
+  private val localHostname = config.getString("akka.remote.artery.canonical.hostname")
 
   private def routerActor(partitionTrackerProbe: TestProbe): ActorRef = {
     val mockGlobalKTableStateStore = mock[GlobalKTableMetadataHandler]
@@ -63,7 +63,7 @@ class GenericAggregateActorRouterSpec extends TestKit(ActorSystem("GenericAggreg
         val actorAddress = if (hostPort.host == localHostname) {
           Address("akka", system.name)
         } else {
-          Address("akka.tcp", system.name, hostPort.host, hostPort.port)
+          Address("akka", system.name, hostPort.host, hostPort.port)
         }
         topicPartition.map { tp ⇒
           tp.partition() -> actorAddress
