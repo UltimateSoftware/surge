@@ -11,11 +11,11 @@ import play.api.libs.json.JsValue
 trait KafkaStreamsCommandTrait[AggId, Agg, Command, Event, CmdMeta, EvtMeta] {
   def start(): Unit
   val businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta]
-  val actorSystem: ActorSystem
 }
 
 trait KafkaStreamsCommandImpl[AggId, Agg, Command, Event, CmdMeta, EvtMeta] extends KafkaStreamsCommandTrait[AggId, Agg, Command, Event, CmdMeta, EvtMeta] {
-  protected implicit val system: ActorSystem = actorSystem
+  val actorSystem: ActorSystem
+  private implicit val system: ActorSystem = actorSystem
 
   private val config = ConfigFactory.load()
   private val akkaHost = config.getString("akka.remote.artery.canonical.hostname")

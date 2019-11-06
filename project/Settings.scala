@@ -1,4 +1,4 @@
-// Copyright (C) 2018 Ultimate Software
+// Copyright © 2017-2019 Ultimate Software Group. <https://www.ultimatesoftware.com>
 
 import com.typesafe.sbt.SbtScalariform.autoImport.scalariformPreferences
 import de.heikoseeberger.sbtheader.HeaderPlugin.autoImport._

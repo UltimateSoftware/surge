@@ -14,19 +14,19 @@ object Dependencies extends AutoPlugin {
     }
 
     object Kafka {
-      val kafkaVersion = "2.1.1"
+      val kafkaVersion = "2.3.1"
 
-      val kafkaStreams = "org.apache.kafka" % "kafka-streams" % kafkaVersion
-      val kafkaStreamsTestUtils = "org.apache.kafka" % "kafka-streams-test-utils" % kafkaVersion
+      val kafkaClients = "org.apache.kafka" % "kafka-clients" % kafkaVersion
     }
 
     object Ultimate {
       object Surge {
-        val kafkaStreamsPlusAkka = "com.ultimatesoftware" %% "surge-common" % "0.1.3"
+        val common = "com.ultimatesoftware" %% "surge-common" % "0.1.4"
         val scalaCore = "com.ultimatesoftware" %% "ulti-scala-core" % "0.1.0"
       }
     }
 
+    val awaitility = "org.awaitility" % "awaitility" % "2.0.0"
     val mockitoCore = "org.mockito" % "mockito-core" % "2.25.1" % Test
     val scalatest = "org.scalatest" %% "scalatest" % "3.0.7" % Test
     val typesafeConfig = "com.typesafe" % "config" % "1.3.3"

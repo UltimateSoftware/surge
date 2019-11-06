@@ -47,6 +47,13 @@ In maven for java:
 
         ...
 
+        <!-- In spring boot apps, for some reason this is required to prevent a ClassNotFoundException in the Eureka client -->
+        <dependency>
+            <groupId>org.apache.kafka</groupId>
+            <artifactId>kafka-streams</artifactId>
+            <version>2.3.1</version>
+        </dependency>
+
         <dependency>
             <groupId>com.ultimatesoftware</groupId>
             <artifactId>surge-engine-ks-command-javadsl_2.12</artifactId>

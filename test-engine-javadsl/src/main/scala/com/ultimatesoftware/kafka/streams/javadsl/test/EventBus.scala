@@ -10,4 +10,18 @@ class EventBus[Event] {
   def send(events: Seq[Event]): Unit = {
     events.foreach(evt ⇒ send(evt))
   }
+
+  def consumeOne(): Option[Event] = {
+    bus match {
+      case head +: tail ⇒
+        bus = tail
+        Some(head)
+      case _ ⇒
+        None
+    }
+  }
+
+  def clear(): Unit = {
+    bus = Seq.empty
+  }
 }
