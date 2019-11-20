@@ -5,7 +5,7 @@ package com.ultimatesoftware.kafka.streams.core
 import akka.actor.{ ActorRef, ActorSystem, Address }
 import akka.testkit.{ TestKit, TestProbe }
 import akka.util.Timeout
-import com.typesafe.config.{ Config, ConfigFactory }
+import com.ultimatesoftware.akka.cluster.RemoteAddressExtension
 import com.ultimatesoftware.kafka.KafkaConsumerStateTrackingActor.Register
 import com.ultimatesoftware.kafka.streams.{ AggregateStateStoreKafkaStreams, GlobalKTableMetadataHandler, KafkaPartitionMetadata, KafkaStreamsKeyValueStore }
 import com.ultimatesoftware.kafka.{ KafkaPartitionShardRouterActor, PartitionRegion }
@@ -31,8 +31,7 @@ class GenericAggregateActorRouterSpec extends TestKit(ActorSystem("GenericAggreg
     TestKit.shutdownActorSystem(system)
   }
 
-  private val config: Config = ConfigFactory.load()
-  private val localHostname = config.getString("akka.remote.artery.canonical.hostname")
+  private val localHostname = RemoteAddressExtension(system).address.host.getOrElse("")
 
   private def routerActor(partitionTrackerProbe: TestProbe): ActorRef = {
     val mockGlobalKTableStateStore = mock[GlobalKTableMetadataHandler]

@@ -17,24 +17,43 @@ import play.api.libs.json.Format
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
+import scala.concurrent.{ ExecutionContext, Future }
 
-class EmbeddedEngineTestHelper[AggId, Agg, Cmd, Event, CmdMeta](
+class IntegrationTestHelper[AggId, Agg, Cmd, Event, CmdMeta](
     kafkaBrokers: java.util.List[String],
     eventMessageSerializers: java.util.List[EventMessageSerializer[_ <: Event]],
     val ultiBusinessLogic: UltiKafkaStreamsCommandBusinessLogic[AggId, Agg, Cmd, Event, CmdMeta]) {
   private val timeoutSeconds = 30
   private val log: Logger = LoggerFactory.getLogger(getClass)
 
-  val eventBus: EventBus[EventMessage[Event]] = new EventBus[EventMessage[Event]]
-  val stateStore: StateStore[AggId, StatePlusMetadata[Agg]] = new StateStore[AggId, StatePlusMetadata[Agg]]
-
-  def clearReceivedEvents(): Unit = {
-    eventBus.clear()
-  }
-
   private implicit def byNameFunctionToCallableOfType[T](function: ⇒ T): Callable[T] = () ⇒ function
   private implicit def byNameFunctionToCallableOfBoolean(function: ⇒ scala.Boolean): Callable[java.lang.Boolean] = () ⇒ function
   private implicit def byNameFunctionToRunnable[T](function: ⇒ T): ThrowingRunnable = () ⇒ function
+
+  private val eventMessageSerializerRegistry = EventMessageSerializerRegistry[Event](eventMessageSerializers.asScala)
+  private implicit val eventFormatter: Format[EventMessage[Event]] = eventMessageSerializerRegistry.formatFromSchemaRegistry
+  private val consumerGroupName = s"SurgeEmbeddedEngineTestHelper-${UUID.randomUUID()}"
+  private val consumerConfig = UltiKafkaConsumerConfig(consumerGroupName, offsetReset = "latest", pollDuration = 1.second)
+
+  private val sub = KafkaBytesConsumer(kafkaBrokers.asScala, consumerConfig, Map.empty)
+
+  val eventBus: EventBus[EventMessage[Event]] = new EventBus[EventMessage[Event]]
+  val stateStore: StateStore[AggId, StatePlusMetadata[Agg]] = new StateStore[AggId, StatePlusMetadata[Agg]]
+
+  // Put the subscription in its own thread so it doesn't block anything else
+  Future {
+    sub.subscribe(ultiBusinessLogic.eventsTopic, { record ⇒
+      // FIXME in apps already using the CMP libraries, it looks like the CMP serializer is automatically wired in
+      //  somehow.  When we read events from those apps, they're double-wrapped in an envelope.  When we integrate
+      //  with the CMP libraries, that should get fixed.
+      JsonUtils.parseMaybeCompressedBytes[EventMessage[Event]](record.value()) match {
+        case Some(eventMessage) ⇒
+          eventBus.send(eventMessage)
+        case _ ⇒
+          log.error(s"Unable to interpret value from Kafka ${record.value()}")
+      }
+    })
+  }(ExecutionContext.global)
 
   def waitForEvent[T](`type`: Class[T]): T = {
     var event: Option[T] = None
@@ -51,18 +70,12 @@ class EmbeddedEngineTestHelper[AggId, Agg, Cmd, Event, CmdMeta](
     event.getOrElse(throw new SurgeAssertionError(s"Event of type ${`type`} not found in the eventbus"))
   }
 
-  private val eventMessageSerializerRegistry = EventMessageSerializerRegistry[Event](eventMessageSerializers.asScala)
-  private implicit val eventFormatter: Format[EventMessage[Event]] = eventMessageSerializerRegistry.formatFromSchemaRegistry
-  private val consumerGroupName = s"SurgeEmbeddedEngineTestHelper-${UUID.randomUUID()}"
-  private val consumerConfig = UltiKafkaConsumerConfig(consumerGroupName, offsetReset = "latest", pollDuration = 1.second)
-  private val sub = KafkaBytesConsumer(kafkaBrokers.asScala, consumerConfig, Map.empty)
-  sub.subscribe(ultiBusinessLogic.eventsTopic, { record ⇒
-    JsonUtils.parseMaybeCompressedBytes[EventMessage[Event]](record.value()) match {
-      case Some(eventMessage) ⇒
-        eventBus.send(eventMessage)
-      case _ ⇒
-        log.error(s"Unable to interpret value from Kafka ${record.value()}")
-    }
-  })
+  def clearReceivedEvents(): Unit = {
+    eventBus.clear()
+  }
+
+  def close(): Unit = {
+    sub.stop()
+  }
 
 }

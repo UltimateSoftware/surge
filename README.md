@@ -114,6 +114,22 @@ up to date.  It is therefore recommended to keep aggregates in memory for at lea
 way they are not impacted by the KTable flush delay.  The aggregate timeout can be configured with
 `AGGREGATE_ACTOR_IDLE_TIMEOUT` and defaults to `30 seconds`.
 
+### Testing Applications
+
+When running integration tests with Surge, you'll need to set a couple
+of configuration settings to ensure that instances of the application spun
+up for integration testing run in isolation.
+
+In the `src/test/resources` directory for your project, add a file named
+`application.properties`.  In that file, set the following settings:
+```
+# This setting configures the Kafka streams instances to use a random consumer group so that each test
+# gets its own instance of persisted state stores.
+kafka.streams.test-mode = true
+
+# This setting configures the underlying Akka actors to use a random open port rather than an assigned port.
+akka.remote.artery.canonical.port = 0
+```
 
 ## Running
 

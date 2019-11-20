@@ -3,7 +3,7 @@
 package com.ultimatesoftware.kafka.streams.core
 
 import akka.actor.ActorSystem
-import com.typesafe.config.ConfigFactory
+import com.ultimatesoftware.akka.cluster.RemoteAddressExtension
 import com.ultimatesoftware.kafka.KafkaConsumerStateTrackingActor
 import com.ultimatesoftware.kafka.streams.{ AggregateStateStoreKafkaStreams, GlobalKTableMetadataHandler, KafkaStreamsPartitionTrackerActorProvider }
 import play.api.libs.json.JsValue
@@ -17,9 +17,9 @@ trait KafkaStreamsCommandImpl[AggId, Agg, Command, Event, CmdMeta, EvtMeta] exte
   val actorSystem: ActorSystem
   private implicit val system: ActorSystem = actorSystem
 
-  private val config = ConfigFactory.load()
-  private val akkaHost = config.getString("akka.remote.artery.canonical.hostname")
-  private val akkaPort = config.getInt("akka.remote.artery.canonical.port")
+  private val akkaAddress = RemoteAddressExtension(system).address
+  private val akkaHost = akkaAddress.host.getOrElse(throw new RuntimeException("Unable to determine hostname of current Akka actor system"))
+  private val akkaPort = akkaAddress.port.getOrElse(throw new RuntimeException("Unable to determine port of current Akka actor system"))
   private val applicationHostPort = s"$akkaHost:$akkaPort"
 
   private val stateChangeActor = system.actorOf(KafkaConsumerStateTrackingActor.props)
