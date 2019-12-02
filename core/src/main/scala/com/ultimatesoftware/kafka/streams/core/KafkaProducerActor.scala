@@ -24,6 +24,45 @@ import play.api.libs.json.JsValue
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
 
+/**
+ * A stateful producer actor responsible for publishing all states + events for
+ * aggregates that belong to a particular state topic partition.  The state maintained
+ * by this producer actor is a list of aggregate ids which are considered "in flight".
+ * "In flight" is determined by keeping track of the offset this actor publishes to for
+ * each aggregate id as messages are published to Kafka and listening to updates of the downstream
+ * Kafka Streams consumer as it makes progress through the topic.  As a state is published,
+ * this actor remembers the aggregate id and offset the state for that aggregate is.  When the
+ * Kafka Streams consumer processes the state (saving it to a KTable) it saves the offset of the most
+ * recently processed message for a partition to a global KTable.  This producer actor polls that global
+ * table to get the last processed offset and marks any aggregates in the "in flight" state as up to date
+ * if their offset is less than or equal to the last processed offset.
+ *
+ * When an aggregate actor wants to initialize, it must first ask this stateful producer if
+ * the state for that aggregate is up to date in the Kafka Streams state store KTable.  The
+ * stateful producer is able to determine this by looking at the aggregates with states that
+ * are in flight - if any are in flight for an aggregate, the state in the KTable is not up to
+ * date and initialization of that actor should be delayed.
+ *
+ * On initialization of the stateful producer, it emits an empty "flush" record to the Kafka
+ * state topic.  The flush record is for an empty aggregate id, but is used to ensure on initial startup
+ * that there were no remaining aggregate states that were in flight, since the newly created
+ * producer cannot initialize with the knowledge of everything that was published previously.
+ *
+ * @param actorSystem The actor system to create the underlying stateful producer actor in
+ * @param assignedPartition The state topic/partition assigned to this instance of the stateful producer.
+ *                          The producer will use Kafka transactions to ensure that it is the only instance
+ *                          of a stateful producer for a particular partition.  Any older producers for
+ *                          that partition will be fenced out by Kafka.
+ * @param metricsProvider Metrics provider interface to use for recording internal metrics to
+ * @param stateMetaHandler An instance of the Kafka Streams partition metadata global KTable processor that
+ *                         is responsible for tracking what offsets in Kafka have been processed by the aggregate
+ *                         state indexer process.  The producer will query the underlying global KTable to determine
+ *                         which aggregates are in flight.
+ * @param aggregateCommandKafkaStreams Command service business logic wrapper used for determining state and event topics
+ * @tparam AggId Generic aggregate id type for aggregates publishing states/events through this stateful producer
+ * @tparam Agg Generic aggregate type of aggregates publishing states/events through this stateful producer
+ * @tparam Event Generic base type for events that aggregate instances publish through this stateful producer
+ */
 class KafkaProducerActor[AggId, Agg, Event](
     actorSystem: ActorSystem,
     assignedPartition: TopicPartition,

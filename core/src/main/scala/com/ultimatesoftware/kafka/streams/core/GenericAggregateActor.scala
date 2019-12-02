@@ -15,7 +15,7 @@ import com.ultimatesoftware.scala.core.validations._
 import org.slf4j.LoggerFactory
 import play.api.libs.json._
 
-import scala.concurrent.{ ExecutionContext, ExecutionContextExecutor, Future }
+import scala.concurrent.Future
 import scala.concurrent.duration._
 
 private[streams] object GenericAggregateActor {
@@ -63,6 +63,28 @@ private[streams] object GenericAggregateActor {
   case object Stop
 }
 
+/**
+ * The GenericAggregateActor represents a business logic aggregate.  It handles commands
+ * using the given business logic and emits events and state to Kafka.  When run as part
+ * of the Surge command engine, there is exactly one GenericAggregateActor responsible for
+ * each aggregate.
+ *
+ * @param aggregateId The aggregate id for the aggregate represented by this actor
+ * @param kafkaProducerActor A reference to the Kafka producer actor for the shard that
+ *                           this actor lives within.  This producer is used to send state
+ *                           updates and events to Kafka.
+ * @param businessLogic Domain business logic used to determine the events to emit and how to update
+ *                      state based on new events.
+ * @param metrics A reference to the metrics interface for exposing internal actor metrics
+ * @param kafkaStreamsCommand A reference to the aggregate state store in Kafka Streams used
+ *                            to fetch the state of an aggregate on initialization
+ * @tparam AggId Aggregate id type
+ * @tparam Agg Type of aggregate represented by this actor
+ * @tparam Command Type of command handled by the aggregate
+ * @tparam Event Type of events emitted by the aggregate
+ * @tparam CmdMeta Type of metadata associated with incoming commands passed to the business logic to enhance commands
+ * @tparam EvtMeta Type of metadata about events passed to the business logic to enhance published events
+ */
 private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
     aggregateId: AggId,
     kafkaProducerActor: KafkaProducerActor[AggId, Agg, Event],
