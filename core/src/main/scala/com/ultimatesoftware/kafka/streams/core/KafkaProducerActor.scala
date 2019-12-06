@@ -110,6 +110,16 @@ private object KafkaProducerActorImpl {
   case class Publish(stateKeyValuePairs: Seq[(String, Array[Byte])], eventKeyValuePairs: Seq[(String, Array[Byte])])
   case class StateProcessed(stateMeta: KafkaPartitionMetadata)
   case class IsAggregateStateCurrent(aggregateId: String, expirationTime: Instant)
+
+  sealed trait InternalMessage
+  case class EventsPublished(originalSenders: Seq[ActorRef], recordMetadata: Seq[KafkaRecordMetadata[String]]) extends InternalMessage
+  case class Initialize(endOffset: Long) extends InternalMessage
+  case object FailedToInitialize extends InternalMessage
+  case object FlushMessages extends InternalMessage
+  case class PublishWithSender(sender: ActorRef, publish: Publish) extends InternalMessage
+  case class PendingInitialization(actor: ActorRef, key: String, expiration: Instant) extends InternalMessage
+
+  case class AggregateStateRates(current: Rate, notCurrent: Rate)
 }
 private class KafkaProducerActorImpl[Agg, Event](
     assignedPartition: TopicPartition, metrics: MetricsProvider,
@@ -131,6 +141,7 @@ private class KafkaProducerActorImpl[Agg, Event](
   private val kafkaPublisher: KafkaBytesProducer = {
     val transactionalId = s"$aggregateName-event-producer-partition-${assignedPartition.partition()}"
     val kafkaConfig = Map[String, String](
+      // ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG -> true, // For exactly once writes. How does this impact performance?
       ProducerConfig.TRANSACTIONAL_ID_CONFIG -> transactionalId)
 
     KafkaBytesProducer(brokers, stateTopic, partitioner, kafkaConfig)
@@ -139,95 +150,9 @@ private class KafkaProducerActorImpl[Agg, Event](
   private val nonTransactionalStatePublisher = KafkaBytesProducer(brokers, stateTopic, partitioner = partitioner)
 
   private val kafkaPublisherTimer: Timer = metrics.createTimer(s"${stateTopic.name}KafkaPublisherTimer")
-  private val aggregateStateNotCurrentRate: Rate = metrics.createRate(
-    s"${aggregateName}AggregateStateNotCurrentRate")
-  private val aggregateStateCurrentRate: Rate = metrics.createRate(s"${aggregateName}AggregateStateCurrentRate")
-
-  private sealed trait InternalMessage
-  private case class EventsPublished(originalSenders: Seq[ActorRef], recordMetadata: Seq[KafkaRecordMetadata[String]]) extends InternalMessage
-  private case class Initialize(endOffset: Long) extends InternalMessage
-  private case object FailedToInitialize extends InternalMessage
-  private case object FlushMessages extends InternalMessage
-  private case class PublishWithSender(sender: ActorRef, publish: Publish) extends InternalMessage
-  private case class PendingInitialization(actor: ActorRef, key: String, expiration: Instant) extends InternalMessage
-
-  // TODO optimize:
-  //  Only keep last offset for an aggregate
-  //  Add in a warning if state gets too large
-  private object ActorState {
-    def empty: ActorState = ActorState(Seq.empty, Seq.empty, Seq.empty, transactionInProgress = false)
-  }
-  private case class ActorState(inFlight: Seq[KafkaRecordMetadata[String]], pendingWrites: Seq[PublishWithSender],
-      pendingInitializations: Seq[PendingInitialization], transactionInProgress: Boolean) {
-
-    def inFlightByKey: Map[String, Seq[KafkaRecordMetadata[String]]] = {
-      inFlight.groupBy(_.key.getOrElse(""))
-    }
-
-    def inFlightForAggregate(aggregateId: String): Seq[KafkaRecordMetadata[String]] = {
-      inFlightByKey.getOrElse(aggregateId, Seq.empty)
-    }
-
-    def addPendingInitialization(sender: ActorRef, isAggregateStateCurrent: IsAggregateStateCurrent): ActorState = {
-      val pendingInitialization = PendingInitialization(sender, isAggregateStateCurrent.aggregateId, isAggregateStateCurrent.expirationTime)
-
-      this.copy(pendingInitializations = pendingInitializations :+ pendingInitialization)
-    }
-
-    def addPendingWrites(sender: ActorRef, publish: Publish): ActorState = {
-      val newWriteRequest = PublishWithSender(sender, publish)
-      this.copy(pendingWrites = pendingWrites :+ newWriteRequest)
-    }
-
-    def flushWrites(): ActorState = {
-      this.copy(pendingWrites = Seq.empty)
-    }
-
-    def addInFlight(recordMetadata: Seq[KafkaRecordMetadata[String]]): ActorState = {
-      val newTotalInFlight = inFlight ++ recordMetadata
-      val newInFlight = newTotalInFlight.groupBy(_.key).mapValues(_.maxBy(_.wrapped.offset())).values
-
-      this.copy(inFlight = newInFlight.toSeq)
-    }
-
-    def processedUpTo(stateMeta: KafkaPartitionMetadata): ActorState = {
-      val processedRecordsFromPartition = inFlight.filter(record ⇒ record.wrapped.offset() <= stateMeta.offset)
-
-      if (processedRecordsFromPartition.nonEmpty) {
-        val processedOffsets = processedRecordsFromPartition.map(_.wrapped.offset())
-        log.debug(s"${stateMeta.topic}:${stateMeta.partition} processed up to offset ${stateMeta.offset}. " +
-          s"Outstanding offsets that were processed are [${processedOffsets.min} -> ${processedOffsets.max}]")
-      }
-      val newInFlight = inFlight.filterNot(processedRecordsFromPartition.contains)
-
-      val newPendingAggregates = {
-        val processedAggregates = pendingInitializations.filter { pending ⇒
-          !newInFlight.exists(_.key.contains(pending.key))
-        }
-        if (processedAggregates.nonEmpty) {
-          processedAggregates.foreach { pending ⇒
-            pending.actor ! true
-          }
-          aggregateStateCurrentRate.mark(processedAggregates.length)
-        }
-
-        val expiredAggregates = pendingInitializations
-          .filter(pending ⇒ Instant.now().isAfter(pending.expiration))
-          .filterNot(processedAggregates.contains)
-
-        if (expiredAggregates.nonEmpty) {
-          expiredAggregates.foreach { pending ⇒
-            log.debug(s"Aggregate ${pending.key} expiring since it is past ${pending.expiration}")
-            pending.actor ! false
-          }
-          aggregateStateNotCurrentRate.mark(expiredAggregates.length)
-        }
-        pendingInitializations.filterNot(agg ⇒ processedAggregates.contains(agg) || expiredAggregates.contains(agg))
-      }
-
-      copy(inFlight = newInFlight, pendingInitializations = newPendingAggregates)
-    }
-  }
+  private implicit val rates: AggregateStateRates = AggregateStateRates(
+    current = metrics.createRate(s"${aggregateName}AggregateStateCurrentRate"),
+    notCurrent = metrics.createRate(s"${aggregateName}AggregateStateNotCurrentRate"))
 
   context.system.scheduler.scheduleOnce(10.milliseconds)(initializeState())
   context.system.scheduler.schedule(200.milliseconds, 200.milliseconds)(refreshStateMeta())
@@ -250,7 +175,7 @@ private class KafkaProducerActorImpl[Agg, Event](
     case _                   ⇒ stash()
   }
 
-  private def processing(state: ActorState): Receive = {
+  private def processing(state: KafkaProducerActorState): Receive = {
     case msg: Publish                 ⇒ handle(state, msg)
     case msg: EventsPublished         ⇒ handle(state, msg)
     case msg: StateProcessed          ⇒ handle(state, msg)
@@ -302,11 +227,11 @@ private class KafkaProducerActorImpl[Agg, Event](
     context.become(recoveringBacklog(initialize.endOffset))
   }
 
-  private def handle(state: ActorState, publish: Publish): Unit = {
+  private def handle(state: KafkaProducerActorState, publish: Publish): Unit = {
     context.become(processing(state.addPendingWrites(sender(), publish)))
   }
 
-  private def handle(state: ActorState, stateProcessed: StateProcessed): Unit = {
+  private def handle(state: KafkaProducerActorState, stateProcessed: StateProcessed): Unit = {
     context.become(processing(state.processedUpTo(stateProcessed.stateMeta)))
     sender() ! Done
   }
@@ -322,18 +247,18 @@ private class KafkaProducerActorImpl[Agg, Event](
     if (partitionIsCurrent) {
       log.info(s"KafkaPublisherActor partition {} is no longer behind on processing", assignedPartition)
       unstashAll()
-      context.become(processing(ActorState.empty))
+      context.become(processing(KafkaProducerActorState.empty))
     }
   }
 
-  private def handle(state: ActorState, eventsPublished: EventsPublished): Unit = {
+  private def handle(state: KafkaProducerActorState, eventsPublished: EventsPublished): Unit = {
     val newState = state.addInFlight(eventsPublished.recordMetadata).copy(transactionInProgress = false)
     context.become(processing(newState))
     eventsPublished.originalSenders.foreach(_ ! Done)
   }
 
   private val eventsPublishedRate: Rate = metrics.createRate(s"${aggregateName}EventPublishRate")
-  private def handleFlushMessages(state: ActorState): Unit = {
+  private def handleFlushMessages(state: KafkaProducerActorState): Unit = {
     if (state.transactionInProgress) {
       log.warn(s"KafkaPublisherActor partition $assignedPartition tried to flush, but another transaction is already in progress")
     } else if (state.pendingWrites.nonEmpty) {
@@ -375,15 +300,105 @@ private class KafkaProducerActorImpl[Agg, Event](
     }
   }
 
-  private def handle(state: ActorState, isAggregateStateCurrent: IsAggregateStateCurrent): Unit = {
+  private def handle(state: KafkaProducerActorState, isAggregateStateCurrent: IsAggregateStateCurrent): Unit = {
     val aggregateId = isAggregateStateCurrent.aggregateId
     val noRecordsInFlight = state.inFlightForAggregate(aggregateId).isEmpty
 
     if (noRecordsInFlight) {
-      aggregateStateCurrentRate.mark()
+      rates.current.mark()
       sender() ! noRecordsInFlight
     } else {
       context.become(processing(state.addPendingInitialization(sender(), isAggregateStateCurrent)))
     }
+  }
+}
+
+private[core] object KafkaProducerActorState {
+  def empty(implicit sender: ActorRef, rates: KafkaProducerActorImpl.AggregateStateRates): KafkaProducerActorState = {
+    KafkaProducerActorState(Seq.empty, Seq.empty, Seq.empty, transactionInProgress = false, sender = sender, rates = rates)
+  }
+}
+// TODO optimize:
+//  Add in a warning if state gets too large
+private[core] case class KafkaProducerActorState(
+    inFlight: Seq[KafkaRecordMetadata[String]],
+    pendingWrites: Seq[KafkaProducerActorImpl.PublishWithSender],
+    pendingInitializations: Seq[KafkaProducerActorImpl.PendingInitialization],
+    transactionInProgress: Boolean,
+    sender: ActorRef, rates: KafkaProducerActorImpl.AggregateStateRates) {
+
+  import KafkaProducerActorImpl._
+
+  private implicit val senderActor: ActorRef = sender
+  private val log: Logger = LoggerFactory.getLogger(getClass)
+
+  def inFlightByKey: Map[String, Seq[KafkaRecordMetadata[String]]] = {
+    inFlight.groupBy(_.key.getOrElse(""))
+  }
+
+  def inFlightForAggregate(aggregateId: String): Seq[KafkaRecordMetadata[String]] = {
+    inFlightByKey.getOrElse(aggregateId, Seq.empty)
+  }
+
+  def addPendingInitialization(sender: ActorRef, isAggregateStateCurrent: IsAggregateStateCurrent): KafkaProducerActorState = {
+    val pendingInitialization = PendingInitialization(
+      sender,
+      isAggregateStateCurrent.aggregateId, isAggregateStateCurrent.expirationTime)
+
+    this.copy(pendingInitializations = pendingInitializations :+ pendingInitialization)
+  }
+
+  def addPendingWrites(sender: ActorRef, publish: Publish): KafkaProducerActorState = {
+    val newWriteRequest = PublishWithSender(sender, publish)
+    this.copy(pendingWrites = pendingWrites :+ newWriteRequest)
+  }
+
+  def flushWrites(): KafkaProducerActorState = {
+    this.copy(pendingWrites = Seq.empty)
+  }
+
+  def addInFlight(recordMetadata: Seq[KafkaRecordMetadata[String]]): KafkaProducerActorState = {
+    val newTotalInFlight = inFlight ++ recordMetadata
+    val newInFlight = newTotalInFlight.groupBy(_.key).mapValues(_.maxBy(_.wrapped.offset())).values
+
+    this.copy(inFlight = newInFlight.toSeq)
+  }
+
+  def processedUpTo(stateMeta: KafkaPartitionMetadata): KafkaProducerActorState = {
+    val processedRecordsFromPartition = inFlight.filter(record ⇒ record.wrapped.offset() <= stateMeta.offset)
+
+    if (processedRecordsFromPartition.nonEmpty) {
+      val processedOffsets = processedRecordsFromPartition.map(_.wrapped.offset())
+      log.debug(s"${stateMeta.topic}:${stateMeta.partition} processed up to offset ${stateMeta.offset}. " +
+        s"Outstanding offsets that were processed are [${processedOffsets.min} -> ${processedOffsets.max}]")
+    }
+    val newInFlight = inFlight.filterNot(processedRecordsFromPartition.contains)
+
+    val newPendingAggregates = {
+      val processedAggregates = pendingInitializations.filter { pending ⇒
+        !newInFlight.exists(_.key.contains(pending.key))
+      }
+      if (processedAggregates.nonEmpty) {
+        processedAggregates.foreach { pending ⇒
+          pending.actor ! true
+        }
+        rates.current.mark(processedAggregates.length)
+      }
+
+      val expiredAggregates = pendingInitializations
+        .filter(pending ⇒ Instant.now().isAfter(pending.expiration))
+        .filterNot(processedAggregates.contains)
+
+      if (expiredAggregates.nonEmpty) {
+        expiredAggregates.foreach { pending ⇒
+          log.debug(s"Aggregate ${pending.key} expiring since it is past ${pending.expiration}")
+          pending.actor ! false
+        }
+        rates.notCurrent.mark(expiredAggregates.length)
+      }
+      pendingInitializations.filterNot(agg ⇒ processedAggregates.contains(agg) || expiredAggregates.contains(agg))
+    }
+
+    copy(inFlight = newInFlight, pendingInitializations = newPendingAggregates)
   }
 }

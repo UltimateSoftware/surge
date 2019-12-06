@@ -8,12 +8,13 @@ import java.util.UUID
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ NoOpMetricsProvider, NoOpsMetricsPublisher }
 import com.ultimatesoftware.scala.core.utils.JsonUtils
-import com.ultimatesoftware.scala.core.validations.AsyncCommandValidator
+import com.ultimatesoftware.scala.core.validations.{ AsyncCommandValidator, AsyncValidationResult, ValidationError }
 import com.ultimatesoftware.scala.oss.domain.{ AggregateCommandModel, CommandProcessor, SimpleJsonAggregateComposer }
 import play.api.libs.json._
 
+import scala.concurrent.Future
 import scala.concurrent.duration._
-import scala.util.Success
+import scala.util.{ Failure, Success }
 
 trait TestBoundedContext {
 
@@ -24,6 +25,8 @@ trait TestBoundedContext {
   implicit val countDecrementedFormat: Format[CountDecremented] = Json.format
   implicit val incrementFormat: Format[Increment] = Json.format
   implicit val decrementFormat: Format[Decrement] = Json.format
+  implicit val doNothingFormat: Format[FailCommandProcessing] = Json.format
+  implicit val causeInvalidValidationFormat: Format[CauseInvalidValidation] = Json.format
 
   val baseEventFormat: Format[BaseTestEvent] = new Format[BaseTestEvent] {
     override def reads(json: JsValue): JsResult[BaseTestEvent] = {
@@ -42,14 +45,18 @@ trait TestBoundedContext {
   val baseCommandFormat: Format[BaseTestCommand] = new Format[BaseTestCommand] {
     override def writes(o: BaseTestCommand): JsValue = {
       o match {
-        case inc: Increment ⇒ Json.toJson(inc)
-        case dec: Decrement ⇒ Json.toJson(dec)
+        case inc: Increment                            ⇒ Json.toJson(inc)
+        case dec: Decrement                            ⇒ Json.toJson(dec)
+        case nothing: FailCommandProcessing            ⇒ Json.toJson(nothing)
+        case invalidValidation: CauseInvalidValidation ⇒ Json.toJson(invalidValidation)
       }
     }
 
     override def reads(json: JsValue): JsResult[BaseTestCommand] = {
       Json.fromJson[Increment](json) orElse
-        Json.fromJson[Decrement](json)
+        Json.fromJson[Decrement](json) orElse
+        Json.fromJson[FailCommandProcessing](json) orElse
+        Json.fromJson[CauseInvalidValidation](json)
     }
   }
 
@@ -69,17 +76,25 @@ trait TestBoundedContext {
 
   sealed trait BaseTestCommand {
     def aggregateId: UUID
-    def expectedVersion: Int
+    def expectedVersion: Int = 0
+    def validate: Seq[AsyncValidationResult[_]] = Seq.empty
   }
 
   case class Increment(incrementAggregateId: UUID) extends BaseTestCommand {
     val aggregateId: UUID = incrementAggregateId
-    val expectedVersion: Int = 0 // Not used
   }
 
   case class Decrement(decrementAggregateId: UUID) extends BaseTestCommand {
     val aggregateId: UUID = decrementAggregateId
-    val expectedVersion: Int = 0 // Not used
+  }
+
+  case class CauseInvalidValidation(aggregateId: UUID) extends BaseTestCommand {
+    val validationErrors: Seq[ValidationError] = Seq(ValidationError("This command is invalid"))
+    override def validate: Seq[AsyncValidationResult[_]] = Seq(
+      Future.successful(Left(validationErrors)))
+  }
+  case class FailCommandProcessing(failProcessingId: UUID) extends BaseTestCommand {
+    val aggregateId: UUID = failProcessingId
   }
 
   case class TimestampMeta(timestamp: Instant)
@@ -102,17 +117,19 @@ trait TestBoundedContext {
     override def cmdMetaToEvtMeta: TimestampMeta ⇒ TimestampMeta = { identity }
     override def processCommand: CommandProcessor[State, BaseTestCommand, BaseTestEvent, TimestampMeta] = { (agg, cmd, meta) ⇒
       val newSequenceNumber = agg.map(_.version).getOrElse(0) + 1
-      val evt = cmd match {
-        case Increment(aggregateId) ⇒ CountIncremented(aggregateId, incrementBy = 1,
-          sequenceNumber = newSequenceNumber, timestamp = meta.timestamp)
-        case Decrement(aggregateId) ⇒ CountDecremented(aggregateId, decrementBy = 1,
-          sequenceNumber = newSequenceNumber, timestamp = meta.timestamp)
+
+      cmd match {
+        case Increment(aggregateId) ⇒ Success(Seq(CountIncremented(aggregateId, incrementBy = 1,
+          sequenceNumber = newSequenceNumber, timestamp = meta.timestamp)))
+        case Decrement(aggregateId) ⇒ Success(Seq(CountDecremented(aggregateId, decrementBy = 1,
+          sequenceNumber = newSequenceNumber, timestamp = meta.timestamp)))
+        case _: FailCommandProcessing ⇒
+          Failure(new RuntimeException("Expected to fail processing of a FailCommandProcessing command"))
       }
-      Success(Seq(evt))
     }
 
-    val commandValidator: AsyncCommandValidator[BaseTestCommand, State] = AsyncCommandValidator[BaseTestCommand, State] { _ ⇒
-      Seq.empty
+    val commandValidator: AsyncCommandValidator[BaseTestCommand, State] = AsyncCommandValidator[BaseTestCommand, State] { cmd ⇒
+      cmd.msg.validate
     }
 
     val aggregateComposer: SimpleJsonAggregateComposer[UUID, State] = new SimpleJsonAggregateComposer[UUID, State](stateFormat)

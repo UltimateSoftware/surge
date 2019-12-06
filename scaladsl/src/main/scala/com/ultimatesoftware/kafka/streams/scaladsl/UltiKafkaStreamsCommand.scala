@@ -33,6 +33,6 @@ private[scaladsl] class UltiKafkaStreamsCommandImpl[AggId, Agg, Command, Event, 
   with core.KafkaStreamsCommandImpl[AggId, StatePlusMetadata[Agg], Command, EventMessage[Event], CmdMeta, EventProperties] {
 
   override def aggregateFor(aggregateId: AggId): AggregateRef[AggId, StatePlusMetadata[Agg], Command, CmdMeta] = {
-    new AggregateRefImpl(aggregateId, actorRouter.actorRegion, actorSystem)
+    new AggregateRefImpl(aggregateId, actorRouter.actorRegion)
   }
 }

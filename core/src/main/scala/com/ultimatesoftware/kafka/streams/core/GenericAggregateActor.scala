@@ -112,7 +112,7 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
 
   private def freeToProcess(state: InternalActorState): Receive = {
     case msg: CommandEnvelope[AggId, Command, CmdMeta] ⇒ handle(state, msg)
-    case msg: GetState[AggId] ⇒ sender() ! state.stateOpt
+    case _: GetState[AggId] ⇒ sender() ! state.stateOpt
     case ReceiveTimeout ⇒ handlePassivate()
     case Stop ⇒ handleStop()
   }

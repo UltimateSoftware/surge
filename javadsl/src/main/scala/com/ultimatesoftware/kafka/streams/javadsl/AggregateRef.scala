@@ -5,7 +5,7 @@ package com.ultimatesoftware.kafka.streams.javadsl
 import java.util.Optional
 import java.util.concurrent.CompletionStage
 
-import akka.actor.{ ActorRef, ActorSystem }
+import akka.actor.ActorRef
 import com.ultimatesoftware.kafka.streams.core.{ AggregateRefTrait, GenericAggregateActor }
 
 import scala.compat.java8.FutureConverters
@@ -19,8 +19,7 @@ trait AggregateRef[AggIdType, Agg, Cmd, Meta] {
 
 final class AggregateRefImpl[AggIdType, Agg, Cmd, CmdMeta](
     val aggregateId: AggIdType,
-    val region: ActorRef,
-    val system: ActorSystem) extends AggregateRef[AggIdType, Agg, Cmd, CmdMeta] with AggregateRefTrait[AggIdType, Agg, Cmd, CmdMeta] {
+    val region: ActorRef) extends AggregateRef[AggIdType, Agg, Cmd, CmdMeta] with AggregateRefTrait[AggIdType, Agg, Cmd, CmdMeta] {
 
   private implicit val ec: ExecutionContext = ExecutionContext.global
 

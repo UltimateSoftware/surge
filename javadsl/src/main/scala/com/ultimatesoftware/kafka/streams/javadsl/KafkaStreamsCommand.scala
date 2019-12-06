@@ -23,6 +23,6 @@ private[javadsl] class KafkaStreamsCommandImpl[AggId, Agg, Command, Event, CmdMe
   extends KafkaStreamsCommand[AggId, Agg, Command, Event, CmdMeta, EvtMeta] with core.KafkaStreamsCommandImpl[AggId, Agg, Command, Event, CmdMeta, EvtMeta] {
 
   def aggregateFor(aggregateId: AggId): AggregateRef[AggId, Agg, Command, CmdMeta] = {
-    new AggregateRefImpl(aggregateId, actorRouter.actorRegion, actorSystem)
+    new AggregateRefImpl(aggregateId, actorRouter.actorRegion)
   }
 }

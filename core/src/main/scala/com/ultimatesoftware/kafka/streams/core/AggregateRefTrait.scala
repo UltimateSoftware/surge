@@ -4,7 +4,7 @@ package com.ultimatesoftware.kafka.streams.core
 
 import java.util.concurrent.TimeUnit
 
-import akka.actor.{ ActorRef, ActorSystem }
+import akka.actor.ActorRef
 import akka.pattern._
 import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
@@ -30,7 +30,6 @@ trait AggregateRefTrait[AggIdType, Agg, Cmd, CmdMeta] {
 
   val aggregateId: AggIdType
   val region: ActorRef
-  val system: ActorSystem
 
   private val config = ConfigFactory.load()
   private val askTimeoutDuration = config.getDuration("ulti.aggregate-actor.ask-timeout", TimeUnit.SECONDS).seconds
