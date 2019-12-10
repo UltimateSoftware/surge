@@ -21,8 +21,8 @@ import scala.concurrent.duration._
 private[streams] object GenericAggregateActor {
   def props[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
     aggregateId: AggId,
-    businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, _, CmdMeta],
-    kafkaProducerActor: KafkaProducerActor[AggId, Agg, Event],
+    businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, _, EvtMeta],
+    kafkaProducerActor: KafkaProducerActor[AggId, Agg, Event, EvtMeta],
     metrics: GenericAggregateActorMetrics,
     kafkaStreamsCommand: AggregateStateStoreKafkaStreams[JsValue]): Props = {
     Props(new GenericAggregateActor(aggregateId, kafkaProducerActor, businessLogic, metrics, kafkaStreamsCommand))
@@ -87,7 +87,7 @@ private[streams] object GenericAggregateActor {
  */
 private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
     aggregateId: AggId,
-    kafkaProducerActor: KafkaProducerActor[AggId, Agg, Event],
+    kafkaProducerActor: KafkaProducerActor[AggId, Agg, Event, EvtMeta],
     businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta],
     metrics: GenericAggregateActor.GenericAggregateActorMetrics,
     kafkaStreamsCommand: AggregateStateStoreKafkaStreams[JsValue]) extends Actor with Stash {
@@ -142,13 +142,13 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
       case Right(events) ⇒
         val evtMeta = businessLogic.model.cmdMetaToEvtMeta(commandEnvelope.meta)
         val newState = events.foldLeft(state.stateOpt) { (state, evt) ⇒ businessLogic.model.handleEvent(state, evt, evtMeta) }
-        val eventKeyValues = events.map(evt ⇒ businessLogic.kafka.eventKeyExtractor(evt) -> evt)
+        val eventKeyMetaValues = events.map(evt ⇒ (businessLogic.kafka.eventKeyExtractor(evt), evtMeta, evt))
 
         val states = newState.toSeq.flatMap(state ⇒ businessLogic.aggregateComposer.decompose(aggregateId, state).toSeq)
         val stateKeyValues = states.map(s ⇒ businessLogic.kafka.stateKeyExtractor(s) -> s)
 
         log.trace("GenericAggregateActor for {} sending events to publisher actor", aggregateId)
-        kafkaProducerActor.publish(aggregateId = aggregateId, states = stateKeyValues, events = eventKeyValues).map { _ ⇒
+        kafkaProducerActor.publish(aggregateId = aggregateId, states = stateKeyValues, events = eventKeyMetaValues).map { _ ⇒
           val newActorState = InternalActorState(stateOpt = newState)
           EventsSuccessfullyPersisted(newActorState, startTime)
         }

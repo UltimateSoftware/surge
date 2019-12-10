@@ -4,6 +4,6 @@ package com.ultimatesoftware.kafka.streams.scaladsl
 
 import com.ultimatesoftware.kafka.streams.core
 
-trait SurgeFormatting[Event] extends core.SurgeFormatting[Event] {
+trait SurgeFormatting[Event, EvtMeta] extends core.SurgeFormatting[Event, EvtMeta] {
 
 }

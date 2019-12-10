@@ -63,12 +63,12 @@ import scala.concurrent.{ ExecutionContext, Future }
  * @tparam Agg Generic aggregate type of aggregates publishing states/events through this stateful producer
  * @tparam Event Generic base type for events that aggregate instances publish through this stateful producer
  */
-class KafkaProducerActor[AggId, Agg, Event](
+class KafkaProducerActor[AggId, Agg, Event, EvtMeta](
     actorSystem: ActorSystem,
     assignedPartition: TopicPartition,
     metricsProvider: MetricsProvider,
     stateMetaHandler: GlobalKTableMetadataHandler,
-    aggregateCommandKafkaStreams: KafkaStreamsCommandBusinessLogic[AggId, Agg, _, Event, _, _]) {
+    aggregateCommandKafkaStreams: KafkaStreamsCommandBusinessLogic[AggId, Agg, _, Event, _, EvtMeta]) {
 
   private val log = LoggerFactory.getLogger(getClass)
   private val aggregateName: String = aggregateCommandKafkaStreams.aggregateName
@@ -78,11 +78,11 @@ class KafkaProducerActor[AggId, Agg, Event](
       assignedPartition, metricsProvider, stateMetaHandler, aggregateCommandKafkaStreams)).withDispatcher("kafka-publisher-actor-dispatcher"))
 
   private val publishEventsTimer: Timer = metricsProvider.createTimer(s"${aggregateName}PublishEventsTimer")
-  def publish(aggregateId: AggId, states: Seq[(String, JsValue)], events: Seq[(String, Event)]): Future[Done] = {
+  def publish(aggregateId: AggId, states: Seq[(String, JsValue)], events: Seq[(String, EvtMeta, Event)]): Future[Done] = {
 
-    val eventKeyValuePairs = events.map { eventKV ⇒
+    val eventKeyValuePairs = events.map { eventTuple ⇒
       log.trace(s"Publishing event for $aggregateName $aggregateId")
-      eventKV._1 -> aggregateCommandKafkaStreams.formatting.writeEvent(eventKV._2)
+      eventTuple._1 -> aggregateCommandKafkaStreams.formatting.writeEvent(eventTuple._3, eventTuple._2)
     }
     val stateKeyValuePairs = states.map { stateKv ⇒
       log.trace(s"Publishing state for $aggregateName $aggregateId")

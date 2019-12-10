@@ -6,7 +6,7 @@ import com.ultimatesoftware.kafka.streams.core.SurgeFormatting
 import com.ultimatesoftware.scala.core.utils.{ JsonFormats, JsonUtils }
 import play.api.libs.json.{ JsValue, Json, Writes }
 
-class JacksonEventFormatter[Event] extends SurgeFormatting[Event] {
+class JacksonEventFormatter[Event, EvtMeta] extends SurgeFormatting[Event, EvtMeta] {
   private implicit val eventWriter: Writes[Event] = new Writes[Event] {
     private val jacksonMapper = JsonFormats.genericJacksonMapper
 
@@ -15,5 +15,5 @@ class JacksonEventFormatter[Event] extends SurgeFormatting[Event] {
       Json.parse(objJson)
     }
   }
-  override def writeEvent(evt: Event): Array[Byte] = JsonUtils.gzip(evt)
+  override def writeEvent(evt: Event, metadata: EvtMeta): Array[Byte] = JsonUtils.gzip(evt)
 }

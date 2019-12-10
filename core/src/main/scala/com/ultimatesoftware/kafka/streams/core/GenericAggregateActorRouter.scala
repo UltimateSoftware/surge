@@ -42,7 +42,7 @@ class GenericAggregateActorRegionProvider[AggId, Agg, Command, Event, CmdMeta, E
     metricsProvider: MetricsProvider) extends PerShardLogicProvider[AggId] {
 
   override def actorProvider(context: ActorContext): EntityPropsProvider[AggId] = {
-    val kafkaProducerActor = new KafkaProducerActor(
+    val kafkaProducerActor = new KafkaProducerActor[AggId, Agg, Event, EvtMeta](
       actorSystem = context.system,
       assignedPartition = assignedPartition,
       metricsProvider = metricsProvider,

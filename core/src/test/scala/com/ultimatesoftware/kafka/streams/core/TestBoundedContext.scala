@@ -145,8 +145,8 @@ trait TestBoundedContext {
     internalMetadataTopic = KafkaTopic("metadataTopic", compacted = false, None),
     eventKeyExtractor = { evt ⇒ s"${evt.aggregateId}:${evt.sequenceNumber}" },
     stateKeyExtractor = BusinessLogic.stateKeyExtractor)
-  val formats: SurgeFormatting[BaseTestEvent] = new SurgeFormatting[BaseTestEvent] {
-    override def writeEvent(evt: BaseTestEvent): Array[Byte] = JsonUtils.gzip(evt)(baseEventFormat)
+  val formats: SurgeFormatting[BaseTestEvent, TimestampMeta] = new SurgeFormatting[BaseTestEvent, TimestampMeta] {
+    override def writeEvent(evt: BaseTestEvent, metadata: TimestampMeta): Array[Byte] = JsonUtils.gzip(evt)(baseEventFormat)
   }
   val kafkaStreamsLogic = KafkaStreamsCommandBusinessLogic(
     aggregateName = "CountAggregate",
