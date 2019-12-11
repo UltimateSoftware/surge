@@ -7,7 +7,7 @@ import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 import akka.Done
-import akka.actor.{ ActorRef, ActorSystem, Props, ReceiveTimeout}
+import akka.actor.{ ActorRef, ActorSystem, Props, ReceiveTimeout }
 import akka.testkit.{ TestKit, TestProbe }
 import akka.util.Timeout
 import com.ultimatesoftware.akka.cluster.Passivate
