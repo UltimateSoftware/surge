@@ -9,7 +9,7 @@ import com.ultimatesoftware.kafka.streams.{ AggregateStateStoreKafkaStreams, Glo
 import play.api.libs.json.JsValue
 
 trait KafkaStreamsCommandTrait[AggId, Agg, Command, Event, CmdMeta, EvtMeta] {
-  def start(): Unit
+  def start(): Unit // FIXME can this return an instance of the engine instead of being a unit? That way it can just be called inline
   val businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta]
   def actorSystem: ActorSystem
 }

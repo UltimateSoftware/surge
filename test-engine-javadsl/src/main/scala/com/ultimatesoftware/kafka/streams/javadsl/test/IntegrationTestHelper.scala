@@ -7,8 +7,9 @@ import java.util.concurrent.{ Callable, TimeUnit }
 
 import com.ultimatesoftware.kafka.streams.javadsl.UltiKafkaStreamsCommandBusinessLogic
 import com.ultimatesoftware.scala.core.domain.StatePlusMetadata
-import com.ultimatesoftware.scala.core.kafka.{ KafkaBytesConsumer, UltiKafkaConsumerConfig }
-import com.ultimatesoftware.scala.core.messaging.{ EventMessage, EventMessageSerializer, EventMessageSerializerRegistry }
+import com.ultimatesoftware.scala.core.kafka.{ KafkaBytesConsumer, KafkaBytesProducer, UltiKafkaConsumerConfig }
+import com.ultimatesoftware.scala.core.messaging.{ EventMessage, EventMessageSerializer, EventMessageSerializerRegistry, EventMessageTypeInfo, EventProperties }
+import com.ultimatesoftware.scala.core.utils.EmptyUUID
 import com.ultimatesoftware.scala.core.utils.JsonUtils
 import org.awaitility.Awaitility._
 import org.awaitility.core.ThrowingRunnable
@@ -55,6 +56,8 @@ class IntegrationTestHelper[AggId, Agg, Cmd, Event, CmdMeta](
     })
   }(ExecutionContext.global)
 
+  private val kafkaPublisher: KafkaBytesProducer = KafkaBytesProducer(kafkaBrokers.asScala, ultiBusinessLogic.eventsTopic)
+
   def waitForEvent[T](`type`: Class[T]): T = {
     var event: Option[T] = None
     await().atMost(timeoutSeconds, TimeUnit.SECONDS) until {
@@ -72,6 +75,13 @@ class IntegrationTestHelper[AggId, Agg, Cmd, Event, CmdMeta](
 
   def clearReceivedEvents(): Unit = {
     eventBus.clear()
+  }
+
+  // TODO make this more user friendly when using the CMP libraries
+  def publishEvent(event: Event, props: EventProperties, typeInfo: EventMessageTypeInfo): Unit = {
+    val key = s"${props.aggregateId.getOrElse(EmptyUUID)}:${props.sequenceNumber}"
+    val value = JsonUtils.gzip(EventMessage.create(props, event, typeInfo))
+    kafkaPublisher.putKeyValue(key, value)
   }
 
   def close(): Unit = {

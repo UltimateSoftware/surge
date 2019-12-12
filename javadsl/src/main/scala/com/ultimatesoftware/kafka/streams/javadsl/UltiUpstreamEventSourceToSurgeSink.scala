@@ -66,7 +66,8 @@ class UltiUpstreamEventSourceToSurgeSink[AggId, UpstreamEvent, Command, CmdMeta 
   private implicit val materializer: ActorMaterializer = ActorMaterializer()
   private val settings = KafkaConsumer.consumerSettings(actorSystem, groupId = consumerGroup)
 
-  def create(): Unit = {
+  def create(): UltiUpstreamEventSourceToSurgeSink[AggId, UpstreamEvent, Command, CmdMeta] = {
     KafkaConsumer()(surgeEngine.actorSystem).streamAndCommitOffsets(kafkaTopic, sendToSurge, parallelism, settings)
+    this
   }
 }
