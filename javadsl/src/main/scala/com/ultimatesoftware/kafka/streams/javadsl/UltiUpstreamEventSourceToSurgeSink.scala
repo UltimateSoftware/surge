@@ -10,7 +10,7 @@ import akka.stream.ActorMaterializer
 import com.ultimatesoftware.akka.streams.kafka.KafkaConsumer
 import com.ultimatesoftware.scala.core.domain.{ CommandMetadata, ConsumedEventCommandMetadata }
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
-import com.ultimatesoftware.scala.core.messaging.EventMessageSerializerRegistry
+import com.ultimatesoftware.scala.core.messaging.{ EventMessageSerializerRegistry, EventProperties }
 import com.ultimatesoftware.scala.core.utils.JsonUtils
 import org.slf4j.{ Logger, LoggerFactory }
 import play.api.libs.json.JsValue
@@ -23,13 +23,19 @@ trait EventTransformer[UpstreamEvent, Command] {
   def transform(event: UpstreamEvent): Optional[Command]
 }
 
-class UltiUpstreamEventSourceToSurgeSink[AggId, UpstreamEvent, Command](
+trait MetadataExtractor[CmdMeta] {
+  def extractMetadata(props: EventProperties): CmdMeta
+}
+
+class UltiUpstreamEventSourceToSurgeSink[AggId, UpstreamEvent, Command, CmdMeta <: CommandMetadata[CmdMeta]](
     kafkaTopic: KafkaTopic,
-    surgeEngine: KafkaStreamsCommand[AggId, _, Command, _, CommandMetadata[_], _],
+    surgeEngine: KafkaStreamsCommand[AggId, _, Command, _, CmdMeta, _],
     registry: EventMessageSerializerRegistry[UpstreamEvent],
     eventTransformer: EventTransformer[UpstreamEvent, Command],
-    parallelism: Int = 1)(implicit ec: ExecutionContext) {
+    metadataExtractor: MetadataExtractor[CmdMeta],
+    parallelism: Int = 1) {
   private val log: Logger = LoggerFactory.getLogger(getClass)
+  private implicit val ec: ExecutionContext = ExecutionContext.global
 
   private def sendToSurge(key: String, value: Array[Byte]): Future[Done] = {
     val jsValue = JsonUtils.parseMaybeCompressedBytes[JsValue](value)
@@ -40,7 +46,7 @@ class UltiUpstreamEventSourceToSurgeSink[AggId, UpstreamEvent, Command](
       case Some(event) ⇒
         eventTransformer.transform(event.body).asScala.map { command ⇒
           val aggregateRef = surgeEngine.aggregateFor(surgeEngine.businessLogic.model.aggIdFromCommand(command))
-          val cmdMeta = ConsumedEventCommandMetadata.fromEventProperties(event.toProperties)
+          val cmdMeta = metadataExtractor.extractMetadata(event.toProperties)
 
           aggregateRef.ask(cmdMeta, command).toScala.map(_ ⇒ Done)
         } getOrElse {
