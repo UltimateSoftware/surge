@@ -2,11 +2,11 @@
 
 package com.ultimatesoftware.kafka.streams.javadsl
 
-import com.ultimatesoftware.kafka.streams.core.SurgeFormatting
+import com.ultimatesoftware.kafka.streams.core.SurgeWriteFormatting
 import com.ultimatesoftware.scala.core.utils.{ JsonFormats, JsonUtils }
 import play.api.libs.json.{ JsValue, Json, Writes }
 
-class JacksonEventFormatter[Event, EvtMeta] extends SurgeFormatting[Event, EvtMeta] {
+class JacksonEventFormatter[Event, EvtMeta] extends SurgeWriteFormatting[Event, EvtMeta] {
   private implicit val eventWriter: Writes[Event] = new Writes[Event] {
     private val jacksonMapper = JsonFormats.genericJacksonMapper
 

@@ -2,6 +2,6 @@
 
 package com.ultimatesoftware.kafka.streams.core
 
-private[streams] trait SurgeFormatting[Event, EvtMeta] {
+private[streams] trait SurgeWriteFormatting[Event, EvtMeta] {
   def writeEvent(evt: Event, metadata: EvtMeta): Array[Byte]
 }
