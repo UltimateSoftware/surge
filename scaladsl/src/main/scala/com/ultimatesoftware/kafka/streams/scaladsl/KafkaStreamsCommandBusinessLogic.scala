@@ -7,13 +7,13 @@ import com.ultimatesoftware.scala.core.kafka.KafkaTopic
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, MetricsPublisher, NoOpsMetricsPublisher }
 import com.ultimatesoftware.scala.core.validations.AsyncCommandValidator
 import com.ultimatesoftware.scala.oss.domain.{ AggregateCommandModel, AggregateComposer }
-import play.api.libs.json.JsValue
+import play.api.libs.json.{ Format, JsValue }
 
 import scala.concurrent.duration._
 
-trait KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta] {
+trait KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope <: com.ultimatesoftware.mp.serialization.envelope.Envelope] {
   def aggregateName: String
-
+  def aggregateFormat: Format[Agg]
   def stateTopic: KafkaTopic
   def eventsTopic: KafkaTopic
   def internalMetadataTopic: KafkaTopic
@@ -22,7 +22,9 @@ trait KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtM
 
   def commandModel: AggregateCommandModel[AggId, Agg, Command, Event, CmdMeta, EvtMeta]
 
-  def formatting: SurgeWriteFormatting[Event, EvtMeta]
+  def readFormatting: SurgeReadFormatting[Agg, Event, Envelope]
+  def writeFormatting: SurgeWriteFormatting[AggId, Agg, Event, EvtMeta]
+
   def commandValidator: AsyncCommandValidator[Command, Agg]
   def aggregateComposer: AggregateComposer[AggId, Agg]
 
@@ -38,10 +40,11 @@ trait KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtM
   private def kafkaConfig = KafkaStreamsCommandKafkaConfig(stateTopic = stateTopic, eventsTopic = eventsTopic,
     internalMetadataTopic = internalMetadataTopic, eventKeyExtractor = eventKeyExtractor, stateKeyExtractor = stateKeyExtractor)
 
-  private[scaladsl] def toCore: com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta] = {
-    new com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
+  private[scaladsl] def toCore: com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope] = {
+    new com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope](
       aggregateName = aggregateName, kafka = kafkaConfig,
-      model = commandModel, formatting = formatting, commandValidator = commandValidator, aggregateValidator = aggregateValidator,
+      model = commandModel, readFormatting = readFormatting,
+      writeFormatting = writeFormatting, commandValidator = commandValidator, aggregateValidator = aggregateValidator,
       metricsProvider = metricsProvider, metricsPublisher = metricsPublisher, metricsInterval = metricsInterval,
       aggregateComposer = aggregateComposer)
   }

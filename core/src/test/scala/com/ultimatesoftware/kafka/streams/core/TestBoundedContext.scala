@@ -5,11 +5,12 @@ package com.ultimatesoftware.kafka.streams.core
 import java.time.Instant
 import java.util.UUID
 
+import com.ultimatesoftware.mp.serialization.envelope.MessagingPlatformEnvelope
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ NoOpMetricsProvider, NoOpsMetricsPublisher }
 import com.ultimatesoftware.scala.core.utils.JsonUtils
 import com.ultimatesoftware.scala.core.validations.{ AsyncCommandValidator, AsyncValidationResult, ValidationError }
-import com.ultimatesoftware.scala.oss.domain.{ AggregateCommandModel, CommandProcessor, SimpleJsonAggregateComposer }
+import com.ultimatesoftware.scala.oss.domain.{ AggregateCommandModel, AggregateSegment, CommandProcessor, SimpleJsonAggregateComposer }
 import play.api.libs.json._
 
 import scala.concurrent.Future
@@ -134,7 +135,10 @@ trait TestBoundedContext {
 
     val aggregateComposer: SimpleJsonAggregateComposer[UUID, State] = new SimpleJsonAggregateComposer[UUID, State](stateFormat)
 
-    val stateKeyExtractor: JsValue ⇒ String = { json ⇒ aggregateComposer.compose(Set(json)).map(_.aggregateId.toString).getOrElse("") }
+    val stateKeyExtractor: JsValue ⇒ String = { json ⇒
+      aggregateComposer.compose(Set(AggregateSegment[UUID, State](
+        Json.parse(json.toString()).as[Map[String, JsValue]].get("aggregateId").get.toString(), json, Some(classOf[State])))).map(_.aggregateId.toString).getOrElse("")
+    }
   }
 
   object BusinessLogic extends BusinessLogicTrait
@@ -145,14 +149,28 @@ trait TestBoundedContext {
     internalMetadataTopic = KafkaTopic("metadataTopic", compacted = false, None),
     eventKeyExtractor = { evt ⇒ s"${evt.aggregateId}:${evt.sequenceNumber}" },
     stateKeyExtractor = BusinessLogic.stateKeyExtractor)
-  val formats: SurgeWriteFormatting[BaseTestEvent, TimestampMeta] = new SurgeWriteFormatting[BaseTestEvent, TimestampMeta] {
+
+  val readFormats: SurgeReadFormatting[State, BaseTestEvent, MessagingPlatformEnvelope] = new SurgeReadFormatting[State, BaseTestEvent, MessagingPlatformEnvelope] {
+    override def readEvent(bytes: Array[Byte]): (BaseTestEvent, MessagingPlatformEnvelope) = {
+      (JsonUtils.parseMaybeCompressedBytes(bytes)(Json.format[BaseTestEvent]).get, new MessagingPlatformEnvelope)
+    }
+
+    override def readState(bytes: Array[Byte]): Option[State] = {
+      Json.parse(bytes).asOpt[State]
+    }
+  }
+
+  val writeFormats: SurgeWriteFormatting[UUID, State, BaseTestEvent, TimestampMeta] = new SurgeWriteFormatting[UUID, State, BaseTestEvent, TimestampMeta] {
     override def writeEvent(evt: BaseTestEvent, metadata: TimestampMeta): Array[Byte] = JsonUtils.gzip(evt)(baseEventFormat)
+
+    override def writeState(agg: AggregateSegment[UUID, State]): Array[Byte] = JsonUtils.gzip(agg.value)
   }
   val kafkaStreamsLogic = KafkaStreamsCommandBusinessLogic(
     aggregateName = "CountAggregate",
     kafka = kafkaConfig,
     model = BusinessLogic,
-    formatting = formats,
+    readFormatting = readFormats,
+    writeFormatting = writeFormats,
     commandValidator = BusinessLogic.commandValidator,
     aggregateValidator = { (_, _, _) ⇒ true },
     aggregateComposer = BusinessLogic.aggregateComposer,

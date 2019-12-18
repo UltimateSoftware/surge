@@ -10,10 +10,10 @@ import com.ultimatesoftware.scala.core.monitoring.metrics.MetricsProvider
 import org.apache.kafka.common.TopicPartition
 import play.api.libs.json.JsValue
 
-private[streams] final class GenericAggregateActorRouter[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
+private[streams] final class GenericAggregateActorRouter[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope <: com.ultimatesoftware.mp.serialization.envelope.Envelope](
     system: ActorSystem,
     clusterStateTrackingActor: ActorRef,
-    businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta],
+    businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope],
     metricsProvider: MetricsProvider,
     stateMetaHandler: GlobalKTableMetadataHandler,
     kafkaStreamsCommand: AggregateStateStoreKafkaStreams[JsValue]) {
@@ -34,15 +34,15 @@ private[streams] final class GenericAggregateActorRouter[AggId, Agg, Command, Ev
   }
 }
 
-class GenericAggregateActorRegionProvider[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
+class GenericAggregateActorRegionProvider[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope <: com.ultimatesoftware.mp.serialization.envelope.Envelope](
     assignedPartition: TopicPartition,
-    businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta],
+    businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope],
     stateMetaHandler: GlobalKTableMetadataHandler,
     aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue],
     metricsProvider: MetricsProvider) extends PerShardLogicProvider[AggId] {
 
   override def actorProvider(context: ActorContext): EntityPropsProvider[AggId] = {
-    val kafkaProducerActor = new KafkaProducerActor[AggId, Agg, Event, EvtMeta](
+    val kafkaProducerActor = new KafkaProducerActor[AggId, Agg, Event, EvtMeta, Envelope](
       actorSystem = context.system,
       assignedPartition = assignedPartition,
       metricsProvider = metricsProvider,

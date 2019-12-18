@@ -7,22 +7,27 @@ import java.util.concurrent.TimeUnit
 
 import akka.actor.{ Actor, Props, ReceiveTimeout, Stash }
 import akka.pattern.pipe
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import com.typesafe.config.{ Config, ConfigFactory }
 import com.ultimatesoftware.akka.cluster.Passivate
 import com.ultimatesoftware.kafka.streams.AggregateStateStoreKafkaStreams
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, Timer }
+import com.ultimatesoftware.scala.core.utils.JsonFormats
 import com.ultimatesoftware.scala.core.validations._
+import com.ultimatesoftware.scala.oss.domain.AggregateSegment
 import org.slf4j.LoggerFactory
 import play.api.libs.json._
 
+import scala.reflect.runtime.{ universe ⇒ ru }
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
 private[streams] object GenericAggregateActor {
-  def props[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
+  def props[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope <: com.ultimatesoftware.mp.serialization.envelope.Envelope](
     aggregateId: AggId,
-    businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, _, EvtMeta],
-    kafkaProducerActor: KafkaProducerActor[AggId, Agg, Event, EvtMeta],
+    businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, _, EvtMeta, Envelope],
+    kafkaProducerActor: KafkaProducerActor[AggId, Agg, Event, EvtMeta, Envelope],
     metrics: GenericAggregateActorMetrics,
     kafkaStreamsCommand: AggregateStateStoreKafkaStreams[JsValue]): Props = {
     Props(new GenericAggregateActor(aggregateId, kafkaProducerActor, businessLogic, metrics, kafkaStreamsCommand))
@@ -85,10 +90,10 @@ private[streams] object GenericAggregateActor {
  * @tparam CmdMeta Type of metadata associated with incoming commands passed to the business logic to enhance commands
  * @tparam EvtMeta Type of metadata about events passed to the business logic to enhance published events
  */
-private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
+private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope <: com.ultimatesoftware.mp.serialization.envelope.Envelope](
     aggregateId: AggId,
-    kafkaProducerActor: KafkaProducerActor[AggId, Agg, Event, EvtMeta],
-    businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta],
+    kafkaProducerActor: KafkaProducerActor[AggId, Agg, Event, EvtMeta, Envelope],
+    businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope],
     metrics: GenericAggregateActor.GenericAggregateActorMetrics,
     kafkaStreamsCommand: AggregateStateStoreKafkaStreams[JsValue]) extends Actor with Stash {
   import GenericAggregateActor._
@@ -145,7 +150,7 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
         val eventKeyMetaValues = events.map(evt ⇒ (businessLogic.kafka.eventKeyExtractor(evt), evtMeta, evt))
 
         val states = newState.toSeq.flatMap(state ⇒ businessLogic.aggregateComposer.decompose(aggregateId, state).toSeq)
-        val stateKeyValues = states.map(s ⇒ businessLogic.kafka.stateKeyExtractor(s) -> s)
+        val stateKeyValues = states.map(s ⇒ businessLogic.kafka.stateKeyExtractor(s.value) -> s)
 
         log.trace("GenericAggregateActor for {} sending events to publisher actor", aggregateId)
         kafkaProducerActor.publish(aggregateId = aggregateId, states = stateKeyValues, events = eventKeyMetaValues).map { _ ⇒
@@ -247,7 +252,14 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
       kafkaStreamsCommand.aggregateQueryableStateStore.get(aggregateId.toString))
 
     fetchedStateFut.map { state ⇒
-      val stateSet = state.toSeq.toSet
+      val stateSet: Set[AggregateSegment[AggId, Agg]] = state.toSeq.toSet[Array[Byte]].map(s ⇒ {
+        val stateOpt = businessLogic.readFormatting.readState(s)
+
+        val objJson = JsonFormats.genericJacksonMapper.writer().writeValueAsString(stateOpt.get)
+        AggregateSegment[AggId, Agg](
+          aggregateId.toString,
+          Json.parse(objJson), Some(stateOpt.get.getClass))
+      })
       log.trace("GenericAggregateActor for {} fetched {} persisted substate", aggregateId, stateSet.size)
       val stateOpt = businessLogic.aggregateComposer.compose(stateSet)
 
@@ -267,7 +279,14 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
 
     fetchedStateFut.map { substates ⇒
       log.trace("GenericAggregateActor for {} fetched {} persisted substates", aggregateId, substates.length)
-      val serializedStates = substates.map(_._2).toSet
+      val serializedStates = substates.map(_._2).toSet[Array[Byte]].map(s ⇒ {
+        val stateOpt: Option[Agg] = businessLogic.readFormatting.readState(s)
+        val objJson = JsonFormats.genericJacksonMapper.writer().writeValueAsString(stateOpt.get)
+
+        AggregateSegment[AggId, Agg](
+          aggregateId.toString,
+          Json.parse(objJson), Some(stateOpt.get.getClass))
+      })
       val stateOpt = businessLogic.aggregateComposer.compose(serializedStates)
 
       self ! InitializeWithState(stateOpt)

@@ -14,9 +14,10 @@ import play.api.libs.json.JsValue
 import scala.compat.java8.OptionConverters._
 import scala.concurrent.duration._
 
-abstract class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta] {
+abstract class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope <: com.ultimatesoftware.mp.serialization.envelope.Envelope] {
   def aggregateName: String
-
+  def aggregateTargetClass: Class[Agg]
+  def eventTargetClass: Class[Event]
   def stateTopic: KafkaTopic
   def eventsTopic: KafkaTopic
   def internalMetadataTopic: KafkaTopic
@@ -43,10 +44,10 @@ abstract class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdM
   private def kafkaConfig = KafkaStreamsCommandKafkaConfig(stateTopic = stateTopic, eventsTopic = eventsTopic,
     internalMetadataTopic = internalMetadataTopic, eventKeyExtractor = eventKeyExtractor, stateKeyExtractor = stateKeyExtractor)
 
-  private[javadsl] def toCore: com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta] = {
-    new com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
+  private[javadsl] def toCore: com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope] = {
+    new com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope](
       aggregateName = aggregateName, kafka = kafkaConfig,
-      model = commandModel, formatting = new JacksonEventFormatter, commandValidator = commandValidator, aggregateValidator = scalaAggregateValidator,
+      model = commandModel, writeFormatting = new JacksonWriteFormatter, readFormatting = new JacksonReadFormatter(eventTargetClass, aggregateTargetClass), commandValidator = commandValidator, aggregateValidator = scalaAggregateValidator,
       metricsProvider = metricsProvider, metricsPublisher = metricsPublisher, metricsInterval = metricsInterval,
       aggregateComposer = aggregateComposer)
   }

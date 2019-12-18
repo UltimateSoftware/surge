@@ -8,13 +8,13 @@ import com.ultimatesoftware.kafka.KafkaConsumerStateTrackingActor
 import com.ultimatesoftware.kafka.streams.{ AggregateStateStoreKafkaStreams, GlobalKTableMetadataHandler, KafkaStreamsPartitionTrackerActorProvider }
 import play.api.libs.json.JsValue
 
-trait KafkaStreamsCommandTrait[AggId, Agg, Command, Event, CmdMeta, EvtMeta] {
+trait KafkaStreamsCommandTrait[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope <: com.ultimatesoftware.mp.serialization.envelope.Envelope] {
   def start(): Unit // FIXME can this return an instance of the engine instead of being a unit? That way it can just be called inline
-  val businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta]
+  val businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope]
   def actorSystem: ActorSystem
 }
 
-trait KafkaStreamsCommandImpl[AggId, Agg, Command, Event, CmdMeta, EvtMeta] extends KafkaStreamsCommandTrait[AggId, Agg, Command, Event, CmdMeta, EvtMeta] {
+trait KafkaStreamsCommandImpl[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope <: com.ultimatesoftware.mp.serialization.envelope.Envelope] extends KafkaStreamsCommandTrait[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope] {
   val actorSystem: ActorSystem
   private implicit val system: ActorSystem = actorSystem
 
@@ -27,9 +27,10 @@ trait KafkaStreamsCommandImpl[AggId, Agg, Command, Event, CmdMeta, EvtMeta] exte
   private val stateMetaHandler = new GlobalKTableMetadataHandler(businessLogic.kafka.internalMetadataTopic)
   private val kafkaStreamsImpl = new AggregateStateStoreKafkaStreams[JsValue](
     businessLogic.aggregateName,
-    businessLogic.kafka.stateTopic, new KafkaStreamsPartitionTrackerActorProvider(stateChangeActor), stateMetaHandler, businessLogic.aggregateValidator,
+    businessLogic.kafka.stateTopic,
+    new KafkaStreamsPartitionTrackerActorProvider(stateChangeActor), stateMetaHandler, businessLogic.aggregateValidator,
     Some(applicationHostPort))
-  protected val actorRouter = new GenericAggregateActorRouter[AggId, Agg, Command, Event, CmdMeta, EvtMeta](actorSystem, stateChangeActor,
+  protected val actorRouter = new GenericAggregateActorRouter[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope](actorSystem, stateChangeActor,
     businessLogic, businessLogic.metricsProvider, stateMetaHandler, kafkaStreamsImpl)
 
   def start(): Unit = {

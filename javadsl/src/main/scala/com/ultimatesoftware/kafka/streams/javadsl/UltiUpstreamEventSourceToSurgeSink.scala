@@ -27,9 +27,9 @@ trait MetadataExtractor[CmdMeta] {
   def extractMetadata(props: EventProperties): CmdMeta
 }
 
-class UltiUpstreamEventSourceToSurgeSink[AggId, UpstreamEvent, Command, CmdMeta <: CommandMetadata[CmdMeta]](
+class UltiUpstreamEventSourceToSurgeSink[AggId, UpstreamEvent, Command, CmdMeta <: CommandMetadata[CmdMeta], Envelope <: com.ultimatesoftware.mp.serialization.envelope.Envelope](
     kafkaTopic: KafkaTopic,
-    surgeEngine: KafkaStreamsCommand[AggId, _, Command, _, CmdMeta, _],
+    surgeEngine: KafkaStreamsCommand[AggId, _, Command, _, CmdMeta, _, Envelope],
     registry: EventMessageSerializerRegistry[UpstreamEvent],
     eventTransformer: EventTransformer[UpstreamEvent, Command],
     metadataExtractor: MetadataExtractor[CmdMeta],
@@ -66,7 +66,7 @@ class UltiUpstreamEventSourceToSurgeSink[AggId, UpstreamEvent, Command, CmdMeta 
   private implicit val materializer: ActorMaterializer = ActorMaterializer()
   private val settings = KafkaConsumer.consumerSettings(actorSystem, groupId = consumerGroup)
 
-  def create(): UltiUpstreamEventSourceToSurgeSink[AggId, UpstreamEvent, Command, CmdMeta] = {
+  def create(): UltiUpstreamEventSourceToSurgeSink[AggId, UpstreamEvent, Command, CmdMeta, Envelope] = {
     KafkaConsumer()(surgeEngine.actorSystem).streamAndCommitOffsets(kafkaTopic, sendToSurge, parallelism, settings)
     this
   }
