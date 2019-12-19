@@ -29,8 +29,8 @@ abstract class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdM
   def commandValidator: AsyncCommandValidator[Command, Agg]
   def aggregateComposer: AggregateComposer[AggId, Agg]
 
-  def aggregateValidator(key: String, aggJson: JsValue, prevAggJsonOpt: Optional[JsValue]): Boolean = true
-  private def scalaAggregateValidator: (String, JsValue, Option[JsValue]) ⇒ Boolean = { (key, agg, prevAgg) ⇒
+  def aggregateValidator(key: String, aggJson: Array[Byte], prevAggJsonOpt: Optional[Array[Byte]]): Boolean = true
+  private def scalaAggregateValidator: (String, Array[Byte], Option[Array[Byte]]) ⇒ Boolean = { (key, agg, prevAgg) ⇒
     aggregateValidator(key, agg, prevAgg.asJava)
   }
 

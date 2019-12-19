@@ -2,7 +2,7 @@
 
 package com.ultimatesoftware.kafka.streams.scaladsl
 
-import com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandKafkaConfig
+import com.ultimatesoftware.kafka.streams.core.{ KafkaStreamsCommandKafkaConfig, SurgeReadFormatting, SurgeWriteFormatting }
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, MetricsPublisher, NoOpsMetricsPublisher }
 import com.ultimatesoftware.scala.core.validations.AsyncCommandValidator
@@ -28,7 +28,7 @@ trait KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtM
   def commandValidator: AsyncCommandValidator[Command, Agg]
   def aggregateComposer: AggregateComposer[AggId, Agg]
 
-  def aggregateValidator: (String, JsValue, Option[JsValue]) ⇒ Boolean = { (_, _, _) ⇒ true }
+  def aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) ⇒ Boolean = { (_, _, _) ⇒ true }
 
   // Defaults to noops publishing (for now) and 30 second interval on metrics snapshots
   // These can be overridden in the derived applications
