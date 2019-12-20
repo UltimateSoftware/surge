@@ -23,8 +23,8 @@ import scala.concurrent.duration._
 private[streams] object GenericAggregateActor {
   def props[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope](
     aggregateId: AggId,
-    businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, _, EvtMeta, Envelope],
-    kafkaProducerActor: KafkaProducerActor[AggId, Agg, Event, EvtMeta, Envelope],
+    businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, _, EvtMeta],
+    kafkaProducerActor: KafkaProducerActor[AggId, Agg, Event, EvtMeta],
     metrics: GenericAggregateActorMetrics,
     kafkaStreamsCommand: AggregateStateStoreKafkaStreams[JsValue]): Props = {
     Props(new GenericAggregateActor(aggregateId, kafkaProducerActor, businessLogic, metrics, kafkaStreamsCommand))
@@ -87,10 +87,10 @@ private[streams] object GenericAggregateActor {
  * @tparam CmdMeta Type of metadata associated with incoming commands passed to the business logic to enhance commands
  * @tparam EvtMeta Type of metadata about events passed to the business logic to enhance published events
  */
-private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope](
+private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
     aggregateId: AggId,
-    kafkaProducerActor: KafkaProducerActor[AggId, Agg, Event, EvtMeta, Envelope],
-    businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope],
+    kafkaProducerActor: KafkaProducerActor[AggId, Agg, Event, EvtMeta],
+    businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta],
     metrics: GenericAggregateActor.GenericAggregateActorMetrics,
     kafkaStreamsCommand: AggregateStateStoreKafkaStreams[JsValue]) extends Actor with Stash {
   import GenericAggregateActor._

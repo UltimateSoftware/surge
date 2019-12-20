@@ -7,8 +7,8 @@ import com.ultimatesoftware.scala.core.messaging.{ EventMessage, EventProperties
 import com.ultimatesoftware.scala.core.validations.AsyncCommandValidator
 import play.api.libs.json.JsValue
 
-abstract class UltiKafkaStreamsCommandBusinessLogic[AggId, Agg, Cmd, Event, CmdMeta, Envelope]
-  extends KafkaStreamsCommandBusinessLogic[AggId, StatePlusMetadata[Agg], Cmd, EventMessage[Event], CmdMeta, EventProperties, Envelope] {
+abstract class UltiKafkaStreamsCommandBusinessLogic[AggId, Agg, Cmd, Event, CmdMeta]
+  extends KafkaStreamsCommandBusinessLogic[AggId, StatePlusMetadata[Agg], Cmd, EventMessage[Event], CmdMeta, EventProperties] {
   override def eventKeyExtractor(evtMsg: EventMessage[Event]): String = s"${evtMsg.aggregateId}:${evtMsg.sequenceNumber}"
 
   override def stateKeyExtractor(jsValue: JsValue): String = {

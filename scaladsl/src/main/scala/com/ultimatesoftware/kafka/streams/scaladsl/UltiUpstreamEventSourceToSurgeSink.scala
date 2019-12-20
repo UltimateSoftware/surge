@@ -8,16 +8,16 @@ import akka.stream.ActorMaterializer
 import com.ultimatesoftware.akka.streams.kafka.KafkaConsumer
 import com.ultimatesoftware.scala.core.domain.{ CommandMetadata, ConsumedEventCommandMetadata }
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
-import com.ultimatesoftware.scala.core.messaging.EventMessageSerializerRegistry
+import com.ultimatesoftware.scala.core.messaging.{ EventMessageSerializerRegistry, EventProperties }
 import com.ultimatesoftware.scala.core.utils.JsonUtils
 import org.slf4j.{ Logger, LoggerFactory }
 import play.api.libs.json.JsValue
 
 import scala.concurrent.{ ExecutionContext, Future }
 
-case class UltiUpstreamEventSourceToSurgeSink[AggId, UpstreamEvent, Command, Envelope](
+case class UltiUpstreamEventSourceToSurgeSink[AggId, UpstreamEvent, Command](
     kafkaTopic: KafkaTopic,
-    surgeEngine: KafkaStreamsCommand[AggId, _, Command, _, CommandMetadata[_], _, Envelope],
+    surgeEngine: KafkaStreamsCommand[AggId, _, Command, _, CommandMetadata[_], _],
     registry: EventMessageSerializerRegistry[UpstreamEvent],
     eventTransformer: UpstreamEvent ⇒ Option[Command],
     parallelism: Int = 1)(implicit ec: ExecutionContext) {

@@ -5,11 +5,11 @@ package com.ultimatesoftware.kafka.streams.javadsl
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.ultimatesoftware.kafka.streams.core.SurgeReadFormatting
 
-class JacksonReadFormatter[Agg, Event, Envelope](eventTargetClass: Class[Event], aggTargetClass: Class[Agg]) extends SurgeReadFormatting[Agg, Event, Envelope] {
+class JacksonReadFormatter[Agg, Event, EventMetadata](eventTargetClass: Class[Event], aggTargetClass: Class[Agg]) extends SurgeReadFormatting[Agg, Event, EventMetadata] {
 
   private val jacksonMapper = new ObjectMapper()
 
-  override def readEvent(bytes: Array[Byte]): (Event, Option[Envelope]) = {
+  override def readEvent(bytes: Array[Byte]): (Event, Option[EventMetadata]) = {
     val event = jacksonMapper.readValue(new String(bytes), eventTargetClass)
 
     (event, None)

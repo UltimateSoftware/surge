@@ -20,10 +20,10 @@ import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
 
-class IntegrationTestHelper[AggId, Agg, Cmd, Event, CmdMeta, Envelope](
+class IntegrationTestHelper[AggId, Agg, Cmd, Event, CmdMeta](
     kafkaBrokers: java.util.List[String],
     eventMessageSerializers: java.util.List[EventMessageSerializer[_ <: Event]],
-    val ultiBusinessLogic: UltiKafkaStreamsCommandBusinessLogic[AggId, Agg, Cmd, Event, CmdMeta, Envelope]) {
+    val ultiBusinessLogic: UltiKafkaStreamsCommandBusinessLogic[AggId, Agg, Cmd, Event, CmdMeta]) {
   private val timeoutSeconds = 30
   private val log: Logger = LoggerFactory.getLogger(getClass)
 

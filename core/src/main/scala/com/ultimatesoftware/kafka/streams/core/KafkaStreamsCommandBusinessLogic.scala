@@ -17,11 +17,11 @@ private[streams] case class KafkaStreamsCommandKafkaConfig[Evt](
     eventKeyExtractor: Evt ⇒ String,
     stateKeyExtractor: JsValue ⇒ String)
 
-private[streams] case class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope](
+private[streams] case class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
     aggregateName: String,
     kafka: KafkaStreamsCommandKafkaConfig[Event],
     model: AggregateCommandModel[AggId, Agg, Command, Event, CmdMeta, EvtMeta],
-    readFormatting: SurgeReadFormatting[Agg, Event, Envelope],
+    readFormatting: SurgeReadFormatting[Agg, Event, EvtMeta],
     writeFormatting: SurgeWriteFormatting[AggId, Agg, Event, EvtMeta],
     commandValidator: AsyncCommandValidator[Command, Agg],
     aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) ⇒ Boolean,

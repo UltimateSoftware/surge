@@ -64,12 +64,12 @@ import scala.concurrent.{ ExecutionContext, Future }
  * @tparam Agg Generic aggregate type of aggregates publishing states/events through this stateful producer
  * @tparam Event Generic base type for events that aggregate instances publish through this stateful producer
  */
-class KafkaProducerActor[AggId, Agg, Event, EvtMeta, Envelope](
+class KafkaProducerActor[AggId, Agg, Event, EvtMeta](
     actorSystem: ActorSystem,
     assignedPartition: TopicPartition,
     metricsProvider: MetricsProvider,
     stateMetaHandler: GlobalKTableMetadataHandler,
-    aggregateCommandKafkaStreams: KafkaStreamsCommandBusinessLogic[AggId, Agg, _, Event, _, EvtMeta, Envelope]) {
+    aggregateCommandKafkaStreams: KafkaStreamsCommandBusinessLogic[AggId, Agg, _, Event, _, EvtMeta]) {
 
   private val log = LoggerFactory.getLogger(getClass)
   private val aggregateName: String = aggregateCommandKafkaStreams.aggregateName
@@ -122,10 +122,10 @@ private object KafkaProducerActorImpl {
 
   case class AggregateStateRates(current: Rate, notCurrent: Rate)
 }
-private class KafkaProducerActorImpl[Agg, Event, Envelope](
+private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
     assignedPartition: TopicPartition, metrics: MetricsProvider,
     stateMetaHandler: GlobalKTableMetadataHandler,
-    aggregateCommandKafkaStreams: KafkaStreamsCommandBusinessLogic[_, Agg, _, Event, _, _, Envelope]) extends Actor with Stash {
+    aggregateCommandKafkaStreams: KafkaStreamsCommandBusinessLogic[_, Agg, _, Event, _, _]) extends Actor with Stash {
 
   import KafkaProducerActorImpl._
   import aggregateCommandKafkaStreams._

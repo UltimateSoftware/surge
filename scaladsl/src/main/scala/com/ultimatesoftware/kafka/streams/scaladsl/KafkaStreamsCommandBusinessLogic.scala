@@ -11,7 +11,7 @@ import play.api.libs.json.{ Format, JsValue }
 
 import scala.concurrent.duration._
 
-trait KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope] {
+trait KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta] {
   def aggregateName: String
   def aggregateFormat: Format[Agg]
   def stateTopic: KafkaTopic
@@ -22,7 +22,7 @@ trait KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtM
 
   def commandModel: AggregateCommandModel[AggId, Agg, Command, Event, CmdMeta, EvtMeta]
 
-  def readFormatting: SurgeReadFormatting[Agg, Event, Envelope]
+  def readFormatting: SurgeReadFormatting[Agg, Event, EvtMeta]
   def writeFormatting: SurgeWriteFormatting[AggId, Agg, Event, EvtMeta]
 
   def commandValidator: AsyncCommandValidator[Command, Agg]
@@ -40,8 +40,8 @@ trait KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtM
   private def kafkaConfig = KafkaStreamsCommandKafkaConfig(stateTopic = stateTopic, eventsTopic = eventsTopic,
     internalMetadataTopic = internalMetadataTopic, eventKeyExtractor = eventKeyExtractor, stateKeyExtractor = stateKeyExtractor)
 
-  private[scaladsl] def toCore: com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope] = {
-    new com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope](
+  private[scaladsl] def toCore: com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta] = {
+    new com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
       aggregateName = aggregateName, kafka = kafkaConfig,
       model = commandModel, readFormatting = readFormatting,
       writeFormatting = writeFormatting, commandValidator = commandValidator, aggregateValidator = aggregateValidator,

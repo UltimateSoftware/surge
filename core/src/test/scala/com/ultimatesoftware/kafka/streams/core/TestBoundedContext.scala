@@ -17,8 +17,6 @@ import scala.concurrent.duration._
 import scala.util.{ Failure, Success }
 
 trait TestBoundedContext {
-  class TestEnvelope
-
   case class State(aggregateId: UUID, count: Int, version: Int, timestamp: Instant)
 
   implicit val stateFormat: Format[State] = Json.format
@@ -150,8 +148,8 @@ trait TestBoundedContext {
     eventKeyExtractor = { evt ⇒ s"${evt.aggregateId}:${evt.sequenceNumber}" },
     stateKeyExtractor = BusinessLogic.stateKeyExtractor)
 
-  val readFormats: SurgeReadFormatting[State, BaseTestEvent, TestEnvelope] = new SurgeReadFormatting[State, BaseTestEvent, TestEnvelope] {
-    override def readEvent(bytes: Array[Byte]): (BaseTestEvent, Option[TestEnvelope]) = {
+  val readFormats: SurgeReadFormatting[State, BaseTestEvent, TimestampMeta] = new SurgeReadFormatting[State, BaseTestEvent, TimestampMeta] {
+    override def readEvent(bytes: Array[Byte]): (BaseTestEvent, Option[TimestampMeta]) = {
       (JsonUtils.parseMaybeCompressedBytes(bytes)(Json.format[BaseTestEvent]).get, None)
     }
 
