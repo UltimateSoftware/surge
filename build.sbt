@@ -16,13 +16,7 @@ lazy val `surge-engine-ks-command-core` = (project in file("core"))
       typesafeConfig,
       Ultimate.Surge.common,
       Ultimate.Surge.scalaCore
-    ),
-
-    resolvers ++=  Seq(
-      "Artifactory" at "https://artifactory.mia.ulti.io/artifactory/gt-maven-libs-release/",
-//      "ucartifactory.mia.ucloud.int" at "https://artifactory.mia.ulti.io/artifactory/ultimate-nu-local",
-//      "mule-soft" at "https://repository.mulesoft.org/nexus/content/repositories/public",
-    ),
+    )
   )
 
 lazy val `surge-engine-ks-command-scaladsl` = (project in file("scaladsl"))
