@@ -20,8 +20,8 @@ lazy val `surge-engine-ks-command-core` = (project in file("core"))
 
     resolvers ++=  Seq(
       "Artifactory" at "https://artifactory.mia.ulti.io/artifactory/gt-maven-libs-release/",
-      "ucartifactory.mia.ucloud.int" at "https://artifactory.mia.ulti.io/artifactory/ultimate-nu-local",
-      "mule-soft" at "https://repository.mulesoft.org/nexus/content/repositories/public",
+//      "ucartifactory.mia.ucloud.int" at "https://artifactory.mia.ulti.io/artifactory/ultimate-nu-local",
+//      "mule-soft" at "https://repository.mulesoft.org/nexus/content/repositories/public",
     ),
   )
 

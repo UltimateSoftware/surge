@@ -14,7 +14,7 @@ import play.api.libs.json.JsValue
 import scala.compat.java8.OptionConverters._
 import scala.concurrent.duration._
 
-abstract class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope <: com.ultimatesoftware.mp.serialization.envelope.Envelope] {
+abstract class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope] {
   def aggregateName: String
   def aggregateTargetClass: Class[Agg]
   def eventTargetClass: Class[Event]

@@ -5,7 +5,6 @@ package com.ultimatesoftware.kafka.streams.core
 import java.time.Instant
 import java.util.UUID
 
-import com.ultimatesoftware.mp.serialization.envelope.MessagingPlatformEnvelope
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ NoOpMetricsProvider, NoOpsMetricsPublisher }
 import com.ultimatesoftware.scala.core.utils.JsonUtils
@@ -18,6 +17,7 @@ import scala.concurrent.duration._
 import scala.util.{ Failure, Success }
 
 trait TestBoundedContext {
+  class TestEnvelope
 
   case class State(aggregateId: UUID, count: Int, version: Int, timestamp: Instant)
 
@@ -150,9 +150,9 @@ trait TestBoundedContext {
     eventKeyExtractor = { evt ⇒ s"${evt.aggregateId}:${evt.sequenceNumber}" },
     stateKeyExtractor = BusinessLogic.stateKeyExtractor)
 
-  val readFormats: SurgeReadFormatting[State, BaseTestEvent, MessagingPlatformEnvelope] = new SurgeReadFormatting[State, BaseTestEvent, MessagingPlatformEnvelope] {
-    override def readEvent(bytes: Array[Byte]): (BaseTestEvent, MessagingPlatformEnvelope) = {
-      (JsonUtils.parseMaybeCompressedBytes(bytes)(Json.format[BaseTestEvent]).get, new MessagingPlatformEnvelope)
+  val readFormats: SurgeReadFormatting[State, BaseTestEvent, TestEnvelope] = new SurgeReadFormatting[State, BaseTestEvent, TestEnvelope] {
+    override def readEvent(bytes: Array[Byte]): (BaseTestEvent, Option[TestEnvelope]) = {
+      (JsonUtils.parseMaybeCompressedBytes(bytes)(Json.format[BaseTestEvent]).get, None)
     }
 
     override def readState(bytes: Array[Byte]): Option[State] = {

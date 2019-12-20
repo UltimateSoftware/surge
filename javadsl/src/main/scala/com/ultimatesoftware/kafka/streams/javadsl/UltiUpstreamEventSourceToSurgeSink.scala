@@ -8,7 +8,7 @@ import akka.Done
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import com.ultimatesoftware.akka.streams.kafka.KafkaConsumer
-import com.ultimatesoftware.scala.core.domain.{ CommandMetadata, ConsumedEventCommandMetadata }
+import com.ultimatesoftware.scala.core.domain.CommandMetadata
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
 import com.ultimatesoftware.scala.core.messaging.{ EventMessageSerializerRegistry, EventProperties }
 import com.ultimatesoftware.scala.core.utils.JsonUtils
@@ -27,7 +27,7 @@ trait MetadataExtractor[CmdMeta] {
   def extractMetadata(props: EventProperties): CmdMeta
 }
 
-class UltiUpstreamEventSourceToSurgeSink[AggId, UpstreamEvent, Command, CmdMeta <: CommandMetadata[CmdMeta], Envelope <: com.ultimatesoftware.mp.serialization.envelope.Envelope](
+class UltiUpstreamEventSourceToSurgeSink[AggId, UpstreamEvent, Command, CmdMeta <: CommandMetadata[CmdMeta], Envelope](
     kafkaTopic: KafkaTopic,
     surgeEngine: KafkaStreamsCommand[AggId, _, Command, _, CmdMeta, _, Envelope],
     registry: EventMessageSerializerRegistry[UpstreamEvent],

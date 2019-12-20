@@ -15,7 +15,7 @@ import play.api.libs.json.JsValue
 
 import scala.concurrent.{ ExecutionContext, Future }
 
-case class UltiUpstreamEventSourceToSurgeSink[AggId, UpstreamEvent, Command, Envelope <: com.ultimatesoftware.mp.serialization.envelope.Envelope](
+case class UltiUpstreamEventSourceToSurgeSink[AggId, UpstreamEvent, Command, Envelope](
     kafkaTopic: KafkaTopic,
     surgeEngine: KafkaStreamsCommand[AggId, _, Command, _, CommandMetadata[_], _, Envelope],
     registry: EventMessageSerializerRegistry[UpstreamEvent],

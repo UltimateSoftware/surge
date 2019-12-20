@@ -10,7 +10,7 @@ import com.ultimatesoftware.scala.core.monitoring.metrics.MetricsProvider
 import org.apache.kafka.common.TopicPartition
 import play.api.libs.json.JsValue
 
-private[streams] final class GenericAggregateActorRouter[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope <: com.ultimatesoftware.mp.serialization.envelope.Envelope](
+private[streams] final class GenericAggregateActorRouter[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope](
     system: ActorSystem,
     clusterStateTrackingActor: ActorRef,
     businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope],
@@ -34,7 +34,7 @@ private[streams] final class GenericAggregateActorRouter[AggId, Agg, Command, Ev
   }
 }
 
-class GenericAggregateActorRegionProvider[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope <: com.ultimatesoftware.mp.serialization.envelope.Envelope](
+class GenericAggregateActorRegionProvider[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope](
     assignedPartition: TopicPartition,
     businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope],
     stateMetaHandler: GlobalKTableMetadataHandler,

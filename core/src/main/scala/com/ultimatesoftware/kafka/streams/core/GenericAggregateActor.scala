@@ -7,8 +7,6 @@ import java.util.concurrent.TimeUnit
 
 import akka.actor.{ Actor, Props, ReceiveTimeout, Stash }
 import akka.pattern.pipe
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import com.typesafe.config.{ Config, ConfigFactory }
 import com.ultimatesoftware.akka.cluster.Passivate
 import com.ultimatesoftware.kafka.streams.AggregateStateStoreKafkaStreams
@@ -19,12 +17,11 @@ import com.ultimatesoftware.scala.oss.domain.AggregateSegment
 import org.slf4j.LoggerFactory
 import play.api.libs.json._
 
-import scala.reflect.runtime.{ universe ⇒ ru }
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
 private[streams] object GenericAggregateActor {
-  def props[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope <: com.ultimatesoftware.mp.serialization.envelope.Envelope](
+  def props[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope](
     aggregateId: AggId,
     businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, _, EvtMeta, Envelope],
     kafkaProducerActor: KafkaProducerActor[AggId, Agg, Event, EvtMeta, Envelope],
@@ -90,7 +87,7 @@ private[streams] object GenericAggregateActor {
  * @tparam CmdMeta Type of metadata associated with incoming commands passed to the business logic to enhance commands
  * @tparam EvtMeta Type of metadata about events passed to the business logic to enhance published events
  */
-private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope <: com.ultimatesoftware.mp.serialization.envelope.Envelope](
+private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope](
     aggregateId: AggId,
     kafkaProducerActor: KafkaProducerActor[AggId, Agg, Event, EvtMeta, Envelope],
     businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope],

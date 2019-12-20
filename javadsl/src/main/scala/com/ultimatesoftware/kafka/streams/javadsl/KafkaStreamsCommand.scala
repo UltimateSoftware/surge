@@ -5,19 +5,19 @@ package com.ultimatesoftware.kafka.streams.javadsl
 import akka.actor.ActorSystem
 import com.ultimatesoftware.kafka.streams.core
 
-trait KafkaStreamsCommand[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope <: com.ultimatesoftware.mp.serialization.envelope.Envelope] extends core.KafkaStreamsCommandTrait[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope] {
+trait KafkaStreamsCommand[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope] extends core.KafkaStreamsCommandTrait[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope] {
   def aggregateFor(aggregateId: AggId): AggregateRef[AggId, Agg, Command, CmdMeta]
 }
 
 object KafkaStreamsCommand {
-  def create[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope <: com.ultimatesoftware.mp.serialization.envelope.Envelope](
+  def create[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope](
     businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope]): KafkaStreamsCommand[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope] = {
     val actorSystem = ActorSystem(s"${businessLogic.aggregateName}ActorSystem")
     new KafkaStreamsCommandImpl(actorSystem, businessLogic.toCore)
   }
 }
 
-private[javadsl] class KafkaStreamsCommandImpl[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope <: com.ultimatesoftware.mp.serialization.envelope.Envelope](
+private[javadsl] class KafkaStreamsCommandImpl[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope](
     val actorSystem: ActorSystem,
     val businessLogic: core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope])
   extends KafkaStreamsCommand[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope] with core.KafkaStreamsCommandImpl[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope] {

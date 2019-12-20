@@ -11,7 +11,7 @@ import play.api.libs.json.{ Format, JsValue }
 
 import scala.concurrent.duration._
 
-trait KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope <: com.ultimatesoftware.mp.serialization.envelope.Envelope] {
+trait KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope] {
   def aggregateName: String
   def aggregateFormat: Format[Agg]
   def stateTopic: KafkaTopic

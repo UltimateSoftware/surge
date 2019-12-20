@@ -8,13 +8,13 @@ import com.ultimatesoftware.kafka.KafkaConsumerStateTrackingActor
 import com.ultimatesoftware.kafka.streams.{ AggregateStateStoreKafkaStreams, GlobalKTableMetadataHandler, KafkaStreamsPartitionTrackerActorProvider }
 import play.api.libs.json.JsValue
 
-trait KafkaStreamsCommandTrait[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope <: com.ultimatesoftware.mp.serialization.envelope.Envelope] {
+trait KafkaStreamsCommandTrait[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope] {
   def start(): Unit // FIXME can this return an instance of the engine instead of being a unit? That way it can just be called inline
   val businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope]
   def actorSystem: ActorSystem
 }
 
-trait KafkaStreamsCommandImpl[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope <: com.ultimatesoftware.mp.serialization.envelope.Envelope] extends KafkaStreamsCommandTrait[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope] {
+trait KafkaStreamsCommandImpl[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope] extends KafkaStreamsCommandTrait[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope] {
   val actorSystem: ActorSystem
   private implicit val system: ActorSystem = actorSystem
 
