@@ -11,7 +11,7 @@ trait UltiKafkaStreamsCommand[AggId, Agg, Cmd, Event, CmdMeta]
   extends KafkaStreamsCommand[AggId, StatePlusMetadata[Agg], Cmd, EventMessage[Event], CmdMeta, EventProperties]
 
 object UltiKafkaStreamsCommand {
-  def create[AggId, Agg, Cmd, Event, CmdMeta, Envelope](
+  def create[AggId, Agg, Cmd, Event, CmdMeta](
     ultiBusinessLogic: UltiKafkaStreamsCommandBusinessLogic[AggId, Agg, Cmd, Event, CmdMeta]): UltiKafkaStreamsCommand[AggId, Agg, Cmd, Event, CmdMeta] = {
 
     val actorSystem = ActorSystem(s"${ultiBusinessLogic.aggregateName}ActorSystem")
