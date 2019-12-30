@@ -21,7 +21,7 @@ import scala.concurrent.Future
 import scala.concurrent.duration._
 
 private[streams] object GenericAggregateActor {
-  def props[AggId, Agg, Command, Event, CmdMeta, EvtMeta, Envelope](
+  def props[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
     aggregateId: AggId,
     businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, _, EvtMeta],
     kafkaProducerActor: KafkaProducerActor[AggId, Agg, Event, EvtMeta],
