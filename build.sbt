@@ -1,6 +1,6 @@
 // Copyright © 2017-2019 Ultimate Software Group. <https://www.ultimatesoftware.com>
 
-import Keys._
+import Keys.{_}
 
 skip in publish := true
 

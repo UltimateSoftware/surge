@@ -2,18 +2,18 @@
 
 package com.ultimatesoftware.kafka.streams.scaladsl
 
-import com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandKafkaConfig
+import com.ultimatesoftware.kafka.streams.core.{ KafkaStreamsCommandKafkaConfig, SurgeReadFormatting, SurgeWriteFormatting }
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, MetricsPublisher, NoOpsMetricsPublisher }
 import com.ultimatesoftware.scala.core.validations.AsyncCommandValidator
 import com.ultimatesoftware.scala.oss.domain.{ AggregateCommandModel, AggregateComposer }
-import play.api.libs.json.JsValue
+import play.api.libs.json.{ Format, JsValue }
 
 import scala.concurrent.duration._
 
 trait KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta] {
   def aggregateName: String
-
+  def aggregateFormat: Format[Agg]
   def stateTopic: KafkaTopic
   def eventsTopic: KafkaTopic
   def internalMetadataTopic: KafkaTopic
@@ -22,11 +22,13 @@ trait KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtM
 
   def commandModel: AggregateCommandModel[AggId, Agg, Command, Event, CmdMeta, EvtMeta]
 
-  def formatting: SurgeWriteFormatting[Event, EvtMeta]
+  def readFormatting: SurgeReadFormatting[Agg, Event, EvtMeta]
+  def writeFormatting: SurgeWriteFormatting[AggId, Agg, Event, EvtMeta]
+
   def commandValidator: AsyncCommandValidator[Command, Agg]
   def aggregateComposer: AggregateComposer[AggId, Agg]
 
-  def aggregateValidator: (String, JsValue, Option[JsValue]) ⇒ Boolean = { (_, _, _) ⇒ true }
+  def aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) ⇒ Boolean = { (_, _, _) ⇒ true }
 
   // Defaults to noops publishing (for now) and 30 second interval on metrics snapshots
   // These can be overridden in the derived applications
@@ -41,7 +43,8 @@ trait KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtM
   private[scaladsl] def toCore: com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta] = {
     new com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
       aggregateName = aggregateName, kafka = kafkaConfig,
-      model = commandModel, formatting = formatting, commandValidator = commandValidator, aggregateValidator = aggregateValidator,
+      model = commandModel, readFormatting = readFormatting,
+      writeFormatting = writeFormatting, commandValidator = commandValidator, aggregateValidator = aggregateValidator,
       metricsProvider = metricsProvider, metricsPublisher = metricsPublisher, metricsInterval = metricsInterval,
       aggregateComposer = aggregateComposer)
   }

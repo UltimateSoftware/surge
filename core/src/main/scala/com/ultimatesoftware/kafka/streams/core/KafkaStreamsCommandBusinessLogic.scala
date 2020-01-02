@@ -21,9 +21,10 @@ private[streams] case class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command
     aggregateName: String,
     kafka: KafkaStreamsCommandKafkaConfig[Event],
     model: AggregateCommandModel[AggId, Agg, Command, Event, CmdMeta, EvtMeta],
-    formatting: SurgeWriteFormatting[Event, EvtMeta],
+    readFormatting: SurgeReadFormatting[Agg, Event, EvtMeta],
+    writeFormatting: SurgeWriteFormatting[AggId, Agg, Event, EvtMeta],
     commandValidator: AsyncCommandValidator[Command, Agg],
-    aggregateValidator: (String, JsValue, Option[JsValue]) ⇒ Boolean,
+    aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) ⇒ Boolean,
     aggregateComposer: AggregateComposer[AggId, Agg],
     metricsProvider: MetricsProvider, metricsPublisher: MetricsPublisher, metricsInterval: FiniteDuration) {
   val partitioner: KafkaPartitioner[String] = PartitionStringUpToColon

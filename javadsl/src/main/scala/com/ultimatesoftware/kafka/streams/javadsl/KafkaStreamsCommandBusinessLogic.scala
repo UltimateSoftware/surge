@@ -16,7 +16,8 @@ import scala.concurrent.duration._
 
 abstract class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta] {
   def aggregateName: String
-
+  def aggregateTargetClass: Class[Agg]
+  def eventTargetClass: Class[Event]
   def stateTopic: KafkaTopic
   def eventsTopic: KafkaTopic
   def internalMetadataTopic: KafkaTopic
@@ -28,8 +29,8 @@ abstract class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdM
   def commandValidator: AsyncCommandValidator[Command, Agg]
   def aggregateComposer: AggregateComposer[AggId, Agg]
 
-  def aggregateValidator(key: String, aggJson: JsValue, prevAggJsonOpt: Optional[JsValue]): Boolean = true
-  private def scalaAggregateValidator: (String, JsValue, Option[JsValue]) ⇒ Boolean = { (key, agg, prevAgg) ⇒
+  def aggregateValidator(key: String, aggJson: Array[Byte], prevAggJsonOpt: Optional[Array[Byte]]): Boolean = true
+  private def scalaAggregateValidator: (String, Array[Byte], Option[Array[Byte]]) ⇒ Boolean = { (key, agg, prevAgg) ⇒
     aggregateValidator(key, agg, prevAgg.asJava)
   }
 
@@ -46,7 +47,7 @@ abstract class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdM
   private[javadsl] def toCore: com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta] = {
     new com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
       aggregateName = aggregateName, kafka = kafkaConfig,
-      model = commandModel, formatting = new JacksonEventFormatter, commandValidator = commandValidator, aggregateValidator = scalaAggregateValidator,
+      model = commandModel, writeFormatting = new JacksonWriteFormatter, readFormatting = new JacksonReadFormatter(eventTargetClass, aggregateTargetClass), commandValidator = commandValidator, aggregateValidator = scalaAggregateValidator,
       metricsProvider = metricsProvider, metricsPublisher = metricsPublisher, metricsInterval = metricsInterval,
       aggregateComposer = aggregateComposer)
   }

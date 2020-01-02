@@ -8,7 +8,7 @@ import akka.Done
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import com.ultimatesoftware.akka.streams.kafka.KafkaConsumer
-import com.ultimatesoftware.scala.core.domain.{ CommandMetadata, ConsumedEventCommandMetadata }
+import com.ultimatesoftware.scala.core.domain.CommandMetadata
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
 import com.ultimatesoftware.scala.core.messaging.{ EventMessageSerializerRegistry, EventProperties }
 import com.ultimatesoftware.scala.core.utils.JsonUtils

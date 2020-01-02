@@ -27,7 +27,8 @@ trait KafkaStreamsCommandImpl[AggId, Agg, Command, Event, CmdMeta, EvtMeta] exte
   private val stateMetaHandler = new GlobalKTableMetadataHandler(businessLogic.kafka.internalMetadataTopic)
   private val kafkaStreamsImpl = new AggregateStateStoreKafkaStreams[JsValue](
     businessLogic.aggregateName,
-    businessLogic.kafka.stateTopic, new KafkaStreamsPartitionTrackerActorProvider(stateChangeActor), stateMetaHandler, businessLogic.aggregateValidator,
+    businessLogic.kafka.stateTopic,
+    new KafkaStreamsPartitionTrackerActorProvider(stateChangeActor), stateMetaHandler, businessLogic.aggregateValidator,
     Some(applicationHostPort))
   protected val actorRouter = new GenericAggregateActorRouter[AggId, Agg, Command, Event, CmdMeta, EvtMeta](actorSystem, stateChangeActor,
     businessLogic, businessLogic.metricsProvider, stateMetaHandler, kafkaStreamsImpl)

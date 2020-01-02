@@ -8,7 +8,7 @@ import akka.stream.ActorMaterializer
 import com.ultimatesoftware.akka.streams.kafka.KafkaConsumer
 import com.ultimatesoftware.scala.core.domain.{ CommandMetadata, ConsumedEventCommandMetadata }
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
-import com.ultimatesoftware.scala.core.messaging.EventMessageSerializerRegistry
+import com.ultimatesoftware.scala.core.messaging.{ EventMessageSerializerRegistry, EventProperties }
 import com.ultimatesoftware.scala.core.utils.JsonUtils
 import org.slf4j.{ Logger, LoggerFactory }
 import play.api.libs.json.JsValue

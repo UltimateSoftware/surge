@@ -20,6 +20,7 @@ import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.ProducerFencedException
 import org.slf4j.{ Logger, LoggerFactory }
 import play.api.libs.json.JsValue
+import com.ultimatesoftware.scala.oss.domain.AggregateSegment
 
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
@@ -78,15 +79,15 @@ class KafkaProducerActor[AggId, Agg, Event, EvtMeta](
       assignedPartition, metricsProvider, stateMetaHandler, aggregateCommandKafkaStreams)).withDispatcher("kafka-publisher-actor-dispatcher"))
 
   private val publishEventsTimer: Timer = metricsProvider.createTimer(s"${aggregateName}PublishEventsTimer")
-  def publish(aggregateId: AggId, states: Seq[(String, JsValue)], events: Seq[(String, EvtMeta, Event)]): Future[Done] = {
+  def publish(aggregateId: AggId, states: Seq[(String, AggregateSegment[AggId, Agg])], events: Seq[(String, EvtMeta, Event)]): Future[Done] = {
 
     val eventKeyValuePairs = events.map { eventTuple ⇒
       log.trace(s"Publishing event for $aggregateName $aggregateId")
-      eventTuple._1 -> aggregateCommandKafkaStreams.formatting.writeEvent(eventTuple._3, eventTuple._2)
+      eventTuple._1 -> aggregateCommandKafkaStreams.writeFormatting.writeEvent(eventTuple._3, eventTuple._2)
     }
     val stateKeyValuePairs = states.map { stateKv ⇒
       log.trace(s"Publishing state for $aggregateName $aggregateId")
-      stateKv._1 -> JsonUtils.gzip(stateKv._2)
+      stateKv._1 -> aggregateCommandKafkaStreams.writeFormatting.writeState(stateKv._2)
     }
 
     publishEventsTimer.time {
@@ -121,7 +122,7 @@ private object KafkaProducerActorImpl {
 
   case class AggregateStateRates(current: Rate, notCurrent: Rate)
 }
-private class KafkaProducerActorImpl[Agg, Event](
+private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
     assignedPartition: TopicPartition, metrics: MetricsProvider,
     stateMetaHandler: GlobalKTableMetadataHandler,
     aggregateCommandKafkaStreams: KafkaStreamsCommandBusinessLogic[_, Agg, _, Event, _, _]) extends Actor with Stash {
