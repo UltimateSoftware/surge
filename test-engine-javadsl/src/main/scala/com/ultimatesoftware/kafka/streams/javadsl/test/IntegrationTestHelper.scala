@@ -3,20 +3,19 @@
 package com.ultimatesoftware.kafka.streams.javadsl.test
 
 import java.util.UUID
-import java.util.concurrent.{ Callable, TimeUnit }
+import java.util.concurrent.{ Callable, CompletionStage, TimeUnit }
 
 import com.ultimatesoftware.kafka.streams.javadsl.UltiKafkaStreamsCommandBusinessLogic
-import com.ultimatesoftware.scala.core.domain.StatePlusMetadata
-import com.ultimatesoftware.scala.core.kafka.{ KafkaBytesConsumer, KafkaBytesProducer, UltiKafkaConsumerConfig }
-import com.ultimatesoftware.scala.core.messaging.{ EventMessage, EventMessageSerializer, EventMessageSerializerRegistry, EventMessageTypeInfo, EventProperties }
-import com.ultimatesoftware.scala.core.utils.EmptyUUID
-import com.ultimatesoftware.scala.core.utils.JsonUtils
+import com.ultimatesoftware.scala.core.kafka.{ KafkaBytesConsumer, KafkaBytesProducer, KafkaRecordMetadata, UltiKafkaConsumerConfig }
+import com.ultimatesoftware.scala.core.messaging._
+import com.ultimatesoftware.scala.core.utils.{ EmptyUUID, JsonUtils }
 import org.awaitility.Awaitility._
 import org.awaitility.core.ThrowingRunnable
 import org.slf4j.{ Logger, LoggerFactory }
 import play.api.libs.json.Format
 
 import scala.collection.JavaConverters._
+import scala.compat.java8.FutureConverters._
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
 
@@ -39,7 +38,6 @@ class IntegrationTestHelper[AggId, Agg, Cmd, Event, CmdMeta](
   private val sub = KafkaBytesConsumer(kafkaBrokers.asScala, consumerConfig, Map.empty)
 
   val eventBus: EventBus[EventMessage[Event]] = new EventBus[EventMessage[Event]]
-  val stateStore: StateStore[AggId, StatePlusMetadata[Agg]] = new StateStore[AggId, StatePlusMetadata[Agg]]
 
   // Put the subscription in its own thread so it doesn't block anything else
   Future {
@@ -78,10 +76,10 @@ class IntegrationTestHelper[AggId, Agg, Cmd, Event, CmdMeta](
   }
 
   // TODO make this more user friendly when using the CMP libraries
-  def publishEvent(event: Event, props: EventProperties, typeInfo: EventMessageTypeInfo): Unit = {
+  def publishEvent(event: Event, props: EventProperties, typeInfo: EventMessageTypeInfo): CompletionStage[KafkaRecordMetadata[String]] = {
     val key = s"${props.aggregateId.getOrElse(EmptyUUID)}:${props.sequenceNumber}"
     val value = JsonUtils.gzip(EventMessage.create(props, event, typeInfo))
-    kafkaPublisher.putKeyValue(key, value)
+    kafkaPublisher.putKeyValue(key, value).toJava
   }
 
   def close(): Unit = {
