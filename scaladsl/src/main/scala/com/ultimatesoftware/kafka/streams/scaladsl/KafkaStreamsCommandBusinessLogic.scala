@@ -2,7 +2,7 @@
 
 package com.ultimatesoftware.kafka.streams.scaladsl
 
-import com.ultimatesoftware.kafka.streams.core.{ KafkaStreamsCommandKafkaConfig, SurgeReadFormatting, SurgeWriteFormatting }
+import com.ultimatesoftware.kafka.streams.core.{ KafkaStreamsCommandKafkaConfig, SurgeAggregateReadFormatting, SurgeWriteFormatting }
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, MetricsPublisher, NoOpsMetricsPublisher }
 import com.ultimatesoftware.scala.core.validations.AsyncCommandValidator
@@ -22,7 +22,7 @@ trait KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtM
 
   def commandModel: AggregateCommandModel[AggId, Agg, Command, Event, CmdMeta, EvtMeta]
 
-  def readFormatting: SurgeReadFormatting[Agg, Event, EvtMeta]
+  def readFormatting: SurgeAggregateReadFormatting[Agg]
   def writeFormatting: SurgeWriteFormatting[AggId, Agg, Event, EvtMeta]
 
   def commandValidator: AsyncCommandValidator[Command, Agg]

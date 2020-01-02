@@ -21,7 +21,7 @@ private[streams] case class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command
     aggregateName: String,
     kafka: KafkaStreamsCommandKafkaConfig[Event],
     model: AggregateCommandModel[AggId, Agg, Command, Event, CmdMeta, EvtMeta],
-    readFormatting: SurgeReadFormatting[Agg, Event, EvtMeta],
+    readFormatting: SurgeAggregateReadFormatting[Agg],
     writeFormatting: SurgeWriteFormatting[AggId, Agg, Event, EvtMeta],
     commandValidator: AsyncCommandValidator[Command, Agg],
     aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) ⇒ Boolean,

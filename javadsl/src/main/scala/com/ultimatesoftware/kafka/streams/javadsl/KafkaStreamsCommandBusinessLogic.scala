@@ -17,7 +17,6 @@ import scala.concurrent.duration._
 abstract class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta] {
   def aggregateName: String
   def aggregateTargetClass: Class[Agg]
-  def eventTargetClass: Class[Event]
   def stateTopic: KafkaTopic
   def eventsTopic: KafkaTopic
   def internalMetadataTopic: KafkaTopic
@@ -47,7 +46,8 @@ abstract class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdM
   private[javadsl] def toCore: com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta] = {
     new com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
       aggregateName = aggregateName, kafka = kafkaConfig,
-      model = commandModel, writeFormatting = new JacksonWriteFormatter, readFormatting = new JacksonReadFormatter(eventTargetClass, aggregateTargetClass), commandValidator = commandValidator, aggregateValidator = scalaAggregateValidator,
+      model = commandModel, writeFormatting = new JacksonWriteFormatter, readFormatting = new JacksonReadFormatter(aggregateTargetClass),
+      commandValidator = commandValidator, aggregateValidator = scalaAggregateValidator,
       metricsProvider = metricsProvider, metricsPublisher = metricsPublisher, metricsInterval = metricsInterval,
       aggregateComposer = aggregateComposer)
   }
