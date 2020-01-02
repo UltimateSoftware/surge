@@ -18,7 +18,7 @@ object UltiKafkaStreamsCommand {
     apply(actorSystem, ultiBusinessLogic)
   }
 
-  def apply[AggId, Agg, Cmd, Event, CmdMeta, Envelope](
+  def apply[AggId, Agg, Cmd, Event, CmdMeta](
     actorSystem: ActorSystem,
     ultiBusinessLogic: UltiKafkaStreamsCommandBusinessLogic[AggId, Agg, Cmd, Event, CmdMeta]): UltiKafkaStreamsCommand[AggId, Agg, Cmd, Event, CmdMeta] = {
     new UltiKafkaStreamsCommandImpl(actorSystem, ultiBusinessLogic.toCore)
