@@ -16,6 +16,7 @@ abstract class UltiKafkaStreamsCommandBusinessLogic[AggId, Agg, Cmd, Event, CmdM
   }
 
   def aggregateClass: Class[Agg]
+
   override def aggregateTargetClass: Class[StatePlusMetadata[Agg]] = classOf[StatePlusMetadata[Agg]]
 
   override def commandValidator: AsyncCommandValidator[Cmd, StatePlusMetadata[Agg]] = AsyncCommandValidator { _ ⇒ Seq() }

@@ -6,9 +6,10 @@ import java.util.UUID
 import java.util.concurrent.{ Callable, CompletionStage, TimeUnit }
 
 import com.ultimatesoftware.kafka.streams.javadsl.UltiKafkaStreamsCommandBusinessLogic
-import com.ultimatesoftware.scala.core.kafka.{ KafkaBytesConsumer, KafkaBytesProducer, KafkaRecordMetadata, UltiKafkaConsumerConfig }
+import com.ultimatesoftware.scala.core.kafka.{ KafkaBytesConsumer, KafkaBytesProducer, KafkaRecordMetadata, KafkaTopic, UltiKafkaConsumerConfig }
 import com.ultimatesoftware.scala.core.messaging._
 import com.ultimatesoftware.scala.core.utils.{ EmptyUUID, JsonUtils }
+import org.apache.kafka.clients.producer.ProducerRecord
 import org.awaitility.Awaitility._
 import org.awaitility.core.ThrowingRunnable
 import org.slf4j.{ Logger, LoggerFactory }
@@ -77,9 +78,17 @@ class IntegrationTestHelper[AggId, Agg, Cmd, Event, CmdMeta](
 
   // TODO make this more user friendly when using the CMP libraries
   def publishEvent(event: Event, props: EventProperties, typeInfo: EventMessageTypeInfo): CompletionStage[KafkaRecordMetadata[String]] = {
+    publishEvent(event, props, typeInfo, ultiBusinessLogic.eventsTopic)
+  }
+  def publishEvent(event: Event, props: EventProperties,
+    typeInfo: EventMessageTypeInfo, topic: KafkaTopic): CompletionStage[KafkaRecordMetadata[String]] = {
     val key = s"${props.aggregateId.getOrElse(EmptyUUID)}:${props.sequenceNumber}"
     val value = JsonUtils.gzip(EventMessage.create(props, event, typeInfo))
-    kafkaPublisher.putKeyValue(key, value).toJava
+
+    publishRecord(new ProducerRecord[String, Array[Byte]](topic.name, key, value))
+  }
+  private def publishRecord(record: ProducerRecord[String, Array[Byte]]): CompletionStage[KafkaRecordMetadata[String]] = {
+    kafkaPublisher.putRecord(record).toJava
   }
 
   def close(): Unit = {
