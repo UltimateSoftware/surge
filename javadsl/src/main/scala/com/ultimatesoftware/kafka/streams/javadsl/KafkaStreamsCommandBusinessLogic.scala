@@ -4,7 +4,7 @@ package com.ultimatesoftware.kafka.streams.javadsl
 
 import java.util.Optional
 
-import com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandKafkaConfig
+import com.ultimatesoftware.kafka.streams.core.{ KafkaStreamsCommandKafkaConfig, SurgeAggregateReadFormatting, SurgeWriteFormatting }
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, MetricsPublisher, NoOpMetricsProvider, NoOpsMetricsPublisher }
 import com.ultimatesoftware.scala.core.validations.AsyncCommandValidator
@@ -24,6 +24,9 @@ abstract class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdM
   def stateKeyExtractor(json: JsValue): String
 
   def commandModel: AggregateCommandModel[AggId, Agg, Command, Event, CmdMeta, EvtMeta]
+
+  def readFormatting: SurgeAggregateReadFormatting[AggId, Agg] = new JacksonReadFormatter(aggregateTargetClass)
+  def writeFormatting: SurgeWriteFormatting[AggId, Agg, Event, EvtMeta] = new JacksonWriteFormatter()
 
   def commandValidator: AsyncCommandValidator[Command, Agg]
   def aggregateComposer: AggregateComposer[AggId, Agg]
@@ -46,7 +49,7 @@ abstract class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdM
   private[javadsl] def toCore: com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta] = {
     new com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
       aggregateName = aggregateName, kafka = kafkaConfig,
-      model = commandModel, writeFormatting = new JacksonWriteFormatter, readFormatting = new JacksonReadFormatter(aggregateTargetClass),
+      model = commandModel, writeFormatting = writeFormatting, readFormatting = readFormatting,
       commandValidator = commandValidator, aggregateValidator = scalaAggregateValidator,
       metricsProvider = metricsProvider, metricsPublisher = metricsPublisher, metricsInterval = metricsInterval,
       aggregateComposer = aggregateComposer)

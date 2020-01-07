@@ -15,7 +15,8 @@ lazy val `surge-engine-ks-command-core` = (project in file("core"))
       scalatest,
       typesafeConfig,
       Ultimate.Surge.common,
-      Ultimate.Surge.scalaCore
+      Ultimate.Surge.scalaCore,
+      "com.ultimatesoftware.mp" % "messaging-platform-serialization" % "1.0.1" // TODO break this dependency by adding a module specific for the ulti-layering
     )
   )
 

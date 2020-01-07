@@ -22,7 +22,7 @@ trait KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtM
 
   def commandModel: AggregateCommandModel[AggId, Agg, Command, Event, CmdMeta, EvtMeta]
 
-  def readFormatting: SurgeAggregateReadFormatting[Agg]
+  def readFormatting: SurgeAggregateReadFormatting[AggId, Agg]
   def writeFormatting: SurgeWriteFormatting[AggId, Agg, Event, EvtMeta]
 
   def commandValidator: AsyncCommandValidator[Command, Agg]

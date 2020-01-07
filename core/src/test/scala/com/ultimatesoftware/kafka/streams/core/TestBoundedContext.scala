@@ -22,10 +22,6 @@ trait TestBoundedContext {
   implicit val stateFormat: Format[State] = Json.format
   implicit val countIncrementedFormat: Format[CountIncremented] = Json.format
   implicit val countDecrementedFormat: Format[CountDecremented] = Json.format
-  implicit val incrementFormat: Format[Increment] = Json.format
-  implicit val decrementFormat: Format[Decrement] = Json.format
-  implicit val doNothingFormat: Format[FailCommandProcessing] = Json.format
-  implicit val causeInvalidValidationFormat: Format[CauseInvalidValidation] = Json.format
 
   val baseEventFormat: Format[BaseTestEvent] = new Format[BaseTestEvent] {
     override def reads(json: JsValue): JsResult[BaseTestEvent] = {
@@ -38,24 +34,6 @@ trait TestBoundedContext {
         case inc: CountIncremented ⇒ Json.toJson(inc)
         case dec: CountDecremented ⇒ Json.toJson(dec)
       }
-    }
-  }
-
-  val baseCommandFormat: Format[BaseTestCommand] = new Format[BaseTestCommand] {
-    override def writes(o: BaseTestCommand): JsValue = {
-      o match {
-        case inc: Increment                            ⇒ Json.toJson(inc)
-        case dec: Decrement                            ⇒ Json.toJson(dec)
-        case nothing: FailCommandProcessing            ⇒ Json.toJson(nothing)
-        case invalidValidation: CauseInvalidValidation ⇒ Json.toJson(invalidValidation)
-      }
-    }
-
-    override def reads(json: JsValue): JsResult[BaseTestCommand] = {
-      Json.fromJson[Increment](json) orElse
-        Json.fromJson[Decrement](json) orElse
-        Json.fromJson[FailCommandProcessing](json) orElse
-        Json.fromJson[CauseInvalidValidation](json)
     }
   }
 
@@ -92,7 +70,7 @@ trait TestBoundedContext {
     override def validate: Seq[AsyncValidationResult[_]] = Seq(
       Future.successful(Left(validationErrors)))
   }
-  case class FailCommandProcessing(failProcessingId: UUID) extends BaseTestCommand {
+  case class FailCommandProcessing(failProcessingId: UUID, withError: Exception) extends BaseTestCommand {
     val aggregateId: UUID = failProcessingId
   }
 
@@ -122,8 +100,8 @@ trait TestBoundedContext {
           sequenceNumber = newSequenceNumber, timestamp = meta.timestamp)))
         case Decrement(aggregateId) ⇒ Success(Seq(CountDecremented(aggregateId, decrementBy = 1,
           sequenceNumber = newSequenceNumber, timestamp = meta.timestamp)))
-        case _: FailCommandProcessing ⇒
-          Failure(new RuntimeException("Expected to fail processing of a FailCommandProcessing command"))
+        case fail: FailCommandProcessing ⇒
+          Failure(fail.withError)
       }
     }
 
@@ -148,13 +126,15 @@ trait TestBoundedContext {
     eventKeyExtractor = { evt ⇒ s"${evt.aggregateId}:${evt.sequenceNumber}" },
     stateKeyExtractor = BusinessLogic.stateKeyExtractor)
 
-  val readFormats: SurgeReadFormatting[State, BaseTestEvent, TimestampMeta] = new SurgeReadFormatting[State, BaseTestEvent, TimestampMeta] {
+  val readFormats: SurgeReadFormatting[UUID, State, BaseTestEvent, TimestampMeta] = new SurgeReadFormatting[UUID, State, BaseTestEvent, TimestampMeta] {
     override def readEvent(bytes: Array[Byte]): (BaseTestEvent, Option[TimestampMeta]) = {
       (JsonUtils.parseMaybeCompressedBytes(bytes)(Json.format[BaseTestEvent]).get, None)
     }
 
-    override def readState(bytes: Array[Byte]): Option[State] = {
-      Json.parse(bytes).asOpt[State]
+    override def readState(bytes: Array[Byte]): Option[AggregateSegment[UUID, State]] = {
+      Json.parse(bytes).asOpt[State].map { state ⇒
+        AggregateSegment(state.aggregateId.toString, Json.toJson(state), Some(classOf[State]))
+      }
     }
   }
 

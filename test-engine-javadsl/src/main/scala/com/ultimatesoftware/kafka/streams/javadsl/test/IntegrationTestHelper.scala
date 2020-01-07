@@ -5,8 +5,8 @@ package com.ultimatesoftware.kafka.streams.javadsl.test
 import java.util.UUID
 import java.util.concurrent.{ Callable, CompletionStage, TimeUnit }
 
-import com.ultimatesoftware.kafka.streams.javadsl.UltiKafkaStreamsCommandBusinessLogic
-import com.ultimatesoftware.scala.core.kafka.{ KafkaBytesConsumer, KafkaBytesProducer, KafkaRecordMetadata, KafkaTopic, UltiKafkaConsumerConfig }
+import com.ultimatesoftware.mp.annotations.Event
+import com.ultimatesoftware.scala.core.kafka._
 import com.ultimatesoftware.scala.core.messaging._
 import com.ultimatesoftware.scala.core.utils.{ EmptyUUID, JsonUtils }
 import org.apache.kafka.clients.producer.ProducerRecord
@@ -20,10 +20,10 @@ import scala.compat.java8.FutureConverters._
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
 
-class IntegrationTestHelper[AggId, Agg, Cmd, Event, CmdMeta](
+class IntegrationTestHelper[Event](
     kafkaBrokers: java.util.List[String],
     eventMessageSerializers: java.util.List[EventMessageSerializer[_ <: Event]],
-    val ultiBusinessLogic: UltiKafkaStreamsCommandBusinessLogic[AggId, Agg, Cmd, Event, CmdMeta]) {
+    eventsTopic: KafkaTopic) {
   private val timeoutSeconds = 30
   private val log: Logger = LoggerFactory.getLogger(getClass)
 
@@ -42,7 +42,7 @@ class IntegrationTestHelper[AggId, Agg, Cmd, Event, CmdMeta](
 
   // Put the subscription in its own thread so it doesn't block anything else
   Future {
-    sub.subscribe(ultiBusinessLogic.eventsTopic, { record ⇒
+    sub.subscribe(eventsTopic, { record ⇒
       // FIXME in apps already using the CMP libraries, it looks like the CMP serializer is automatically wired in
       //  somehow.  When we read events from those apps, they're double-wrapped in an envelope.  When we integrate
       //  with the CMP libraries, that should get fixed.
@@ -55,7 +55,7 @@ class IntegrationTestHelper[AggId, Agg, Cmd, Event, CmdMeta](
     })
   }(ExecutionContext.global)
 
-  private val kafkaPublisher: KafkaBytesProducer = KafkaBytesProducer(kafkaBrokers.asScala, ultiBusinessLogic.eventsTopic)
+  private val kafkaPublisher: KafkaBytesProducer = KafkaBytesProducer(kafkaBrokers.asScala, eventsTopic)
 
   def waitForEvent[T](`type`: Class[T]): T = {
     var event: Option[T] = None
@@ -76,9 +76,10 @@ class IntegrationTestHelper[AggId, Agg, Cmd, Event, CmdMeta](
     eventBus.clear()
   }
 
-  // TODO make this more user friendly when using the CMP libraries
+  // FIXME make this more user friendly when using the CMP libraries
+  //  also add support for just publishEvent(event: Event)
   def publishEvent(event: Event, props: EventProperties, typeInfo: EventMessageTypeInfo): CompletionStage[KafkaRecordMetadata[String]] = {
-    publishEvent(event, props, typeInfo, ultiBusinessLogic.eventsTopic)
+    publishEvent(event, props, typeInfo, eventsTopic)
   }
   def publishEvent(event: Event, props: EventProperties,
     typeInfo: EventMessageTypeInfo, topic: KafkaTopic): CompletionStage[KafkaRecordMetadata[String]] = {
