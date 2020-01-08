@@ -4,11 +4,12 @@ package com.ultimatesoftware.kafka.streams.javadsl
 
 import akka.actor.ActorSystem
 import com.ultimatesoftware.kafka.streams.core
+import com.ultimatesoftware.mp.serialization.message.Message
 import com.ultimatesoftware.scala.core.domain.StatePlusMetadata
-import com.ultimatesoftware.scala.core.messaging.{ EventMessage, EventProperties }
+import com.ultimatesoftware.scala.core.messaging.EventProperties
 
 trait UltiKafkaStreamsCommand[AggId, Agg, Cmd, Event, CmdMeta]
-  extends KafkaStreamsCommand[AggId, StatePlusMetadata[Agg], Cmd, EventMessage[Event], CmdMeta, EventProperties]
+  extends KafkaStreamsCommand[AggId, StatePlusMetadata[Agg], Cmd, Message, CmdMeta, EventProperties]
 
 object UltiKafkaStreamsCommand {
   def create[AggId, Agg, Cmd, Event, CmdMeta](
@@ -21,9 +22,9 @@ object UltiKafkaStreamsCommand {
 
 private[javadsl] class UltiKafkaStreamsCommandImpl[AggId, Agg, Command, Event, CmdMeta](
     val actorSystem: ActorSystem,
-    val businessLogic: core.KafkaStreamsCommandBusinessLogic[AggId, StatePlusMetadata[Agg], Command, EventMessage[Event], CmdMeta, EventProperties])
+    val businessLogic: core.KafkaStreamsCommandBusinessLogic[AggId, StatePlusMetadata[Agg], Command, Message, CmdMeta, EventProperties])
   extends UltiKafkaStreamsCommand[AggId, Agg, Command, Event, CmdMeta]
-  with core.KafkaStreamsCommandImpl[AggId, StatePlusMetadata[Agg], Command, EventMessage[Event], CmdMeta, EventProperties] {
+  with core.KafkaStreamsCommandImpl[AggId, StatePlusMetadata[Agg], Command, Message, CmdMeta, EventProperties] {
 
   override def aggregateFor(aggregateId: AggId): AggregateRef[AggId, StatePlusMetadata[Agg], Command, CmdMeta] = {
     new AggregateRefImpl(aggregateId, actorRouter.actorRegion)

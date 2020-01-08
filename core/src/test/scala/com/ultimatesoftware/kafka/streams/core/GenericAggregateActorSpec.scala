@@ -72,13 +72,16 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
     mockStore
   }
 
-  private def mockKafkaStreams(stateStoreContents: Map[String, Array[Byte]]): AggregateStateStoreKafkaStreams[JsValue] = {
-    val mockStateStore = mockAggregateKeyValueStore(stateStoreContents)
+  private def mockKafkaStreams(mockStateStore: KafkaStreamsKeyValueStore[String, Array[Byte]]): AggregateStateStoreKafkaStreams[JsValue] = {
     val mockStreams = mock[AggregateStateStoreKafkaStreams[JsValue]]
     when(mockStreams.aggregateQueryableStateStore).thenReturn(mockStateStore)
     when(mockStreams.substatesForAggregate(anyString)(any[ExecutionContext])).thenCallRealMethod
 
     mockStreams
+  }
+  private def mockKafkaStreams(stateStoreContents: Map[String, Array[Byte]]): AggregateStateStoreKafkaStreams[JsValue] = {
+    val mockStateStore = mockAggregateKeyValueStore(stateStoreContents)
+    mockKafkaStreams(mockStateStore)
   }
 
   private def defaultMockProducer: KafkaProducerActor[UUID, State, BaseTestEvent, TimestampMeta] = {
@@ -161,6 +164,26 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
       probe.expectMsg(Some(baseState))
     }
 
+    "Retry initialization on a failure to read from the KTable" in {
+      val probe = TestProbe()
+
+      val testAggregateId = UUID.randomUUID()
+      val baseState = State(testAggregateId, 3, 3, Instant.now)
+
+      val mockProducer = defaultMockProducer
+
+      val mockStore = mock[KafkaStreamsKeyValueStore[String, Array[Byte]]]
+      val mockStreams = mockKafkaStreams(mockStore)
+      when(mockStore.get(testAggregateId.toString)).thenReturn(
+        Future.failed[Option[Array[Byte]]](new RuntimeException("This is expected")),
+        Future.successful(Some(Json.toJson(baseState).toString().getBytes())))
+
+      val actor = testActor(testAggregateId, mockProducer, mockStreams)
+
+      probe.send(actor, GenericAggregateActor.GetState(testAggregateId))
+      probe.expectMsg(5.seconds, Some(baseState))
+    }
+
     "Handle validation failures by returning a CommandFailure" in {
       val testContext = TestContext.setupDefault
       import testContext._
@@ -170,6 +193,18 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
 
       probe.send(actor, testEnvelope)
       probe.expectMsg(GenericAggregateActor.CommandFailure(validationCmd.validationErrors))
+    }
+
+    "Handle exceptions from the domain by returning a CommandError" in {
+      val testContext = TestContext.setupDefault
+      import testContext._
+
+      val testException = new RuntimeException("This is an expected exception")
+      val validationCmd = FailCommandProcessing(testAggregateId, testException)
+      val testEnvelope = envelope(validationCmd)
+
+      probe.send(actor, testEnvelope)
+      probe.expectMsg(GenericAggregateActor.CommandError(testException))
     }
 
     "Be able to correctly extract the correct aggregate ID from messages" in {

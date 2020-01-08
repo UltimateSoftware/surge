@@ -11,14 +11,13 @@ import com.typesafe.config.{ Config, ConfigFactory }
 import com.ultimatesoftware.akka.cluster.Passivate
 import com.ultimatesoftware.kafka.streams.AggregateStateStoreKafkaStreams
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, Timer }
-import com.ultimatesoftware.scala.core.utils.JsonFormats
 import com.ultimatesoftware.scala.core.validations._
-import com.ultimatesoftware.scala.oss.domain.AggregateSegment
 import org.slf4j.LoggerFactory
 import play.api.libs.json._
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
+import scala.util.{ Failure, Success, Try }
 
 private[streams] object GenericAggregateActor {
   def props[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
@@ -52,6 +51,7 @@ private[streams] object GenericAggregateActor {
 
   sealed trait CommandResponse
   case class CommandFailure(validationError: Seq[ValidationError])
+  case class CommandError(exception: Throwable)
 
   implicit def commandSuccessFormat[Agg](implicit format: Format[Agg]): Format[CommandSuccess[Agg]] = Json.format[CommandSuccess[Agg]]
   case class CommandSuccess[Agg](aggregateState: Option[Agg])
@@ -122,6 +122,7 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
   private def persistingEvents(state: InternalActorState): Receive = {
     case msg: EventsSuccessfullyPersisted ⇒ handle(state, msg)
     case msg: CommandFailure              ⇒ handle(state, msg)
+    case msg: CommandError                ⇒ handleCommandError(state, msg)
     case ReceiveTimeout                   ⇒ // Ignore and drop ReceiveTimeout messages from this state
     case _                                ⇒ stash()
   }
@@ -141,7 +142,7 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
     context.become(persistingEvents(state))
 
     val futureEventsPersisted = processCommand(state, commandEnvelope).flatMap {
-      case Right(events) ⇒
+      case Right(Success(events)) ⇒
         val evtMeta = businessLogic.model.cmdMetaToEvtMeta(commandEnvelope.meta)
         val newState = events.foldLeft(state.stateOpt) { (state, evt) ⇒ businessLogic.model.handleEvent(state, evt, evtMeta) }
         val eventKeyMetaValues = events.map(evt ⇒ (businessLogic.kafka.eventKeyExtractor(evt), evtMeta, evt))
@@ -154,6 +155,8 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
           val newActorState = InternalActorState(stateOpt = newState)
           EventsSuccessfullyPersisted(newActorState, startTime)
         }
+      case Right(Failure(exception)) ⇒
+        Future.successful(CommandError(exception))
       case Left(validationErrors) ⇒
         Future.successful(CommandFailure(validationErrors))
     }
@@ -168,14 +171,13 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
 
   private def processCommand(
     state: InternalActorState,
-    commandEnvelope: CommandEnvelope[AggId, Command, CmdMeta]): Future[Either[Seq[ValidationError], Seq[Event]]] = {
+    commandEnvelope: CommandEnvelope[AggId, Command, CmdMeta]): Future[Either[Seq[ValidationError], Try[Seq[Event]]]] = {
     val commandPlusState = MessagePlusCurrentAggregate(commandEnvelope.command, state.stateOpt)
 
     import ValidationDSL._
     (commandPlusState mustSatisfy businessLogic.commandValidator).map { res ⇒
       res.map { _ ⇒
         businessLogic.model.processCommand(state.stateOpt, commandEnvelope.command, commandEnvelope.meta)
-          .toOption.getOrElse(Seq.empty)
       }
     }
   }
@@ -185,6 +187,13 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
     context.become(freeToProcess(state))
 
     sender() ! failure
+  }
+
+  private def handleCommandError(state: InternalActorState, error: CommandError): Unit = {
+    context.setReceiveTimeout(receiveTimeout)
+    context.become(freeToProcess(state))
+
+    sender() ! error
   }
 
   private def handle(state: InternalActorState, msg: EventsSuccessfullyPersisted): Unit = {
@@ -244,46 +253,12 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
     }
   }
 
-  private def initFromSingleState(initializationAttempts: Int): Unit = {
-    val fetchedStateFut = metrics.stateInitializationTimer.time(
-      kafkaStreamsCommand.aggregateQueryableStateStore.get(aggregateId.toString))
-
-    fetchedStateFut.map { state ⇒
-      val stateSet: Set[AggregateSegment[AggId, Agg]] = state.toSeq.toSet[Array[Byte]].map(s ⇒ {
-        val stateOpt = businessLogic.readFormatting.readState(s)
-
-        val objJson = JsonFormats.genericJacksonMapper.writer().writeValueAsString(stateOpt.get)
-        AggregateSegment[AggId, Agg](
-          aggregateId.toString,
-          Json.parse(objJson), Some(stateOpt.get.getClass))
-      })
-      log.trace("GenericAggregateActor for {} fetched {} persisted substate", aggregateId, stateSet.size)
-      val stateOpt = businessLogic.aggregateComposer.compose(stateSet)
-
-      self ! InitializeWithState(stateOpt)
-    } recover {
-      case _: NullPointerException ⇒
-        log.error("Used null for aggregateId - this is weird. Will not try to initialize state again")
-      case exception ⇒
-        log.error(s"Failed to initialize ${businessLogic.aggregateName} actor for aggregate $aggregateId, retrying", exception)
-        context.system.scheduler.scheduleOnce(3.seconds)(initializeState(initializationAttempts + 1))
-    }
-  }
-
-  private def initFromSubstates(initializationAttempts: Int): Unit = {
-    val fetchedStateFut = metrics.stateInitializationTimer.time(
-      kafkaStreamsCommand.substatesForAggregate(aggregateId.toString))
-
-    fetchedStateFut.map { substates ⇒
-      log.trace("GenericAggregateActor for {} fetched {} persisted substates", aggregateId, substates.length)
-      val serializedStates = substates.map(_._2).toSet[Array[Byte]].map(s ⇒ {
-        val stateOpt: Option[Agg] = businessLogic.readFormatting.readState(s)
-        val objJson = JsonFormats.genericJacksonMapper.writer().writeValueAsString(stateOpt.get)
-
-        AggregateSegment[AggId, Agg](
-          aggregateId.toString,
-          Json.parse(objJson), Some(stateOpt.get.getClass))
-      })
+  private def composeState(initializationAttempts: Int, fetchedStates: Future[Set[Array[Byte]]]): Unit = {
+    fetchedStates.map { substates ⇒
+      log.trace("GenericAggregateActor for {} fetched {} persisted substates", aggregateId, substates.size)
+      val serializedStates = substates.flatMap { s ⇒
+        businessLogic.readFormatting.readState(s)
+      }
       val stateOpt = businessLogic.aggregateComposer.compose(serializedStates)
 
       self ! InitializeWithState(stateOpt)
@@ -294,6 +269,22 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
         log.error(s"Failed to initialize ${businessLogic.aggregateName} actor for aggregate $aggregateId, retrying", exception)
         context.system.scheduler.scheduleOnce(3.seconds)(initializeState(initializationAttempts + 1))
     }
+  }
+
+  private def initFromSingleState(initializationAttempts: Int): Unit = {
+    val fetchedStateFut = metrics.stateInitializationTimer.time(
+      kafkaStreamsCommand.aggregateQueryableStateStore.get(aggregateId.toString))
+      .map(_.toSet)
+
+    composeState(initializationAttempts, fetchedStateFut)
+  }
+
+  private def initFromSubstates(initializationAttempts: Int): Unit = {
+    val fetchedStateFut = metrics.stateInitializationTimer.time(
+      kafkaStreamsCommand.substatesForAggregate(aggregateId.toString))
+      .map(_.map(_._2).toSet[Array[Byte]])
+
+    composeState(initializationAttempts, fetchedStateFut)
   }
 
 }

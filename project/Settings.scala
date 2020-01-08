@@ -27,6 +27,9 @@ object Settings extends AutoPlugin {
   )
 
   val gearsToolsMavenRelease = "gears-tools-maven-release" at "https://artifactory.mia.ulti.io/artifactory/gt-maven-libs-release/"
+  private val nuLocalArtifactory = "ucartifactory.mia.ucloud.int" at "https://artifactory.mia.ulti.io/artifactory/ultimate-nu-local"
+  // Mulesoft resolver needed for org.everit.json.schema:1.9.2, which is pulled in by one of the mp libraries
+  private val mulesoft = "multsoft" at "https://repository.mulesoft.org/nexus/content/repositories/public/"
 
   override def trigger: PluginTrigger = allRequirements
 
@@ -51,6 +54,6 @@ object Settings extends AutoPlugin {
       "-feature"
     ),
 
-    resolvers ++= Seq(gearsToolsMavenRelease)
+    resolvers ++= Seq(gearsToolsMavenRelease, nuLocalArtifactory, mulesoft)
   )
 }

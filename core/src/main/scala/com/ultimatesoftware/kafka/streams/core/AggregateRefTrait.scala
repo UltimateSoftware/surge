@@ -40,6 +40,9 @@ trait AggregateRefTrait[AggIdType, Agg, Cmd, CmdMeta] {
   private def interpretActorResponse: Any ⇒ Either[Seq[ValidationError], Option[Agg]] = {
     case success: GenericAggregateActor.CommandSuccess[Agg] ⇒ Right(success.aggregateState)
     case failure: GenericAggregateActor.CommandFailure      ⇒ Left(failure.validationError)
+    case error: GenericAggregateActor.CommandError ⇒
+      log.error("Error processing command", error.exception)
+      Right(None) // TODO how do we want to expose failures to the domain?
     case other ⇒
       log.error(s"Unable to interpret response from aggregate - this should not happen: $other")
       Right(None)
