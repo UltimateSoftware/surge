@@ -3,8 +3,10 @@
 package com.ultimatesoftware.kafka.streams.javadsl.test
 
 import com.ultimatesoftware.kafka.streams.javadsl.AggregateRef
-import com.ultimatesoftware.scala.core.domain.{ DefaultCommandMetadata, StatePlusMetadata, UltiAggregateCommandModel }
-import com.ultimatesoftware.scala.core.messaging.{ EventMessage, EventProperties }
+import com.ultimatesoftware.mp.domain.UltiAggregateCommandModel
+import com.ultimatesoftware.mp.serialization.message.Message
+import com.ultimatesoftware.scala.core.domain.{ DefaultCommandMetadata, StatePlusMetadata }
+import com.ultimatesoftware.scala.core.messaging.EventProperties
 
 import scala.annotation.varargs
 import scala.compat.java8.FutureConverters._
@@ -16,11 +18,11 @@ abstract class UltiKafkaStreamsCommandTestFixture[AggId, Agg, Cmd, Event, CmdMet
 
   def extractEventAggregateId(event: Event): AggId
 
-  val eventBus: EventBus[EventMessage[Event]] = new EventBus[EventMessage[Event]]
+  val eventBus: EventBus[Message] = new EventBus[Message]
   val stateStore: StateStore[AggId, StatePlusMetadata[Agg]] = new StateStore[AggId, StatePlusMetadata[Agg]]
 
   def aggregateFor(aggregateId: AggId): AggregateRef[AggId, StatePlusMetadata[Agg], Cmd, CmdMeta] = {
-    new TestAggregateRef[AggId, StatePlusMetadata[Agg], Cmd, EventMessage[Event], CmdMeta, EventProperties](
+    new TestAggregateRef[AggId, StatePlusMetadata[Agg], Cmd, Message, CmdMeta, EventProperties](
       aggregateId,
       ultiCommandModel, stateStore, eventBus)
   }
@@ -30,12 +32,13 @@ abstract class UltiKafkaStreamsCommandTestFixture[AggId, Agg, Cmd, Event, CmdMet
       val aggId = extractEventAggregateId(event)
       val oldState = stateStore.getState(aggId)
       val evtProps = DefaultCommandMetadata.empty().toEventProperties
-      val evtMessage = EventMessage.create(evtProps, event, ultiCommandModel.eventTypeInfo(event))
 
-      val newState = ultiCommandModel.handleEvent(oldState, evtMessage, evtProps)
+      val message = ultiCommandModel.createMessage(evtProps, event, ultiCommandModel.eventTypeInfo(event))
+
+      val newState = ultiCommandModel.handleEvent(oldState, message, evtProps)
 
       stateStore.putState(aggId, newState)
-      eventBus.send(evtMessage)
+      eventBus.send(message)
       eventBus.consumeOne() // Since the played event is given, don't expect to consume it from the event bus
     }
     this
@@ -63,7 +66,7 @@ abstract class UltiKafkaStreamsCommandTestFixture[AggId, Agg, Cmd, Event, CmdMet
 
   @varargs def expectEvents(events: Event*): UltiKafkaStreamsCommandTestFixture[AggId, Agg, Cmd, Event, CmdMeta] = {
     events.foreach { expectedEvent ⇒
-      val actualEventOpt = eventBus.consumeOne().map(_.body)
+      val actualEventOpt = eventBus.consumeOne().map(_.getPayload.asInstanceOf[Event])
       val actualMatchesExpected = actualEventOpt.exists(actual ⇒ verifyEventEquality(expectedEvent, actual))
       if (!actualMatchesExpected) {
         val actualEventString = actualEventOpt.map(_.toString).getOrElse("none")
@@ -90,7 +93,7 @@ abstract class UltiKafkaStreamsCommandTestFixture[AggId, Agg, Cmd, Event, CmdMet
   }
 
   def expectNoEvents(): UltiKafkaStreamsCommandTestFixture[AggId, Agg, Cmd, Event, CmdMeta] = {
-    val actualEvent = eventBus.consumeOne().map(_.body.toString)
+    val actualEvent = eventBus.consumeOne()
     if (actualEvent.nonEmpty) {
       throw new SurgeAssertionError(s"The published events do not match the expected events.  Expected none, but got:\n${actualEvent.getOrElse("")}")
     }

@@ -21,8 +21,10 @@ object Dependencies extends AutoPlugin {
 
     object Ultimate {
       object Surge {
-        val common = "com.ultimatesoftware" %% "surge-common" % "0.1.19"
-        val scalaCore = "com.ultimatesoftware" %% "ulti-scala-core" % "0.1.8"
+        val common = "com.ultimatesoftware" %% "surge-common" % "0.1.20"
+        val scalaCore = "com.ultimatesoftware" %% "ulti-scala-core" % "0.1.9"
+
+        val mpDomainHelpers = "com.ultimatesoftware" %% "surge-mp-domain-helpers" % "0.0.59"
       }
     }
 

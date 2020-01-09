@@ -30,7 +30,8 @@ lazy val `surge-test-engine-ks-command-javadsl` = (project in file("test-engine-
   .dependsOn(`surge-engine-ks-command-javadsl`)
   .settings(
     libraryDependencies ++= Seq(
-      awaitility
+      awaitility,
+      Ultimate.Surge.mpDomainHelpers
     )
   )
 
