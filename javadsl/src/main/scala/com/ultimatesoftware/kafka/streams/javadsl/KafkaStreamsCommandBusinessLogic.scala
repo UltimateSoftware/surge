@@ -5,6 +5,7 @@ package com.ultimatesoftware.kafka.streams.javadsl
 import java.util.Optional
 
 import com.ultimatesoftware.kafka.streams.core.{ KafkaStreamsCommandKafkaConfig, SurgeAggregateReadFormatting, SurgeWriteFormatting }
+
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, MetricsPublisher, NoOpMetricsProvider, NoOpsMetricsPublisher }
 import com.ultimatesoftware.scala.core.validations.AsyncCommandValidator
@@ -27,6 +28,7 @@ abstract class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdM
 
   def readFormatting: SurgeAggregateReadFormatting[AggId, Agg] = new JacksonReadFormatter(aggregateTargetClass)
   def writeFormatting: SurgeWriteFormatting[AggId, Agg, Event, EvtMeta] = new JacksonWriteFormatter()
+
 
   def commandValidator: AsyncCommandValidator[Command, Agg]
   def aggregateComposer: AggregateComposer[AggId, Agg]
