@@ -114,7 +114,7 @@ class IntegrationTestHelper[Event](
 }
 
 class CommandIntegrationTestHelper[AggId, Event](kafkaBrokers: java.util.List[String], typeResolver: TypeResolver,
-    eventsTopic: KafkaTopic, commandEngine: KafkaStreamsCommand[AggId, _, _, Event, _, _])
+    eventsTopic: KafkaTopic, commandEngine: KafkaStreamsCommand[AggId, _, _, _, _, _])
   extends IntegrationTestHelper[Event](kafkaBrokers, typeResolver, eventsTopic) {
 
   def awaitAggregateCreation(aggId: AggId): Unit = {
