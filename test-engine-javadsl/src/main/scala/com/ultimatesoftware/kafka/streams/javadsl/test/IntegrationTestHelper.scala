@@ -5,6 +5,7 @@ package com.ultimatesoftware.kafka.streams.javadsl.test
 import java.util.UUID
 import java.util.concurrent.{ Callable, CompletionStage, TimeUnit }
 
+import com.ultimatesoftware.kafka.streams.javadsl.KafkaStreamsCommand
 import com.ultimatesoftware.mp.domain.TypeInfoFromUltiEventAnnotation
 import com.ultimatesoftware.mp.messaging.MessageCreator
 import com.ultimatesoftware.mp.messaging.format.{ MessagingPlatformEventMessageWriteFormatting, MessagingPlatformEventReadFormatting }
@@ -21,8 +22,9 @@ import org.slf4j.{ Logger, LoggerFactory }
 
 import scala.collection.JavaConverters._
 import scala.compat.java8.FutureConverters._
+import scala.compat.java8.OptionConverters._
 import scala.concurrent.duration._
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.{ Await, ExecutionContext, Future }
 import scala.util.{ Success, Try }
 
 class IntegrationTestHelper[Event](
@@ -109,5 +111,25 @@ class IntegrationTestHelper[Event](
   def close(): Unit = {
     sub.stop()
   }
+}
 
+class CommandIntegrationTestHelper[AggId, Event](kafkaBrokers: java.util.List[String], typeResolver: TypeResolver,
+    eventsTopic: KafkaTopic, commandEngine: KafkaStreamsCommand[AggId, _, _, Event, _, _])
+  extends IntegrationTestHelper[Event](kafkaBrokers, typeResolver, eventsTopic) {
+
+  def awaitAggregateCreation(aggId: AggId): Unit = {
+    awaitAggregateCreation(aggId, 5000)
+  }
+
+  def awaitAggregateCreation(aggId: AggId, atMostMillis: Int): Unit = {
+    await().atMost(atMostMillis, TimeUnit.MILLISECONDS) until {
+      new Callable[java.lang.Boolean] {
+        override def call(): java.lang.Boolean = {
+          implicit val ec: ExecutionContext = ExecutionContext.global
+          val aggState = Await.result(commandEngine.aggregateFor(aggId).getState.toScala, atMostMillis.millis)
+          aggState.isPresent
+        }
+      }
+    }
+  }
 }
