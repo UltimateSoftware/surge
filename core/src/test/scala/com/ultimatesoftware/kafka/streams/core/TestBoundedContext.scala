@@ -65,6 +65,8 @@ trait TestBoundedContext {
     val aggregateId: UUID = decrementAggregateId
   }
 
+  case class DoNothing(aggregateId: UUID) extends BaseTestCommand
+
   case class CauseInvalidValidation(aggregateId: UUID) extends BaseTestCommand {
     val validationErrors: Seq[ValidationError] = Seq(ValidationError("This command is invalid"))
     override def validate: Seq[AsyncValidationResult[_]] = Seq(
@@ -100,6 +102,7 @@ trait TestBoundedContext {
           sequenceNumber = newSequenceNumber, timestamp = meta.timestamp)))
         case Decrement(aggregateId) ⇒ Success(Seq(CountDecremented(aggregateId, decrementBy = 1,
           sequenceNumber = newSequenceNumber, timestamp = meta.timestamp)))
+        case _: DoNothing ⇒ Success(Seq.empty)
         case fail: FailCommandProcessing ⇒
           Failure(fail.withError)
       }

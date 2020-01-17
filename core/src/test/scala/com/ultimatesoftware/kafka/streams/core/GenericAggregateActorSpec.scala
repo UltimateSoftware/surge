@@ -195,6 +195,21 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
       probe.expectMsg(GenericAggregateActor.CommandFailure(validationCmd.validationErrors))
     }
 
+    "Not update state if there are no events processed" in {
+      val testContext = TestContext.setupDefault
+      import testContext._
+
+      val testEnvelope = envelope(DoNothing(testAggregateId))
+
+      probe.send(actor, testEnvelope)
+      probe.expectMsg(GenericAggregateActor.CommandSuccess(Some(baseState)))
+
+      verify(mockProducer, never()).publish(
+        any[UUID],
+        any[Seq[(String, AggregateSegment[UUID, State])]],
+        any[Seq[(String, TimestampMeta, BaseTestEvent)]])
+    }
+
     "Handle exceptions from the domain by returning a CommandError" in {
       val testContext = TestContext.setupDefault
       import testContext._

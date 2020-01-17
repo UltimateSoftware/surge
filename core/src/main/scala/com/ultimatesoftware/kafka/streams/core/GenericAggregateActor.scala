@@ -5,6 +5,7 @@ package com.ultimatesoftware.kafka.streams.core
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 
+import akka.Done
 import akka.actor.{ Actor, Props, ReceiveTimeout, Stash }
 import akka.pattern.pipe
 import com.typesafe.config.{ Config, ConfigFactory }
@@ -151,7 +152,12 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
         val stateKeyValues = states.map(s ⇒ businessLogic.kafka.stateKeyExtractor(s.value) -> s)
 
         log.trace("GenericAggregateActor for {} sending events to publisher actor", aggregateId)
-        kafkaProducerActor.publish(aggregateId = aggregateId, states = stateKeyValues, events = eventKeyMetaValues).map { _ ⇒
+        val publishFuture = if (events.nonEmpty) {
+          kafkaProducerActor.publish(aggregateId = aggregateId, states = stateKeyValues, events = eventKeyMetaValues)
+        } else {
+          Future.successful(Done)
+        }
+        publishFuture.map { _ ⇒
           val newActorState = InternalActorState(stateOpt = newState)
           EventsSuccessfullyPersisted(newActorState, startTime)
         }
