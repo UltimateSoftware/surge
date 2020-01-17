@@ -29,7 +29,6 @@ abstract class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdM
   def readFormatting: SurgeAggregateReadFormatting[AggId, Agg] = new JacksonReadFormatter(aggregateTargetClass)
   def writeFormatting: SurgeWriteFormatting[AggId, Agg, Event, EvtMeta] = new JacksonWriteFormatter()
 
-
   def commandValidator: AsyncCommandValidator[Command, Agg]
   def aggregateComposer: AggregateComposer[AggId, Agg]
 
