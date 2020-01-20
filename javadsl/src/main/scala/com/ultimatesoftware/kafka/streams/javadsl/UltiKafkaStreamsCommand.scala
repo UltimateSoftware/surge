@@ -5,7 +5,7 @@ package com.ultimatesoftware.kafka.streams.javadsl
 import akka.actor.ActorSystem
 import com.ultimatesoftware.kafka.streams.core
 import com.ultimatesoftware.mp.serialization.message.Message
-import com.ultimatesoftware.scala.core.domain.{ StateMessage, StatePlusMetadata }
+import com.ultimatesoftware.scala.core.domain.StateMessage
 import com.ultimatesoftware.scala.core.messaging.EventProperties
 
 trait UltiKafkaStreamsCommand[AggId, Agg, Cmd, Event, CmdMeta]
