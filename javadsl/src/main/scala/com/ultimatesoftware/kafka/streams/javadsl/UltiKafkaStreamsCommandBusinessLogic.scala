@@ -11,7 +11,7 @@ import com.ultimatesoftware.scala.oss.domain.AggregateSegment
 import play.api.libs.json.JsValue
 
 abstract class UltiKafkaStreamsCommandBusinessLogic[AggId, Agg, Cmd, Event, CmdMeta]
-  extends KafkaStreamsCommandBusinessLogic[AggId, StatePlusMetadata[Agg], Cmd, Message, CmdMeta, EventProperties] {
+  extends KafkaStreamsCommandBusinessLogic[AggId, StateMessage[Agg], Cmd, Message, CmdMeta, EventProperties] {
   override def eventKeyExtractor(evtMsg: Message): String = s"${evtMsg.getAggregateId}:${evtMsg.getSequenceNumber}"
 
   override def stateKeyExtractor(jsValue: JsValue): String = {
@@ -20,16 +20,15 @@ abstract class UltiKafkaStreamsCommandBusinessLogic[AggId, Agg, Cmd, Event, CmdM
 
   def aggregateClass: Class[Agg]
 
-  override def aggregateTargetClass: Class[StatePlusMetadata[Agg]] = classOf[StatePlusMetadata[Agg]]
+  // this seems wrong
+  override def aggregateTargetClass: Class[StateMessage[Agg]] = classOf[StateMessage[Agg]]
 
   // FIXME this should be handled more similarly to the way the envelope is
-  private def jacksonWriteFormatter = new JacksonWriteFormatter[AggId, StatePlusMetadata[Agg], Event, EventProperties]()
-  def stateWriteFormatting: SurgeAggregateWriteFormatting[AggId, StatePlusMetadata[Agg]] = new SurgeAggregateWriteFormatting[AggId, StatePlusMetadata[Agg]] {
-    override def writeState(agg: AggregateSegment[AggId, StatePlusMetadata[Agg]]): Array[Byte] = {
-      jacksonWriteFormatter.writeState(agg)
-    }
+  private def jacksonWriteFormatter = new JacksonWriteFormatter[AggId, StateMessage[Agg], Event, EventProperties]()
+  def stateWriteFormatting: SurgeAggregateWriteFormatting[AggId, StateMessage[Agg]] = (agg: AggregateSegment[AggId, StateMessage[Agg]]) ⇒ {
+    jacksonWriteFormatter.writeState(agg)
   }
 
-  override def commandValidator: AsyncCommandValidator[Cmd, StatePlusMetadata[Agg]] = AsyncCommandValidator { _ ⇒ Seq() }
+  override def commandValidator: AsyncCommandValidator[Cmd, StateMessage[Agg]] = AsyncCommandValidator { _ ⇒ Seq() }
 
 }
