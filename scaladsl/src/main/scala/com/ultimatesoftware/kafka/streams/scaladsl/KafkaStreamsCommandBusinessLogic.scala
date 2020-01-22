@@ -7,13 +7,12 @@ import com.ultimatesoftware.scala.core.kafka.KafkaTopic
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, MetricsPublisher, NoOpsMetricsPublisher }
 import com.ultimatesoftware.scala.core.validations.AsyncCommandValidator
 import com.ultimatesoftware.scala.oss.domain.{ AggregateCommandModel, AggregateComposer }
-import play.api.libs.json.{ Format, JsValue }
+import play.api.libs.json.JsValue
 
 import scala.concurrent.duration._
 
 trait KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta] {
   def aggregateName: String
-  def aggregateFormat: Format[Agg]
   def stateTopic: KafkaTopic
   def eventsTopic: KafkaTopic
   def internalMetadataTopic: KafkaTopic

@@ -17,7 +17,6 @@ import scala.concurrent.duration._
 
 abstract class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta] {
   def aggregateName: String
-  def aggregateTargetClass: Class[Agg]
   def stateTopic: KafkaTopic
   def eventsTopic: KafkaTopic
   def internalMetadataTopic: KafkaTopic
