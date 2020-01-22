@@ -1,4 +1,8 @@
-# Surge Kafka Streams Command Engine
+# Surge Kafka Streams
+This repository houses the code for the Surge command engine,
+the Surge query engine, and components shared between the two.
+
+## Surge Kafka Streams Command Engine
 
 The surge Kafka Streams command engine is a CQRS/ES engine
 that uses Akka actors to represent aggregates in memory and
@@ -13,7 +17,7 @@ resolvers ++= Seq(
   "gears-tools-maven-release" at "https://artifactory.mia.ulti.io/artifactory/gt-maven-libs-release/"
 )
 libraryDependencies ++= Seq(
-  "com.ultimatesoftware" %% "surge-engine-ks-command-scaladsl" % "0.1.0"
+  "com.ultimatesoftware" %% "surge-engine-ks-command-scaladsl" % "0.3.3"
 )
 ```
 
@@ -23,7 +27,7 @@ resolvers ++= Seq(
   "gears-tools-maven-release" at "https://artifactory.mia.ulti.io/artifactory/gt-maven-libs-release/"
 )
 libraryDependencies ++= Seq(
-  "com.ultimatesoftware" %% "surge-engine-ks-command-javadsl" % "0.1.0"
+  "com.ultimatesoftware" %% "surge-engine-ks-command-javadsl" % "0.3.3"
 )
 ```
 
@@ -57,7 +61,7 @@ In maven for java:
         <dependency>
             <groupId>com.ultimatesoftware</groupId>
             <artifactId>surge-engine-ks-command-javadsl_2.12</artifactId>
-            <version>0.1.0</version>
+            <version>0.3.3</version>
         </dependency>
     </dependencies>
 </project>
