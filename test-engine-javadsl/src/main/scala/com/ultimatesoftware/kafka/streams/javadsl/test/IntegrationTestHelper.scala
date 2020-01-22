@@ -6,7 +6,7 @@ import java.util.UUID
 import java.util.concurrent.{ Callable, CompletionStage, TimeUnit }
 
 import com.ultimatesoftware.kafka.streams.javadsl.KafkaStreamsCommand
-import com.ultimatesoftware.mp.domain.TypeInfoFromUltiEventAnnotation
+import com.ultimatesoftware.mp.domain.{ MetadataInfoFromUltiEvent, TypeInfoFromUltiEventAnnotation }
 import com.ultimatesoftware.mp.messaging.MessageCreator
 import com.ultimatesoftware.mp.messaging.format.{ MessagingPlatformEventMessageWriteFormatting, MessagingPlatformEventReadFormatting }
 import com.ultimatesoftware.mp.props.MessagingPlatformProperties
@@ -22,7 +22,6 @@ import org.slf4j.{ Logger, LoggerFactory }
 
 import scala.collection.JavaConverters._
 import scala.compat.java8.FutureConverters._
-import scala.compat.java8.OptionConverters._
 import scala.concurrent.duration._
 import scala.concurrent.{ Await, ExecutionContext, Future }
 import scala.util.{ Success, Try }
@@ -98,7 +97,8 @@ class IntegrationTestHelper[Event](
   def publishEvent(event: Event, props: EventProperties,
     typeInfo: EventMessageTypeInfo, topic: KafkaTopic): CompletionStage[KafkaRecordMetadata[String]] = {
     val key = s"${props.aggregateId.getOrElse(EmptyUUID)}:${props.sequenceNumber}"
-    val message = cmpMessageCreator.createMessage(event, props, typeInfo)
+    val metaInfo = MetadataInfoFromUltiEvent.extract(event)
+    val message = cmpMessageCreator.createMessage(event, props, typeInfo, metaInfo, None)
 
     val value = eventWrite.writeEvent(message, props)
 

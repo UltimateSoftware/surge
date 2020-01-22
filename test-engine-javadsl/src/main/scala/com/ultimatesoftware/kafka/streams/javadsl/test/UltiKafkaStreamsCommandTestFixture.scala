@@ -3,15 +3,17 @@
 package com.ultimatesoftware.kafka.streams.javadsl.test
 
 import com.ultimatesoftware.kafka.streams.javadsl.AggregateRef
-import com.ultimatesoftware.mp.domain.UltiAggregateCommandModel
+import com.ultimatesoftware.mp.domain.{ EventMessageMetadataInfo, UltiAggregateCommandModel }
 import com.ultimatesoftware.mp.serialization.message.Message
-import com.ultimatesoftware.scala.core.domain.{ DefaultCommandMetadata, StatePlusMetadata }
+import com.ultimatesoftware.scala.core.domain.{ BasicStateTypeInfo, DefaultCommandMetadata, StateMessage }
 import com.ultimatesoftware.scala.core.messaging.EventProperties
+import com.ultimatesoftware.scala.core.utils.JsonFormats
 
 import scala.annotation.varargs
 import scala.compat.java8.FutureConverters._
 import scala.concurrent.Await
 import scala.concurrent.duration._
+import scala.reflect.ClassTag
 
 abstract class UltiKafkaStreamsCommandTestFixture[AggId, Agg, Cmd, Event, CmdMeta](
     ultiCommandModel: UltiAggregateCommandModel[AggId, Agg, Cmd, Event, CmdMeta]) {
@@ -19,10 +21,10 @@ abstract class UltiKafkaStreamsCommandTestFixture[AggId, Agg, Cmd, Event, CmdMet
   def extractEventAggregateId(event: Event): AggId
 
   val eventBus: EventBus[Message] = new EventBus[Message]
-  val stateStore: StateStore[AggId, StatePlusMetadata[Agg]] = new StateStore[AggId, StatePlusMetadata[Agg]]
+  val stateStore: StateStore[AggId, StateMessage[Agg]] = new StateStore[AggId, StateMessage[Agg]]
 
-  def aggregateFor(aggregateId: AggId): AggregateRef[AggId, StatePlusMetadata[Agg], Cmd, CmdMeta] = {
-    new TestAggregateRef[AggId, StatePlusMetadata[Agg], Cmd, Message, CmdMeta, EventProperties](
+  def aggregateFor(aggregateId: AggId): AggregateRef[AggId, StateMessage[Agg], Cmd, CmdMeta] = {
+    new TestAggregateRef[AggId, StateMessage[Agg], Cmd, Message, CmdMeta, EventProperties](
       aggregateId,
       ultiCommandModel, stateStore, eventBus)
   }
@@ -33,7 +35,8 @@ abstract class UltiKafkaStreamsCommandTestFixture[AggId, Agg, Cmd, Event, CmdMet
       val oldState = stateStore.getState(aggId)
       val evtProps = DefaultCommandMetadata.empty().toEventProperties
 
-      val message = ultiCommandModel.createMessage(evtProps, event, ultiCommandModel.eventTypeInfo(event))
+      val emptyMetaInfo = EventMessageMetadataInfo(None, None, None, None, None, None)
+      val message = ultiCommandModel.createMessage(evtProps, event, ultiCommandModel.eventTypeInfo(event), emptyMetaInfo)
 
       val newState = ultiCommandModel.handleEvent(oldState, message, evtProps)
 
@@ -49,8 +52,14 @@ abstract class UltiKafkaStreamsCommandTestFixture[AggId, Agg, Cmd, Event, CmdMet
       case (aggId, state) ⇒
         val oldState = stateStore.getState(aggId)
         val newSequenceNumber = oldState.map(_.eventSequenceNumber).getOrElse(1) + 1
-        val newStatePlusMeta = StatePlusMetadata[Agg](state = Some(state), eventSequenceNumber = newSequenceNumber,
-          tenantId = None, checksums = oldState.map(_.checksums).getOrElse(Map.empty))
+        val newStatePlusMeta = StateMessage.create[Agg](
+          id = aggId.toString,
+          aggregateId = Some(aggId.toString),
+          tenantId = None,
+          state = Some(state),
+          eventSequenceNumber = newSequenceNumber,
+          prevStateChecksum = oldState.flatMap(_.checksum),
+          typeInfo = BasicStateTypeInfo(state.getClass.getName, "1.0.0"))(JsonFormats.jsonFormatterFromJackson(ClassTag(state.getClass)))
 
         stateStore.putState(aggId, newStatePlusMeta)
     }
