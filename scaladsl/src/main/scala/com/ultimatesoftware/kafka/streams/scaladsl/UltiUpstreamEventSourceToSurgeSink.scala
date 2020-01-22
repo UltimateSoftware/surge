@@ -7,7 +7,7 @@ import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import com.ultimatesoftware.akka.streams.kafka.KafkaConsumer
 import com.ultimatesoftware.kafka.streams.core.SurgeEventReadFormatting
-import com.ultimatesoftware.scala.core.domain.{ CommandMetadata, ConsumedEventCommandMetadata, DefaultCommandMetadata }
+import com.ultimatesoftware.scala.core.domain.DefaultCommandMetadata
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
 import com.ultimatesoftware.scala.core.messaging.EventProperties
 import org.slf4j.{ Logger, LoggerFactory }
@@ -17,7 +17,7 @@ import scala.util.Try
 
 case class UltiUpstreamEventSourceToSurgeSink[AggId, UpstreamEvent, Command](
     kafkaTopic: KafkaTopic,
-    surgeEngine: KafkaStreamsCommand[AggId, _, Command, _, CommandMetadata[_], _],
+    surgeEngine: KafkaStreamsCommand[AggId, _, Command, _, DefaultCommandMetadata, _],
     readFormatting: SurgeEventReadFormatting[UpstreamEvent, EventProperties],
     eventTransformer: UpstreamEvent ⇒ Option[Command],
     parallelism: Int = 1)(implicit ec: ExecutionContext) {
@@ -30,7 +30,7 @@ case class UltiUpstreamEventSourceToSurgeSink[AggId, UpstreamEvent, Command](
         val event = eventPlusMetadata._1
         eventTransformer(event).map { command ⇒
           val aggregateRef = surgeEngine.aggregateFor(surgeEngine.businessLogic.model.aggIdFromCommand(command))
-          val cmdMetaOpt = eventPlusMetadata._2.map(ConsumedEventCommandMetadata.fromEventProperties)
+          val cmdMetaOpt = eventPlusMetadata._2.map(DefaultCommandMetadata.fromEventProperties)
           val cmdMeta = cmdMetaOpt.getOrElse(DefaultCommandMetadata.empty())
 
           aggregateRef.ask(cmdMeta, command).map(_ ⇒ Done)

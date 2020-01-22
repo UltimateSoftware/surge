@@ -9,7 +9,7 @@ import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import com.ultimatesoftware.akka.streams.kafka.KafkaConsumer
 import com.ultimatesoftware.kafka.streams.core.SurgeEventReadFormatting
-import com.ultimatesoftware.scala.core.domain.{ CommandMetadata, ConsumedEventCommandMetadata, DefaultCommandMetadata }
+import com.ultimatesoftware.scala.core.domain.DefaultCommandMetadata
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
 import com.ultimatesoftware.scala.core.messaging.EventProperties
 import org.slf4j.{ Logger, LoggerFactory }
@@ -29,7 +29,7 @@ trait MetadataExtractor[CmdMeta] {
 
 class UltiUpstreamEventSourceToSurgeSink[AggId, UpstreamEvent, Command](
     kafkaTopic: KafkaTopic,
-    surgeEngine: KafkaStreamsCommand[AggId, _, Command, _, CommandMetadata[_], _],
+    surgeEngine: KafkaStreamsCommand[AggId, _, Command, _, DefaultCommandMetadata, _],
     readFormatting: SurgeEventReadFormatting[UpstreamEvent, EventProperties],
     eventTransformer: EventTransformer[UpstreamEvent, Command],
     parallelism: Int = 1) {
@@ -42,9 +42,10 @@ class UltiUpstreamEventSourceToSurgeSink[AggId, UpstreamEvent, Command](
       case Some(eventPlusMetadata) ⇒
         val event = eventPlusMetadata._1
         eventTransformer.transform(event).asScala.map { command ⇒
-          val aggregateRef = surgeEngine.aggregateFor(surgeEngine.businessLogic.model.aggIdFromCommand(command))
-          val cmdMetaOpt = eventPlusMetadata._2.map(ConsumedEventCommandMetadata.fromEventProperties)
-          val cmdMeta = cmdMetaOpt.getOrElse(DefaultCommandMetadata.empty())
+          val aggId = surgeEngine.businessLogic.model.aggIdFromCommand(command)
+          val aggregateRef = surgeEngine.aggregateFor(aggId)
+          val cmdMetaOpt = eventPlusMetadata._2.map(DefaultCommandMetadata.fromEventProperties)
+          val cmdMeta = cmdMetaOpt.getOrElse(DefaultCommandMetadata.empty().withAggregateId(aggId.toString))
 
           aggregateRef.ask(cmdMeta, command).toScala.map(_ ⇒ Done)
         } getOrElse {
