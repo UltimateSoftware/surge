@@ -88,14 +88,19 @@ lazy val `surge-engine-ks-query-scaladsl` = (project in file("modules/query-engi
 lazy val `surge-engine-ks-query-javadsl` = (project in file("modules/query-engine/javadsl"))
   .dependsOn(`surge-engine-ks-query-core`)
 
-lazy val root = project
+lazy val `surge-kafka-streams` = project.in(file("."))
   .aggregate(
     `surge-common`,
     `surge-engine-ks-command-core`,
     `surge-engine-ks-command-javadsl`,
     `surge-engine-ks-command-scaladsl`,
-    `surge-test-engine-ks-command-javadsl`
+    `surge-test-engine-ks-command-javadsl`,
+    `surge-engine-ks-query-core`,
+    `surge-engine-ks-query-scaladsl`,
+    `surge-engine-ks-query-javadsl`
   )
   .settings(
-    skip in publish := true
+    skip in publish := true,
+    aggregate in sonarScan := false,
+    sonarUseExternalConfig := true
   )

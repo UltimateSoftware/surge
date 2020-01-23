@@ -14,3 +14,4 @@ bin
 logs
 .DS_Store
 secrets/
+.scannerwork/
