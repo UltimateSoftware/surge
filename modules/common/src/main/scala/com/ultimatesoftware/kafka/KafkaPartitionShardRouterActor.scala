@@ -90,7 +90,7 @@ class KafkaPartitionShardRouterActor[AggIdType](
   import context.dispatcher
 
   private val localAddress = RemoteAddressExtension(context.system).address
-  private val localHostname = localAddress.host.getOrElse("")
+  private val localHostname = localAddress.host.getOrElse("localhost")
   private val localPort = localAddress.port.getOrElse(0)
   private val akkaProtocol = localAddress.protocol
   private val trackedTopic = kafkaStateProducer.topic
@@ -280,7 +280,8 @@ class KafkaPartitionShardRouterActor[AggIdType](
   }
 
   private def isHostPortThisNode(hostPort: HostPort): Boolean = {
-    hostPort.host == localHostname && hostPort.port == localPort
+    val hostPortsMatch = hostPort.host == localHostname && hostPort.port == localPort
+    localAddress.hasLocalScope || hostPortsMatch
   }
 
   private case class StatePlusRegion(state: ActorState, region: Option[PartitionRegion])

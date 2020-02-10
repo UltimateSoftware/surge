@@ -7,14 +7,14 @@ import java.time.temporal.ChronoUnit
 import java.util.Properties
 
 import com.ultimatesoftware.kafka.streams.DefaultSerdes._
-import com.ultimatesoftware.scala.core.kafka.{ KafkaTopic, UltiKafkaConsumerConfig }
+import com.ultimatesoftware.scala.core.kafka.{ KafkaSecurityConfiguration, KafkaTopic, UltiKafkaConsumerConfig }
 import org.apache.kafka.common.serialization.Serde
 import org.apache.kafka.streams.scala.ImplicitConversions._
 import org.apache.kafka.streams.scala._
 import org.apache.kafka.streams.scala.kstream._
 import org.apache.kafka.streams.{ KafkaStreams, StreamsConfig, Topology }
 
-abstract class KafkaStreamsConsumer[K, V](implicit keySerde: Serde[K], valueSerde: Serde[V]) {
+abstract class KafkaStreamsConsumer[K, V](implicit keySerde: Serde[K], valueSerde: Serde[V]) extends KafkaSecurityConfiguration {
   def brokers: Seq[String]
   def consumerConfig: UltiKafkaConsumerConfig
   def kafkaConfig: Map[String, String]
@@ -29,6 +29,7 @@ abstract class KafkaStreamsConsumer[K, V](implicit keySerde: Serde[K], valueSerd
     p.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, brokers.mkString(","))
     p.put(StreamsConfig.APPLICATION_ID_CONFIG, consumerConfig.consumerGroup)
     applicationServerConfig.foreach(config ⇒ p.put(StreamsConfig.APPLICATION_SERVER_CONFIG, config))
+    configureSecurityProperties(p)
     p
   }
 

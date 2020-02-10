@@ -5,7 +5,7 @@ package com.ultimatesoftware.kafka.streams.javadsl.test
 import com.ultimatesoftware.kafka.streams.javadsl.AggregateRef
 import com.ultimatesoftware.mp.domain.{ EventMessageMetadataInfo, UltiAggregateCommandModel }
 import com.ultimatesoftware.mp.serialization.message.Message
-import com.ultimatesoftware.scala.core.domain.{ BasicStateTypeInfo, DefaultCommandMetadata, StateMessage }
+import com.ultimatesoftware.scala.core.domain.{ BasicStateTypeInfo, CommandMetadata, DefaultCommandMetadata, StateMessage }
 import com.ultimatesoftware.scala.core.messaging.EventProperties
 import com.ultimatesoftware.scala.core.utils.JsonFormats
 
@@ -15,7 +15,7 @@ import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.reflect.ClassTag
 
-abstract class UltiKafkaStreamsCommandTestFixture[AggId, Agg, Cmd, Event, CmdMeta](
+abstract class UltiKafkaStreamsCommandTestFixture[AggId, Agg, Cmd, Event, CmdMeta <: CommandMetadata[CmdMeta]](
     ultiCommandModel: UltiAggregateCommandModel[AggId, Agg, Cmd, Event, CmdMeta]) {
 
   def extractEventAggregateId(event: Event): AggId

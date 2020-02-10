@@ -18,6 +18,8 @@ class RemoteAddressExtensionSpec extends WordSpec with Matchers {
       address.host shouldEqual Some(expectedHost)
       address.port shouldEqual Some(expectedPort)
       address.protocol shouldEqual "akka"
+      address.hasLocalScope shouldEqual false
+      address.hasGlobalScope shouldEqual true
     }
 
     "Be able to get the host/port of a system using classic remoting" in {
@@ -30,6 +32,20 @@ class RemoteAddressExtensionSpec extends WordSpec with Matchers {
       address.host shouldEqual Some(expectedHost)
       address.port shouldEqual Some(expectedPort)
       address.protocol shouldEqual "akka.tcp"
+      address.hasLocalScope shouldEqual false
+      address.hasGlobalScope shouldEqual true
+    }
+
+    "Return None for host/port of a local actor system" in {
+      val config = ConfigFactory.load("akka-local.conf")
+      val testSystem = ActorSystem("LocalActorSystem", config)
+
+      val address = RemoteAddressExtension(testSystem).address
+      address.host shouldEqual None
+      address.port shouldEqual None
+      address.protocol shouldEqual "akka"
+      address.hasLocalScope shouldEqual true
+      address.hasGlobalScope shouldEqual false
     }
   }
 }

@@ -19,9 +19,12 @@ trait KafkaStreamsCommandImpl[AggId, Agg, Command, Event, CmdMeta, EvtMeta] exte
   private implicit val system: ActorSystem = actorSystem
 
   private val akkaAddress = RemoteAddressExtension(system).address
-  private val akkaHost = akkaAddress.host.getOrElse(throw new RuntimeException("Unable to determine hostname of current Akka actor system"))
-  private val akkaPort = akkaAddress.port.getOrElse(throw new RuntimeException("Unable to determine port of current Akka actor system"))
-  private val applicationHostPort = s"$akkaHost:$akkaPort"
+  private val applicationHostPort = for {
+    akkaHost ← akkaAddress.host
+    akkaPort ← akkaAddress.port
+  } yield {
+    s"$akkaHost:$akkaPort"
+  }
 
   private val stateChangeActor = system.actorOf(KafkaConsumerStateTrackingActor.props)
   private val stateMetaHandler = new GlobalKTableMetadataHandler(businessLogic.kafka.internalMetadataTopic)
@@ -29,7 +32,7 @@ trait KafkaStreamsCommandImpl[AggId, Agg, Command, Event, CmdMeta, EvtMeta] exte
     businessLogic.aggregateName,
     businessLogic.kafka.stateTopic,
     new KafkaStreamsPartitionTrackerActorProvider(stateChangeActor), stateMetaHandler, businessLogic.aggregateValidator,
-    Some(applicationHostPort))
+    applicationHostPort)
   protected val actorRouter = new GenericAggregateActorRouter[AggId, Agg, Command, Event, CmdMeta, EvtMeta](actorSystem, stateChangeActor,
     businessLogic, businessLogic.metricsProvider, stateMetaHandler, kafkaStreamsImpl)
 
