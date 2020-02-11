@@ -50,8 +50,7 @@ lazy val `surge-engine-ks-command-core` = (project in file("modules/command-engi
       mockitoCore,
       scalatest,
       typesafeConfig,
-      Ultimate.Surge.scalaCore,
-      "com.ultimatesoftware.mp" % "messaging-platform-serialization" % "1.0.1" // TODO break this dependency by adding a module specific for the ulti-layering
+      Ultimate.Surge.scalaCore
     )
   ).dependsOn(`surge-common`)
 
@@ -60,15 +59,6 @@ lazy val `surge-engine-ks-command-scaladsl` = (project in file("modules/command-
 
 lazy val `surge-engine-ks-command-javadsl` = (project in file("modules/command-engine/javadsl"))
   .dependsOn(`surge-engine-ks-command-core`)
-
-lazy val `surge-test-engine-ks-command-javadsl` = (project in file("modules/command-engine/test-engine-javadsl"))
-  .dependsOn(`surge-engine-ks-command-javadsl`)
-  .settings(
-    libraryDependencies ++= Seq(
-      awaitility,
-      Ultimate.Surge.mpDomainHelpers
-    )
-  )
 
 lazy val `surge-engine-ks-query-core` = (project in file("modules/query-engine/core"))
   .settings(
@@ -94,7 +84,6 @@ lazy val `surge-kafka-streams` = project.in(file("."))
     `surge-engine-ks-command-core`,
     `surge-engine-ks-command-javadsl`,
     `surge-engine-ks-command-scaladsl`,
-    `surge-test-engine-ks-command-javadsl`,
     `surge-engine-ks-query-core`,
     `surge-engine-ks-query-scaladsl`,
     `surge-engine-ks-query-javadsl`

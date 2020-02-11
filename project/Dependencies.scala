@@ -35,13 +35,10 @@ object Dependencies extends AutoPlugin {
 
     object Ultimate {
       object Surge {
-        val scalaCore = "com.ultimatesoftware" %% "ulti-scala-core" % "0.3.4"
-
-        val mpDomainHelpers = "com.ultimatesoftware" %% "surge-mp-domain-helpers" % "0.3.7"
+        val scalaCore = "com.ultimatesoftware" %% "ulti-scala-core" % "0.3.5"
       }
     }
 
-    val awaitility = "org.awaitility" % "awaitility" % "2.0.0"
     val junit = "junit" % "junit" % "4.12" % Test
     val logback =  "ch.qos.logback" % "logback-classic" % "1.2.3" % Test
     val mockitoCore = "org.mockito" % "mockito-core" % "2.25.1" % Test
