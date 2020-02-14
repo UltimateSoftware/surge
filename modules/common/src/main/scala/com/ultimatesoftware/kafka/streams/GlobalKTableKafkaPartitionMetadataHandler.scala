@@ -6,12 +6,11 @@ import java.util.UUID
 
 import com.typesafe.config.ConfigFactory
 import com.ultimatesoftware.scala.core.kafka.{ JsonSerdes, KafkaStringProducer, KafkaTopic, UltiKafkaConsumerConfig }
-import org.apache.kafka.common.serialization.Serde
-import org.apache.kafka.streams.StreamsConfig
+import org.apache.kafka.common.serialization.{ Serde, Serdes }
+import org.apache.kafka.streams.{ StreamsConfig, Topology }
 import org.apache.kafka.streams.kstream.Materialized
-import org.apache.kafka.streams.scala.ByteArrayKeyValueStore
 import org.apache.kafka.streams.scala.kstream.KStream
-import org.apache.kafka.streams.state.QueryableStoreTypes
+import org.apache.kafka.streams.state.{ QueryableStoreTypes, Stores }
 import org.slf4j.LoggerFactory
 import play.api.libs.json.Json
 
@@ -29,7 +28,8 @@ object GlobalStreamsBlockCacheSettings extends BlockCacheSettings {
 class KafkaPartitionMetadataGlobalStreamsRocksDBConfig extends CustomRocksDBConfigSetter(GlobalStreamsBlockCacheSettings, GlobalStreamsWriteBufferSettings)
 
 class GlobalKTableMetadataHandler(internalMetadataTopic: KafkaTopic) extends KafkaPartitionMetadataHandler {
-  import com.ultimatesoftware.kafka.streams.ImplicitConversions._
+  import DefaultSerdes._
+  import ImplicitConversions._
 
   private val config = ConfigFactory.load()
   private val brokers = config.getString("kafka.brokers").split(",")
@@ -49,15 +49,16 @@ class GlobalKTableMetadataHandler(internalMetadataTopic: KafkaTopic) extends Kaf
     globalStreamsConfig, applicationServerConfig = None, topologyProps = None)
   private val clearStateOnStartup = config.getBoolean("kafka.streams.wipe-state-on-start")
 
-  private val globalStateMetaStoreName = s"${internalMetadataTopic.name}-global-table"
+  val globalStateMetaStoreName: String = s"${internalMetadataTopic.name}-global-table"
 
   private lazy val globalStreams = globalKTableConsumer.streams
 
-  private implicit val stringSerde: Serde[String] = JsonSerdes.serdeFor[String]
-  private implicit val aggregateSerde: Serde[KafkaPartitionMetadata] = JsonSerdes.serdeFor[KafkaPartitionMetadata]
+  private implicit val partitionMetaSerde: Serde[KafkaPartitionMetadata] = JsonSerdes.serdeFor[KafkaPartitionMetadata]
 
   override def initialize(): Unit = {
-    val stateMetaMaterializedStoreGlobal = Materialized.as[String, KafkaPartitionMetadata, ByteArrayKeyValueStore](globalStateMetaStoreName)
+    val storeSupplier = Stores.inMemoryKeyValueStore(globalStateMetaStoreName)
+    val stateMetaMaterializedStoreGlobal = Materialized.as[String, KafkaPartitionMetadata](storeSupplier)
+      .withKeySerde(Serdes.String)
       .withValueSerde(JsonSerdes.serdeFor[KafkaPartitionMetadata])
     globalKTableConsumer.builder.globalTable(internalMetadataTopic.name, stateMetaMaterializedStoreGlobal)
 
@@ -69,10 +70,14 @@ class GlobalKTableMetadataHandler(internalMetadataTopic: KafkaTopic) extends Kaf
   override def processPartitionMetadata(stream: KStream[String, KafkaPartitionMetadata]): Unit = {
     val producer = KafkaStringProducer(brokers, internalMetadataTopic)
     stream.mapValues { value ⇒
-      val topicPartition = s""""${value.topic}:${value.partition}""""
-      log.trace("Updating StateMeta for {} to {}", Seq(topicPartition, value): _*)
-      producer.putKeyValue(topicPartition, Json.toJson(value).toString())
+      log.trace("Updating StateMeta for {} to {}", Seq(value.topicPartition, value): _*)
+      producer.putKeyValue(value.topicPartition, Json.toJson(value).toString())
     }
+  }
+
+  def createTopology(): Topology = {
+    initialize()
+    globalKTableConsumer.topology
   }
 
   override def start(): Unit = {

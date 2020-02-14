@@ -13,4 +13,6 @@ object KafkaPartitionMetadata {
   }
 }
 
-case class KafkaPartitionMetadata(topic: String, partition: Int, offset: Long, key: String)
+case class KafkaPartitionMetadata(topic: String, partition: Int, offset: Long, key: String) {
+  val topicPartition = s"$topic:$partition"
+}

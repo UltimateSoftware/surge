@@ -29,7 +29,6 @@ object MockState {
 case class MockState(string: String, int: Int)
 class AggregateStateStoreKafkaStreamsSpec extends WordSpec with Matchers {
   private val stateTopic: KafkaTopic = KafkaTopic("testStateTopic")
-  private val partitionTracker = new MockPartitionTrackerProvider()
   private val aggStoreKafkaStreams = new AggregateStateStoreKafkaStreams[MockState](
     aggregateName = "test",
     stateTopic = stateTopic,

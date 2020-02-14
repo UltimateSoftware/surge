@@ -89,11 +89,13 @@ class KafkaPartitionShardRouterActor[AggIdType](
   import KafkaPartitionShardRouterActor._
   import context.dispatcher
 
+  private val config = ConfigFactory.load()
   private val localAddress = RemoteAddressExtension(context.system).address
   private val localHostname = localAddress.host.getOrElse("localhost")
   private val localPort = localAddress.port.getOrElse(0)
   private val akkaProtocol = localAddress.protocol
   private val trackedTopic = kafkaStateProducer.topic
+  private val enableDRStandby = config.getBoolean("ulti.dr-standby-enabled")
 
   private val log: Logger = LoggerFactory.getLogger(getClass)
 
@@ -178,9 +180,15 @@ class KafkaPartitionShardRouterActor[AggIdType](
       val allTopicPartitions = partitionAssignments.partitionAssignments
         .values.flatten
 
-      val updatedState = allTopicPartitions.foldLeft(this) {
-        case (stateAccum, topicPartition) ⇒
-          partitionRegionFor(stateAccum, topicPartition.partition).state
+      // If we're running in DR standby mode, don't automatically create new partition regions
+      // Create them on demand when we need to send a message to them
+      val updatedState = if (enableDRStandby) {
+        this
+      } else {
+        allTopicPartitions.foldLeft(this) {
+          case (stateAccum, topicPartition) ⇒
+            partitionRegionFor(stateAccum, topicPartition.partition).state
+        }
       }
 
       val updatedRetries = updatedState.partitionRegions.map {
