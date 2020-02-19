@@ -95,7 +95,7 @@ class KafkaPartitionShardRouterActor[AggIdType](
   private val localPort = localAddress.port.getOrElse(0)
   private val akkaProtocol = localAddress.protocol
   private val trackedTopic = kafkaStateProducer.topic
-  private val enableDRStandby = config.getBoolean("ulti.dr-standby-enabled")
+  private val enableDRStandbyInitial = config.getBoolean("ulti.dr-standby-enabled")
 
   private val log: Logger = LoggerFactory.getLogger(getClass)
 
@@ -106,7 +106,7 @@ class KafkaPartitionShardRouterActor[AggIdType](
   private case object ExpireOldPendingRetries extends InternalMessage
 
   private case class ActorState(partitionAssignments: PartitionAssignments, partitionRegions: Map[Int, PartitionRegion],
-      pendingRetries: Map[Int, List[PendingRetry[AggIdType]]]) {
+      pendingRetries: Map[Int, List[PendingRetry[AggIdType]]], enableDRStandby: Boolean = enableDRStandbyInitial) {
     def partitionsToHosts: Map[Int, HostPort] = {
       partitionAssignments.topicPartitionsToHosts.map {
         case (tp, host) ⇒ tp.partition() -> host
@@ -212,6 +212,13 @@ class KafkaPartitionShardRouterActor[AggIdType](
   private def uninitialized: Receive = {
     case msg: PartitionAssignments ⇒ handle(msg)
     case _                         ⇒ stash()
+  }
+
+  // In standby mode, just follow updates to partition assignments and let Kafka streams index the aggregate state
+  private def standbyMode(state: ActorState): Receive = {
+    case msg: PartitionAssignments               ⇒ handle(state, msg)
+    case GetPartitionRegionAssignments           ⇒ sender() ! state.partitionRegions
+    case msg if extractEntityId.isDefinedAt(msg) ⇒ becomeActiveAndDeliverMessage(state, msg)
   }
 
   private def initialized(state: ActorState): Receive = {
@@ -403,7 +410,18 @@ class KafkaPartitionShardRouterActor[AggIdType](
       .updatePartitionAssignments(partitionAssignments.partitionAssignments)
       .initializeNewRegions()
 
+    if (newState.enableDRStandby) {
+      context.become(standbyMode(newState))
+    } else {
+      context.become(initialized(newState))
+    }
+  }
+
+  private def becomeActiveAndDeliverMessage(state: ActorState, msg: Any): Unit = {
+    log.info("Shard router transitioning from standby mode to active mode")
+    val newState = state.copy(enableDRStandby = false).initializeNewRegions()
     context.become(initialized(newState))
+    deliverMessage(newState, msg)
   }
 
   private def handle(partitionAssignments: PartitionAssignments): Unit = {
@@ -412,11 +430,7 @@ class KafkaPartitionShardRouterActor[AggIdType](
     log.debug(s"RouterActor initializing with partition assignments $partitionAssignments")
 
     val emptyState = ActorState(PartitionAssignments.empty, Map.empty, Map.empty)
-    val newState = emptyState
-      .updatePartitionAssignments(partitionAssignments)
-      .initializeNewRegions() // Pre-create regions to avoid slow initial requests
-
-    context.become(initialized(newState))
+    handle(emptyState, partitionAssignments)
   }
 
   private def initializeState(): Unit = {
