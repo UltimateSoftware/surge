@@ -2,14 +2,13 @@
 
 package com.ultimatesoftware.kafka.streams.core
 
-import com.ultimatesoftware.scala.core.messaging.EventProperties
 import org.slf4j.{ Logger, LoggerFactory }
 
 import scala.util.{ Failure, Success, Try }
 
 case class EventPlusMeta[Event, EvtMeta](event: Event, meta: EvtMeta)
 
-class EnvelopeUtils[Agg, Event, EvtMeta <: EventProperties](formatting: SurgeEventReadFormatting[Event, EvtMeta]) {
+class EnvelopeUtils[Event, EvtMeta](formatting: SurgeEventReadFormatting[Event, EvtMeta]) {
   private val log: Logger = LoggerFactory.getLogger(getClass)
 
   def eventFromBytes(value: Array[Byte]): Option[EventPlusMeta[Event, EvtMeta]] = {

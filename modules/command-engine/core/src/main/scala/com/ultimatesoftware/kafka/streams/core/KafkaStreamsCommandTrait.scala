@@ -3,7 +3,7 @@
 package com.ultimatesoftware.kafka.streams.core
 
 import akka.actor.ActorSystem
-import com.ultimatesoftware.akka.cluster.RemoteAddressExtension
+import com.ultimatesoftware.akka.cluster.ActorSystemHostAwareness
 import com.ultimatesoftware.kafka.KafkaConsumerStateTrackingActor
 import com.ultimatesoftware.kafka.streams.{ AggregateStateStoreKafkaStreams, GlobalKTableMetadataHandler, KafkaStreamsPartitionTrackerActorProvider }
 import play.api.libs.json.JsValue
@@ -14,17 +14,11 @@ trait KafkaStreamsCommandTrait[AggId, Agg, Command, Event, CmdMeta, EvtMeta] {
   def actorSystem: ActorSystem
 }
 
-trait KafkaStreamsCommandImpl[AggId, Agg, Command, Event, CmdMeta, EvtMeta] extends KafkaStreamsCommandTrait[AggId, Agg, Command, Event, CmdMeta, EvtMeta] {
+trait KafkaStreamsCommandImpl[AggId, Agg, Command, Event, CmdMeta, EvtMeta] extends KafkaStreamsCommandTrait[AggId, Agg, Command, Event, CmdMeta, EvtMeta]
+  with ActorSystemHostAwareness {
+
   val actorSystem: ActorSystem
   private implicit val system: ActorSystem = actorSystem
-
-  private val akkaAddress = RemoteAddressExtension(system).address
-  private val applicationHostPort = for {
-    akkaHost ← akkaAddress.host
-    akkaPort ← akkaAddress.port
-  } yield {
-    s"$akkaHost:$akkaPort"
-  }
 
   private val stateChangeActor = system.actorOf(KafkaConsumerStateTrackingActor.props)
   private val stateMetaHandler = new GlobalKTableMetadataHandler(businessLogic.kafka.internalMetadataTopic)

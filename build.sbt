@@ -6,13 +6,28 @@ skip in publish := true
 
 lazy val unitTest = taskKey[Unit]("Runs only the unit tests")
 
+val multiJvmTestSettings = Seq(
+  unitTest := {
+    implicit val display: Show[Def.ScopedKey[_]] = Project.showContextKey(state.value)
+    val testResultLogger = TestResultLogger.Default.copy(printNoTests = TestResultLogger.const(_ info "No tests to run for test:unitTest scope"))
+    testResultLogger.run(streams.value.log, executeTests.in(Test).value, "test:unitTest")
+  },
+  // Override default definition of test so that sbt test runs both unit and multi-jvm tests
+  test in Test := {
+    unitTest.in(Test).value
+    test.in(MultiJvm).value
+  }
+)
+
 lazy val `surge-common` = (project in file("modules/common"))
   .settings(
+    multiJvmTestSettings,
     libraryDependencies ++= Seq(
       Akka.actor,
       Akka.multiNodeTestkit,
       Akka.remote,
       Alpakka.kafka,
+      Alpakka.kafkaTestKit,
       Kafka.kafkaClients,
       Kafka.kafkaStreams,
       Kafka.kafkaStreamsScala,
@@ -20,23 +35,12 @@ lazy val `surge-common` = (project in file("modules/common"))
       PlayFramework.json,
       Ultimate.Surge.scalaCore,
       typesafeConfig,
+      embeddedKafka,
       junit,
       logback,
       scalatest,
       mockitoCore
-    ),
-
-    unitTest := {
-      implicit val display: Show[Def.ScopedKey[_]] = Project.showContextKey(state.value)
-      val testResultLogger = TestResultLogger.Default.copy(printNoTests = TestResultLogger.const(_ info "No tests to run for test:unitTest scope"))
-      testResultLogger.run(streams.value.log, executeTests.in(Test).value, "test:unitTest")
-    },
-    // Override default definition of test so that sbt test runs both unit and multi-jvm tests
-    test in Test := {
-      unitTest.in(Test).value
-      test.in(MultiJvm).value
-    }
-
+    )
   ).enablePlugins(MultiJvmPlugin)
    .configs(MultiJvm)
 
@@ -49,6 +53,7 @@ lazy val `surge-engine-ks-command-core` = (project in file("modules/command-engi
       Kafka.kafkaClients,
       mockitoCore,
       scalatest,
+      logback,
       typesafeConfig,
       Ultimate.Surge.scalaCore
     )
@@ -62,15 +67,20 @@ lazy val `surge-engine-ks-command-javadsl` = (project in file("modules/command-e
 
 lazy val `surge-engine-ks-query-core` = (project in file("modules/query-engine/core"))
   .settings(
+    multiJvmTestSettings,
+    jvmOptions in MultiJvm := Seq("-Dmultinode.server-port=4712"),
     libraryDependencies ++= Seq(
       Akka.actor,
       Akka.testKit,
       Kafka.kafkaStreams,
       Kafka.kafkaStreamsTestUtils,
       scalatest,
+      logback,
       mockitoCore
     )
-  ).dependsOn(`surge-common`)
+  ).dependsOn(`surge-common` % "compile->compile;test->test")
+   .enablePlugins(MultiJvmPlugin)
+   .configs(MultiJvm)
 
 lazy val `surge-engine-ks-query-scaladsl` = (project in file("modules/query-engine/scaladsl"))
   .dependsOn(`surge-engine-ks-query-core`)

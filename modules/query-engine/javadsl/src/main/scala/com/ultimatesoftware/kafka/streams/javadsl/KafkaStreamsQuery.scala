@@ -8,7 +8,7 @@ import java.util.concurrent.CompletionStage
 import akka.actor.ActorSystem
 import akka.pattern._
 import akka.util.Timeout
-import com.ultimatesoftware.akka.cluster.RemoteAddressExtension
+import com.ultimatesoftware.akka.cluster.ActorSystemHostAwareness
 import com.ultimatesoftware.kafka.streams.core.{ KTableQueryActor, KafkaStreamsEventProcessor }
 import com.ultimatesoftware.scala.core.domain.StateMessage
 import com.ultimatesoftware.scala.core.messaging.EventProperties
@@ -32,16 +32,11 @@ object KafkaStreamsQuery {
 
 class KafkaStreamsQuery[AggId, Agg, Event, EvtMeta <: EventProperties] private (
     val actorSystem: ActorSystem,
-    businessLogic: KafkaStreamsQueryBusinessLogic[AggId, Agg, Event, EvtMeta])(implicit format: Format[Agg]) {
+    businessLogic: KafkaStreamsQueryBusinessLogic[AggId, Agg, Event, EvtMeta])(implicit format: Format[Agg]) extends ActorSystemHostAwareness {
 
   private def processEvent(aggOpt: Option[Agg], event: Event, eventProps: EventProperties): Option[Agg] = {
     businessLogic.eventProcessor.handleEvent(aggOpt.asJava, event, eventProps).asScala
   }
-
-  private val akkaAddress = RemoteAddressExtension(actorSystem).address
-  private val akkaHost = akkaAddress.host.getOrElse(throw new RuntimeException("Unable to determine hostname of current Akka actor system"))
-  private val akkaPort = akkaAddress.port.getOrElse(throw new RuntimeException("Unable to determine port of current Akka actor system"))
-  private val applicationHostPort = s"$akkaHost:$akkaPort"
 
   val aggregateStreamsFromEvents: KafkaStreamsEventProcessor[AggId, Agg, Event, EvtMeta] = new KafkaStreamsEventProcessor[AggId, Agg, Event, EvtMeta](
     aggregateName = businessLogic.aggregateName,
@@ -49,11 +44,10 @@ class KafkaStreamsQuery[AggId, Agg, Event, EvtMeta <: EventProperties] private (
     readFormatting = businessLogic.readFormatting,
     writeFormatting = businessLogic.writeFormatting,
     eventsTopic = businessLogic.eventsTopic,
-    aggIdExtractor = businessLogic.aggIdExtractor.extractAggId,
-    applicationHostPort = Some(applicationHostPort),
+    applicationHostPort = applicationHostPort,
     processEvent = processEvent)
 
-  private lazy val queryActorProps = KTableQueryActor.props(aggregateStreamsFromEvents.consumer.streams, aggregateStreamsFromEvents.aggregateKTableStoreName,
+  private lazy val queryActorProps = KTableQueryActor.props(aggregateStreamsFromEvents.streams, aggregateStreamsFromEvents.aggregateKTableStoreName,
     aggregateStreamsFromEvents.aggregateQueryableStateStore)
   private lazy val queryActor = actorSystem.actorOf(queryActorProps, "queryActor")
 

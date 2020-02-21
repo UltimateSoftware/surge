@@ -171,7 +171,7 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
       case ex ⇒
         // On an error, we don't know if the command succeeded or not, so crash the actor and force it to reinitialize
         log.error(s"Error while trying to persist events, crashing actor for ${businessLogic.aggregateName} $aggregateId", ex)
-        throw ex
+        context.stop(self)
     }.pipeTo(self)(sender())
   }
 
@@ -207,7 +207,6 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
     context.become(freeToProcess(msg.newState))
 
     val cmdSuccess = CommandSuccess(msg.newState.stateOpt)
-    //log.trace(s"${businessLogic.aggregateName} $aggregateId returning response ${msg.newState.stateOpt.map(Json.toJson)}")
 
     sender() ! cmdSuccess
 

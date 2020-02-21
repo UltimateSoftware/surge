@@ -9,7 +9,14 @@ import org.apache.kafka.streams.KafkaStreams
 import org.apache.kafka.streams.processor.StateRestoreListener
 import org.slf4j.{ Logger, LoggerFactory }
 
-class KafkaStreamsStateChangeListener(partitionTracker: KafkaStreamsPartitionTracker) extends KafkaStreams.StateListener {
+trait Exiter {
+  def exit(exitCode: Int): Unit
+}
+object SystemExit extends Exiter {
+  override def exit(exitCode: Int): Unit = sys.exit(exitCode)
+}
+
+class KafkaStreamsStateChangeListener(partitionTracker: KafkaStreamsPartitionTracker, exiter: Exiter = SystemExit) extends KafkaStreams.StateListener {
   private val log: Logger = LoggerFactory.getLogger(getClass)
 
   // FIXME replace this with a real supervisor
@@ -28,18 +35,18 @@ class KafkaStreamsStateChangeListener(partitionTracker: KafkaStreamsPartitionTra
 
     if (hitError && newState == KafkaStreams.State.NOT_RUNNING) {
       log.error("Kafka streams shutting down because of an error")
-      sys.exit(1)
+      exiter.exit(1)
     }
   }
 }
 
 // FIXME we may be able to do a clean close/restart of the stream itself
-class KafkaStreamsUncaughtExceptionHandler extends UncaughtExceptionHandler {
+class KafkaStreamsUncaughtExceptionHandler(exiter: Exiter = SystemExit) extends UncaughtExceptionHandler {
   private val log: Logger = LoggerFactory.getLogger(getClass)
   override def uncaughtException(t: Thread, e: Throwable): Unit = {
     log.error(s"Unhandled exception in thread $t", e)
     log.error("Kafka streams shutting down because of an error")
-    sys.exit(1)
+    exiter.exit(1)
   }
 }
 

@@ -64,26 +64,33 @@ class AggregateRefTraitSpec extends TestKit(ActorSystem("AggregateRefTraitSpec")
       testProbe2.expectMsg(GenericAggregateActor.CommandEnvelope(testPerson2.name, "", "Command2"))
       testProbe2.reply(GenericAggregateActor.CommandSuccess(None))
 
-      val testProbe3 = TestProbe()
-      val aggregateRef3 = TestAggregateRef(testPerson3.name, testProbe3)
-      val testPerson3StateFut = aggregateRef3.ask("Command3")
-      testProbe3.expectMsg(GenericAggregateActor.CommandEnvelope(testPerson3.name, "", "Command3"))
-      testProbe3.reply(GenericAggregateActor.CommandFailure(Seq.empty))
+      val failureProbe = TestProbe()
+      val aggregateRef3 = TestAggregateRef(testPerson3.name, failureProbe)
+      val testFailureResponseFut = aggregateRef3.ask("Command3")
+      failureProbe.expectMsg(GenericAggregateActor.CommandEnvelope(testPerson3.name, "", "Command3"))
+      failureProbe.reply(GenericAggregateActor.CommandFailure(Seq.empty))
+
+      val errorProbe = TestProbe()
+      val testErrorResponseFut = TestAggregateRef("error", errorProbe).ask("Command4")
+      errorProbe.expectMsg(GenericAggregateActor.CommandEnvelope("error", "", "Command4"))
+      errorProbe.reply(GenericAggregateActor.CommandError(new RuntimeException("This is expected")))
 
       val garbageProbe = TestProbe()
-      val testGarbageResponseFut = TestAggregateRef("foo", garbageProbe).ask("Command4")
-      garbageProbe.expectMsg(GenericAggregateActor.CommandEnvelope("foo", "", "Command4"))
+      val testGarbageResponseFut = TestAggregateRef("foo", garbageProbe).ask("Command5")
+      garbageProbe.expectMsg(GenericAggregateActor.CommandEnvelope("foo", "", "Command5"))
       garbageProbe.reply("Not a person object")
 
       for {
         testPerson1State ← testPerson1StateFut
         testPerson2State ← testPerson2StateFut
-        testPerson3State ← testPerson3StateFut
+        testFailureResponse ← testFailureResponseFut
+        testErrorResponse ← testErrorResponseFut
         testGarbageResponse ← testGarbageResponseFut
       } yield {
         testPerson1State shouldEqual Right(Some(testPerson1))
         testPerson2State shouldEqual Right(None)
-        testPerson3State shouldEqual Left(Seq.empty)
+        testFailureResponse shouldEqual Left(Seq.empty)
+        testErrorResponse shouldEqual Right(None)
         testGarbageResponse shouldEqual Right(None)
       }
 

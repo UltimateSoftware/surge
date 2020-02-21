@@ -10,7 +10,8 @@ import org.apache.kafka.streams.processor.{ AbstractProcessor, Processor, Proces
 import org.apache.kafka.streams.state.{ KeyValueStore, StoreBuilder, Stores }
 import play.api.libs.json.{ Format, Json }
 
-class EventProcessor[AggId, Agg, Event, EvtMeta <: EventProperties](aggregateTypeInfo: StateTypeInfo, aggIdExtractor: Agg ⇒ AggId,
+class EventProcessor[AggId, Agg, Event, EvtMeta <: EventProperties](
+    aggregateTypeInfo: StateTypeInfo,
     aggReads: SurgeAggregateReadFormatting[AggId, StateMessage[Agg]],
     aggWrites: SurgeAggregateWriteFormatting[AggId, StateMessage[Agg]],
     processEvent: (Option[Agg], Event, EventProperties) ⇒ Option[Agg])(implicit aggFormat: Format[Agg]) {
@@ -39,46 +40,26 @@ class EventProcessor[AggId, Agg, Event, EvtMeta <: EventProperties](aggregateTyp
     override def process(key: String, value: EventPlusMeta[Event, EvtMeta]): Unit = {
       value.meta.aggregateId.foreach { aggregateId ⇒
         val oldState = Option(keyValueStore.get(aggregateId.toString))
+        val previousBody = oldState
+          .flatMap(state ⇒ aggReads.readState(state))
+          .flatMap(segment ⇒ segment.value.asOpt[StateMessage[Agg]])
+          .flatMap(_.body)
 
-        val newStateSerialized = if (oldState.isDefined) {
-          val segment: Option[AggregateSegment[AggId, StateMessage[Agg]]] = aggReads.readState(oldState.get)
+        val newState = processEvent(previousBody, value.event, value.meta)
 
-          segment match {
-            case Some(segmentValue) ⇒
-              val previous: StateMessage[Agg] = Json.fromJson(segmentValue.value)(StateMessage.format[Agg](aggFormat)).get
-              val newState = processEvent(previous.body, value.event, value.meta)
+        // Wrap in state message -- This should be pulled out to the UltiLayer..
+        val next: StateMessage[Agg] = StateMessage.create[Agg](
+          aggregateId.toString,
+          Some(aggregateId.toString),
+          value.meta.tenantId,
+          newState,
+          value.meta.sequenceNumber,
+          None, aggregateTypeInfo)
 
-              // Wrap in state message -- This should be pulled out to the UltiLayer..
-              val next: StateMessage[Agg] = StateMessage.create[Agg](
-                aggregateId.toString,
-                Some(aggregateId.toString),
-                value.meta.tenantId,
-                newState,
-                value.meta.sequenceNumber,
-                None, aggregateTypeInfo)
+        val newStateSerialized = aggWrites.writeState(new AggregateSegment[AggId, StateMessage[Agg]](
+          aggregateId.toString,
+          Json.toJson(next), newState.map(c ⇒ c.getClass)))
 
-              aggWrites.writeState(new AggregateSegment[AggId, StateMessage[Agg]](
-                aggregateId.toString,
-                Json.toJson(next), newState.map(c ⇒ c.getClass)))
-            case None ⇒
-              throw new RuntimeException("Empty Aggregate Segment.  This should not happen!!!")
-          }
-        } else {
-          val newState = processEvent(None, value.event, value.meta)
-
-          // Wrap in state message -- This should be pulled out to the UltiLayer..
-          val next: StateMessage[Agg] = StateMessage.create[Agg](
-            aggregateId.toString,
-            Some(aggregateId.toString),
-            value.meta.tenantId,
-            newState,
-            value.meta.sequenceNumber,
-            None, aggregateTypeInfo)
-
-          aggWrites.writeState(new AggregateSegment[AggId, StateMessage[Agg]](
-            aggregateId.toString,
-            Json.toJson(next), newState.map(c ⇒ c.getClass)))
-        }
         keyValueStore.put(aggregateId.toString, newStateSerialized)
       }
 

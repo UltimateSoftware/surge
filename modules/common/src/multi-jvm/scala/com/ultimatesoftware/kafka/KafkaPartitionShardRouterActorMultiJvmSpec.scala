@@ -6,6 +6,7 @@ import akka.actor.{ Actor, DeadLetter, Props }
 import akka.remote.testconductor.RoleName
 import akka.remote.testkit.{ MultiNodeConfig, MultiNodeSpec, MultiNodeSpecCallbacks }
 import akka.testkit.{ ImplicitSender, TestProbe }
+import com.ultimatesoftware.kafka.KafkaConsumerStateTrackingActor.GetPartitionAssignments
 import com.ultimatesoftware.scala.core.kafka.{ HostPort, KafkaProducerTrait, KafkaTopic, PartitionAssignments }
 import org.apache.kafka.common.TopicPartition
 import org.mockito.ArgumentMatchers.anyString

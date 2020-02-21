@@ -8,7 +8,7 @@ import akka.actor._
 import akka.pattern._
 import akka.util.Timeout
 import com.typesafe.config.{ Config, ConfigFactory }
-import com.ultimatesoftware.akka.cluster.RemoteAddressExtension
+import com.ultimatesoftware.akka.cluster.ActorHostAwareness
 import com.ultimatesoftware.scala.core.kafka._
 import org.apache.kafka.common.TopicPartition
 import org.slf4j.{ Logger, LoggerFactory }
@@ -84,16 +84,12 @@ class KafkaPartitionShardRouterActor[AggIdType](
     partitionTracker: ActorRef,
     kafkaStateProducer: KafkaProducerTrait[String, _],
     regionCreator: TopicPartitionRegionCreator,
-    extractEntityId: PartialFunction[Any, AggIdType]) extends Actor with Stash {
+    extractEntityId: PartialFunction[Any, AggIdType]) extends Actor with Stash with ActorHostAwareness {
 
   import KafkaPartitionShardRouterActor._
   import context.dispatcher
 
   private val config = ConfigFactory.load()
-  private val localAddress = RemoteAddressExtension(context.system).address
-  private val localHostname = localAddress.host.getOrElse("localhost")
-  private val localPort = localAddress.port.getOrElse(0)
-  private val akkaProtocol = localAddress.protocol
   private val trackedTopic = kafkaStateProducer.topic
   private val enableDRStandbyInitial = config.getBoolean("ulti.dr-standby-enabled")
 
@@ -294,11 +290,6 @@ class KafkaPartitionShardRouterActor[AggIdType](
       .getOrElse(newActorRegionForPartition(state, partition))
   }
 
-  private def isHostPortThisNode(hostPort: HostPort): Boolean = {
-    val hostPortsMatch = hostPort.host == localHostname && hostPort.port == localPort
-    localAddress.hasLocalScope || hostPortsMatch
-  }
-
   private case class StatePlusRegion(state: ActorState, region: Option[PartitionRegion])
   private def newActorRegionForPartition(state: ActorState, partition: Int): StatePlusRegion = {
     // TODO the None case for partition regions to hosts (rebalancing/crashed/etc...) causes
@@ -316,7 +307,6 @@ class KafkaPartitionShardRouterActor[AggIdType](
         context.watch(newActor)
         context.actorSelection(newActor.path)
       } else {
-
         val remoteAddress = Address(akkaProtocol, context.system.name, hostPort.host, hostPort.port)
         log.debug(s"Associating new remote router at $remoteAddress for partition $partition from $localHostname")
 

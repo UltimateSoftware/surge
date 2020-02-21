@@ -20,7 +20,9 @@ trait KafkaConsumerTrait {
 
   private def defaultCommitterSettings = CommitterSettings(actorSystem)
 
-  def createCommittableSource(topic: KafkaTopic, parallelism: Int = 10,
+  private val defaultParallelism = 10
+
+  def createCommittableSource(topic: KafkaTopic, parallelism: Int = defaultParallelism,
     consumerSettings: ConsumerSettings[String, Array[Byte]]): Source[ConsumerMessage.CommittableMessage[String, Array[Byte]], Consumer.Control] = {
     Consumer.committableSource(consumerSettings, Subscriptions.topics(topic.name))
   }
@@ -37,7 +39,7 @@ trait KafkaConsumerTrait {
   def streamAndCommitOffsets(
     topic: KafkaTopic,
     business: (String, Array[Byte]) ⇒ Future[Done],
-    parallelism: Int = 10,
+    parallelism: Int = defaultParallelism,
     consumerSettings: ConsumerSettings[String, Array[Byte]],
     committerSettings: CommitterSettings = defaultCommitterSettings)(implicit mat: Materializer, ec: ExecutionContext): Consumer.DrainingControl[Done] = {
     val source = createCommittableSource(topic, parallelism, consumerSettings)
