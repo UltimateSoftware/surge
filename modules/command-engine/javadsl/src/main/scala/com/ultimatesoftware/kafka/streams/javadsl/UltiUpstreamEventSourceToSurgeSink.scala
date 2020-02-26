@@ -17,7 +17,7 @@ import org.slf4j.{ Logger, LoggerFactory }
 import scala.compat.java8.FutureConverters._
 import scala.compat.java8.OptionConverters._
 import scala.concurrent.{ ExecutionContext, Future }
-import scala.util.Try
+import scala.util.{ Failure, Success, Try }
 
 trait EventTransformer[UpstreamEvent, Command] {
   def transform(event: UpstreamEvent): Optional[Command]
@@ -37,9 +37,9 @@ class UltiUpstreamEventSourceToSurgeSink[AggId, UpstreamEvent, Command](
   private implicit val ec: ExecutionContext = ExecutionContext.global
 
   private def sendToSurge(key: String, value: Array[Byte]): Future[Done] = {
-    val eventOpt = Try(readFormatting.readEvent(value)).toOption
+    val eventOpt = Try(readFormatting.readEvent(value))
     eventOpt match {
-      case Some(eventPlusMetadata) ⇒
+      case Success(eventPlusMetadata) ⇒
         val event = eventPlusMetadata._1
         eventTransformer.transform(event).asScala.map { command ⇒
           val aggId = surgeEngine.businessLogic.model.aggIdFromCommand(command)
@@ -52,8 +52,8 @@ class UltiUpstreamEventSourceToSurgeSink[AggId, UpstreamEvent, Command](
           log.info(s"Skipping event with class ${event.getClass} since it was not converted into a command")
           Future.successful(Done)
         }
-      case None ⇒
-        log.error(s"Unable to deserialize event from kafka value, key = $key, value = $value")
+      case Failure(e) ⇒
+        log.error(s"Unable to deserialize event from kafka value, key = $key, value = $value", e)
         Future.successful(Done)
     }
 

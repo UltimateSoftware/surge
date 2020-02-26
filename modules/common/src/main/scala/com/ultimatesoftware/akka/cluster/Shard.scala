@@ -4,7 +4,6 @@ package com.ultimatesoftware.akka.cluster
 
 import java.net.URLEncoder
 
-import akka.actor.SupervisorStrategy.{ Decider, Restart, Stop }
 import akka.actor._
 import akka.util.MessageBufferMap
 import org.slf4j.{ Logger, LoggerFactory }
@@ -46,20 +45,6 @@ class Shard[IdType](
   private val messageBuffers = new MessageBufferMap[IdType]
 
   private val actorProvider = regionLogicProvider.actorProvider(context)
-
-  override def supervisorStrategy: SupervisorStrategy = OneForOneStrategy()(supervisorDecider)
-
-  private val supervisorDecider: Decider = {
-    case _: ActorInitializationException ⇒ Stop
-    case _: ActorKilledException         ⇒ Stop
-    case _: DeathPactException           ⇒ Stop
-    case e: Exception ⇒
-      log.error("Partition manager noticed child actor crash - restarting it", e)
-      Restart
-    case t ⇒
-      log.error("Partition manager noticed child actor crash - stopping it", t)
-      Stop
-  }
 
   override def receive: Receive = {
     case msg: Terminated                         ⇒ receiveTerminated(msg)

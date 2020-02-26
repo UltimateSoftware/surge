@@ -4,7 +4,9 @@ package com.ultimatesoftware.akka.cluster
 
 import akka.actor.{ Actor, ActorContext, ActorRef, ActorSystem, DeadLetter, PoisonPill, Props, Terminated }
 import akka.testkit.{ TestKit, TestProbe }
+import org.mockito.Mockito._
 import org.scalatest.{ Matchers, WordSpecLike }
+import org.scalatestplus.mockito.MockitoSugar
 
 object TestActor {
   def props(id: String): Props = Props(new TestActor(id))
@@ -44,7 +46,7 @@ class TestActor(id: String) extends Actor {
 
 }
 
-class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with WordSpecLike with Matchers {
+class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with WordSpecLike with Matchers with MockitoSugar {
   import TestActor._
   private val shardProps = Shard.props("testShard", TestActor.RegionLogicProvider, TestActor.idExtractor)
 
@@ -117,6 +119,14 @@ class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with WordSpecLike with
       terminated.actor shouldEqual childActor
       probe.send(shard, Get(childId))
       probe.expectMsg(0)
+    }
+
+    "Ignore passivate messages from untracked entities" in {
+      val shard = system.actorOf(shardProps)
+      val probe = TestProbe()
+
+      probe.send(shard, Passivate(""))
+      probe.expectNoMessage()
     }
 
     "Buffer messages for child actors in the process of stopping" in {

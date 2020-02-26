@@ -13,7 +13,7 @@ import com.ultimatesoftware.scala.core.messaging.EventProperties
 import org.slf4j.{ Logger, LoggerFactory }
 
 import scala.concurrent.{ ExecutionContext, Future }
-import scala.util.Try
+import scala.util.{ Failure, Success, Try }
 
 case class UltiUpstreamEventSourceToSurgeSink[AggId, UpstreamEvent, Command](
     kafkaTopic: KafkaTopic,
@@ -24,9 +24,9 @@ case class UltiUpstreamEventSourceToSurgeSink[AggId, UpstreamEvent, Command](
   private val log: Logger = LoggerFactory.getLogger(getClass)
 
   private def sendToSurge(key: String, value: Array[Byte]): Future[Done] = {
-    val eventOpt = Try(readFormatting.readEvent(value)).toOption
+    val eventOpt = Try(readFormatting.readEvent(value))
     eventOpt match {
-      case Some(eventPlusMetadata) ⇒
+      case Success(eventPlusMetadata) ⇒
         val event = eventPlusMetadata._1
         eventTransformer(event).map { command ⇒
           val aggregateRef = surgeEngine.aggregateFor(surgeEngine.businessLogic.model.aggIdFromCommand(command))
@@ -38,8 +38,8 @@ case class UltiUpstreamEventSourceToSurgeSink[AggId, UpstreamEvent, Command](
           log.info(s"Skipping event with class ${event.getClass} since it was not converted into a command")
           Future.successful(Done)
         }
-      case None ⇒
-        log.error(s"Unable to deserialize event from kafka value, key = $key, value = $value")
+      case Failure(e) ⇒
+        log.error(s"Unable to deserialize event from kafka value, key = $key, value = $value", e)
         Future.successful(Done)
     }
 
