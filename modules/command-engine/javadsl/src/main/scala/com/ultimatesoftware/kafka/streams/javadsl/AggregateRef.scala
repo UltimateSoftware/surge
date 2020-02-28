@@ -21,6 +21,7 @@ final class AggregateRefImpl[AggIdType, Agg, Cmd, CmdMeta](
     val aggregateId: AggIdType,
     val region: ActorRef) extends AggregateRef[AggIdType, Agg, Cmd, CmdMeta] with AggregateRefTrait[AggIdType, Agg, Cmd, CmdMeta] {
 
+  import DomainValidationError._
   private implicit val ec: ExecutionContext = ExecutionContext.global
 
   def getState: CompletionStage[Optional[Agg]] = {
@@ -31,7 +32,12 @@ final class AggregateRefImpl[AggIdType, Agg, Cmd, CmdMeta](
     val envelope = GenericAggregateActor.CommandEnvelope[AggIdType, Cmd, CmdMeta](aggregateId, commandProps, command)
     val result = askWithRetries(envelope).map {
       case Left(error) ⇒
-        CommandFailure[Agg](error)
+        error match {
+          case scalaValidationError: com.ultimatesoftware.kafka.streams.core.DomainValidationError ⇒
+            CommandFailure[Agg](scalaValidationError.asJava)
+          case _ ⇒
+            CommandFailure[Agg](error)
+        }
       case Right(aggOpt) ⇒
         CommandSuccess[Agg](aggOpt.asJava)
     }

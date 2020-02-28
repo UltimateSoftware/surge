@@ -37,7 +37,7 @@ object Dependencies extends AutoPlugin {
 
     object Ultimate {
       object Surge {
-        val scalaCore = "com.ultimatesoftware" %% "ulti-scala-core" % "0.3.5"
+        val scalaCore = "com.ultimatesoftware" %% "ulti-scala-core" % "0.3.6"
       }
     }
 
