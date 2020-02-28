@@ -8,7 +8,6 @@ import akka.actor.ActorRef
 import akka.pattern._
 import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
-import com.ultimatesoftware.scala.core.validations.ValidationError
 import org.slf4j.{ Logger, LoggerFactory }
 
 import scala.concurrent.duration._
@@ -37,12 +36,12 @@ trait AggregateRefTrait[AggIdType, Agg, Cmd, CmdMeta] {
 
   private val log: Logger = LoggerFactory.getLogger(getClass)
 
-  private def interpretActorResponse: Any ⇒ Either[Seq[ValidationError], Option[Agg]] = {
+  private def interpretActorResponse: Any ⇒ Either[Throwable, Option[Agg]] = {
     case success: GenericAggregateActor.CommandSuccess[Agg] ⇒ Right(success.aggregateState)
-    case failure: GenericAggregateActor.CommandFailure      ⇒ Left(failure.validationError)
+    case failure: GenericAggregateActor.CommandFailure      ⇒ Left(new DomainValidationError(failure.validationError))
     case error: GenericAggregateActor.CommandError ⇒
       log.error("Error processing command", error.exception)
-      Right(None) // TODO how do we want to expose failures to the domain?
+      Left(error.exception)
     case other ⇒
       log.error(s"Unable to interpret response from aggregate - this should not happen: $other")
       Right(None)
@@ -72,14 +71,14 @@ trait AggregateRefTrait[AggIdType, Agg, Cmd, CmdMeta] {
    */
   protected def askWithRetries(
     envelope: GenericAggregateActor.CommandEnvelope[AggIdType, Cmd, CmdMeta],
-    retriesRemaining: Int = 0)(implicit ec: ExecutionContext): Future[Either[Seq[ValidationError], Option[Agg]]] = {
+    retriesRemaining: Int = 0)(implicit ec: ExecutionContext): Future[Either[Throwable, Option[Agg]]] = {
     (region ? envelope).map(interpretActorResponse).recoverWith {
       case e ⇒
         if (retriesRemaining > 0) {
           log.warn("Ask timed out to aggregate actor region, retrying request...")
           askWithRetries(envelope, retriesRemaining - 1)
         } else {
-          Future.failed[Either[Seq[ValidationError], Option[Agg]]](e)
+          Future.failed[Either[Throwable, Option[Agg]]](e)
         }
     }
   }

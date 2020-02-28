@@ -8,7 +8,7 @@ import com.ultimatesoftware.kafka.streams.core.{ AggregateRefTrait, GenericAggre
 import scala.concurrent.{ ExecutionContext, Future }
 
 trait AggregateRef[AggIdType, Agg, Cmd, CmdMeta] {
-  def ask(commandProps: CmdMeta, command: Cmd)(implicit ec: ExecutionContext): Future[Option[Agg]]
+  def ask(commandProps: CmdMeta, command: Cmd)(implicit ec: ExecutionContext): Future[CommandResult[Agg]]
   def getState: Future[Option[Agg]]
 }
 
@@ -16,10 +16,13 @@ final class AggregateRefImpl[AggIdType, Agg, Cmd, CmdMeta](
     val aggregateId: AggIdType,
     val region: ActorRef) extends AggregateRef[AggIdType, Agg, Cmd, CmdMeta] with AggregateRefTrait[AggIdType, Agg, Cmd, CmdMeta] {
 
-  def ask(commandProps: CmdMeta, command: Cmd)(implicit ec: ExecutionContext): Future[Option[Agg]] = {
+  def ask(commandProps: CmdMeta, command: Cmd)(implicit ec: ExecutionContext): Future[CommandResult[Agg]] = {
     val envelope = GenericAggregateActor.CommandEnvelope[AggIdType, Cmd, CmdMeta](aggregateId, commandProps, command)
-    askWithRetries(envelope, 0).map { response ⇒
-      response.toOption.flatten
+    askWithRetries(envelope).map {
+      case Left(error) ⇒
+        CommandFailure(error)
+      case Right(aggOpt) ⇒
+        CommandSuccess(aggOpt)
     }
   }
 
