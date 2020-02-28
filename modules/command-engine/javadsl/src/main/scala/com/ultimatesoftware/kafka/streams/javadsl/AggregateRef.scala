@@ -14,7 +14,7 @@ import scala.concurrent.ExecutionContext
 
 trait AggregateRef[AggIdType, Agg, Cmd, Meta] {
   def getState: CompletionStage[Optional[Agg]]
-  def ask(commandProps: Meta, command: Cmd): CompletionStage[Optional[Agg]]
+  def ask(commandProps: Meta, command: Cmd): CompletionStage[CommandResult[Agg]]
 }
 
 final class AggregateRefImpl[AggIdType, Agg, Cmd, CmdMeta](
@@ -27,10 +27,13 @@ final class AggregateRefImpl[AggIdType, Agg, Cmd, CmdMeta](
     FutureConverters.toJava(queryState.map(_.asJava))
   }
 
-  def ask(commandProps: CmdMeta, command: Cmd): CompletionStage[Optional[Agg]] = {
+  def ask(commandProps: CmdMeta, command: Cmd): CompletionStage[CommandResult[Agg]] = {
     val envelope = GenericAggregateActor.CommandEnvelope[AggIdType, Cmd, CmdMeta](aggregateId, commandProps, command)
-    val result = askWithRetries(envelope, 0).map { result ⇒
-      result.toOption.flatten.asJava
+    val result = askWithRetries(envelope).map {
+      case Left(error) ⇒
+        CommandFailure[Agg](error)
+      case Right(aggOpt) ⇒
+        CommandSuccess[Agg](aggOpt.asJava)
     }
     FutureConverters.toJava(result)
   }

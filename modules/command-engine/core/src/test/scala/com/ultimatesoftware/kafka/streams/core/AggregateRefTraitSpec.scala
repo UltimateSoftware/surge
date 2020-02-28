@@ -4,7 +4,7 @@ package com.ultimatesoftware.kafka.streams.core
 
 import akka.actor.{ ActorRef, ActorSystem }
 import akka.testkit.{ TestKit, TestProbe }
-import com.ultimatesoftware.scala.core.validations
+import com.ultimatesoftware.scala.core.validations.ValidationError
 import org.scalatest.{ AsyncWordSpecLike, Matchers }
 
 import scala.concurrent.Future
@@ -16,15 +16,15 @@ class AggregateRefTraitSpec extends TestKit(ActorSystem("AggregateRefTraitSpec")
   case class TestAggregateRef(aggregateId: String, regionTestProbe: TestProbe) extends AggregateRefTrait[String, Person, String, String] {
     override val region: ActorRef = regionTestProbe.ref
 
-    def ask(command: String, retries: Int = 0): Future[Either[Seq[validations.ValidationError], Option[Person]]] = {
+    def ask(command: String, retries: Int = 0): Future[Either[Throwable, Option[Person]]] = {
       val envelope = GenericAggregateActor.CommandEnvelope(aggregateId, "", command)
       askWithRetries(envelope, retries)
     }
     def getState: Future[Option[Person]] = queryState
   }
-  val testPerson1 = Person("Timmy", "Red")
-  val testPerson2 = Person("Joyce", "Green")
-  val testPerson3 = Person("Scott", "Blue")
+  private val testPerson1 = Person("Timmy", "Red")
+  private val testPerson2 = Person("Joyce", "Green")
+  private val testPerson3 = Person("Scott", "Blue")
 
   "AggregateRef" should {
     "Be able to fetch state for an aggregate" in {
@@ -65,15 +65,17 @@ class AggregateRefTraitSpec extends TestKit(ActorSystem("AggregateRefTraitSpec")
       testProbe2.reply(GenericAggregateActor.CommandSuccess(None))
 
       val failureProbe = TestProbe()
+      val validationErrors = Seq(ValidationError("This is expected"))
       val aggregateRef3 = TestAggregateRef(testPerson3.name, failureProbe)
       val testFailureResponseFut = aggregateRef3.ask("Command3")
       failureProbe.expectMsg(GenericAggregateActor.CommandEnvelope(testPerson3.name, "", "Command3"))
-      failureProbe.reply(GenericAggregateActor.CommandFailure(Seq.empty))
+      failureProbe.reply(GenericAggregateActor.CommandFailure(validationErrors))
 
       val errorProbe = TestProbe()
+      val expectedException = new RuntimeException("This is expected")
       val testErrorResponseFut = TestAggregateRef("error", errorProbe).ask("Command4")
       errorProbe.expectMsg(GenericAggregateActor.CommandEnvelope("error", "", "Command4"))
-      errorProbe.reply(GenericAggregateActor.CommandError(new RuntimeException("This is expected")))
+      errorProbe.reply(GenericAggregateActor.CommandError(expectedException))
 
       val garbageProbe = TestProbe()
       val testGarbageResponseFut = TestAggregateRef("foo", garbageProbe).ask("Command5")
@@ -89,8 +91,8 @@ class AggregateRefTraitSpec extends TestKit(ActorSystem("AggregateRefTraitSpec")
       } yield {
         testPerson1State shouldEqual Right(Some(testPerson1))
         testPerson2State shouldEqual Right(None)
-        testFailureResponse shouldEqual Left(Seq.empty)
-        testErrorResponse shouldEqual Right(None)
+        testFailureResponse shouldEqual Left(DomainValidationError(validationErrors))
+        testErrorResponse shouldEqual Left(expectedException)
         testGarbageResponse shouldEqual Right(None)
       }
 
