@@ -6,7 +6,6 @@ import java.time.Instant
 import java.util.UUID
 
 import com.ultimatesoftware.kafka.streams.KafkaStreamsTestHelpers
-import com.ultimatesoftware.scala.core.domain.{ BasicStateTypeInfo, StateMessage }
 import com.ultimatesoftware.scala.core.kafka.{ JsonSerdes, KafkaTopic }
 import com.ultimatesoftware.scala.core.messaging.EventProperties
 import com.ultimatesoftware.scala.core.utils.JsonUtils
@@ -25,20 +24,20 @@ class KafkaStreamsEventProcessorSpec extends WordSpec with Matchers with KafkaSt
   }
   private implicit val aggFormat: Format[ExampleAgg] = Json.format
   private implicit val eventFormat: Format[ExampleEvent] = Json.format
-  private val readFormatting = new SurgeReadFormatting[String, StateMessage[ExampleAgg], ExampleEvent, EventProperties] {
+  private val readFormatting = new SurgeReadFormatting[String, ExampleAgg, ExampleEvent, EventProperties] {
     override def readEvent(bytes: Array[Byte]): (ExampleEvent, Option[EventProperties]) = {
       val event = JsonUtils.parseMaybeCompressedBytes[ExampleEvent](bytes)
       val evtProps = EventProperties(UUID.randomUUID(), UUID.randomUUID(), None, Some(event.get.aggId), 1, Instant.now, Instant.now, None, None,
         metadata = Map.empty)
       event.get -> Some(evtProps)
     }
-    override def readState(bytes: Array[Byte]): Option[AggregateSegment[String, StateMessage[ExampleAgg]]] = {
-      val unzipped = JsonUtils.parseMaybeCompressedBytes[StateMessage[ExampleAgg]](bytes)
-      unzipped.map(agg ⇒ AggregateSegment(agg.body.get.aggId, Json.toJson(agg), Some(classOf[ExampleAgg])))
+    override def readState(bytes: Array[Byte]): Option[AggregateSegment[String, ExampleAgg]] = {
+      val unzipped = JsonUtils.parseMaybeCompressedBytes[ExampleAgg](bytes)
+      unzipped.map(agg ⇒ AggregateSegment(agg.aggId, Json.toJson(agg), Some(classOf[ExampleAgg])))
     }
   }
-  private val writeFormatting = new SurgeAggregateWriteFormatting[String, StateMessage[ExampleAgg]] {
-    override def writeState(agg: AggregateSegment[String, StateMessage[ExampleAgg]]): Array[Byte] = {
+  private val writeFormatting = new SurgeAggregateWriteFormatting[String, ExampleAgg] {
+    override def writeState(agg: AggregateSegment[String, ExampleAgg]): Array[Byte] = {
       JsonUtils.gzip(agg.value)
     }
   }
@@ -48,14 +47,16 @@ class KafkaStreamsEventProcessorSpec extends WordSpec with Matchers with KafkaSt
     Some(event.toAgg(incrementedCount))
   }
 
+  private def aggIdExtractor(evtPlusMeta: EventPlusMeta[ExampleEvent, EventProperties]): Option[String] = {
+    Some(evtPlusMeta.event.aggId)
+  }
+
   private val eventProcessor = new KafkaStreamsEventProcessor[String, ExampleAgg, ExampleEvent, EventProperties](
-    "exampleAgg",
-    BasicStateTypeInfo("exampleAgg", "1.0"), readFormatting, writeFormatting, eventTopic, None, eventHandler)
+    "exampleAgg", readFormatting, writeFormatting, eventTopic, None, aggIdExtractor, eventHandler)
 
   private def extractStateFromStore(bytes: Array[Byte]): Option[ExampleAgg] = {
     readFormatting.readState(bytes)
-      .flatMap(segment ⇒ segment.value.asOpt[StateMessage[ExampleAgg]])
-      .flatMap(_.body)
+      .flatMap(segment ⇒ segment.value.asOpt[ExampleAgg])
   }
 
   "KafkaStreamsEventProcessor" should {

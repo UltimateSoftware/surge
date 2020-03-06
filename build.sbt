@@ -82,21 +82,13 @@ lazy val `surge-engine-ks-query-core` = (project in file("modules/query-engine/c
    .enablePlugins(MultiJvmPlugin)
    .configs(MultiJvm)
 
-lazy val `surge-engine-ks-query-scaladsl` = (project in file("modules/query-engine/scaladsl"))
-  .dependsOn(`surge-engine-ks-query-core`)
-
-lazy val `surge-engine-ks-query-javadsl` = (project in file("modules/query-engine/javadsl"))
-  .dependsOn(`surge-engine-ks-query-core`)
-
 lazy val `surge-kafka-streams` = project.in(file("."))
   .aggregate(
     `surge-common`,
     `surge-engine-ks-command-core`,
     `surge-engine-ks-command-javadsl`,
     `surge-engine-ks-command-scaladsl`,
-    `surge-engine-ks-query-core`,
-    `surge-engine-ks-query-scaladsl`,
-    `surge-engine-ks-query-javadsl`
+    `surge-engine-ks-query-core`
   )
   .settings(
     skip in publish := true,

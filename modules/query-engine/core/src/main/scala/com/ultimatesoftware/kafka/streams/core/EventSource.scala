@@ -7,12 +7,11 @@ import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import com.ultimatesoftware.akka.streams.kafka.KafkaConsumer
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
-import com.ultimatesoftware.scala.core.messaging.EventProperties
 import org.slf4j.{ Logger, LoggerFactory }
 
 import scala.concurrent.{ ExecutionContext, Future }
 
-trait EventSource[Event, EvtMeta <: EventProperties] {
+trait EventSource[Event, EvtMeta] {
   def kafkaTopic: KafkaTopic
   def parallelism: Int
   def consumerGroup: String

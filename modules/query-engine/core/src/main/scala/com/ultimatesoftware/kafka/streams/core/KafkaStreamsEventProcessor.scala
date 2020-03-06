@@ -4,23 +4,21 @@ package com.ultimatesoftware.kafka.streams.core
 
 import com.typesafe.config.ConfigFactory
 import com.ultimatesoftware.kafka.streams.{ AggregateStreamsRocksDBConfig, KafkaByteStreamsConsumer, KafkaStreamsKeyValueStore }
-import com.ultimatesoftware.scala.core.domain.{ StateMessage, StateTypeInfo }
 import com.ultimatesoftware.scala.core.kafka.{ KafkaTopic, UltiKafkaConsumerConfig }
-import com.ultimatesoftware.scala.core.messaging.EventProperties
 import org.apache.kafka.clients.consumer.ConsumerConfig
-import org.apache.kafka.streams.{ KafkaStreams, StreamsConfig, Topology }
 import org.apache.kafka.streams.state.QueryableStoreTypes
+import org.apache.kafka.streams.{ KafkaStreams, StreamsConfig, Topology }
 import org.slf4j.LoggerFactory
 import play.api.libs.json.Format
 
-class KafkaStreamsEventProcessor[AggId, Agg, Event, EvtMeta <: EventProperties](
+class KafkaStreamsEventProcessor[AggId, Agg, Event, EvtMeta](
     aggregateName: String,
-    aggregateTypeInfo: StateTypeInfo,
-    readFormatting: SurgeReadFormatting[AggId, StateMessage[Agg], Event, EvtMeta],
-    writeFormatting: SurgeAggregateWriteFormatting[AggId, StateMessage[Agg]],
+    readFormatting: SurgeReadFormatting[AggId, Agg, Event, EvtMeta],
+    writeFormatting: SurgeAggregateWriteFormatting[AggId, Agg],
     eventsTopic: KafkaTopic,
     applicationHostPort: Option[String],
-    processEvent: (Option[Agg], Event, EventProperties) ⇒ Option[Agg])(implicit aggFormat: Format[Agg]) {
+    extractAggregateId: EventPlusMeta[Event, EvtMeta] ⇒ Option[String],
+    processEvent: (Option[Agg], Event, EvtMeta) ⇒ Option[Agg])(implicit aggFormat: Format[Agg]) {
 
   private val log = LoggerFactory.getLogger(getClass)
 
@@ -45,7 +43,7 @@ class KafkaStreamsEventProcessor[AggId, Agg, Event, EvtMeta <: EventProperties](
     applicationServerConfig = applicationHostPort)
 
   private val envelopeUtils = new EnvelopeUtils(readFormatting)
-  private val aggProcessor = new EventProcessor[AggId, Agg, Event, EvtMeta](aggregateTypeInfo, readFormatting, writeFormatting, processEvent)
+  private val aggProcessor = new EventProcessor[AggId, Agg, Event, EvtMeta](aggregateName, readFormatting, writeFormatting, extractAggregateId, processEvent)
 
   lazy val streams: KafkaStreams = consumer.streams
 
