@@ -2,15 +2,12 @@
 
 package com.ultimatesoftware.kafka.streams.core
 
-import java.util.concurrent.TimeUnit
-
 import akka.actor.ActorRef
 import akka.pattern._
 import akka.util.Timeout
-import com.typesafe.config.ConfigFactory
+import com.ultimatesoftware.config.TimeoutConfig
 import org.slf4j.{ Logger, LoggerFactory }
 
-import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
 
 /**
@@ -30,8 +27,7 @@ trait AggregateRefTrait[AggIdType, Agg, Cmd, CmdMeta] {
   val aggregateId: AggIdType
   val region: ActorRef
 
-  private val config = ConfigFactory.load()
-  private val askTimeoutDuration = config.getDuration("ulti.aggregate-actor.ask-timeout", TimeUnit.SECONDS).seconds
+  private val askTimeoutDuration = TimeoutConfig.AggregateActor.askTimeout
   private implicit val timeout: Timeout = Timeout(askTimeoutDuration)
 
   private val log: Logger = LoggerFactory.getLogger(getClass)

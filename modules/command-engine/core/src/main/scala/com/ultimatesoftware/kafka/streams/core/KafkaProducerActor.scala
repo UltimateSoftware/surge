@@ -10,6 +10,7 @@ import akka.actor.{ Actor, ActorRef, ActorSystem, Props, Stash }
 import akka.pattern._
 import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
+import com.ultimatesoftware.config.TimeoutConfig
 import com.ultimatesoftware.kafka.streams.{ GlobalKTableMetadataHandler, KafkaPartitionMetadata }
 import com.ultimatesoftware.scala.core.domain.StateMessage
 import com.ultimatesoftware.scala.core.kafka._
@@ -22,8 +23,8 @@ import org.slf4j.{ Logger, LoggerFactory }
 import play.api.libs.json.JsValue
 import com.ultimatesoftware.scala.oss.domain.AggregateSegment
 
-import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.duration._
 
 /**
  * A stateful producer actor responsible for publishing all states + events for
@@ -91,7 +92,7 @@ class KafkaProducerActor[AggId, Agg, Event, EvtMeta](
     }
 
     publishEventsTimer.time {
-      implicit val askTimeout: Timeout = Timeout(5.seconds)
+      implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PublisherActor.publishTimeout)
       (publisherActor ? KafkaProducerActorImpl.Publish(eventKeyValuePairs = eventKeyValuePairs, stateKeyValuePairs = stateKeyValuePairs))
         .map(_ ⇒ Done)(ExecutionContext.global)
     }
@@ -99,8 +100,8 @@ class KafkaProducerActor[AggId, Agg, Event, EvtMeta](
 
   private val isAggregateStateCurrentTimer: Timer = metricsProvider.createTimer(s"${aggregateName}IsAggregateCurrentTimer")
   def isAggregateStateCurrent(aggregateId: String): Future[Boolean] = {
-    implicit val askTimeout: Timeout = Timeout(10.seconds)
-    val expirationTime = Instant.now.plusSeconds(4)
+    implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PublisherActor.aggregateStateCurrentTimeout)
+    val expirationTime = Instant.now.plusMillis(askTimeout.duration.toMillis)
     isAggregateStateCurrentTimer.time {
       (publisherActor ? KafkaProducerActorImpl.IsAggregateStateCurrent(aggregateId, expirationTime)).mapTo[Boolean]
     }

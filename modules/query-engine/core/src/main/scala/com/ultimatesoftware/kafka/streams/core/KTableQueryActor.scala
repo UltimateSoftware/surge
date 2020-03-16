@@ -6,11 +6,10 @@ import akka.actor.{ Actor, Address, Props }
 import akka.pattern._
 import akka.util.Timeout
 import com.ultimatesoftware.akka.cluster.ActorHostAwareness
+import com.ultimatesoftware.config.TimeoutConfig
 import com.ultimatesoftware.kafka.streams.KafkaStreamsKeyValueStore
 import org.apache.kafka.common.serialization.StringSerializer
 import org.apache.kafka.streams.KafkaStreams
-
-import scala.concurrent.duration._
 
 object KTableQueryActor {
   def props[A](streams: KafkaStreams, storeName: String, keyValueStore: KafkaStreamsKeyValueStore[String, A]): Props = {
@@ -43,7 +42,7 @@ class KTableQueryActor[A](streams: KafkaStreams, storeName: String, keyValueStor
       // State for key is remote, ask peer who owns the aggregate for an answer
       val remoteAddress = Address(akkaProtocol, context.system.name, aggregateOwnerHostInfo.host, aggregateOwnerHostInfo.port)
       val routerActorRemoteNode = self.path.toStringWithAddress(remoteAddress)
-      implicit val askTimeout: Timeout = Timeout(15.seconds)
+      implicit val askTimeout: Timeout = TimeoutConfig.AggregateActor.askTimeout
 
       context.actorSelection(routerActorRemoteNode) ? GetState(aggregateId)
     }

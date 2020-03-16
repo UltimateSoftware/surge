@@ -9,6 +9,7 @@ import akka.pattern._
 import akka.util.Timeout
 import com.typesafe.config.{ Config, ConfigFactory }
 import com.ultimatesoftware.akka.cluster.ActorHostAwareness
+import com.ultimatesoftware.config.TimeoutConfig
 import com.ultimatesoftware.scala.core.kafka._
 import org.apache.kafka.common.TopicPartition
 import org.slf4j.{ Logger, LoggerFactory }
@@ -32,8 +33,8 @@ object KafkaPartitionShardRouterActor {
     Props(new KafkaPartitionShardRouterActor(partitionTracker, producer, regionCreator, extractEntityId))
   }
 
-  val askTimeout: Timeout = Timeout(7.seconds)
-  val pendingRetryExpirationThreshold: FiniteDuration = 20.seconds
+  val askTimeout: Timeout = Timeout(TimeoutConfig.ShardRouter.askTimeout)
+  val pendingRetryExpirationThreshold: FiniteDuration = askTimeout.duration * 3
 
   case object GetPartitionRegionAssignments
   case class ScheduleRetry[IdType](aggregateId: IdType, message: Any, initialAskTime: Instant, failedAt: Instant) {
@@ -349,7 +350,7 @@ class KafkaPartitionShardRouterActor[AggIdType](
       } else {
         pendingRetry.toScheduleRetry
       }
-      val timeout = Timeout(20.seconds)
+      val timeout = Timeout(pendingRetryExpirationThreshold)
       (responsiblePartitionRegion.regionManager ? msg)(timeout).map { resp ⇒
         log.debug("RouterActor got back reply for aggregate {}", pendingRetry.aggregateId)
         pendingRetry.initialSender ! resp

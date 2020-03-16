@@ -3,13 +3,12 @@
 package com.ultimatesoftware.kafka.streams.core
 
 import java.time.Instant
-import java.util.concurrent.TimeUnit
 
 import akka.Done
 import akka.actor.{ Actor, Props, ReceiveTimeout, Stash }
 import akka.pattern.pipe
-import com.typesafe.config.{ Config, ConfigFactory }
 import com.ultimatesoftware.akka.cluster.Passivate
+import com.ultimatesoftware.config.TimeoutConfig
 import com.ultimatesoftware.kafka.streams.AggregateStateStoreKafkaStreams
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, Timer }
 import com.ultimatesoftware.scala.core.validations._
@@ -104,8 +103,7 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
 
   private val maxInitializationAttempts = 10
 
-  private val config: Config = ConfigFactory.load()
-  private val receiveTimeout = config.getDuration("ulti.aggregate-actor.idle-timeout", TimeUnit.MILLISECONDS).milliseconds
+  private val receiveTimeout = TimeoutConfig.AggregateActor.idleTimeout
 
   private val log = LoggerFactory.getLogger(getClass)
 
