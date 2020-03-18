@@ -5,6 +5,7 @@ package com.ultimatesoftware.config
 import java.util.concurrent.TimeUnit
 
 import com.typesafe.config.ConfigFactory
+import org.apache.kafka.clients.consumer.ConsumerConfig
 
 import scala.concurrent.duration._
 
@@ -24,6 +25,16 @@ object TimeoutConfig {
       config.getDuration("surge.aggregate-actor.idle-timeout", TimeUnit.MILLISECONDS).milliseconds * timeoutScaleFactor
     val askTimeout: FiniteDuration =
       config.getDuration("surge.aggregate-actor.ask-timeout", TimeUnit.MILLISECONDS).milliseconds * timeoutScaleFactor
+  }
+
+  object Kafka {
+    val consumerSessionTimeout: FiniteDuration = if (debugTimeoutEnabled) {
+      // Set this one explicitly instead of leveraging the scale factor because we can't exceed the broker configured group max timeout
+      10.minutes
+    } else {
+      // TODO is there a good way to get this default from the Kafka client libraries?
+      10.seconds
+    }
   }
 
   object ShardRouter {

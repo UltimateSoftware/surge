@@ -97,7 +97,6 @@ class KafkaPartitionShardRouterActor[AggIdType](
   private val log: Logger = LoggerFactory.getLogger(getClass)
 
   private implicit val actorAskTimeout: Timeout = askTimeout
-  // This is used exclusively for determining partitioning for aggregates, not actually producing
 
   private sealed trait InternalMessage
   private case object ExpireOldPendingRetries extends InternalMessage

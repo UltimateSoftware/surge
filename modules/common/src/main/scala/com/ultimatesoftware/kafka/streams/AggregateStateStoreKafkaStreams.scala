@@ -5,6 +5,7 @@ package com.ultimatesoftware.kafka.streams
 import java.util.{ Properties, UUID }
 
 import com.typesafe.config.ConfigFactory
+import com.ultimatesoftware.config.TimeoutConfig
 import com.ultimatesoftware.scala.core.kafka.{ KafkaTopic, UltiKafkaConsumerConfig }
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.serialization.Serdes.ByteArraySerde
@@ -84,6 +85,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
   private val streamsConfig = Map(
     ConsumerConfig.ISOLATION_LEVEL_CONFIG -> "read_committed",
     ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG -> Integer.MAX_VALUE.toString,
+    ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG -> TimeoutConfig.Kafka.consumerSessionTimeout.toMillis.toString,
     StreamsConfig.COMMIT_INTERVAL_MS_CONFIG -> commitInterval.toString,
     StreamsConfig.NUM_STANDBY_REPLICAS_CONFIG -> standbyReplicas.toString,
     StreamsConfig.TOPOLOGY_OPTIMIZATION -> StreamsConfig.OPTIMIZE,
