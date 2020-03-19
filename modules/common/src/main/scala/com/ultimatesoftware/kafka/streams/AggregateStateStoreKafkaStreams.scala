@@ -7,7 +7,7 @@ import java.util.{ Properties, UUID }
 import com.typesafe.config.ConfigFactory
 import com.ultimatesoftware.config.TimeoutConfig
 import com.ultimatesoftware.scala.core.kafka.{ KafkaTopic, UltiKafkaConsumerConfig }
-import org.apache.kafka.clients.consumer.ConsumerConfig
+import org.apache.kafka.clients.consumer.{ ConsumerConfig, ConsumerConfigExtension }
 import org.apache.kafka.common.serialization.Serdes.ByteArraySerde
 import org.apache.kafka.streams.kstream.Materialized
 import org.apache.kafka.streams.kstream.internals.{ KTableImpl, KTableImplExtensions }
@@ -86,6 +86,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
     ConsumerConfig.ISOLATION_LEVEL_CONFIG -> "read_committed",
     ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG -> Integer.MAX_VALUE.toString,
     ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG -> TimeoutConfig.Kafka.consumerSessionTimeout.toMillis.toString,
+    ConsumerConfigExtension.LEAVE_GROUP_ON_CLOSE_CONFIG -> TimeoutConfig.debugTimeoutEnabled.toString,
     StreamsConfig.COMMIT_INTERVAL_MS_CONFIG -> commitInterval.toString,
     StreamsConfig.NUM_STANDBY_REPLICAS_CONFIG -> standbyReplicas.toString,
     StreamsConfig.TOPOLOGY_OPTIMIZATION -> StreamsConfig.OPTIMIZE,

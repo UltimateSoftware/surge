@@ -7,7 +7,7 @@ import java.util.UUID
 import com.typesafe.config.ConfigFactory
 import com.ultimatesoftware.config.TimeoutConfig
 import com.ultimatesoftware.scala.core.kafka.{ JsonSerdes, KafkaStringProducer, KafkaTopic, UltiKafkaConsumerConfig }
-import org.apache.kafka.clients.consumer.ConsumerConfig
+import org.apache.kafka.clients.consumer.{ ConsumerConfig, ConsumerConfigExtension }
 import org.apache.kafka.common.serialization.{ Serde, Serdes }
 import org.apache.kafka.streams.kstream.Materialized
 import org.apache.kafka.streams.scala.kstream.KStream
@@ -46,6 +46,7 @@ class GlobalKTableMetadataHandler(internalMetadataTopic: KafkaTopic) extends Kaf
   private val twoMb = 2 * 1024 * 1024L
   private val globalStreamsConfig = Map[String, String](
     ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG -> TimeoutConfig.Kafka.consumerSessionTimeout.toMillis.toString,
+    ConsumerConfigExtension.LEAVE_GROUP_ON_CLOSE_CONFIG -> TimeoutConfig.debugTimeoutEnabled.toString,
     StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG -> twoMb.toString,
     StreamsConfig.ROCKSDB_CONFIG_SETTER_CLASS_CONFIG -> classOf[KafkaPartitionMetadataGlobalStreamsRocksDBConfig].getName)
   private val globalKTableConsumer = KafkaStringStreamsConsumer(brokers, globalConsumerConfig,

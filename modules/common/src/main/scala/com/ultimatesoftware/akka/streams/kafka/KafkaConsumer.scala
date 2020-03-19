@@ -12,7 +12,7 @@ import akka.stream.scaladsl.{ Keep, Source }
 import com.typesafe.config.{ Config, ConfigFactory }
 import com.ultimatesoftware.config.TimeoutConfig
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
-import org.apache.kafka.clients.consumer.ConsumerConfig
+import org.apache.kafka.clients.consumer.{ ConsumerConfig, ConsumerConfigExtension }
 import org.apache.kafka.common.serialization.{ ByteArrayDeserializer, StringDeserializer }
 
 import scala.concurrent.{ ExecutionContext, Future }
@@ -66,5 +66,6 @@ object KafkaConsumer {
       .withBootstrapServers(brokers)
       .withGroupId(groupId)
       .withProperty(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, TimeoutConfig.Kafka.consumerSessionTimeout.toMillis.toString)
+      .withProperty(ConsumerConfigExtension.LEAVE_GROUP_ON_CLOSE_CONFIG, TimeoutConfig.debugTimeoutEnabled.toString)
   }
 }

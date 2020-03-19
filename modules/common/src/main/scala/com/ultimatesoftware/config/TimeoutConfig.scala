@@ -5,14 +5,13 @@ package com.ultimatesoftware.config
 import java.util.concurrent.TimeUnit
 
 import com.typesafe.config.ConfigFactory
-import org.apache.kafka.clients.consumer.ConsumerConfig
 
 import scala.concurrent.duration._
 
 object TimeoutConfig {
   private val config = ConfigFactory.load()
 
-  private val debugTimeoutEnabled = config.getBoolean("surge.debug-mode-timeouts-enabled")
+  val debugTimeoutEnabled: Boolean = config.getBoolean("surge.debug-mode-timeouts-enabled")
 
   private val timeoutScaleFactor = if (debugTimeoutEnabled) {
     1000
