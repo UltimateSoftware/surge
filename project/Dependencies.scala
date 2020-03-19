@@ -12,7 +12,6 @@ object Dependencies extends AutoPlugin {
       val multiNodeTestkit = "com.typesafe.akka" %% "akka-multi-node-testkit" % version % Test
       val remote = "com.typesafe.akka" %% "akka-remote" % version
       val testKit = "com.typesafe.akka" %% "akka-testkit" % version % Test
-
     }
 
     object Alpakka {
@@ -42,10 +41,10 @@ object Dependencies extends AutoPlugin {
     }
 
     val embeddedKafka = "io.github.embeddedkafka" %% "embedded-kafka" % "2.4.0" % Test
-    val junit = "junit" % "junit" % "4.12" % Test
+    val junit = "junit" % "junit" % "4.13" % Test
     val logback =  "ch.qos.logback" % "logback-classic" % "1.2.3" % Test
-    val mockitoCore = "org.mockito" % "mockito-core" % "2.25.1" % Test
-    val scalatest = "org.scalatest" %% "scalatest" % "3.0.7" % Test
+    val mockitoCore = "org.mockito" % "mockito-core" % "3.3.3" % Test
+    val scalatest = "org.scalatest" %% "scalatest" % "3.0.8" % Test
     val typesafeConfig = "com.typesafe" % "config" % "1.3.3"
   }
 }
