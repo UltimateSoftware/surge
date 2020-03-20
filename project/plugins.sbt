@@ -1,9 +1,5 @@
 // Copyright © 2017-2019 Ultimate Software Group. <https://www.ultimatesoftware.com>
 
-resolvers ++= Seq(
-  "gears-tools-generic-release" at "https://artifactory.mia.ulti.io/artifactory/gt-generic-prod",
-  "gears-tools-maven-release" at "https://artifactory.mia.ulti.io/artifactory/gt-maven-libs-release/"
-)
 // Scalariform - Scala code formatting
 addSbtPlugin("org.scalariform" % "sbt-scalariform" % "1.8.3")
 
@@ -14,7 +10,7 @@ addSbtPlugin("com.typesafe.sbt" % "sbt-git" % "1.0.0")
 addSbtPlugin("org.scalastyle" %% "scalastyle-sbt-plugin" % "1.0.0")
 
 // Test Coverage
-addSbtPlugin("com.ultimatesoftware.scoverage" % "sbt-scoverage" % "1.6.2")
+addSbtPlugin("org.scoverage" % "sbt-scoverage" % "1.6.1")
 addSbtPlugin("com.github.mwz" % "sbt-sonar" % "2.1.0")
 
 // Multi-JVM testing
