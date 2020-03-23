@@ -3,6 +3,7 @@
 package com.ultimatesoftware.akka.streams.kafka
 
 import java.time.Instant
+import java.util.Properties
 
 import akka.actor.ActorSystem
 import akka.kafka.scaladsl.Producer
@@ -10,11 +11,13 @@ import akka.kafka.{ ProducerMessage, ProducerSettings }
 import akka.stream.scaladsl.Flow
 import akka.{ Done, NotUsed }
 import com.typesafe.config.{ Config, ConfigFactory }
-import com.ultimatesoftware.scala.core.kafka.KafkaTopic
-import org.apache.kafka.clients.producer.{ KafkaProducer ⇒ ApacheKafkaProducer, ProducerRecord }
+import com.ultimatesoftware.scala.core.kafka.{ KafkaSecurityConfiguration, KafkaTopic }
+import org.apache.kafka.clients.producer.{ ProducerRecord, KafkaProducer => ApacheKafkaProducer }
 import org.apache.kafka.common.serialization._
 
-trait KafkaProducerTrait {
+import scala.collection.JavaConverters._
+
+trait KafkaProducerTrait extends KafkaSecurityConfiguration {
 
   private val config: Config = ConfigFactory.load()
 
@@ -25,8 +28,13 @@ trait KafkaProducerTrait {
     val baseSettings = ProducerSettings(actorSystem, keySerializer, valueSerializer)
     val settings = clientIdOpt.map(clientId ⇒ baseSettings.withProperty("client.id", clientId)).getOrElse(baseSettings)
 
+    val securityProps = new Properties()
+    configureSecurityProperties(securityProps)
+
     val brokers = config.getString("kafka.brokers")
-    settings.withBootstrapServers(brokers)
+    settings
+      .withBootstrapServers(brokers)
+      .withProperties(securityProps.asScala.toMap)
   }
 
   def createPassThroughFlow[Message, PassThrough](
@@ -51,7 +59,7 @@ trait KafkaProducerTrait {
       }
       .via {
         producerOpt match {
-          case Some(producer) ⇒ Producer.flexiFlow(settings, producer)
+          case Some(producer) ⇒ Producer.flexiFlow(settings.withProducer(producer))
           case _              ⇒ Producer.flexiFlow(settings)
         }
       }

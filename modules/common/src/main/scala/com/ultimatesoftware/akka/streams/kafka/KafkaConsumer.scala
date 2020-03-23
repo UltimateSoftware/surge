@@ -2,6 +2,8 @@
 
 package com.ultimatesoftware.akka.streams.kafka
 
+import java.util.Properties
+
 import akka.Done
 import akka.actor.ActorSystem
 import akka.kafka.scaladsl.Consumer.DrainingControl
@@ -11,10 +13,11 @@ import akka.stream.Materializer
 import akka.stream.scaladsl.{ Keep, Source }
 import com.typesafe.config.{ Config, ConfigFactory }
 import com.ultimatesoftware.config.TimeoutConfig
-import com.ultimatesoftware.scala.core.kafka.KafkaTopic
+import com.ultimatesoftware.scala.core.kafka.{ KafkaSecurityConfiguration, KafkaTopic }
 import org.apache.kafka.clients.consumer.{ ConsumerConfig, ConsumerConfigExtension }
 import org.apache.kafka.common.serialization.{ ByteArrayDeserializer, StringDeserializer }
 
+import scala.collection.JavaConverters._
 import scala.concurrent.{ ExecutionContext, Future }
 
 trait KafkaConsumerTrait {
@@ -56,10 +59,13 @@ trait KafkaConsumerTrait {
 }
 
 case class KafkaConsumer()(implicit val actorSystem: ActorSystem) extends KafkaConsumerTrait
-object KafkaConsumer {
+object KafkaConsumer extends KafkaSecurityConfiguration {
   private val config: Config = ConfigFactory.load()
   def consumerSettings(actorSystem: ActorSystem, groupId: String): ConsumerSettings[String, Array[Byte]] = {
     val baseSettings = ConsumerSettings[String, Array[Byte]](actorSystem, Some(new StringDeserializer()), Some(new ByteArrayDeserializer()))
+
+    val securityProps = new Properties()
+    configureSecurityProperties(securityProps)
 
     val brokers = config.getString("kafka.brokers")
     baseSettings
@@ -67,5 +73,6 @@ object KafkaConsumer {
       .withGroupId(groupId)
       .withProperty(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, TimeoutConfig.Kafka.consumerSessionTimeout.toMillis.toString)
       .withProperty(ConsumerConfigExtension.LEAVE_GROUP_ON_CLOSE_CONFIG, TimeoutConfig.debugTimeoutEnabled.toString)
+      .withProperties(securityProps.asScala.toMap)
   }
 }
