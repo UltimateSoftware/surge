@@ -27,7 +27,8 @@ trait KafkaConsumerTrait {
 
   private val defaultParallelism = 10
 
-  def createCommittableSource(topic: KafkaTopic, parallelism: Int = defaultParallelism,
+  def createCommittableSource(
+    topic: KafkaTopic,
     consumerSettings: ConsumerSettings[String, Array[Byte]]): Source[ConsumerMessage.CommittableMessage[String, Array[Byte]], Consumer.Control] = {
     Consumer.committableSource(consumerSettings, Subscriptions.topics(topic.name))
   }
@@ -47,7 +48,7 @@ trait KafkaConsumerTrait {
     parallelism: Int = defaultParallelism,
     consumerSettings: ConsumerSettings[String, Array[Byte]],
     committerSettings: CommitterSettings = defaultCommitterSettings)(implicit mat: Materializer, ec: ExecutionContext): Consumer.DrainingControl[Done] = {
-    val source = createCommittableSource(topic, parallelism, consumerSettings)
+    val source = createCommittableSource(topic, consumerSettings)
 
     val flow = source.mapAsync(parallelism) { msg ⇒
       business(msg.record.key, msg.record.value).map(_ ⇒ msg.committableOffset)

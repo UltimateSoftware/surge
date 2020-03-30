@@ -12,7 +12,7 @@ import akka.stream.scaladsl.Flow
 import akka.{ Done, NotUsed }
 import com.typesafe.config.{ Config, ConfigFactory }
 import com.ultimatesoftware.scala.core.kafka.{ KafkaSecurityConfiguration, KafkaTopic }
-import org.apache.kafka.clients.producer.{ ProducerRecord, KafkaProducer => ApacheKafkaProducer }
+import org.apache.kafka.clients.producer.{ ProducerRecord, KafkaProducer ⇒ ApacheKafkaProducer }
 import org.apache.kafka.common.serialization._
 
 import scala.collection.JavaConverters._
