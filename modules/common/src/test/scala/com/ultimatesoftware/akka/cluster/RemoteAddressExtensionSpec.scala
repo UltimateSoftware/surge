@@ -2,9 +2,10 @@
 
 package com.ultimatesoftware.akka.cluster
 
-import org.scalatest.{ Matchers, WordSpec }
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpec
 
-class RemoteAddressExtensionSpec extends WordSpec with Matchers {
+class RemoteAddressExtensionSpec extends AnyWordSpec with Matchers {
   import RemoteActorSystems._
 
   "RemoteAddressExtension" should {

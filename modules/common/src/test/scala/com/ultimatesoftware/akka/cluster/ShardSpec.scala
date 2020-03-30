@@ -4,8 +4,8 @@ package com.ultimatesoftware.akka.cluster
 
 import akka.actor.{ Actor, ActorContext, ActorRef, ActorSystem, DeadLetter, PoisonPill, Props, Terminated }
 import akka.testkit.{ TestKit, TestProbe }
-import org.mockito.Mockito._
-import org.scalatest.{ Matchers, WordSpecLike }
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
 
 object TestActor {
@@ -46,7 +46,7 @@ class TestActor(id: String) extends Actor {
 
 }
 
-class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with WordSpecLike with Matchers with MockitoSugar {
+class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with AnyWordSpecLike with Matchers with MockitoSugar {
   import TestActor._
   private val shardProps = Shard.props("testShard", TestActor.RegionLogicProvider, TestActor.idExtractor)
 

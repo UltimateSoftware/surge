@@ -2,9 +2,10 @@
 
 package com.ultimatesoftware.kafka.streams.core
 
-import org.scalatest.{ Matchers, WordSpec }
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpec
 
-class EnvelopeUtilsSpec extends WordSpec with Matchers {
+class EnvelopeUtilsSpec extends AnyWordSpec with Matchers {
   private def mockFormatting(event: String, meta: Option[String]): SurgeEventReadFormatting[String, String] =
     (_: Array[Byte]) ⇒ event -> meta
 

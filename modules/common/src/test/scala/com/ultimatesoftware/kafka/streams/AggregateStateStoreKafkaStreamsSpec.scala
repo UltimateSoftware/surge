@@ -7,7 +7,9 @@ import com.ultimatesoftware.scala.core.utils.JsonUtils
 import org.apache.kafka.common.serialization.StringSerializer
 import org.apache.kafka.streams.KafkaStreams
 import org.apache.kafka.streams.test.ConsumerRecordFactory
-import org.scalatest.{ BeforeAndAfter, Matchers, WordSpec }
+import org.scalatest.BeforeAndAfter
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpec
 import play.api.libs.json.{ Format, JsValue, Json }
 
 class MockPartitionTrackerProvider extends KafkaStreamsPartitionTrackerProvider {
@@ -27,7 +29,7 @@ object MockState {
 }
 
 case class MockState(string: String, int: Int)
-class AggregateStateStoreKafkaStreamsSpec extends WordSpec with Matchers with BeforeAndAfter with KafkaStreamsTestHelpers {
+class AggregateStateStoreKafkaStreamsSpec extends AnyWordSpec with Matchers with BeforeAndAfter with KafkaStreamsTestHelpers {
   private val stateTopic: KafkaTopic = KafkaTopic("testStateTopic")
 
   // Silly mock validator that expects the `string` field of a MockState to be "stateN" where N is the value of the MockState int

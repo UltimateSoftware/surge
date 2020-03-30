@@ -12,9 +12,10 @@ import com.ultimatesoftware.scala.core.kafka.KafkaRecordMetadata
 import com.ultimatesoftware.scala.core.monitoring.metrics.NoOpMetricsProvider
 import org.apache.kafka.clients.producer.RecordMetadata
 import org.apache.kafka.common.TopicPartition
-import org.scalatest.{ Matchers, WordSpecLike }
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
-class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec")) with WordSpecLike with Matchers {
+class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec")) with AnyWordSpecLike with Matchers {
 
   private def createRecordMeta(topic: String, partition: Int, offset: Int) = {
     new RecordMetadata(

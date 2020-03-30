@@ -4,9 +4,10 @@ package com.ultimatesoftware.akka.cluster
 
 import akka.actor.ActorSystem
 import org.apache.kafka.streams.state.HostInfo
-import org.scalatest.{ Matchers, WordSpec }
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpec
 
-class ActorHostAwarenessSpec extends WordSpec with Matchers {
+class ActorHostAwarenessSpec extends AnyWordSpec with Matchers {
   import RemoteActorSystems._
   trait LocalAwareness extends ActorSystemHostAwareness {
     override def actorSystem: ActorSystem = localActorSystem

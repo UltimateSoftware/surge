@@ -6,10 +6,11 @@ import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.streams.KafkaStreams.State
 import org.mockito.ArgumentMatchers._
 import org.mockito.Mockito._
-import org.scalatest.{ Matchers, WordSpec }
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpec
 import org.scalatestplus.mockito.MockitoSugar
 
-class KafkaStreamsStateChangeListenerSpec extends WordSpec with Matchers with MockitoSugar {
+class KafkaStreamsStateChangeListenerSpec extends AnyWordSpec with Matchers with MockitoSugar {
   trait TestContext {
     val tracker: KafkaStreamsPartitionTracker = mock[KafkaStreamsPartitionTracker]
     doNothing().when(tracker).update()

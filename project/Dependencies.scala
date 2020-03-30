@@ -36,15 +36,16 @@ object Dependencies extends AutoPlugin {
 
     object Ultimate {
       object Surge {
-        val scalaCore = "com.ultimatesoftware" %% "ulti-scala-core" % "0.3.8"
+        val scalaCore = "com.ultimatesoftware" %% "ulti-scala-core" % "0.3.10"
       }
     }
 
-    val embeddedKafka = "io.github.embeddedkafka" %% "embedded-kafka" % "2.4.0" % Test
+    val embeddedKafka = "io.github.embeddedkafka" %% "embedded-kafka" % "2.4.1" % Test
     val junit = "junit" % "junit" % "4.13" % Test
     val logback =  "ch.qos.logback" % "logback-classic" % "1.2.3" % Test
     val mockitoCore = "org.mockito" % "mockito-core" % "3.3.3" % Test
-    val scalatest = "org.scalatest" %% "scalatest" % "3.0.8" % Test
-    val typesafeConfig = "com.typesafe" % "config" % "1.3.3"
+    val scalatest = "org.scalatest" %% "scalatest" % "3.1.1" % Test
+    val scalatestPlusMockito =  "org.scalatestplus" %% "mockito-3-2" % "3.1.1.0" % Test
+    val typesafeConfig = "com.typesafe" % "config" % "1.4.0"
   }
 }

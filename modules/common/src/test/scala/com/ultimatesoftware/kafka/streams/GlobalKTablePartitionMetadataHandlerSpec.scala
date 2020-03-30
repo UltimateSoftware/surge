@@ -6,12 +6,13 @@ import java.util.Properties
 
 import com.ultimatesoftware.scala.core.kafka.{ JsonSerdes, KafkaTopic }
 import org.apache.kafka.common.serialization.StringSerializer
-import org.apache.kafka.streams.{ StreamsConfig, TopologyTestDriver }
 import org.apache.kafka.streams.test.ConsumerRecordFactory
-import org.scalatest.{ Matchers, WordSpec }
-import play.api.libs.json.{ JsValue, Json }
+import org.apache.kafka.streams.{ StreamsConfig, TopologyTestDriver }
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpec
+import play.api.libs.json.JsValue
 
-class GlobalKTablePartitionMetadataHandlerSpec extends WordSpec with Matchers {
+class GlobalKTablePartitionMetadataHandlerSpec extends AnyWordSpec with Matchers {
   private val metaTopic = KafkaTopic("testMetaTopic")
 
   private val globalMetaHandler = new GlobalKTableMetadataHandler(metaTopic)

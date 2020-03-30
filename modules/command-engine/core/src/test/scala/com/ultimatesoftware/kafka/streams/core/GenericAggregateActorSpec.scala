@@ -19,14 +19,16 @@ import com.ultimatesoftware.scala.oss.domain.AggregateSegment
 import org.mockito.ArgumentMatchers._
 import org.mockito.Mockito._
 import org.mockito.invocation.InvocationOnMock
-import org.scalatest.{ BeforeAndAfterAll, Matchers, PartialFunctionValues, WordSpecLike }
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
+import org.scalatest.{ BeforeAndAfterAll, PartialFunctionValues }
 import org.scalatestplus.mockito.MockitoSugar
 import play.api.libs.json.{ JsValue, Json }
 
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
 
-class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateActorSpec")) with WordSpecLike with Matchers
+class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateActorSpec")) with AnyWordSpecLike with Matchers
   with BeforeAndAfterAll with MockitoSugar with TestBoundedContext with PartialFunctionValues {
 
   private implicit val timeout: Timeout = Timeout(10.seconds)

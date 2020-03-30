@@ -12,10 +12,11 @@ import com.ultimatesoftware.scala.core.utils.JsonUtils
 import com.ultimatesoftware.scala.oss.domain.AggregateSegment
 import org.apache.kafka.common.serialization.StringSerializer
 import org.apache.kafka.streams.test.ConsumerRecordFactory
-import org.scalatest.{ Matchers, WordSpec }
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpec
 import play.api.libs.json.{ Format, Json }
 
-class KafkaStreamsEventProcessorSpec extends WordSpec with Matchers with KafkaStreamsTestHelpers {
+class KafkaStreamsEventProcessorSpec extends AnyWordSpec with Matchers with KafkaStreamsTestHelpers {
   private val eventTopic: KafkaTopic = KafkaTopic("testEventTopic")
 
   case class ExampleAgg(aggId: String, state: String, count: Int)

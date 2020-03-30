@@ -8,7 +8,9 @@ import org.apache.kafka.common.serialization.Serdes
 import org.apache.kafka.streams.StreamsConfig
 import org.apache.kafka.streams.processor.{ MockProcessorContext, StateRestoreCallback }
 import org.apache.kafka.streams.state.Stores
-import org.scalatest.{ AsyncWordSpec, BeforeAndAfterAll, Matchers }
+import org.scalatest.BeforeAndAfterAll
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AsyncWordSpec
 import org.scalatestplus.mockito.MockitoSugar
 
 class KafkaStreamsKeyValueStoreSpec extends AsyncWordSpec with BeforeAndAfterAll with Matchers with MockitoSugar {

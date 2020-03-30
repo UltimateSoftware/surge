@@ -6,9 +6,10 @@ import akka.actor.{ ActorRef, ActorSystem }
 import akka.testkit.{ TestKit, TestProbe }
 import com.ultimatesoftware.scala.core.kafka.{ HostPort, PartitionAssignments }
 import org.apache.kafka.common.TopicPartition
-import org.scalatest.{ Matchers, WordSpecLike }
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
-class KafkaConsumerStateTrackingActorSpec extends TestKit(ActorSystem("KafkaConsumerStateTrackingActorSpec")) with WordSpecLike with Matchers {
+class KafkaConsumerStateTrackingActorSpec extends TestKit(ActorSystem("KafkaConsumerStateTrackingActorSpec")) with AnyWordSpecLike with Matchers {
   import KafkaConsumerStateTrackingActor._
 
   private val initialState = Map[HostPort, List[TopicPartition]](

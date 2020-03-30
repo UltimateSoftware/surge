@@ -6,16 +6,17 @@ import akka.actor.{ Actor, DeadLetter, Props }
 import akka.remote.testconductor.RoleName
 import akka.remote.testkit.{ MultiNodeConfig, MultiNodeSpec, MultiNodeSpecCallbacks }
 import akka.testkit.{ ImplicitSender, TestProbe }
-import com.ultimatesoftware.kafka.KafkaConsumerStateTrackingActor.GetPartitionAssignments
 import com.ultimatesoftware.scala.core.kafka.{ HostPort, KafkaProducerTrait, KafkaTopic, PartitionAssignments }
 import org.apache.kafka.common.TopicPartition
 import org.mockito.ArgumentMatchers.anyString
 import org.mockito.Mockito.when
 import org.mockito.invocation.InvocationOnMock
-import org.scalatest.{ BeforeAndAfterAll, Matchers, WordSpecLike }
+import org.scalatest.BeforeAndAfterAll
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
 
-trait STMultiNodeSpec extends MultiNodeSpecCallbacks with WordSpecLike with Matchers with BeforeAndAfterAll {
+trait STMultiNodeSpec extends MultiNodeSpecCallbacks with AnyWordSpecLike with Matchers with BeforeAndAfterAll {
   self: MultiNodeSpec =>
 
   override def beforeAll(): Unit = multiNodeSpecBeforeAll()

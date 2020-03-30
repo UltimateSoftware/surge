@@ -11,12 +11,13 @@ import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.streams.KafkaStreams
 import org.apache.kafka.streams.state.{ HostInfo, StreamsMetadata }
 import org.mockito.Mockito._
-import org.scalatest.{ Matchers, WordSpecLike }
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
 
 import scala.collection.JavaConverters._
 
-class KafkaStreamsPartitionTrackerActorImplSpec extends TestKit(ActorSystem("KafkaStreamsPartitionTrackerActorImplSpec")) with WordSpecLike
+class KafkaStreamsPartitionTrackerActorImplSpec extends TestKit(ActorSystem("KafkaStreamsPartitionTrackerActorImplSpec")) with AnyWordSpecLike
   with Matchers with MockitoSugar {
 
   private val tp0 = new TopicPartition("testTopic", 0)

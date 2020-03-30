@@ -5,7 +5,8 @@ package com.ultimatesoftware.kafka.streams.core
 import akka.actor.{ ActorRef, ActorSystem }
 import akka.testkit.{ TestKit, TestProbe }
 import com.ultimatesoftware.scala.core.validations.ValidationError
-import org.scalatest.{ AsyncWordSpecLike, Matchers }
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AsyncWordSpecLike
 
 import scala.concurrent.Future
 

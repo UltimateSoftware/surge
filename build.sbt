@@ -39,6 +39,7 @@ lazy val `surge-common` = (project in file("modules/common"))
       junit,
       logback,
       scalatest,
+      scalatestPlusMockito,
       mockitoCore
     )
   ).enablePlugins(MultiJvmPlugin)
@@ -53,6 +54,7 @@ lazy val `surge-engine-ks-command-core` = (project in file("modules/command-engi
       Kafka.kafkaClients,
       mockitoCore,
       scalatest,
+      scalatestPlusMockito,
       logback,
       typesafeConfig,
       Ultimate.Surge.scalaCore
@@ -75,6 +77,7 @@ lazy val `surge-engine-ks-query-core` = (project in file("modules/query-engine/c
       Kafka.kafkaStreams,
       Kafka.kafkaStreamsTestUtils,
       scalatest,
+      scalatestPlusMockito,
       logback,
       mockitoCore
     )
