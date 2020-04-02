@@ -19,8 +19,11 @@ object HostAssignmentTracker {
   private val underlyingActor = system.actorOf(Props(new HostAssignmentTrackerImpl))
   private implicit val actorAskTimeout: Timeout = Timeout(TimeoutConfig.PartitionTracker.updateTimeout)
 
-  def updateState(metadata: HostPort, partitions: List[TopicPartition]): Unit = {
-    underlyingActor ! UpdateState(metadata, partitions)
+  def updateState(stateMap: Map[TopicPartition, HostPort]): Unit = {
+    stateMap.foreach(tup ⇒ updateState(tup._1, tup._2))
+  }
+  def updateState(partition: TopicPartition, hostPort: HostPort): Unit = {
+    underlyingActor ! UpdateState(partition, hostPort)
   }
 
   def getAssignment(topicPartition: TopicPartition): Future[Option[HostPort]] = {
@@ -31,7 +34,7 @@ object HostAssignmentTracker {
     (underlyingActor ? GetState).mapTo[ClusterState].map(_.state)
   }
 
-  private case class UpdateState(hostPort: HostPort, partitions: List[TopicPartition])
+  private case class UpdateState(partition: TopicPartition, hostPort: HostPort)
   private case object GetState
   private case class GetAssignment(topicPartition: TopicPartition)
 
@@ -46,13 +49,9 @@ object HostAssignmentTracker {
     }
 
     private def handleUpdateState(clusterState: ClusterState, update: UpdateState): Unit = {
-      val newStates = update.partitions.map { partition ⇒
-        // TODO JEFF change info log to trace when done testing locally
-        log.info("Host {} is now responsible for partition {}", Seq(update.hostPort, partition): _*)
-        partition -> update.hostPort
-      }
+      log.debug("Host {} is now responsible for partition {}", Seq(update.hostPort, update.partition): _*)
 
-      val newStateMap = clusterState.state ++ newStates.toMap
+      val newStateMap = clusterState.state + (update.partition -> update.hostPort)
       val newClusterState = clusterState.copy(state = newStateMap)
       context.become(receiveWithState(newClusterState))
     }

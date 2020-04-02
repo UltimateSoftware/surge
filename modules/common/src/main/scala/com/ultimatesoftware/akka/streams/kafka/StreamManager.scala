@@ -5,43 +5,35 @@ package com.ultimatesoftware.akka.streams.kafka
 import java.util.concurrent.atomic.AtomicReference
 
 import akka.Done
-import akka.actor.{ Actor, ActorSystem, Props }
+import akka.actor.{ Actor, ActorSystem, Props, Stash }
 import akka.kafka.scaladsl.Consumer.DrainingControl
 import akka.kafka.scaladsl.{ Committer, Consumer }
-import akka.kafka.{ CommitterSettings, ConsumerSettings, Subscriptions }
+import akka.kafka.{ CommitterSettings, ConsumerMessage, ConsumerSettings, Subscriptions }
 import akka.pattern._
 import akka.stream.ActorMaterializer
-import akka.stream.scaladsl.{ RestartSource, Sink }
+import akka.stream.scaladsl.{ Flow, RestartSource, Sink }
 import com.ultimatesoftware.akka.cluster.{ ActorHostAwareness, ActorSystemHostAwareness }
-import com.ultimatesoftware.akka.streams.kafka.KafkaStreamManagerActor.StartConsuming
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
 import org.apache.kafka.clients.consumer.ConsumerConfig
-import org.apache.kafka.common.TopicPartition
+import org.slf4j.LoggerFactory
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
-class KafkaStreamManager(topic: KafkaTopic, groupId: String,
+class KafkaStreamManager(topic: KafkaTopic, consumerSettings: ConsumerSettings[String, Array[Byte]],
     business: (String, Array[Byte]) ⇒ Future[Done],
     parallelism: Int = 1)(implicit val actorSystem: ActorSystem) extends ActorSystemHostAwareness {
 
-  private val managerActor = actorSystem.actorOf(Props(new KafkaStreamManagerActor(topic, groupId, business, parallelism)))
+  private val managerActor = actorSystem.actorOf(Props(new KafkaStreamManagerActor(topic, consumerSettings, business, parallelism)))
 
   def start(): KafkaStreamManager = {
-    managerActor ! StartConsuming
+    managerActor ! KafkaStreamManagerActor.StartConsuming
     this
   }
 
-  private def committableSourceWithOffsets(
-    offsets: Map[TopicPartition, Long],
-    consumerSettings: ConsumerSettings[String, Array[Byte]]): Unit = {
-
-    val newConsumerSettings = consumerSettings
-      .withProperty(ConsumerConfig.PARTITION_ASSIGNMENT_STRATEGY_CONFIG, classOf[HostAwareRangeAssignor].getName)
-      .withProperty(HostAwarenessConfig.HOST_CONFIG, localHostname)
-      .withProperty(HostAwarenessConfig.PORT_CONFIG, localPort.toString)
-
-    Consumer.committableSource(newConsumerSettings, Subscriptions.assignmentWithOffset(offsets))
+  def stop(): KafkaStreamManager = {
+    managerActor ! KafkaStreamManagerActor.StopConsuming
+    this
   }
 }
 
@@ -50,17 +42,24 @@ object KafkaStreamManagerActor {
   case object StopConsuming
   case object SuccessfullyStopped
 }
-class KafkaStreamManagerActor(topic: KafkaTopic, groupId: String,
-    business: (String, Array[Byte]) ⇒ Future[Done],
-    parallelism: Int) extends Actor with ActorHostAwareness with KafkaConsumerTrait {
+class KafkaStreamManagerActor[Key, Value](topic: KafkaTopic, baseConsumerSettings: ConsumerSettings[Key, Value],
+    business: (Key, Value) ⇒ Future[Done],
+    parallelism: Int) extends Actor with ActorHostAwareness with Stash {
   import KafkaStreamManagerActor._
   import context.dispatcher
   private implicit val materializer: ActorMaterializer = ActorMaterializer()
+  private val log = LoggerFactory.getLogger(getClass)
 
-  private lazy val consumerSettings = KafkaConsumer.consumerSettings(context.system, groupId)
+  private lazy val businessFlow = Flow[ConsumerMessage.CommittableMessage[Key, Value]].mapAsync(parallelism) { msg ⇒
+    business(msg.record.key, msg.record.value).map(_ ⇒ msg.committableOffset)
+  }
+
+  private lazy val consumerSettings = baseConsumerSettings
     .withProperty(ConsumerConfig.PARTITION_ASSIGNMENT_STRATEGY_CONFIG, classOf[HostAwareRangeAssignor].getName)
     .withProperty(HostAwarenessConfig.HOST_CONFIG, localHostname)
     .withProperty(HostAwarenessConfig.PORT_CONFIG, localPort.toString)
+
+  private case class InternalState(control: AtomicReference[Consumer.Control], streamCompletion: Future[Done])
 
   override def receive: Receive = stopped
 
@@ -68,12 +67,17 @@ class KafkaStreamManagerActor(topic: KafkaTopic, groupId: String,
     case StartConsuming ⇒ startConsumer()
   }
 
-  private def consuming(control: DrainingControl[Done]): Receive = {
-    case StopConsuming       ⇒ handleStopConsuming(control)
+  private def consuming(state: InternalState): Receive = {
+    case StopConsuming ⇒ handleStopConsuming(state)
+  }
+
+  private def stopping(state: InternalState): Receive = {
     case SuccessfullyStopped ⇒ handleSuccessfullyStopped()
+    case _                   ⇒ stash()
   }
 
   private def startConsumer(): Unit = {
+    log.info("Starting consumer for topic {}", topic.name)
     val committerSettings = CommitterSettings(context.system)
     val control = new AtomicReference[Consumer.Control](Consumer.NoopControl)
 
@@ -82,22 +86,31 @@ class KafkaStreamManagerActor(topic: KafkaTopic, groupId: String,
         minBackoff = 3.seconds,
         maxBackoff = 30.seconds,
         randomFactor = 0.2) { () ⇒
-        createCommittableSource(topic, consumerSettings)
-          .mapAsync(parallelism)(msg ⇒ business(msg.record.key, msg.record.value).map(_ ⇒ msg.committableOffset))
-          .via(Committer.flow(committerSettings))
+        log.debug("Creating Kafka source for topic {}", topic.name)
+        Consumer
+          .committableSource(consumerSettings, Subscriptions.topics(topic.name))
           .mapMaterializedValue(c ⇒ control.set(c))
+          .via(businessFlow)
+          .via(Committer.flow(committerSettings))
       }.runWith(Sink.ignore)
 
-    val drainingControl = DrainingControl(control.get() -> result)
+    val state = InternalState(control, result)
 
-    context.become(consuming(drainingControl))
+    context.become(consuming(state))
   }
 
-  private def handleStopConsuming(control: DrainingControl[Done]): Unit = {
-    control.drainAndShutdown().map(_ ⇒ SuccessfullyStopped) pipeTo self
+  private def handleStopConsuming(state: InternalState): Unit = {
+    val drainingControl = DrainingControl(state.control.get() -> state.streamCompletion)
+    log.info("Stopping consumer for topic {}", topic.name)
+    val shutdownFuture = drainingControl.drainAndShutdown().map(_ ⇒ SuccessfullyStopped)
+
+    shutdownFuture.pipeTo(self)(sender())
+    context.become(stopping(state))
   }
 
   private def handleSuccessfullyStopped(): Unit = {
+    log.info("Consumer for topic {} successfully stopped", topic.name)
     context.become(stopped)
+    unstashAll()
   }
 }

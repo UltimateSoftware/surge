@@ -72,6 +72,7 @@ object KafkaConsumer extends KafkaSecurityConfiguration {
     baseSettings
       .withBootstrapServers(brokers)
       .withGroupId(groupId)
+      .withProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
       .withProperty(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, TimeoutConfig.Kafka.consumerSessionTimeout.toMillis.toString)
       .withProperty(ConsumerConfigExtension.LEAVE_GROUP_ON_CLOSE_CONFIG, TimeoutConfig.debugTimeoutEnabled.toString)
       .withProperties(securityProps.asScala.toMap)
