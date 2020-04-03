@@ -72,9 +72,10 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
       }
     }
 
+    // FIXME this needs to have the new consumer enabled to have any chance of working.  With the new consumer
+    //  we need to reuse the underlying Kafka consumer for restarts, otherwise we are at the mercy of the Kafka consumer
+    //  group rebalance, which are much slower and far more disruptive than restarting the stream using the same underlying consumer
     "Restart if an exception is thrown in the stream" ignore {
-      // FIXME this test is flaky when not using the new subscriber.  I think it should reliably fail when not
-      //  using the new subscriber, but it strangely seems to pass sometimes.
       val userDefinedConfig = EmbeddedKafkaConfig(kafkaPort = 0, zooKeeperPort = 0)
       withRunningKafkaOnFoundPort(userDefinedConfig) { implicit actualConfig ⇒
         val topic = KafkaTopic("testTopic2")
@@ -92,29 +93,27 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
         publishToKafka(new ProducerRecord[String, String](topic.name, 2, record3, record3))
 
         val consumer1 = createConsumer
-        val consumer2 = createConsumer
 
         val probe = TestProbe()
-        val testSink: EventSink[String, String] = new EventSink[String, String] {
+        def createTestSink: EventSink[String, String] = new EventSink[String, String] {
           private val log = LoggerFactory.getLogger(getClass)
           private val expectedNumExceptions = 1
           private var exceptionCount = 0
           override def handleEvent(event: String, eventProps: String): Future[Any] = {
             if (exceptionCount < expectedNumExceptions) {
               exceptionCount = exceptionCount + 1
-              log.info("Throwing exception!")
-              throw new RuntimeException("This is expected")
+              Future.failed(new RuntimeException("This is expected"))
+            } else {
+              probe.ref ! event
+              Future.successful(Done)
             }
-            log.info("Not throwing exception")
-            probe.ref ! event
-            Future.successful(Done)
           }
         }
 
-        consumer1.to(testSink)
-        consumer2.to(testSink)
+        val testSink1 = createTestSink
+        consumer1.to(testSink1)
 
-        probe.expectMsgAllOf(60.seconds, record1, record2, record3)
+        probe.expectMsgAllOf(10.seconds, record1, record2, record3)
       }
     }
   }

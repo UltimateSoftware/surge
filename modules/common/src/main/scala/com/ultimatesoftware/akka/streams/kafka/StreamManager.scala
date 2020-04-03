@@ -5,10 +5,10 @@ package com.ultimatesoftware.akka.streams.kafka
 import java.util.concurrent.atomic.AtomicReference
 
 import akka.Done
-import akka.actor.{ Actor, ActorSystem, Props, Stash }
+import akka.actor.{ Actor, ActorRef, ActorSystem, Props, Stash }
 import akka.kafka.scaladsl.Consumer.DrainingControl
 import akka.kafka.scaladsl.{ Committer, Consumer }
-import akka.kafka.{ CommitterSettings, ConsumerMessage, ConsumerSettings, Subscriptions }
+import akka.kafka.{ CommitterSettings, ConsumerMessage, ConsumerSettings, KafkaConsumerActor, Subscriptions }
 import akka.pattern._
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{ Flow, RestartSource, Sink }
@@ -51,7 +51,13 @@ class KafkaStreamManagerActor[Key, Value](topic: KafkaTopic, baseConsumerSetting
   private val log = LoggerFactory.getLogger(getClass)
 
   private lazy val businessFlow = Flow[ConsumerMessage.CommittableMessage[Key, Value]].mapAsync(parallelism) { msg ⇒
-    business(msg.record.key, msg.record.value).map(_ ⇒ msg.committableOffset)
+    business(msg.record.key, msg.record.value)
+      .map(_ ⇒ msg.committableOffset)
+      .recover {
+        case e ⇒
+          log.error("An exception was thrown by the event handler! The stream will restart and the message will be retried.", e)
+          throw e
+      }
   }
 
   private lazy val consumerSettings = baseConsumerSettings
@@ -83,9 +89,9 @@ class KafkaStreamManagerActor[Key, Value](topic: KafkaTopic, baseConsumerSetting
 
     val result = RestartSource
       .onFailuresWithBackoff(
-        minBackoff = 3.seconds,
-        maxBackoff = 30.seconds,
-        randomFactor = 0.2) { () ⇒
+        minBackoff = 2.seconds,
+        maxBackoff = 20.seconds,
+        randomFactor = 0.1) { () ⇒
         log.debug("Creating Kafka source for topic {}", topic.name)
         Consumer
           .committableSource(consumerSettings, Subscriptions.topics(topic.name))

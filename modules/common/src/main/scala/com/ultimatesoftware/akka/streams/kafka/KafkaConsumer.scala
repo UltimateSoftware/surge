@@ -16,11 +16,13 @@ import com.ultimatesoftware.config.TimeoutConfig
 import com.ultimatesoftware.scala.core.kafka.{ KafkaSecurityConfiguration, KafkaTopic }
 import org.apache.kafka.clients.consumer.{ ConsumerConfig, ConsumerConfigExtension }
 import org.apache.kafka.common.serialization.{ ByteArrayDeserializer, StringDeserializer }
+import org.slf4j.{ Logger, LoggerFactory }
 
 import scala.collection.JavaConverters._
 import scala.concurrent.{ ExecutionContext, Future }
 
 trait KafkaConsumerTrait {
+  private val log: Logger = LoggerFactory.getLogger(getClass)
   def actorSystem: ActorSystem
 
   private def defaultCommitterSettings = CommitterSettings(actorSystem)
@@ -51,7 +53,16 @@ trait KafkaConsumerTrait {
     val source = createCommittableSource(topic, consumerSettings)
 
     val flow = source.mapAsync(parallelism) { msg ⇒
-      business(msg.record.key, msg.record.value).map(_ ⇒ msg.committableOffset)
+      business(msg.record.key, msg.record.value)
+        .map(_ ⇒ msg.committableOffset)
+        .recover {
+          case e ⇒
+            log.error(
+              "An exception was thrown by the business logic! The stream will be stopped and must be manually restarted.  If you hit this often " +
+                "you can try the **experimental** managed stream implementation by setting `surge.use-new-consumer = true` in your configuration.",
+              e)
+            throw e
+        }
     }
 
     commitOffsetSinkAndRun(flow, committerSettings)

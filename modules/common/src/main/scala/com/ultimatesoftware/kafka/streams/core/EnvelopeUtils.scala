@@ -26,5 +26,4 @@ class EnvelopeUtils[Event, EvtMeta](formatting: SurgeEventReadFormatting[Event, 
         }
     }
   }
-
 }
