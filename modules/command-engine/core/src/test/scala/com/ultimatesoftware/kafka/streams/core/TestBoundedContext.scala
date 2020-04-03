@@ -146,16 +146,18 @@ trait TestBoundedContext {
 
     override def writeState(agg: AggregateSegment[UUID, State]): Array[Byte] = JsonUtils.gzip(agg.value)
   }
-  val kafkaStreamsLogic = KafkaStreamsCommandBusinessLogic(
-    aggregateName = "CountAggregate",
-    kafka = kafkaConfig,
-    model = BusinessLogic,
-    readFormatting = readFormats,
-    writeFormatting = writeFormats,
-    commandValidator = BusinessLogic.commandValidator,
-    aggregateValidator = { (_, _, _) ⇒ true },
-    aggregateComposer = BusinessLogic.aggregateComposer,
-    metricsProvider = NoOpMetricsProvider,
-    metricsPublisher = NoOpsMetricsPublisher, metricsInterval = 100.seconds)
+  val kafkaStreamsLogic: KafkaStreamsCommandBusinessLogic[UUID, State, BaseTestCommand, BaseTestEvent, TimestampMeta, TimestampMeta] =
+    KafkaStreamsCommandBusinessLogic(
+      aggregateName = "CountAggregate",
+      kafka = kafkaConfig,
+      model = BusinessLogic,
+      readFormatting = readFormats,
+      writeFormatting = writeFormats,
+      commandValidator = BusinessLogic.commandValidator,
+      aggregateValidator = { (_, _, _) ⇒ true },
+      aggregateComposer = BusinessLogic.aggregateComposer,
+      metricsProvider = NoOpMetricsProvider,
+      metricsPublisher = NoOpsMetricsPublisher,
+      metricsInterval = 100.seconds)
 
 }

@@ -16,15 +16,15 @@ import com.ultimatesoftware.scala.core.domain.StateMessage
 import com.ultimatesoftware.scala.core.kafka._
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, Rate, Timer }
 import com.ultimatesoftware.scala.core.utils.JsonUtils
+import com.ultimatesoftware.scala.oss.domain.AggregateSegment
 import org.apache.kafka.clients.producer.{ ProducerConfig, ProducerRecord }
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.ProducerFencedException
 import org.slf4j.{ Logger, LoggerFactory }
 import play.api.libs.json.JsValue
-import com.ultimatesoftware.scala.oss.domain.AggregateSegment
 
-import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration._
+import scala.concurrent.{ ExecutionContext, Future }
 
 /**
  * A stateful producer actor responsible for publishing all states + events for
@@ -115,6 +115,7 @@ private object KafkaProducerActorImpl {
 
   sealed trait InternalMessage
   case class EventsPublished(originalSenders: Seq[ActorRef], recordMetadata: Seq[KafkaRecordMetadata[String]]) extends InternalMessage
+  case object EventsFailedToPublish extends InternalMessage
   case class Initialize(endOffset: Long) extends InternalMessage
   case object FailedToInitialize extends InternalMessage
   case object FlushMessages extends InternalMessage
@@ -126,7 +127,8 @@ private object KafkaProducerActorImpl {
 private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
     assignedPartition: TopicPartition, metrics: MetricsProvider,
     stateMetaHandler: GlobalKTableMetadataHandler,
-    aggregateCommandKafkaStreams: KafkaStreamsCommandBusinessLogic[_, Agg, _, Event, _, _]) extends Actor with Stash {
+    aggregateCommandKafkaStreams: KafkaStreamsCommandBusinessLogic[_, Agg, _, Event, _, _],
+    kafkaProducerOverride: Option[KafkaBytesProducer] = None) extends Actor with Stash {
 
   import KafkaProducerActorImpl._
   import aggregateCommandKafkaStreams._
@@ -140,16 +142,16 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
   private val flushInterval = config.getDuration("kafka.publisher.flush-interval", TimeUnit.MILLISECONDS).milliseconds
   private val brokers = config.getString("kafka.brokers").split(",")
 
-  private val kafkaPublisher: KafkaBytesProducer = {
+  private val kafkaPublisher = kafkaProducerOverride.getOrElse({
     val transactionalId = s"$aggregateName-event-producer-partition-${assignedPartition.partition()}"
     val kafkaConfig = Map[String, String](
       // ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG -> true, // For exactly once writes. How does this impact performance?
       ProducerConfig.TRANSACTIONAL_ID_CONFIG -> transactionalId)
 
     KafkaBytesProducer(brokers, stateTopic, partitioner, kafkaConfig)
-  }
+  })
 
-  private val nonTransactionalStatePublisher = KafkaBytesProducer(brokers, stateTopic, partitioner = partitioner)
+  private val nonTransactionalStatePublisher = kafkaProducerOverride.getOrElse(KafkaBytesProducer(brokers, stateTopic, partitioner = partitioner))
 
   private val kafkaPublisherTimer: Timer = metrics.createTimer(s"${stateTopic.name}KafkaPublisherTimer")
   private implicit val rates: AggregateStateRates = AggregateStateRates(
@@ -180,6 +182,7 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
   private def processing(state: KafkaProducerActorState): Receive = {
     case msg: Publish                 ⇒ handle(state, msg)
     case msg: EventsPublished         ⇒ handle(state, msg)
+    case EventsFailedToPublish        ⇒ handleFailedToPublish(state)
     case msg: StateProcessed          ⇒ handle(state, msg)
     case msg: IsAggregateStateCurrent ⇒ handle(state, msg)
     case FlushMessages                ⇒ handleFlushMessages(state)
@@ -259,6 +262,11 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
     eventsPublished.originalSenders.foreach(_ ! Done)
   }
 
+  private def handleFailedToPublish(state: KafkaProducerActorState): Unit = {
+    val newState = state.copy(transactionInProgress = false)
+    context.become(processing(newState))
+  }
+
   private val eventsPublishedRate: Rate = metrics.createRate(s"${aggregateName}EventPublishRate")
   private def handleFlushMessages(state: KafkaProducerActorState): Unit = {
     if (state.transactionInProgress) {
@@ -293,7 +301,7 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
           case e ⇒
             log.error(s"KafkaPublisherActor partition $assignedPartition got error while trying to publish to Kafka", e)
             kafkaPublisher.abortTransaction()
-            throw e
+            EventsFailedToPublish
         }
       }
 
