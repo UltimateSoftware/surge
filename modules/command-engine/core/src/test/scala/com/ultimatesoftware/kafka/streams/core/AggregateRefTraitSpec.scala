@@ -14,7 +14,7 @@ class AggregateRefTraitSpec extends TestKit(ActorSystem("AggregateRefTraitSpec")
 
   case class Person(name: String, favoriteColor: String)
 
-  case class TestAggregateRef(aggregateId: String, regionTestProbe: TestProbe) extends AggregateRefTrait[String, Person, String, String] {
+  case class TestAggregateRef(aggregateId: String, regionTestProbe: TestProbe) extends AggregateRefTrait[String, Person, String, String, String, String] {
     override val region: ActorRef = regionTestProbe.ref
 
     def ask(command: String, retries: Int = 0): Future[Either[Throwable, Option[Person]]] = {

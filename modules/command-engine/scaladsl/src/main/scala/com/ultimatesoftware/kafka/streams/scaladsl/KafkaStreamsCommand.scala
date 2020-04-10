@@ -6,7 +6,7 @@ import akka.actor.ActorSystem
 import com.ultimatesoftware.kafka.streams.core
 
 trait KafkaStreamsCommand[AggId, Agg, Command, Event, CmdMeta, EvtMeta] extends core.KafkaStreamsCommandTrait[AggId, Agg, Command, Event, CmdMeta, EvtMeta] {
-  def aggregateFor(aggregateId: AggId): AggregateRef[AggId, Agg, Command, CmdMeta]
+  def aggregateFor(aggregateId: AggId): AggregateRef[AggId, Agg, Command, CmdMeta, Event, EvtMeta]
 }
 
 object KafkaStreamsCommand {
@@ -19,10 +19,11 @@ object KafkaStreamsCommand {
 
 private[scaladsl] class KafkaStreamsCommandImpl[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
     val actorSystem: ActorSystem,
-    val businessLogic: core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta])
-  extends KafkaStreamsCommand[AggId, Agg, Command, Event, CmdMeta, EvtMeta] with core.KafkaStreamsCommandImpl[AggId, Agg, Command, Event, CmdMeta, EvtMeta] {
+    override val businessLogic: core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta])
+  extends core.KafkaStreamsCommandImpl[AggId, Agg, Command, Event, CmdMeta, EvtMeta](actorSystem, businessLogic)
+  with KafkaStreamsCommand[AggId, Agg, Command, Event, CmdMeta, EvtMeta] {
 
-  def aggregateFor(aggregateId: AggId): AggregateRef[AggId, Agg, Command, CmdMeta] = {
+  def aggregateFor(aggregateId: AggId): AggregateRef[AggId, Agg, Command, CmdMeta, Event, EvtMeta] = {
     new AggregateRefImpl(aggregateId, actorRouter.actorRegion)
   }
 }

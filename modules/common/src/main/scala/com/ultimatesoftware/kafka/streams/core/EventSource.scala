@@ -24,7 +24,7 @@ trait EventSource[Event, EvtMeta] {
   private val log: Logger = LoggerFactory.getLogger(getClass)
   private implicit val actorSystem: ActorSystem = ActorSystem()
   private implicit val materializer: ActorMaterializer = ActorMaterializer()
-  lazy val consumerSettings: ConsumerSettings[String, Array[Byte]] = KafkaConsumer.consumerSettings(actorSystem, groupId = consumerGroup)
+  private lazy val defaultConsumerSettings: ConsumerSettings[String, Array[Byte]] = KafkaConsumer.consumerSettings(actorSystem, groupId = consumerGroup)
   private lazy val envelopeUtils = new EnvelopeUtils(formatting)
 
   private def eventHandler(sink: EventSink[Event, EvtMeta])(key: String, value: Array[Byte]): Future[Done] = {
@@ -37,9 +37,13 @@ trait EventSource[Event, EvtMeta] {
     }
   }
 
+  def to(sink: EventSink[Event, EvtMeta]): Unit = {
+    to(defaultConsumerSettings)(sink)
+  }
+
   private val config = ConfigFactory.load()
   private val useNewConsumer = config.getBoolean("surge.use-new-consumer")
-  def to(sink: EventSink[Event, EvtMeta]): Unit = {
+  private[core] def to(consumerSettings: ConsumerSettings[String, Array[Byte]])(sink: EventSink[Event, EvtMeta]): Unit = {
     if (useNewConsumer) {
       new EventPipeline(new KafkaStreamManager(kafkaTopic, consumerSettings, eventHandler(sink)).start())
     } else {

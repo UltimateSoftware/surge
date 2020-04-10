@@ -12,14 +12,16 @@ import scala.compat.java8.FutureConverters
 import scala.compat.java8.OptionConverters._
 import scala.concurrent.ExecutionContext
 
-trait AggregateRef[AggIdType, Agg, Cmd, Meta] {
+trait AggregateRef[AggIdType, Agg, Cmd, Meta, Event, EvtMeta] {
   def getState: CompletionStage[Optional[Agg]]
   def ask(commandProps: Meta, command: Cmd): CompletionStage[CommandResult[Agg]]
+  def applyEvent(event: Event, eventMeta: EvtMeta): CompletionStage[ApplyEventResult[Agg]]
 }
 
-final class AggregateRefImpl[AggIdType, Agg, Cmd, CmdMeta](
+final class AggregateRefImpl[AggIdType, Agg, Cmd, CmdMeta, Event, EvtMeta](
     val aggregateId: AggIdType,
-    val region: ActorRef) extends AggregateRef[AggIdType, Agg, Cmd, CmdMeta] with AggregateRefTrait[AggIdType, Agg, Cmd, CmdMeta] {
+    val region: ActorRef) extends AggregateRef[AggIdType, Agg, Cmd, CmdMeta, Event, EvtMeta]
+  with AggregateRefTrait[AggIdType, Agg, Cmd, CmdMeta, Event, EvtMeta] {
 
   import DomainValidationError._
   private implicit val ec: ExecutionContext = ExecutionContext.global
@@ -41,6 +43,17 @@ final class AggregateRefImpl[AggIdType, Agg, Cmd, CmdMeta](
       case Right(aggOpt) ⇒
         CommandSuccess[Agg](aggOpt.asJava)
     }
+    FutureConverters.toJava(result)
+  }
+
+  def applyEvent(event: Event, eventMeta: EvtMeta): CompletionStage[ApplyEventResult[Agg]] = {
+    val envelope = GenericAggregateActor.ApplyEventEnvelope[AggIdType, Event, EvtMeta](aggregateId, event, eventMeta)
+    val result = applyEventsWithRetries(envelope)
+      .map(aggOpt ⇒ ApplyEventsSuccess[Agg](aggOpt.asJava))
+      .recover {
+        case e ⇒
+          ApplyEventsFailure[Agg](e)
+      }
     FutureConverters.toJava(result)
   }
 }

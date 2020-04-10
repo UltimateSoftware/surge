@@ -46,6 +46,7 @@ private[streams] object GenericAggregateActor {
   }
   case class CommandEnvelope[AggIdType, Cmd, CmdMeta](aggregateId: AggIdType, meta: CmdMeta, command: Cmd) extends RoutableMessage[AggIdType]
   case class GetState[AggIdType](aggregateId: AggIdType) extends RoutableMessage[AggIdType]
+  case class ApplyEventEnvelope[AggIdType, Event, EvtMeta](aggregateId: AggIdType, event: Event, meta: EvtMeta) extends RoutableMessage[AggIdType]
 
   case class StateResponse[Agg](aggregateState: Option[Agg])
 
@@ -113,6 +114,7 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
 
   private def freeToProcess(state: InternalActorState): Receive = {
     case msg: CommandEnvelope[AggId, Command, CmdMeta] ⇒ handle(state, msg)
+    case msg: ApplyEventEnvelope[AggId, Event, EvtMeta] ⇒ handle(state, msg)
     case _: GetState[AggId] ⇒ sender() ! state.stateOpt
     case ReceiveTimeout ⇒ handlePassivate()
     case Stop ⇒ handleStop()
@@ -149,7 +151,7 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
         val states = newState.toSeq.flatMap(state ⇒ businessLogic.aggregateComposer.decompose(aggregateId, state).toSeq)
         val stateKeyValues = states.map(s ⇒ businessLogic.kafka.stateKeyExtractor(s.value) -> s)
 
-        log.trace("GenericAggregateActor for {} sending events to publisher actor", aggregateId)
+        log.trace("GenericAggregateActor for {} publishing messages", aggregateId)
         val publishFuture = if (events.nonEmpty) {
           kafkaProducerActor.publish(aggregateId = aggregateId, states = stateKeyValues, events = eventKeyMetaValues)
         } else {
@@ -168,6 +170,27 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
     futureEventsPersisted.recover {
       case ex ⇒
         // On an error, we don't know if the command succeeded or not, so crash the actor and force it to reinitialize
+        log.error(s"Error while trying to persist events, crashing actor for ${businessLogic.aggregateName} $aggregateId", ex)
+        context.stop(self)
+    }.pipeTo(self)(sender())
+  }
+
+  private def handle(state: InternalActorState, applyEventEnvelope: ApplyEventEnvelope[AggId, Event, EvtMeta]): Unit = {
+    val startTime = Instant.now
+    context.setReceiveTimeout(Duration.Inf)
+    context.become(persistingEvents(state))
+
+    val newState = businessLogic.model.handleEvent(state.stateOpt, applyEventEnvelope.event, applyEventEnvelope.meta)
+    val states = newState.toSeq.flatMap(state ⇒ businessLogic.aggregateComposer.decompose(aggregateId, state).toSeq)
+    val stateKeyValues = states.map(s ⇒ businessLogic.kafka.stateKeyExtractor(s.value) -> s)
+
+    val futureStatePersisted = kafkaProducerActor.publish(aggregateId = aggregateId, states = stateKeyValues, events = Seq.empty).map { _ ⇒
+      val newActorState = InternalActorState(stateOpt = newState)
+      EventsSuccessfullyPersisted(newActorState, startTime)
+    }
+    futureStatePersisted.recover {
+      case ex ⇒
+        // On an error, we don't know if the persist succeeded or not, so crash the actor and force it to reinitialize
         log.error(s"Error while trying to persist events, crashing actor for ${businessLogic.aggregateName} $aggregateId", ex)
         context.stop(self)
     }.pipeTo(self)(sender())

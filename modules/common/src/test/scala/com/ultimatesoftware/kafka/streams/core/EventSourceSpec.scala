@@ -31,10 +31,13 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
       override def kafkaTopic: KafkaTopic = topic
       override def parallelism: Int = 1
       override def consumerGroup: String = groupId
-      override lazy val consumerSettings: ConsumerSettings[String, Array[Byte]] = KafkaConsumer.consumerSettings(system, groupId)
-        .withBootstrapServers(kafkaBrokers)
       override def formatting: SurgeEventReadFormatting[String, String] = (bytes: Array[Byte]) ⇒ new String(bytes) -> Some("")
     }
+  }
+
+  private def testConsumerSettings(kafkaBrokers: String, groupId: String): ConsumerSettings[String, Array[Byte]] = {
+    KafkaConsumer.consumerSettings(system, groupId)
+      .withBootstrapServers(kafkaBrokers)
   }
 
   private def testEventSink(probe: TestProbe): EventSink[String, String] = (event: String, _: String) ⇒ {
@@ -50,8 +53,9 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
         createCustomTopic(topic.name, partitions = 3)
         val embeddedBroker = s"localhost:${actualConfig.kafkaPort}"
 
+        val groupId = "subscription-test"
         def createConsumer: EventSource[String, String] =
-          testEventSource(topic, kafkaBrokers = embeddedBroker, groupId = "subscription-test")
+          testEventSource(topic, kafkaBrokers = embeddedBroker, groupId = groupId)
 
         val record1 = "record 1"
         val record2 = "record 2"
@@ -62,11 +66,12 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
 
         val consumer1 = createConsumer
         val consumer2 = createConsumer
+        val consumerSettings = testConsumerSettings(embeddedBroker, groupId)
         val probe = TestProbe()
         val testSink = testEventSink(probe)
 
-        consumer1.to(testSink)
-        consumer2.to(testSink)
+        consumer1.to(consumerSettings)(testSink)
+        consumer2.to(consumerSettings)(testSink)
 
         probe.expectMsgAllOf(10.seconds, record1, record2, record3)
       }
@@ -82,8 +87,9 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
         createCustomTopic(topic.name, partitions = 3)
         val embeddedBroker = s"localhost:${actualConfig.kafkaPort}"
 
+        val groupId = "restart-test"
         def createConsumer: EventSource[String, String] =
-          testEventSource(topic, kafkaBrokers = embeddedBroker, groupId = "restart-test")
+          testEventSource(topic, kafkaBrokers = embeddedBroker, groupId = groupId)
 
         val record1 = "record 1"
         val record2 = "record 2"
@@ -110,8 +116,9 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
           }
         }
 
+        val consumerSettings = testConsumerSettings(embeddedBroker, groupId)
         val testSink1 = createTestSink
-        consumer1.to(testSink1)
+        consumer1.to(consumerSettings)(testSink1)
 
         probe.expectMsgAllOf(10.seconds, record1, record2, record3)
       }

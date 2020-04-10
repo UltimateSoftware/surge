@@ -17,14 +17,16 @@ import scala.concurrent.{ ExecutionContext, Future }
  * will be forwarded to the same business logic aggregate actor responsible for the same aggregateId
  * as the AggregateRef is responsible for.
  *
- * @tparam AggIdType The type of the aggregate id for the underlying business logic aggregate
+ * @tparam AggId The type of the aggregate id for the underlying business logic aggregate
  * @tparam Agg The type of the business logic aggregate being proxied to
  * @tparam Cmd The command type that the business logic aggregate handles
  * @tparam CmdMeta Type of command metadata that is sent along with each command
+ * @tparam Evt The event type that the business logic aggregate generates and can handle to update state
+ * @tparam EvtMeta Type of event metadata associated with each event
  */
-trait AggregateRefTrait[AggIdType, Agg, Cmd, CmdMeta] {
+trait AggregateRefTrait[AggId, Agg, Cmd, CmdMeta, Evt, EvtMeta] {
 
-  val aggregateId: AggIdType
+  val aggregateId: AggId
   val region: ActorRef
 
   private val askTimeoutDuration = TimeoutConfig.AggregateActor.askTimeout
@@ -66,7 +68,7 @@ trait AggregateRefTrait[AggIdType, Agg, Cmd, CmdMeta] {
    *         that resulted from the command.
    */
   protected def askWithRetries(
-    envelope: GenericAggregateActor.CommandEnvelope[AggIdType, Cmd, CmdMeta],
+    envelope: GenericAggregateActor.CommandEnvelope[AggId, Cmd, CmdMeta],
     retriesRemaining: Int = 0)(implicit ec: ExecutionContext): Future[Either[Throwable, Option[Agg]]] = {
     (region ? envelope).map(interpretActorResponse).recoverWith {
       case e ⇒
@@ -79,4 +81,19 @@ trait AggregateRefTrait[AggIdType, Agg, Cmd, CmdMeta] {
     }
   }
 
+  protected def applyEventsWithRetries(
+    envelope: GenericAggregateActor.ApplyEventEnvelope[AggId, Evt, EvtMeta],
+    retriesRemaining: Int = 0)(implicit ec: ExecutionContext): Future[Option[Agg]] = {
+    (region ? envelope).map {
+      case success: GenericAggregateActor.CommandSuccess[Agg] ⇒ success.aggregateState
+    }.recoverWith {
+      case e ⇒
+        if (retriesRemaining > 0) {
+          log.warn("Ask timed out to aggregate actor region, retrying request...")
+          applyEventsWithRetries(envelope, retriesRemaining - 1)
+        } else {
+          Future.failed[Option[Agg]](e)
+        }
+    }
+  }
 }
