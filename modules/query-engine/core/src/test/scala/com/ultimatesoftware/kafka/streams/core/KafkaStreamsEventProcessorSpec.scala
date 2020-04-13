@@ -52,8 +52,16 @@ class KafkaStreamsEventProcessorSpec extends AnyWordSpec with Matchers with Kafk
     Some(evtPlusMeta.event.aggId)
   }
 
+  private def createSegment(aggId: String, newState: Option[ExampleAgg]): AggregateSegment[String, ExampleAgg] = {
+    new AggregateSegment[String, ExampleAgg](aggId, Json.toJson(newState), Some(classOf[ExampleAgg]))
+  }
+
+  private def readSegment(aggregateSegment: AggregateSegment[String, ExampleAgg]): Option[ExampleAgg] = {
+    aggregateSegment.value.asOpt[ExampleAgg]
+  }
+
   private val eventProcessor = new KafkaStreamsEventProcessor[String, ExampleAgg, ExampleEvent, EventProperties](
-    "exampleAgg", readFormatting, writeFormatting, eventTopic, None, aggIdExtractor, eventHandler)
+    "exampleAgg", readFormatting, writeFormatting, eventTopic, None, aggIdExtractor, createSegment, readSegment, eventHandler)
 
   private def extractStateFromStore(bytes: Array[Byte]): Option[ExampleAgg] = {
     readFormatting.readState(bytes)
