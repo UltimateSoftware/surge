@@ -32,8 +32,8 @@ class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec")) with A
   }
 
   private def testStreamManager(topic: KafkaTopic, kafkaBrokers: String, groupId: String,
-    businessLogic: (String, Array[Byte]) ⇒ Future[Done]): KafkaStreamManager = {
-    val consumerSettings = KafkaConsumer.consumerSettings(system, groupId)
+    businessLogic: (String, Array[Byte]) ⇒ Future[Done]): KafkaStreamManager[String, Array[Byte]] = {
+    val consumerSettings = KafkaConsumer.defaultConsumerSettings(system, groupId)
       .withBootstrapServers(kafkaBrokers)
 
     new KafkaStreamManager(topic, consumerSettings, businessLogic, 1)
@@ -47,7 +47,7 @@ class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec")) with A
         val embeddedBroker = s"localhost:${actualConfig.kafkaPort}"
         val probe = TestProbe()
 
-        def createManager: KafkaStreamManager =
+        def createManager: KafkaStreamManager[String, Array[Byte]] =
           testStreamManager(topic, kafkaBrokers = embeddedBroker, groupId = "subscription-test", sendToTestProbe(probe))
 
         val record1 = "record 1"
@@ -88,7 +88,7 @@ class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec")) with A
           Future.successful(Done)
         }
 
-        def createManager: KafkaStreamManager =
+        def createManager: KafkaStreamManager[String, Array[Byte]] =
           testStreamManager(topic, kafkaBrokers = embeddedBroker, groupId = "restart-test", businessLogic)
 
         val record1 = "record 1"
@@ -117,7 +117,7 @@ class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec")) with A
         val embeddedBroker = s"localhost:${actualConfig.kafkaPort}"
         val probe = TestProbe()
 
-        def createManager: KafkaStreamManager =
+        def createManager: KafkaStreamManager[String, Array[Byte]] =
           testStreamManager(topic, kafkaBrokers = embeddedBroker, groupId = "stop-test", sendToTestProbe(probe))
 
         val record1 = "record 1"

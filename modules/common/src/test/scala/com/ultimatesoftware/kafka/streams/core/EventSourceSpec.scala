@@ -16,7 +16,6 @@ import org.scalatest.concurrent.Eventually
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Millis, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
-import org.slf4j.LoggerFactory
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -30,13 +29,12 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
     new EventSource[String, String] {
       override def kafkaTopic: KafkaTopic = topic
       override def parallelism: Int = 1
-      override def consumerGroup: String = groupId
       override def formatting: SurgeEventReadFormatting[String, String] = (bytes: Array[Byte]) ⇒ new String(bytes) -> Some("")
     }
   }
 
   private def testConsumerSettings(kafkaBrokers: String, groupId: String): ConsumerSettings[String, Array[Byte]] = {
-    KafkaConsumer.consumerSettings(system, groupId)
+    KafkaConsumer.defaultConsumerSettings(system, groupId)
       .withBootstrapServers(kafkaBrokers)
   }
 
@@ -102,7 +100,6 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
 
         val probe = TestProbe()
         def createTestSink: EventSink[String, String] = new EventSink[String, String] {
-          private val log = LoggerFactory.getLogger(getClass)
           private val expectedNumExceptions = 1
           private var exceptionCount = 0
           override def handleEvent(event: String, eventProps: String): Future[Any] = {
@@ -126,4 +123,3 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
   }
 
 }
-

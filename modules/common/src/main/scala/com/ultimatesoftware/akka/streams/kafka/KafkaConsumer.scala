@@ -15,13 +15,13 @@ import com.typesafe.config.{ Config, ConfigFactory }
 import com.ultimatesoftware.config.TimeoutConfig
 import com.ultimatesoftware.scala.core.kafka.{ KafkaSecurityConfiguration, KafkaTopic }
 import org.apache.kafka.clients.consumer.{ ConsumerConfig, ConsumerConfigExtension }
-import org.apache.kafka.common.serialization.{ ByteArrayDeserializer, StringDeserializer }
+import org.apache.kafka.common.serialization.{ ByteArrayDeserializer, Deserializer, StringDeserializer }
 import org.slf4j.{ Logger, LoggerFactory }
 
 import scala.collection.JavaConverters._
 import scala.concurrent.{ ExecutionContext, Future }
 
-trait KafkaConsumerTrait {
+trait KafkaConsumerTrait[Key, Value] {
   private val log: Logger = LoggerFactory.getLogger(getClass)
   def actorSystem: ActorSystem
 
@@ -31,7 +31,7 @@ trait KafkaConsumerTrait {
 
   def createCommittableSource(
     topic: KafkaTopic,
-    consumerSettings: ConsumerSettings[String, Array[Byte]]): Source[ConsumerMessage.CommittableMessage[String, Array[Byte]], Consumer.Control] = {
+    consumerSettings: ConsumerSettings[Key, Value]): Source[ConsumerMessage.CommittableMessage[Key, Value], Consumer.Control] = {
     Consumer.committableSource(consumerSettings, Subscriptions.topics(topic.name))
   }
 
@@ -46,9 +46,9 @@ trait KafkaConsumerTrait {
 
   def streamAndCommitOffsets(
     topic: KafkaTopic,
-    business: (String, Array[Byte]) ⇒ Future[Done],
+    business: (Key, Value) ⇒ Future[Any],
     parallelism: Int = defaultParallelism,
-    consumerSettings: ConsumerSettings[String, Array[Byte]],
+    consumerSettings: ConsumerSettings[Key, Value],
     committerSettings: CommitterSettings = defaultCommitterSettings)(implicit mat: Materializer, ec: ExecutionContext): Consumer.DrainingControl[Done] = {
     val source = createCommittableSource(topic, consumerSettings)
 
@@ -70,16 +70,29 @@ trait KafkaConsumerTrait {
 
 }
 
-case class KafkaConsumer()(implicit val actorSystem: ActorSystem) extends KafkaConsumerTrait
+case class DefaultKafkaConsumer()(implicit val actorSystem: ActorSystem) extends KafkaConsumerTrait[String, Array[Byte]]
+case class KafkaConsumer[Key, Value]()(implicit val actorSystem: ActorSystem) extends KafkaConsumerTrait[Key, Value]
 object KafkaConsumer extends KafkaSecurityConfiguration {
   private val config: Config = ConfigFactory.load()
-  def consumerSettings(actorSystem: ActorSystem, groupId: String): ConsumerSettings[String, Array[Byte]] = {
-    val baseSettings = ConsumerSettings[String, Array[Byte]](actorSystem, Some(new StringDeserializer()), Some(new ByteArrayDeserializer()))
+  private val defaultBrokers = config.getString("kafka.brokers")
+
+  def defaultConsumerSettings(actorSystem: ActorSystem, groupId: String): ConsumerSettings[String, Array[Byte]] = {
+    implicit val stringDeserializer: StringDeserializer = new StringDeserializer()
+    implicit val byteArrayDeserializer: ByteArrayDeserializer = new ByteArrayDeserializer()
+
+    consumerSettings[String, Array[Byte]](actorSystem, groupId)
+  }
+
+  def consumerSettings[Key, Value](
+    actorSystem: ActorSystem,
+    groupId: String,
+    brokers: String = defaultBrokers)(implicit keyDeserializer: Deserializer[Key], valueDeserializer: Deserializer[Value]): ConsumerSettings[Key, Value] = {
+
+    val baseSettings = ConsumerSettings[Key, Value](actorSystem, Some(keyDeserializer), Some(valueDeserializer))
 
     val securityProps = new Properties()
     configureSecurityProperties(securityProps)
 
-    val brokers = config.getString("kafka.brokers")
     baseSettings
       .withBootstrapServers(brokers)
       .withGroupId(groupId)
