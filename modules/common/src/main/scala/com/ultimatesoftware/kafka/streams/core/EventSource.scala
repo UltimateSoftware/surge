@@ -5,54 +5,62 @@ package com.ultimatesoftware.kafka.streams.core
 import akka.Done
 import akka.actor.ActorSystem
 import akka.kafka.ConsumerSettings
-import akka.stream.ActorMaterializer
-import com.typesafe.config.ConfigFactory
-import com.ultimatesoftware.akka.streams.kafka.{ KafkaConsumer, KafkaStreamManager }
-import com.ultimatesoftware.scala.core.kafka.KafkaTopic
+import com.ultimatesoftware.akka.streams.kafka.KafkaStreamManager
+import org.apache.kafka.common.serialization.{ ByteArrayDeserializer, Deserializer, StringDeserializer }
 import org.slf4j.{ Logger, LoggerFactory }
 
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.Future
 
-trait EventSource[Event, EvtMeta] {
-  def kafkaTopic: KafkaTopic
-  def parallelism: Int
-  def consumerGroup: String
+trait EventSource[Event, EvtMeta] extends DataSource[String, Array[Byte]] {
+  private val log: Logger = LoggerFactory.getLogger(getClass)
+
   def formatting: SurgeEventReadFormatting[Event, EvtMeta]
 
-  private implicit val ec: ExecutionContext = ExecutionContext.global
+  @deprecated("Used as the default consumer group when using to(sink), but to(sink, consumerGroup) should be used instead.", "0.4.11")
+  def consumerGroup: String = {
+    log.error(
+      "Using deprecated default for consumerGroup from calling the EventSource.to(sink) method! " +
+        "Business logic should use the EventSource.to(sink, consumerGroup) method to explicitly set a consumer group per data pipeline." +
+        "This method may be removed in a future minor release of Surge.  The line calling this deprecated method can be found in the following stack trace:",
+      new RuntimeException())
 
-  private val log: Logger = LoggerFactory.getLogger(getClass)
-  private implicit val actorSystem: ActorSystem = ActorSystem()
-  private implicit val materializer: ActorMaterializer = ActorMaterializer()
-  private lazy val defaultConsumerSettings: ConsumerSettings[String, Array[Byte]] = KafkaConsumer.consumerSettings(actorSystem, groupId = consumerGroup)
+    "deprecated-default-surge-consumer-group-for-compatibility"
+  }
+
+  override val actorSystem: ActorSystem = ActorSystem()
+  override val keyDeserializer: Deserializer[String] = new StringDeserializer()
+  override val valueDeserializer: Deserializer[Array[Byte]] = new ByteArrayDeserializer()
   private lazy val envelopeUtils = new EnvelopeUtils(formatting)
 
-  private def eventHandler(sink: EventSink[Event, EvtMeta])(key: String, value: Array[Byte]): Future[Done] = {
-    envelopeUtils.eventFromBytes(value) match {
-      case Some(eventPlusMeta) ⇒
-        sink.handleEvent(eventPlusMeta.event, eventPlusMeta.meta).map(_ ⇒ Done)
-      case None ⇒
-        log.error(s"Unable to deserialize event from kafka value, key = $key, value = $value")
-        Future.successful(Done)
-    }
+  private def dataSink(eventSink: EventSink[Event, EvtMeta]): DataSink[String, Array[Byte]] = {
+    (key: String, value: Array[Byte]) ⇒
+      {
+        envelopeUtils.eventFromBytes(value) match {
+          case Some(eventPlusMeta) ⇒
+            eventSink.handleEvent(eventPlusMeta.event, eventPlusMeta.meta)
+          case None ⇒
+            log.error(s"Unable to deserialize event from kafka value, key = $key, value = $value")
+            Future.successful(Done)
+        }
+      }
   }
 
+  @deprecated("Use to(sink, consumerGroup) instead to avoid sharing consumer groups across different data pipelines.  " +
+    "You should also remove the `consumerGroup` override once you switch to using to(sink, consumerGroup)", "0.4.11")
   def to(sink: EventSink[Event, EvtMeta]): Unit = {
-    to(defaultConsumerSettings)(sink)
+    to(sink, consumerGroup)
   }
 
-  private val config = ConfigFactory.load()
-  private val useNewConsumer = config.getBoolean("surge.use-new-consumer")
+  def to(sink: EventSink[Event, EvtMeta], consumerGroup: String): Unit = {
+    super.to(dataSink(sink), consumerGroup)
+  }
+
   private[core] def to(consumerSettings: ConsumerSettings[String, Array[Byte]])(sink: EventSink[Event, EvtMeta]): Unit = {
-    if (useNewConsumer) {
-      new EventPipeline(new KafkaStreamManager(kafkaTopic, consumerSettings, eventHandler(sink)).start())
-    } else {
-      KafkaConsumer().streamAndCommitOffsets(kafkaTopic, eventHandler(sink), parallelism, consumerSettings)
-    }
+    super.to(consumerSettings)(dataSink(sink))
   }
 }
 
-class EventPipeline(underlyingManager: KafkaStreamManager) {
+class DataPipeline[Key, Value](underlyingManager: KafkaStreamManager[Key, Value]) {
   def stop(): Unit = {
     underlyingManager.stop()
   }

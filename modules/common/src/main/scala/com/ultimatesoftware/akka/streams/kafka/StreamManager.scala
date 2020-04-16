@@ -5,10 +5,10 @@ package com.ultimatesoftware.akka.streams.kafka
 import java.util.concurrent.atomic.AtomicReference
 
 import akka.Done
-import akka.actor.{ Actor, ActorRef, ActorSystem, Props, Stash }
+import akka.actor.{ Actor, ActorSystem, Props, Stash }
 import akka.kafka.scaladsl.Consumer.DrainingControl
 import akka.kafka.scaladsl.{ Committer, Consumer }
-import akka.kafka.{ CommitterSettings, ConsumerMessage, ConsumerSettings, KafkaConsumerActor, Subscriptions }
+import akka.kafka.{ CommitterSettings, ConsumerMessage, ConsumerSettings, Subscriptions }
 import akka.pattern._
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{ Flow, RestartSource, Sink }
@@ -20,18 +20,18 @@ import org.slf4j.LoggerFactory
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
-class KafkaStreamManager(topic: KafkaTopic, consumerSettings: ConsumerSettings[String, Array[Byte]],
-    business: (String, Array[Byte]) ⇒ Future[Done],
+class KafkaStreamManager[Key, Value](topic: KafkaTopic, consumerSettings: ConsumerSettings[Key, Value],
+    business: (Key, Value) ⇒ Future[Any],
     parallelism: Int = 1)(implicit val actorSystem: ActorSystem) extends ActorSystemHostAwareness {
 
   private val managerActor = actorSystem.actorOf(Props(new KafkaStreamManagerActor(topic, consumerSettings, business, parallelism)))
 
-  def start(): KafkaStreamManager = {
+  def start(): KafkaStreamManager[Key, Value] = {
     managerActor ! KafkaStreamManagerActor.StartConsuming
     this
   }
 
-  def stop(): KafkaStreamManager = {
+  def stop(): KafkaStreamManager[Key, Value] = {
     managerActor ! KafkaStreamManagerActor.StopConsuming
     this
   }
@@ -43,7 +43,7 @@ object KafkaStreamManagerActor {
   case object SuccessfullyStopped
 }
 class KafkaStreamManagerActor[Key, Value](topic: KafkaTopic, baseConsumerSettings: ConsumerSettings[Key, Value],
-    business: (Key, Value) ⇒ Future[Done],
+    business: (Key, Value) ⇒ Future[Any],
     parallelism: Int) extends Actor with ActorHostAwareness with Stash {
   import KafkaStreamManagerActor._
   import context.dispatcher
