@@ -11,7 +11,7 @@ import com.ultimatesoftware.scala.core.messaging.EventProperties
 
 import scala.compat.java8.FutureConverters._
 import scala.compat.java8.OptionConverters._
-import scala.concurrent.Future
+import scala.concurrent.{ ExecutionContext, Future }
 
 trait EventTransformer[UpstreamEvent, Command] {
   def transform(event: UpstreamEvent): Optional[Command]
@@ -19,6 +19,8 @@ trait EventTransformer[UpstreamEvent, Command] {
 
 abstract class UltiSurgeCommandServiceSink[AggId, Command, UpstreamEvent]
   extends SurgeCommandServiceSink[AggId, Command, DefaultCommandMetadata, UpstreamEvent, EventProperties] {
+
+  override implicit def executionContext: ExecutionContext = ExecutionContext.global
 
   def eventTransformer: EventTransformer[UpstreamEvent, Command]
   def surgeEngine: KafkaStreamsCommand[AggId, _, Command, _, DefaultCommandMetadata, _]

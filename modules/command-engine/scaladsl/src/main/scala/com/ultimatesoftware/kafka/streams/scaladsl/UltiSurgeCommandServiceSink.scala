@@ -6,12 +6,10 @@ import com.ultimatesoftware.kafka.streams.core.SurgeCommandServiceSink
 import com.ultimatesoftware.scala.core.domain.DefaultCommandMetadata
 import com.ultimatesoftware.scala.core.messaging.EventProperties
 
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.Future
 
 trait UltiSurgeCommandServiceSink[AggId, Command, UpstreamEvent]
   extends SurgeCommandServiceSink[AggId, Command, DefaultCommandMetadata, UpstreamEvent, EventProperties] {
-
-  implicit def ec: ExecutionContext
 
   def surgeEngine: KafkaStreamsCommand[AggId, _, Command, _, DefaultCommandMetadata, _]
   override def evtMetaToCmdMeta(evtMeta: EventProperties): DefaultCommandMetadata = DefaultCommandMetadata.fromEventProperties(evtMeta)
