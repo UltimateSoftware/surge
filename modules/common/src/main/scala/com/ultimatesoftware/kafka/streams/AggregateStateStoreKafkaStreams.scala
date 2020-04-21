@@ -66,11 +66,12 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
   private val config = ConfigFactory.load()
   private val brokers = config.getString("kafka.brokers").split(",")
   private val testMode = config.getBoolean("kafka.streams.test-mode")
+  private val environment = config.getString("kafka.environment")
   private val consumerGroupName = if (testMode) {
     // If running in test mode, use a different consumer group for each test instance so they all run in isolation
-    s"$aggregateName-command-test-${UUID.randomUUID()}"
+    s"$aggregateName-$environment-command-test-${UUID.randomUUID()}"
   } else {
-    s"$aggregateName-command"
+    s"$aggregateName-$environment-command"
   }
   private val consumerConfig = UltiKafkaConsumerConfig(consumerGroupName)
 
