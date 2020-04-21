@@ -46,12 +46,21 @@ abstract class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdM
   private def kafkaConfig = KafkaStreamsCommandKafkaConfig(stateTopic = stateTopic, eventsTopic = eventsTopic,
     internalMetadataTopic = internalMetadataTopic, eventKeyExtractor = eventKeyExtractor, stateKeyExtractor = stateKeyExtractor)
 
+  def consumerGroupName: Optional[String] = Optional.empty[String]
+
+  private[javadsl] def consumerGroupNameToScalaOption: Option[String] = {
+    val scalaOpt = if (consumerGroupName.isPresent) Option(consumerGroupName.get()) else Option.empty[String]
+    scalaOpt
+  }
+
   private[javadsl] def toCore: com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta] = {
     new com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
       aggregateName = aggregateName, kafka = kafkaConfig,
       model = commandModel, writeFormatting = writeFormatting, readFormatting = readFormatting,
       commandValidator = commandValidator, aggregateValidator = scalaAggregateValidator,
       metricsProvider = metricsProvider, metricsPublisher = metricsPublisher, metricsInterval = metricsInterval,
-      aggregateComposer = aggregateComposer)
+      aggregateComposer = aggregateComposer,
+      consumerGroupName = consumerGroupNameToScalaOption
+    )
   }
 }

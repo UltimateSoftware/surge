@@ -27,7 +27,8 @@ abstract class KafkaStreamsCommandImpl[AggId, Agg, Command, Event, CmdMeta, EvtM
     businessLogic.aggregateName,
     businessLogic.kafka.stateTopic,
     new KafkaStreamsPartitionTrackerActorProvider(stateChangeActor), stateMetaHandler, businessLogic.aggregateValidator,
-    applicationHostPort)
+    applicationHostPort,
+    businessLogic.consumerGroupName)
   protected val actorRouter = new GenericAggregateActorRouter[AggId, Agg, Command, Event, CmdMeta, EvtMeta](actorSystem, stateChangeActor,
     businessLogic, businessLogic.metricsProvider, stateMetaHandler, kafkaStreamsImpl)
 

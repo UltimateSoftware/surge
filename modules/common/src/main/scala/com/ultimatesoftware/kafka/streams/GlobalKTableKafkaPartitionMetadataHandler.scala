@@ -36,11 +36,12 @@ class GlobalKTableMetadataHandler(internalMetadataTopic: KafkaTopic) extends Kaf
   private val config = ConfigFactory.load()
   private val brokers = config.getString("kafka.brokers").split(",")
   private val testMode = config.getBoolean("kafka.streams.test-mode")
+  private val environment = config.getString("kafka.environment")
   private val consumerGroupName = if (testMode) {
     // If running in test mode, use a different consumer group for each test instance so they all run in isolation
-    s"global-ktable-${internalMetadataTopic.name}-test-${UUID.randomUUID()}"
+    s"global-ktable-$environment-${internalMetadataTopic.name}-test-${UUID.randomUUID()}"
   } else {
-    s"global-ktable-${internalMetadataTopic.name}"
+    s"global-ktable-$environment-${internalMetadataTopic.name}"
   }
   private val globalConsumerConfig = UltiKafkaConsumerConfig(consumerGroupName)
   private val twoMb = 2 * 1024 * 1024L

@@ -55,7 +55,8 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
     partitionTrackerProvider: KafkaStreamsPartitionTrackerProvider,
     kafkaStateMetadataHandler: KafkaPartitionMetadataHandler,
     aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) ⇒ Boolean,
-    applicationHostPort: Option[String]) {
+    applicationHostPort: Option[String],
+    consumerGroupName: Option[String]) {
 
   import DefaultSerdes._
   import ImplicitConversions._
@@ -67,13 +68,14 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
   private val brokers = config.getString("kafka.brokers").split(",")
   private val testMode = config.getBoolean("kafka.streams.test-mode")
   private val environment = config.getString("kafka.environment")
-  private val consumerGroupName = if (testMode) {
+  private val defaultConsumerGroupName = if (testMode) {
     // If running in test mode, use a different consumer group for each test instance so they all run in isolation
     s"$aggregateName-$environment-command-test-${UUID.randomUUID()}"
   } else {
     s"$aggregateName-$environment-command"
   }
-  private val consumerConfig = UltiKafkaConsumerConfig(consumerGroupName)
+  private val aggregateStateConsumerGroupName = consumerGroupName.getOrElse(defaultConsumerGroupName)
+  private val consumerConfig = UltiKafkaConsumerConfig(aggregateStateConsumerGroupName)
 
   private val cacheHeapPercentage = config.getDouble("kafka.streams.cache-heap-percentage")
   private val totalMemory = Runtime.getRuntime.maxMemory()
