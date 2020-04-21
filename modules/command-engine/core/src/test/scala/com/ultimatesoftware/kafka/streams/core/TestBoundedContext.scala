@@ -158,6 +158,8 @@ trait TestBoundedContext {
       aggregateComposer = BusinessLogic.aggregateComposer,
       metricsProvider = NoOpMetricsProvider,
       metricsPublisher = NoOpsMetricsPublisher,
-      metricsInterval = 100.seconds)
+      metricsInterval = 100.seconds,
+      aggregateConsumerGroupName = "count-aggregate-consumer-group-name",
+      internalConsumerGroupName = "internal-global-ktable-consumer-group-name")
 
 }

@@ -5,18 +5,17 @@ package com.ultimatesoftware.kafka.streams
 import java.util.Properties
 
 import com.typesafe.config.ConfigFactory
-import com.ultimatesoftware.scala.core.kafka.{JsonSerdes, KafkaTopic}
+import com.ultimatesoftware.scala.core.kafka.{ JsonSerdes, KafkaTopic }
 import org.apache.kafka.common.serialization.StringSerializer
 import org.apache.kafka.streams.test.ConsumerRecordFactory
-import org.apache.kafka.streams.{StreamsConfig, TopologyTestDriver}
+import org.apache.kafka.streams.{ StreamsConfig, TopologyTestDriver }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import play.api.libs.json.JsValue
 
 class GlobalKTablePartitionMetadataHandlerSpec extends AnyWordSpec with Matchers {
-  private val config = ConfigFactory.load()
   private val metaTopic = KafkaTopic("testMetaTopic")
-  private val environment = config.getString("kafka.environment")
+  private val environment = "development"
   private val consumerGroupName = s"global-ktable-$environment-${metaTopic.name}"
   private val globalMetaHandler = new GlobalKTableMetadataHandler(metaTopic, consumerGroupName)
   private val props = new Properties()
