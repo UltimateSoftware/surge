@@ -2,6 +2,8 @@
 
 package com.ultimatesoftware.kafka.streams.core
 
+import java.util.UUID
+
 import akka.actor.ActorSystem
 import com.ultimatesoftware.akka.cluster.ActorSystemHostAwareness
 import com.ultimatesoftware.kafka.KafkaConsumerStateTrackingActor
@@ -22,13 +24,13 @@ abstract class KafkaStreamsCommandImpl[AggId, Agg, Command, Event, CmdMeta, EvtM
   private implicit val system: ActorSystem = actorSystem
 
   private val stateChangeActor = system.actorOf(KafkaConsumerStateTrackingActor.props)
-  private val stateMetaHandler = new GlobalKTableMetadataHandler(businessLogic.kafka.internalMetadataTopic)
+  private val stateMetaHandler = new GlobalKTableMetadataHandler(businessLogic.kafka.internalMetadataTopic, businessLogic.internalConsumerGroupName)
   private val kafkaStreamsImpl = new AggregateStateStoreKafkaStreams[JsValue](
     businessLogic.aggregateName,
     businessLogic.kafka.stateTopic,
     new KafkaStreamsPartitionTrackerActorProvider(stateChangeActor), stateMetaHandler, businessLogic.aggregateValidator,
     applicationHostPort,
-    businessLogic.consumerGroupName)
+    businessLogic.aggregateConsumerGroupName)
   protected val actorRouter = new GenericAggregateActorRouter[AggId, Agg, Command, Event, CmdMeta, EvtMeta](actorSystem, stateChangeActor,
     businessLogic, businessLogic.metricsProvider, stateMetaHandler, kafkaStreamsImpl)
 

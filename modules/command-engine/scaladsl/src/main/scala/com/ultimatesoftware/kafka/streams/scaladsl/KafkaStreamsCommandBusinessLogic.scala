@@ -2,6 +2,7 @@
 
 package com.ultimatesoftware.kafka.streams.scaladsl
 
+import com.typesafe.config.ConfigFactory
 import com.ultimatesoftware.kafka.streams.core.{ KafkaStreamsCommandKafkaConfig, SurgeAggregateReadFormatting, SurgeWriteFormatting }
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, MetricsPublisher, NoOpMetricsProvider, NoOpsMetricsPublisher }
@@ -12,6 +13,9 @@ import play.api.libs.json.JsValue
 import scala.concurrent.duration._
 
 trait KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta] {
+
+  private val config = ConfigFactory.load()
+
   def aggregateName: String
   def stateTopic: KafkaTopic
   def eventsTopic: KafkaTopic
@@ -36,7 +40,15 @@ trait KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtM
 
   def metricsProvider: MetricsProvider = NoOpMetricsProvider
 
-  def consumerGroupName: Option[String] = None
+  def aggregateConsumerGroupName: String = {
+    val environment = config.getString("kafka.environment")
+    s"$aggregateName-$environment-command"
+  }
+
+  def internalConsumerGroupName: String = {
+    val environment = config.getString("kafka.environment")
+    s"global-ktable-$environment-${internalMetadataTopic.name}"
+  }
 
   private def kafkaConfig = KafkaStreamsCommandKafkaConfig(stateTopic = stateTopic, eventsTopic = eventsTopic,
     internalMetadataTopic = internalMetadataTopic, eventKeyExtractor = eventKeyExtractor, stateKeyExtractor = stateKeyExtractor)
@@ -48,6 +60,7 @@ trait KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtM
       writeFormatting = writeFormatting, commandValidator = commandValidator, aggregateValidator = aggregateValidator,
       metricsProvider = metricsProvider, metricsPublisher = metricsPublisher, metricsInterval = metricsInterval,
       aggregateComposer = aggregateComposer,
-      consumerGroupName = consumerGroupName)
+      aggregateConsumerGroupName = aggregateConsumerGroupName,
+      internalConsumerGroupName = internalConsumerGroupName)
   }
 }

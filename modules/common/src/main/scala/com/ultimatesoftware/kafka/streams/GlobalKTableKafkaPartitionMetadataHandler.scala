@@ -29,20 +29,12 @@ object GlobalStreamsBlockCacheSettings extends BlockCacheSettings {
 
 class KafkaPartitionMetadataGlobalStreamsRocksDBConfig extends CustomRocksDBConfigSetter(GlobalStreamsBlockCacheSettings, GlobalStreamsWriteBufferSettings)
 
-class GlobalKTableMetadataHandler(internalMetadataTopic: KafkaTopic) extends KafkaPartitionMetadataHandler {
+class GlobalKTableMetadataHandler(internalMetadataTopic: KafkaTopic, consumerGroupName: String) extends KafkaPartitionMetadataHandler {
   import DefaultSerdes._
   import ImplicitConversions._
 
   private val config = ConfigFactory.load()
   private val brokers = config.getString("kafka.brokers").split(",")
-  private val testMode = config.getBoolean("kafka.streams.test-mode")
-  private val environment = config.getString("kafka.environment")
-  private val consumerGroupName = if (testMode) {
-    // If running in test mode, use a different consumer group for each test instance so they all run in isolation
-    s"global-ktable-$environment-${internalMetadataTopic.name}-test-${UUID.randomUUID()}"
-  } else {
-    s"global-ktable-$environment-${internalMetadataTopic.name}"
-  }
   private val globalConsumerConfig = UltiKafkaConsumerConfig(consumerGroupName)
   private val twoMb = 2 * 1024 * 1024L
   private val globalStreamsConfig = Map[String, String](
