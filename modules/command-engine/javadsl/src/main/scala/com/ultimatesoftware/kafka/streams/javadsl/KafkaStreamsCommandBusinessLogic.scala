@@ -50,12 +50,12 @@ abstract class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdM
     internalMetadataTopic = internalMetadataTopic, eventKeyExtractor = eventKeyExtractor, stateKeyExtractor = stateKeyExtractor)
 
   def aggregateConsumerGroupName: String = {
-    val environment = config.getString("kafka.environment")
+    val environment = config.getString("app.environment")
     s"$aggregateName-$environment-command"
   }
 
   def internalConsumerGroupName: String = {
-    val environment = config.getString("kafka.environment")
+    val environment = config.getString("app.environment")
     s"global-ktable-$environment-${internalMetadataTopic.name}"
   }
 
