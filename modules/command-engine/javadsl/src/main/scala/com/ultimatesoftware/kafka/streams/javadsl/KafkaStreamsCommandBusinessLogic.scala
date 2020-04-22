@@ -4,8 +4,8 @@ package com.ultimatesoftware.kafka.streams.javadsl
 
 import java.util.Optional
 
+import com.typesafe.config.ConfigFactory
 import com.ultimatesoftware.kafka.streams.core.{ KafkaStreamsCommandKafkaConfig, SurgeAggregateReadFormatting, SurgeWriteFormatting }
-
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, MetricsPublisher, NoOpMetricsProvider, NoOpsMetricsPublisher }
 import com.ultimatesoftware.scala.core.validations.AsyncCommandValidator
@@ -16,6 +16,9 @@ import scala.compat.java8.OptionConverters._
 import scala.concurrent.duration._
 
 abstract class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta] {
+
+  private val config = ConfigFactory.load()
+
   def aggregateName: String
   def stateTopic: KafkaTopic
   def eventsTopic: KafkaTopic
@@ -46,12 +49,24 @@ abstract class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdM
   private def kafkaConfig = KafkaStreamsCommandKafkaConfig(stateTopic = stateTopic, eventsTopic = eventsTopic,
     internalMetadataTopic = internalMetadataTopic, eventKeyExtractor = eventKeyExtractor, stateKeyExtractor = stateKeyExtractor)
 
+  def aggregateConsumerGroupName: String = {
+    val environment = config.getString("app.environment")
+    s"$aggregateName-$environment-command"
+  }
+
+  def internalConsumerGroupName: String = {
+    val environment = config.getString("app.environment")
+    s"global-ktable-$environment-${internalMetadataTopic.name}"
+  }
+
   private[javadsl] def toCore: com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta] = {
     new com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
       aggregateName = aggregateName, kafka = kafkaConfig,
       model = commandModel, writeFormatting = writeFormatting, readFormatting = readFormatting,
       commandValidator = commandValidator, aggregateValidator = scalaAggregateValidator,
       metricsProvider = metricsProvider, metricsPublisher = metricsPublisher, metricsInterval = metricsInterval,
-      aggregateComposer = aggregateComposer)
+      aggregateComposer = aggregateComposer,
+      aggregateConsumerGroupName = aggregateConsumerGroupName,
+      internalConsumerGroupName = internalConsumerGroupName)
   }
 }

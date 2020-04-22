@@ -2,9 +2,10 @@
 
 package com.ultimatesoftware.kafka.streams.scaladsl
 
+import com.typesafe.config.ConfigFactory
 import com.ultimatesoftware.kafka.streams.core.{ KafkaStreamsCommandKafkaConfig, SurgeAggregateReadFormatting, SurgeWriteFormatting }
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
-import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, MetricsPublisher, NoOpsMetricsPublisher }
+import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, MetricsPublisher, NoOpMetricsProvider, NoOpsMetricsPublisher }
 import com.ultimatesoftware.scala.core.validations.AsyncCommandValidator
 import com.ultimatesoftware.scala.oss.domain.{ AggregateCommandModel, AggregateComposer }
 import play.api.libs.json.JsValue
@@ -12,6 +13,9 @@ import play.api.libs.json.JsValue
 import scala.concurrent.duration._
 
 trait KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta] {
+
+  private val config = ConfigFactory.load()
+
   def aggregateName: String
   def stateTopic: KafkaTopic
   def eventsTopic: KafkaTopic
@@ -34,7 +38,17 @@ trait KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtM
   def metricsPublisher: MetricsPublisher = NoOpsMetricsPublisher
   def metricsInterval: FiniteDuration = 30.seconds
 
-  def metricsProvider: MetricsProvider
+  def metricsProvider: MetricsProvider = NoOpMetricsProvider
+
+  def aggregateConsumerGroupName: String = {
+    val environment = config.getString("app.environment")
+    s"$aggregateName-$environment-command"
+  }
+
+  def internalConsumerGroupName: String = {
+    val environment = config.getString("app.environment")
+    s"global-ktable-$environment-${internalMetadataTopic.name}"
+  }
 
   private def kafkaConfig = KafkaStreamsCommandKafkaConfig(stateTopic = stateTopic, eventsTopic = eventsTopic,
     internalMetadataTopic = internalMetadataTopic, eventKeyExtractor = eventKeyExtractor, stateKeyExtractor = stateKeyExtractor)
@@ -45,6 +59,8 @@ trait KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtM
       model = commandModel, readFormatting = readFormatting,
       writeFormatting = writeFormatting, commandValidator = commandValidator, aggregateValidator = aggregateValidator,
       metricsProvider = metricsProvider, metricsPublisher = metricsPublisher, metricsInterval = metricsInterval,
-      aggregateComposer = aggregateComposer)
+      aggregateComposer = aggregateComposer,
+      aggregateConsumerGroupName = aggregateConsumerGroupName,
+      internalConsumerGroupName = internalConsumerGroupName)
   }
 }

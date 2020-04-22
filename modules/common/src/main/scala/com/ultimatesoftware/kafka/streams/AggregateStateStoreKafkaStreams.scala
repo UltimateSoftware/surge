@@ -2,7 +2,7 @@
 
 package com.ultimatesoftware.kafka.streams
 
-import java.util.{ Properties, UUID }
+import java.util.Properties
 
 import com.typesafe.config.ConfigFactory
 import com.ultimatesoftware.config.TimeoutConfig
@@ -55,7 +55,8 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
     partitionTrackerProvider: KafkaStreamsPartitionTrackerProvider,
     kafkaStateMetadataHandler: KafkaPartitionMetadataHandler,
     aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) ⇒ Boolean,
-    applicationHostPort: Option[String]) {
+    applicationHostPort: Option[String],
+    consumerGroupName: String) {
 
   import DefaultSerdes._
   import ImplicitConversions._
@@ -65,13 +66,6 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
 
   private val config = ConfigFactory.load()
   private val brokers = config.getString("kafka.brokers").split(",")
-  private val testMode = config.getBoolean("kafka.streams.test-mode")
-  private val consumerGroupName = if (testMode) {
-    // If running in test mode, use a different consumer group for each test instance so they all run in isolation
-    s"$aggregateName-command-test-${UUID.randomUUID()}"
-  } else {
-    s"$aggregateName-command"
-  }
   private val consumerConfig = UltiKafkaConsumerConfig(consumerGroupName)
 
   private val cacheHeapPercentage = config.getDouble("kafka.streams.cache-heap-percentage")

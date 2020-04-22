@@ -45,7 +45,8 @@ class AggregateStateStoreKafkaStreamsSpec extends AnyWordSpec with Matchers with
     partitionTrackerProvider = new MockPartitionTrackerProvider,
     kafkaStateMetadataHandler = new MockPartitionMetaHandler,
     aggregateValidator = mockValidator,
-    applicationHostPort = Some("localhost:1234"))
+    applicationHostPort = Some("localhost:1234"),
+    consumerGroupName = "test-aggregate-consumer-group-name")
 
   "AggregateStateStoreKafkaStreams" should {
     "Store key value pairs from Kafka in a KTable" in withTopologyTestDriver(aggStoreKafkaStreams.createTopology()) { testDriver ⇒
