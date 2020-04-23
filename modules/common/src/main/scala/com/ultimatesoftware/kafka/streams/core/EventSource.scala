@@ -5,7 +5,6 @@ package com.ultimatesoftware.kafka.streams.core
 import akka.Done
 import akka.actor.ActorSystem
 import akka.kafka.ConsumerSettings
-import com.ultimatesoftware.akka.streams.kafka.KafkaStreamManager
 import org.apache.kafka.common.serialization.{ ByteArrayDeserializer, Deserializer, StringDeserializer }
 import org.slf4j.{ Logger, LoggerFactory }
 
@@ -47,24 +46,15 @@ trait EventSource[Event, EvtMeta] extends DataSource[String, Array[Byte]] {
 
   @deprecated("Use to(sink, consumerGroup) instead to avoid sharing consumer groups across different data pipelines.  " +
     "You should also remove the `consumerGroup` override once you switch to using to(sink, consumerGroup)", "0.4.11")
-  def to(sink: EventSink[Event, EvtMeta]): Unit = {
+  def to(sink: EventSink[Event, EvtMeta]): DataPipeline = {
     to(sink, consumerGroup)
   }
 
-  def to(sink: EventSink[Event, EvtMeta], consumerGroup: String): Unit = {
+  def to(sink: EventSink[Event, EvtMeta], consumerGroup: String): DataPipeline = {
     super.to(dataSink(sink), consumerGroup)
   }
 
-  private[core] def to(consumerSettings: ConsumerSettings[String, Array[Byte]])(sink: EventSink[Event, EvtMeta]): Unit = {
+  private[core] def to(consumerSettings: ConsumerSettings[String, Array[Byte]])(sink: EventSink[Event, EvtMeta]): DataPipeline = {
     super.to(consumerSettings)(dataSink(sink))
-  }
-}
-
-class DataPipeline[Key, Value](underlyingManager: KafkaStreamManager[Key, Value]) {
-  def stop(): Unit = {
-    underlyingManager.stop()
-  }
-  def start(): Unit = {
-    underlyingManager.start()
   }
 }

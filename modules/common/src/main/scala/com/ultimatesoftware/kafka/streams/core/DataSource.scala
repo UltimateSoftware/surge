@@ -25,25 +25,45 @@ trait DataSource[Key, Value] {
   def keyDeserializer: Deserializer[Key]
   def valueDeserializer: Deserializer[Value]
 
-  def to(sink: DataSink[Key, Value], consumerGroup: String): Unit = {
+  def to(sink: DataSink[Key, Value], consumerGroup: String): DataPipeline = {
     val consumerSettings = KafkaConsumer.consumerSettings[Key, Value](actorSystem, groupId = consumerGroup,
       brokers = kafkaBrokers)(keyDeserializer, valueDeserializer)
     to(consumerSettings)(sink)
   }
 
   private val useNewConsumer = config.getBoolean("surge.use-new-consumer")
-  private[core] def to(consumerSettings: ConsumerSettings[Key, Value])(sink: DataSink[Key, Value]): Unit = {
+  private[core] def to(consumerSettings: ConsumerSettings[Key, Value])(sink: DataSink[Key, Value]): DataPipeline = {
     implicit val system: ActorSystem = actorSystem
     implicit val materializer: ActorMaterializer = ActorMaterializer()
     if (useNewConsumer) {
-      new DataPipeline(new KafkaStreamManager(kafkaTopic, consumerSettings, sink.handle, parallelism).start())
+      new ManagedDataPipelineImpl(new KafkaStreamManager(kafkaTopic, consumerSettings, sink.handle, parallelism).start())
     } else {
       implicit val executionContext: ExecutionContext = ExecutionContext.global
       KafkaConsumer().streamAndCommitOffsets(kafkaTopic, sink.handle, parallelism, consumerSettings)
+      NoOpDataPipelineImpl
     }
   }
 }
 
 trait DataSink[Key, Value] {
   def handle(key: Key, value: Value): Future[Any]
+}
+
+trait DataPipeline {
+  def start(): Unit
+  def stop(): Unit
+}
+
+private[core] class ManagedDataPipelineImpl(underlyingManager: KafkaStreamManager[_, _]) extends DataPipeline {
+  def stop(): Unit = {
+    underlyingManager.stop()
+  }
+  def start(): Unit = {
+    underlyingManager.start()
+  }
+}
+
+private[core] object NoOpDataPipelineImpl extends DataPipeline {
+  override def start(): Unit = {}
+  override def stop(): Unit = {}
 }

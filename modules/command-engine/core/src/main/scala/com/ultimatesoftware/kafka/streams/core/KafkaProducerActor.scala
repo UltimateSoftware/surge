@@ -23,6 +23,7 @@ import org.apache.kafka.common.errors.ProducerFencedException
 import org.slf4j.{ Logger, LoggerFactory }
 import play.api.libs.json.JsValue
 
+import scala.compat.java8.OptionConverters._
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
 
@@ -250,7 +251,7 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
       endOffset <= stateMeta.offset
 
     if (partitionIsCurrent) {
-      log.info(s"KafkaPublisherActor partition {} is no longer behind on processing", assignedPartition)
+      log.info(s"KafkaPublisherActor partition {} is fully up to date on processing", assignedPartition)
       unstashAll()
       context.become(processing(KafkaProducerActorState.empty))
     }

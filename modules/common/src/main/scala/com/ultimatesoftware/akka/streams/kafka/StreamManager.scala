@@ -2,6 +2,7 @@
 
 package com.ultimatesoftware.akka.streams.kafka
 
+import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
 
 import akka.Done
@@ -50,12 +51,15 @@ class KafkaStreamManagerActor[Key, Value](topic: KafkaTopic, baseConsumerSetting
   private implicit val materializer: ActorMaterializer = ActorMaterializer()
   private val log = LoggerFactory.getLogger(getClass)
 
+  // Set this uniquely per manager actor so that restarts of the Kafka stream don't cause a rebalance of the consumer group
+  private val clientId = s"surge-event-source-managed-consumer-${UUID.randomUUID()}"
+
   private lazy val businessFlow = Flow[ConsumerMessage.CommittableMessage[Key, Value]].mapAsync(parallelism) { msg ⇒
     business(msg.record.key, msg.record.value)
       .map(_ ⇒ msg.committableOffset)
       .recover {
         case e ⇒
-          log.error("An exception was thrown by the event handler! The stream will restart and the message will be retried.", e)
+          log.error(s"An exception was thrown by the event handler in consumer $clientId! The stream will restart and the message will be retried.", e)
           throw e
       }
   }
@@ -64,6 +68,9 @@ class KafkaStreamManagerActor[Key, Value](topic: KafkaTopic, baseConsumerSetting
     .withProperty(ConsumerConfig.PARTITION_ASSIGNMENT_STRATEGY_CONFIG, classOf[HostAwareRangeAssignor].getName)
     .withProperty(HostAwarenessConfig.HOST_CONFIG, localHostname)
     .withProperty(HostAwarenessConfig.PORT_CONFIG, localPort.toString)
+    .withStopTimeout(Duration.Zero)
+    .withClientId(clientId)
+    .withGroupInstanceId(clientId)
 
   private case class InternalState(control: AtomicReference[Consumer.Control], streamCompletion: Future[Done])
 
@@ -83,16 +90,16 @@ class KafkaStreamManagerActor[Key, Value](topic: KafkaTopic, baseConsumerSetting
   }
 
   private def startConsumer(): Unit = {
-    log.info("Starting consumer for topic {}", topic.name)
+    log.info("Starting consumer for topic {} with client id {}", Seq(topic.name, clientId): _*)
     val committerSettings = CommitterSettings(context.system)
     val control = new AtomicReference[Consumer.Control](Consumer.NoopControl)
 
     val result = RestartSource
       .onFailuresWithBackoff(
-        minBackoff = 2.seconds,
+        minBackoff = 1.second,
         maxBackoff = 20.seconds,
         randomFactor = 0.1) { () ⇒
-        log.debug("Creating Kafka source for topic {}", topic.name)
+        log.debug("Creating Kafka source for topic {} with client id {}", Seq(topic.name, clientId): _*)
         Consumer
           .committableSource(consumerSettings, Subscriptions.topics(topic.name))
           .mapMaterializedValue(c ⇒ control.set(c))
@@ -106,8 +113,9 @@ class KafkaStreamManagerActor[Key, Value](topic: KafkaTopic, baseConsumerSetting
   }
 
   private def handleStopConsuming(state: InternalState): Unit = {
-    val drainingControl = DrainingControl(state.control.get() -> state.streamCompletion)
-    log.info("Stopping consumer for topic {}", topic.name)
+    val control = state.control.get()
+    val drainingControl = DrainingControl(control -> state.streamCompletion)
+    log.info("Stopping consumer with client id {} for topic {}", Seq(clientId, topic.name): _*)
     val shutdownFuture = drainingControl.drainAndShutdown().map(_ ⇒ SuccessfullyStopped)
 
     shutdownFuture.pipeTo(self)(sender())
@@ -115,7 +123,7 @@ class KafkaStreamManagerActor[Key, Value](topic: KafkaTopic, baseConsumerSetting
   }
 
   private def handleSuccessfullyStopped(): Unit = {
-    log.info("Consumer for topic {} successfully stopped", topic.name)
+    log.info("Consumer with client id {} for topic {} successfully stopped", Seq(clientId, topic.name): _*)
     context.become(stopped)
     unstashAll()
   }

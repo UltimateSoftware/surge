@@ -76,7 +76,7 @@ class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec")) with A
         val embeddedBroker = s"localhost:${actualConfig.kafkaPort}"
 
         val probe = TestProbe()
-        val expectedNumExceptions = 1
+        val expectedNumExceptions = 2
         var exceptionCount = 0
 
         def businessLogic(key: String, value: Array[Byte]): Future[Done] = {
@@ -99,18 +99,15 @@ class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec")) with A
         publishToKafka(new ProducerRecord[String, String](topic.name, 2, record3, record3))
 
         val consumer1 = createManager
-        val consumer2 = createManager
 
         consumer1.start()
-        consumer2.start()
 
         probe.expectMsgAllOf(30.seconds, record1, record2, record3)
         consumer1.stop()
-        consumer2.stop()
       }
     }
 
-    "Be able to stop the stream" ignore {
+    "Be able to stop the stream" in {
       withRunningKafkaOnFoundPort(EmbeddedKafkaConfig(kafkaPort = 0, zooKeeperPort = 0)) { implicit actualConfig ⇒
         val topic = KafkaTopic("testTopic")
         createCustomTopic(topic.name, partitions = 3)
@@ -129,7 +126,6 @@ class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec")) with A
         probe.expectMsg(10.seconds, record1)
 
         consumer.stop()
-        // FIXME if this record is published before the consumer actually stops the draining control never completes.
         val record2 = "record 2"
         publishToKafka(new ProducerRecord[String, String](topic.name, 0, record2, record2))
         probe.expectNoMessage()
@@ -139,6 +135,4 @@ class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec")) with A
       }
     }
   }
-
 }
-
