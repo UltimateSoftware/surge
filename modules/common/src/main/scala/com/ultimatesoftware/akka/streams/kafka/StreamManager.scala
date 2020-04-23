@@ -69,8 +69,8 @@ class KafkaStreamManagerActor[Key, Value](topic: KafkaTopic, baseConsumerSetting
     .withProperty(HostAwarenessConfig.HOST_CONFIG, localHostname)
     .withProperty(HostAwarenessConfig.PORT_CONFIG, localPort.toString)
     .withStopTimeout(Duration.Zero)
-    .withClientId(clientId)
-    .withGroupInstanceId(clientId)
+  //.withClientId(clientId)
+  //.withGroupInstanceId(clientId)
 
   private case class InternalState(control: AtomicReference[Consumer.Control], streamCompletion: Future[Done])
 
