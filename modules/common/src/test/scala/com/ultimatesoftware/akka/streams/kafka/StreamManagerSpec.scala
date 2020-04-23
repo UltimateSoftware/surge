@@ -76,7 +76,7 @@ class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec")) with A
         val embeddedBroker = s"localhost:${actualConfig.kafkaPort}"
 
         val probe = TestProbe()
-        val expectedNumExceptions = 1
+        val expectedNumExceptions = 2
         var exceptionCount = 0
 
         def businessLogic(key: String, value: Array[Byte]): Future[Done] = {
