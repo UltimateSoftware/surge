@@ -6,26 +6,27 @@ import java.time.Instant
 import java.util.concurrent.TimeUnit
 
 import akka.Done
-import akka.actor.{ Actor, ActorRef, ActorSystem, Props, Stash }
+import akka.actor.{Actor, ActorRef, ActorSystem, Props, Stash}
 import akka.pattern._
 import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
 import com.ultimatesoftware.config.TimeoutConfig
-import com.ultimatesoftware.kafka.streams.{ GlobalKTableMetadataHandler, KafkaPartitionMetadata }
+import com.ultimatesoftware.kafka.streams.{GlobalKTableMetadataHandler, KafkaPartitionMetadata}
 import com.ultimatesoftware.scala.core.domain.StateMessage
 import com.ultimatesoftware.scala.core.kafka._
-import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, Rate, Timer }
+import com.ultimatesoftware.scala.core.monitoring.metrics.{MetricsProvider, Rate, Timer}
 import com.ultimatesoftware.scala.core.utils.JsonUtils
 import com.ultimatesoftware.scala.oss.domain.AggregateSegment
-import org.apache.kafka.clients.producer.{ ProducerConfig, ProducerRecord }
+import org.apache.kafka.clients.producer.{ProducerConfig, ProducerRecord}
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.ProducerFencedException
-import org.slf4j.{ Logger, LoggerFactory }
+import org.slf4j.{Logger, LoggerFactory}
 import play.api.libs.json.JsValue
 
 import scala.compat.java8.OptionConverters._
 import scala.concurrent.duration._
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.{ExecutionContext, Future}
+import scala.util.{Failure, Success, Try}
 
 /**
  * A stateful producer actor responsible for publishing all states + events for
@@ -211,15 +212,8 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
     }
   }
 
-  private def doInitTransactions() = {
-    kafkaPublisher.initTransactions().map { _ =>
-//      throw new RuntimeException("Exception initializing transactions")
-      ()
-    }
-  }
-
   private def initializeTransactions(): Unit = {
-    doInitTransactions().map { _ =>
+    kafkaPublisher.initTransactions().map { _ =>
       log.debug("Kafka transactions successfully initialized")
       initializeState()
     }.recover {

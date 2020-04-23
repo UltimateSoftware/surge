@@ -4,14 +4,16 @@ package com.ultimatesoftware.kafka.streams.core
 
 import java.time.Instant
 
+import akka.pattern.ask
 import akka.Done
-import akka.actor.{ ActorRef, ActorSystem, Props }
-import akka.testkit.{ TestKit, TestProbe }
-import com.ultimatesoftware.kafka.streams.{ GlobalKTableMetadataHandler, KafkaPartitionMetadata, KafkaStreamsKeyValueStore }
-import com.ultimatesoftware.kafka.streams.core.KafkaProducerActorImpl.AggregateStateRates
-import com.ultimatesoftware.scala.core.kafka.{ KafkaBytesProducer, KafkaRecordMetadata }
+import akka.actor.{ActorRef, ActorSystem, Props}
+import akka.testkit.{TestActor, TestActorRef, TestKit, TestProbe}
+import akka.util.Timeout
+import com.ultimatesoftware.kafka.streams.{GlobalKTableMetadataHandler, KafkaPartitionMetadata, KafkaStreamsKeyValueStore}
+import com.ultimatesoftware.kafka.streams.core.KafkaProducerActorImpl.{AggregateStateRates, InternalMessage}
+import com.ultimatesoftware.scala.core.kafka.{KafkaBytesProducer, KafkaRecordMetadata}
 import com.ultimatesoftware.scala.core.monitoring.metrics.NoOpMetricsProvider
-import org.apache.kafka.clients.producer.{ ProducerRecord, RecordMetadata }
+import org.apache.kafka.clients.producer.{ProducerRecord, RecordMetadata}
 import org.apache.kafka.common.TopicPartition
 import org.mockito.ArgumentMatchers._
 import org.mockito.Mockito._
@@ -19,7 +21,10 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
 
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.collection.mutable.ListBuffer
+import scala.concurrent.duration._
+import scala.concurrent.{ExecutionContext, Future}
 
 class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec")) with AnyWordSpecLike with Matchers
   with TestBoundedContext with MockitoSugar {
@@ -72,6 +77,26 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
     val testEvents2 = testObjects(Seq("event3", "event4"))
     val testAggs2 = testObjects(Seq("agg3", "agg3"))
 
+    "Gets to initialize the state if initializing kafka transactions fails" in {
+      TestProbe()
+      val assignedPartition = new TopicPartition("testTopic", 1)
+      val mockProducer = mock[KafkaBytesProducer]
+      val mockMetadata = mockRecordMetadata(assignedPartition)
+
+      when(mockProducer.initTransactions()(any[ExecutionContext]))
+        .thenReturn(Future.failed(new IllegalStateException("This is expected")))
+        .thenReturn(Future.successful())
+      when(mockProducer.putRecord(any[ProducerRecord[String, Array[Byte]]]))
+        .thenReturn(Future.successful(mockMetadata))
+
+      testProducerActor(assignedPartition, mockProducer)
+      awaitAssert({
+        // tries to initTransactions twice, first time fails
+        verify(mockProducer, times(2)).initTransactions()(any[ExecutionContext])
+        // second time is a success and it calls initializeState only once, what cause a call to putRecord
+        verify(mockProducer, times(1)).putRecord(any[ProducerRecord[String, Array[Byte]]])
+      }, 11 seconds, 10 second)
+    }
     "Try to publish new incoming messages to Kafka if publishing to Kafka fails" in {
       val probe = TestProbe()
       val assignedPartition = new TopicPartition("testTopic", 1)
