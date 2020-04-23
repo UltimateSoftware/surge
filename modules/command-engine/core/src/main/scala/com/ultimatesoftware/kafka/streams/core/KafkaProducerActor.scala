@@ -117,6 +117,8 @@ private object KafkaProducerActorImpl {
   sealed trait InternalMessage
   case class EventsPublished(originalSenders: Seq[ActorRef], recordMetadata: Seq[KafkaRecordMetadata[String]]) extends InternalMessage
   case object EventsFailedToPublish extends InternalMessage
+  case object InitTransactions extends InternalMessage
+  case object FailedToInitTransactions extends InternalMessage
   case class Initialize(endOffset: Long) extends InternalMessage
   case object FailedToInitialize extends InternalMessage
   case object FlushMessages extends InternalMessage
@@ -159,22 +161,26 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
     current = metrics.createRate(s"${aggregateName}AggregateStateCurrentRate"),
     notCurrent = metrics.createRate(s"${aggregateName}AggregateStateNotCurrentRate"))
 
-  context.system.scheduler.scheduleOnce(10.milliseconds)(initializeState())
+  context.system.scheduler.scheduleOnce(10.milliseconds, self, InitTransactions)
   context.system.scheduler.schedule(200.milliseconds, 200.milliseconds)(refreshStateMeta())
   context.system.scheduler.schedule(flushInterval, flushInterval, self, FlushMessages)
 
   override def receive: Receive = uninitialized
 
   private def uninitialized: Receive = {
+    case InitTransactions   ⇒ initializeTransactions()
     case msg: Initialize    ⇒ handle(msg)
     case FailedToInitialize ⇒ context.system.scheduler.scheduleOnce(3.seconds)(initializeState())
     case FlushMessages      ⇒ // Ignore from this state
-    case _                  ⇒ stash()
+    case _: Publish         ⇒ stash()
+    case _: StateProcessed  ⇒ stash()
+    case unknown            ⇒
+      log.warn("Receiving unhandled message on uninitialized state", unknown)
   }
 
   private def recoveringBacklog(endOffset: Long): Receive = {
     case msg: Initialize     ⇒ handle(msg)
-    case FailedToInitialize  ⇒ context.system.scheduler.scheduleOnce(3.seconds)(retryInitializeState())
+    case FailedToInitialize  ⇒ context.system.scheduler.scheduleOnce(3.seconds)(initializeState())
     case msg: StateProcessed ⇒ handleFromRecoveringState(endOffset, msg)
     case FlushMessages       ⇒ // Ignore from this state
     case _                   ⇒ stash()
@@ -205,12 +211,25 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
     }
   }
 
-  private def initializeState(): Unit = {
-    val futureInitializeMessage = kafkaPublisher.initTransactions().flatMap(_ ⇒ sendFlushRecord)
-    futureInitializeMessage pipeTo self
+  private def doInitTransactions() = {
+    kafkaPublisher.initTransactions().map { _ =>
+//      throw new RuntimeException("Exception initializing transactions")
+      ()
+    }
   }
 
-  private def retryInitializeState(): Unit = {
+  private def initializeTransactions(): Unit = {
+    doInitTransactions().map { _ =>
+      log.debug("Kafka transactions successfully initialized")
+      initializeState()
+    }.recover {
+      case _: Throwable =>
+        log.error("Failed to initialize kafka transactions, retrying in 3 seconds")
+        context.system.scheduler.scheduleOnce(3.seconds, self, InitTransactions)
+    }
+  }
+
+  private def initializeState(): Unit = {
     sendFlushRecord pipeTo self
   }
 
