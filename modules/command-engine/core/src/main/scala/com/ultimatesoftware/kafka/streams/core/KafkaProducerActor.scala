@@ -169,13 +169,14 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
   override def receive: Receive = uninitialized
 
   private def uninitialized: Receive = {
-    case InitTransactions   ⇒ initializeTransactions()
-    case msg: Initialize    ⇒ handle(msg)
-    case FailedToInitialize ⇒ context.system.scheduler.scheduleOnce(3.seconds)(initializeState())
-    case FlushMessages      ⇒ // Ignore from this state
-    case _: Publish         ⇒ stash()
-    case _: StateProcessed  ⇒ stash()
-    case unknown            ⇒ log.warn("Receiving unhandled message on uninitialized state", unknown)
+    case InitTransactions             ⇒ initializeTransactions()
+    case msg: Initialize              ⇒ handle(msg)
+    case FailedToInitialize           ⇒ context.system.scheduler.scheduleOnce(3.seconds)(initializeState())
+    case FlushMessages                ⇒ // Ignore from this state
+    case _: Publish                   ⇒ stash()
+    case _: StateProcessed            ⇒ stash()
+    case _: IsAggregateStateCurrent   ⇒ stash()
+    case unknown                      ⇒ log.warn("Receiving unhandled message on uninitialized state", unknown)
   }
 
   private def recoveringBacklog(endOffset: Long): Receive = {
@@ -212,11 +213,11 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
 
   private def initializeTransactions(): Unit = {
     kafkaPublisher.initTransactions().map { _ ⇒
-      log.debug(s"Kafka transactions successfully initialized: $assignedTopicPartitionKey")
+      log.debug(s"KafkaPublisherActor transactions successfully initialized: $assignedPartition")
       initializeState()
     }.recover {
-      case _: Throwable ⇒
-        log.error(s"Failed to initialize kafka transactions, retrying in 3 seconds: $assignedTopicPartitionKey")
+      case err: Throwable ⇒
+        log.error(s"KafkaPublisherActor failed to initialize kafka transactions, retrying in 3 seconds: $assignedPartition $err")
         context.system.scheduler.scheduleOnce(3.seconds, self, InitTransactions)
     }
   }
@@ -300,9 +301,9 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
       log.info(s"KafkaPublisherActor partition {} writing {} states to Kafka", assignedPartition, stateRecords.length)
       eventsPublishedRate.mark(eventMessages.length)
       val futureMsg = kafkaPublisherTimer.time {
-        Try(kafkaPublisher.beginTransaction()).toOption match {
-          case None ⇒
-            log.error(s"KafkaPublisherActor partition $assignedPartition there was an error beginning transaction")
+        Try(kafkaPublisher.beginTransaction()) match {
+          case Failure(err) ⇒
+            log.error(s"KafkaPublisherActor partition $assignedPartition there was an error beginning transaction $err")
             Future.successful(EventsFailedToPublish)
           case _ ⇒
             Future.sequence(kafkaPublisher.putRecords(records)).map { recordMeta ⇒
