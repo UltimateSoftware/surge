@@ -169,21 +169,22 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
   override def receive: Receive = uninitialized
 
   private def uninitialized: Receive = {
-    case InitTransactions             ⇒ initializeTransactions()
-    case msg: Initialize              ⇒ handle(msg)
-    case FailedToInitialize           ⇒ context.system.scheduler.scheduleOnce(3.seconds)(initializeState())
-    case FlushMessages                ⇒ // Ignore from this state
-    case _: Publish                   ⇒ stash()
-    case _: StateProcessed            ⇒ stash()
-    case _: IsAggregateStateCurrent   ⇒ stash()
-    case unknown                      ⇒ log.warn("Receiving unhandled message on uninitialized state", unknown)
+    case InitTransactions           ⇒ initializeTransactions()
+    case msg: Initialize            ⇒ handle(msg)
+    case FailedToInitialize         ⇒ context.system.scheduler.scheduleOnce(3.seconds)(initializeState())
+    case FlushMessages              ⇒ // Ignore from this state
+    case _: Publish                 ⇒ stash()
+    case _: StateProcessed          ⇒ stash()
+    case _: IsAggregateStateCurrent ⇒ stash()
+    case unknown                    ⇒ log.warn("Receiving unhandled message on uninitialized state", unknown)
   }
 
   private def recoveringBacklog(endOffset: Long): Receive = {
-    case msg: StateProcessed ⇒ handleFromRecoveringState(endOffset, msg)
-    case FlushMessages       ⇒ // Ignore from this state
-    case _: Publish          ⇒ stash()
-    case unknown             ⇒ log.warn("Receiving unhandled message on recoveringBacklog state", unknown)
+    case msg: StateProcessed        ⇒ handleFromRecoveringState(endOffset, msg)
+    case FlushMessages              ⇒ // Ignore from this state
+    case _: Publish                 ⇒ stash()
+    case _: IsAggregateStateCurrent ⇒ stash()
+    case unknown                    ⇒ log.warn("Receiving unhandled message on recoveringBacklog state", unknown)
   }
 
   private def processing(state: KafkaProducerActorState): Receive = {
