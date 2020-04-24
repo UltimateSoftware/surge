@@ -5,13 +5,13 @@ package com.ultimatesoftware.kafka.streams.core
 import java.time.Instant
 
 import akka.Done
-import akka.actor.{ActorRef, ActorSystem, Props}
-import akka.testkit.{TestKit, TestProbe}
-import com.ultimatesoftware.kafka.streams.{GlobalKTableMetadataHandler, KafkaPartitionMetadata, KafkaStreamsKeyValueStore}
+import akka.actor.{ ActorRef, ActorSystem, Props }
+import akka.testkit.{ TestKit, TestProbe }
+import com.ultimatesoftware.kafka.streams.{ GlobalKTableMetadataHandler, KafkaPartitionMetadata, KafkaStreamsKeyValueStore }
 import com.ultimatesoftware.kafka.streams.core.KafkaProducerActorImpl.AggregateStateRates
-import com.ultimatesoftware.scala.core.kafka.{KafkaBytesProducer, KafkaRecordMetadata}
+import com.ultimatesoftware.scala.core.kafka.{ KafkaBytesProducer, KafkaRecordMetadata }
 import com.ultimatesoftware.scala.core.monitoring.metrics.NoOpMetricsProvider
-import org.apache.kafka.clients.producer.{ProducerRecord, RecordMetadata}
+import org.apache.kafka.clients.producer.{ ProducerRecord, RecordMetadata }
 import org.apache.kafka.common.TopicPartition
 import org.mockito.ArgumentMatchers._
 import org.mockito.Mockito._
@@ -19,7 +19,7 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
 import scala.concurrent.duration._
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ ExecutionContext, Future }
 
 class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec")) with AnyWordSpecLike with Matchers
   with TestBoundedContext with MockitoSugar {

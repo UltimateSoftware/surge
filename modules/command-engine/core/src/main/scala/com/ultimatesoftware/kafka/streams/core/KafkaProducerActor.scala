@@ -179,8 +179,6 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
   }
 
   private def recoveringBacklog(endOffset: Long): Receive = {
-    case msg: Initialize     ⇒ handle(msg)
-    case FailedToInitialize  ⇒ context.system.scheduler.scheduleOnce(3.seconds)(initializeState())
     case msg: StateProcessed ⇒ handleFromRecoveringState(endOffset, msg)
     case FlushMessages       ⇒ // Ignore from this state
     case _: Publish          ⇒ stash()
@@ -303,10 +301,10 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
       eventsPublishedRate.mark(eventMessages.length)
       val futureMsg = kafkaPublisherTimer.time {
         Try(kafkaPublisher.beginTransaction()).toOption match {
-          case None =>
+          case None ⇒
             log.error(s"KafkaPublisherActor partition $assignedPartition there was an error beginning transaction")
             Future.successful(EventsFailedToPublish)
-          case _ =>
+          case _ ⇒
             Future.sequence(kafkaPublisher.putRecords(records)).map { recordMeta ⇒
               log.info(s"KafkaPublisherActor partition {} committing transaction", assignedPartition)
               kafkaPublisher.commitTransaction()
