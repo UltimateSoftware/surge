@@ -6,27 +6,27 @@ import java.time.Instant
 import java.util.concurrent.TimeUnit
 
 import akka.Done
-import akka.actor.{Actor, ActorRef, ActorSystem, Props, Stash}
+import akka.actor.{ Actor, ActorRef, ActorSystem, Props, Stash }
 import akka.pattern._
 import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
 import com.ultimatesoftware.config.TimeoutConfig
-import com.ultimatesoftware.kafka.streams.{GlobalKTableMetadataHandler, KafkaPartitionMetadata}
+import com.ultimatesoftware.kafka.streams.{ GlobalKTableMetadataHandler, KafkaPartitionMetadata }
 import com.ultimatesoftware.scala.core.domain.StateMessage
 import com.ultimatesoftware.scala.core.kafka._
-import com.ultimatesoftware.scala.core.monitoring.metrics.{MetricsProvider, Rate, Timer}
+import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, Rate, Timer }
 import com.ultimatesoftware.scala.core.utils.JsonUtils
 import com.ultimatesoftware.scala.oss.domain.AggregateSegment
-import org.apache.kafka.clients.producer.{ProducerConfig, ProducerRecord}
+import org.apache.kafka.clients.producer.{ ProducerConfig, ProducerRecord }
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.ProducerFencedException
-import org.slf4j.{Logger, LoggerFactory}
+import org.slf4j.{ Logger, LoggerFactory }
 import play.api.libs.json.JsValue
 
 import scala.compat.java8.OptionConverters._
 import scala.concurrent.duration._
-import scala.concurrent.{ExecutionContext, Future}
-import scala.util.{Failure, Success, Try}
+import scala.concurrent.{ ExecutionContext, Future }
+import scala.util.{ Failure, Success, Try }
 
 /**
  * A stateful producer actor responsible for publishing all states + events for
@@ -175,8 +175,7 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
     case FlushMessages      ⇒ // Ignore from this state
     case _: Publish         ⇒ stash()
     case _: StateProcessed  ⇒ stash()
-    case unknown            ⇒
-      log.warn("Receiving unhandled message on uninitialized state", unknown)
+    case unknown            ⇒ log.warn("Receiving unhandled message on uninitialized state", unknown)
   }
 
   private def recoveringBacklog(endOffset: Long): Receive = {
@@ -184,7 +183,8 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
     case FailedToInitialize  ⇒ context.system.scheduler.scheduleOnce(3.seconds)(initializeState())
     case msg: StateProcessed ⇒ handleFromRecoveringState(endOffset, msg)
     case FlushMessages       ⇒ // Ignore from this state
-    case _                   ⇒ stash()
+    case _: Publish          ⇒ stash()
+    case unknown             ⇒ log.warn("Receiving unhandled message on recoveringBacklog state", unknown)
   }
 
   private def processing(state: KafkaProducerActorState): Receive = {
@@ -213,12 +213,12 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
   }
 
   private def initializeTransactions(): Unit = {
-    kafkaPublisher.initTransactions().map { _ =>
-      log.debug("Kafka transactions successfully initialized")
+    kafkaPublisher.initTransactions().map { _ ⇒
+      log.debug(s"Kafka transactions successfully initialized: $assignedTopicPartitionKey")
       initializeState()
     }.recover {
-      case _: Throwable =>
-        log.error("Failed to initialize kafka transactions, retrying in 3 seconds")
+      case _: Throwable ⇒
+        log.error(s"Failed to initialize kafka transactions, retrying in 3 seconds: $assignedTopicPartitionKey")
         context.system.scheduler.scheduleOnce(3.seconds, self, InitTransactions)
     }
   }
@@ -302,23 +302,27 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
       log.info(s"KafkaPublisherActor partition {} writing {} states to Kafka", assignedPartition, stateRecords.length)
       eventsPublishedRate.mark(eventMessages.length)
       val futureMsg = kafkaPublisherTimer.time {
-        kafkaPublisher.beginTransaction()
-        Future.sequence(kafkaPublisher.putRecords(records)).map { recordMeta ⇒
-          log.info(s"KafkaPublisherActor partition {} committing transaction", assignedPartition)
-          kafkaPublisher.commitTransaction()
-          EventsPublished(senders, recordMeta.filter(_.wrapped.topic() == stateTopic.name))
-        } recover {
-          case _: ProducerFencedException ⇒
-            log.error(s"KafkaPublisherActor partition $assignedPartition tried to commit a transaction, but was fenced out by another producer instance.")
-            kafkaPublisher.abortTransaction()
-            context.stop(self)
-          case e ⇒
-            log.error(s"KafkaPublisherActor partition $assignedPartition got error while trying to publish to Kafka", e)
-            kafkaPublisher.abortTransaction()
-            EventsFailedToPublish
+        Try(kafkaPublisher.beginTransaction()).toOption match {
+          case None =>
+            log.error(s"KafkaPublisherActor partition $assignedPartition there was an error beginning transaction")
+            Future.successful(EventsFailedToPublish)
+          case _ =>
+            Future.sequence(kafkaPublisher.putRecords(records)).map { recordMeta ⇒
+              log.info(s"KafkaPublisherActor partition {} committing transaction", assignedPartition)
+              kafkaPublisher.commitTransaction()
+              EventsPublished(senders, recordMeta.filter(_.wrapped.topic() == stateTopic.name))
+            } recover {
+              case _: ProducerFencedException ⇒
+                log.error(s"KafkaPublisherActor partition $assignedPartition tried to commit a transaction, but was fenced out by another producer instance.")
+                kafkaPublisher.abortTransaction()
+                context.stop(self)
+              case e ⇒
+                log.error(s"KafkaPublisherActor partition $assignedPartition got error while trying to publish to Kafka", e)
+                kafkaPublisher.abortTransaction()
+                EventsFailedToPublish
+            }
         }
       }
-
       context.become(processing(state.flushWrites().copy(transactionInProgress = true)))
       futureMsg.pipeTo(self)(sender())
     }

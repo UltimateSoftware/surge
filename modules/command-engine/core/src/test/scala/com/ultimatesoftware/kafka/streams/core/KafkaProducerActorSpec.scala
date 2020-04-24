@@ -4,13 +4,11 @@ package com.ultimatesoftware.kafka.streams.core
 
 import java.time.Instant
 
-import akka.pattern.ask
 import akka.Done
 import akka.actor.{ActorRef, ActorSystem, Props}
-import akka.testkit.{TestActor, TestActorRef, TestKit, TestProbe}
-import akka.util.Timeout
+import akka.testkit.{TestKit, TestProbe}
 import com.ultimatesoftware.kafka.streams.{GlobalKTableMetadataHandler, KafkaPartitionMetadata, KafkaStreamsKeyValueStore}
-import com.ultimatesoftware.kafka.streams.core.KafkaProducerActorImpl.{AggregateStateRates, InternalMessage}
+import com.ultimatesoftware.kafka.streams.core.KafkaProducerActorImpl.AggregateStateRates
 import com.ultimatesoftware.scala.core.kafka.{KafkaBytesProducer, KafkaRecordMetadata}
 import com.ultimatesoftware.scala.core.monitoring.metrics.NoOpMetricsProvider
 import org.apache.kafka.clients.producer.{ProducerRecord, RecordMetadata}
@@ -20,9 +18,6 @@ import org.mockito.Mockito._
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
-
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.collection.mutable.ListBuffer
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -77,6 +72,39 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
     val testEvents2 = testObjects(Seq("event3", "event4"))
     val testAggs2 = testObjects(Seq("agg3", "agg3"))
 
+    "Recovers from beginTransaction failure" in {
+      val probe = TestProbe()
+      val assignedPartition = new TopicPartition("testTopic", 1)
+      val mockProducer = mock[KafkaBytesProducer]
+      val mockMetadata = mockRecordMetadata(assignedPartition)
+      val actor = testProducerActor(assignedPartition, mockProducer)
+      when(mockProducer.initTransactions()(any[ExecutionContext])).thenReturn(Future.successful())
+      when(mockProducer.putRecord(any[ProducerRecord[String, Array[Byte]]])).thenReturn(Future.successful(mockMetadata))
+      // Fail first transaction and then succeed always
+      doThrow(new IllegalStateException("This is expected")).doNothing().when(mockProducer).beginTransaction()
+      doNothing().when(mockProducer).abortTransaction()
+      doNothing().when(mockProducer).commitTransaction()
+
+      when(mockProducer.putRecords(any[Seq[ProducerRecord[String, Array[Byte]]]]))
+        .thenReturn(Seq(Future.successful(mockMetadata)))
+      when(mockProducer.putRecord(any[ProducerRecord[String, Array[Byte]]]))
+        .thenReturn(Future.successful(mockMetadata))
+
+      // First time beginTransaction will fail and commitTransaction won't be executed
+      probe.send(actor, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
+      probe.send(actor, KafkaProducerActorImpl.FlushMessages)
+      awaitAssert({
+        verify(mockProducer, times(1)).beginTransaction()
+      }, 3 seconds, 1 seconds)
+      verify(mockProducer, times(0)).commitTransaction()
+      // Actor should recover from begin transaction error and successfully commit
+      probe.send(actor, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
+      probe.send(actor, KafkaProducerActorImpl.FlushMessages)
+      awaitAssert({
+        verify(mockProducer, times(2)).beginTransaction()
+        verify(mockProducer, times(1)).commitTransaction()
+      }, 3 seconds, 1 seconds)
+    }
     "Gets to initialize the state if initializing kafka transactions fails" in {
       TestProbe()
       val assignedPartition = new TopicPartition("testTopic", 1)
