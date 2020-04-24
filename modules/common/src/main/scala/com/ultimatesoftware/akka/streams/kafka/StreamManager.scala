@@ -69,6 +69,8 @@ class KafkaStreamManagerActor[Key, Value](topic: KafkaTopic, baseConsumerSetting
     .withProperty(HostAwarenessConfig.HOST_CONFIG, localHostname)
     .withProperty(HostAwarenessConfig.PORT_CONFIG, localPort.toString)
     .withStopTimeout(Duration.Zero)
+  // TODO enable these for smoother stream restarts once the CMP Kafka brokers are updated to version 2.3.0+,
+  //  also update the unit test to verify smoother restarts
   //.withClientId(clientId)
   //.withGroupInstanceId(clientId)
 
@@ -97,7 +99,7 @@ class KafkaStreamManagerActor[Key, Value](topic: KafkaTopic, baseConsumerSetting
     val result = RestartSource
       .onFailuresWithBackoff(
         minBackoff = 1.second,
-        maxBackoff = 20.seconds,
+        maxBackoff = 15.seconds,
         randomFactor = 0.1) { () ⇒
         log.debug("Creating Kafka source for topic {} with client id {}", Seq(topic.name, clientId): _*)
         Consumer

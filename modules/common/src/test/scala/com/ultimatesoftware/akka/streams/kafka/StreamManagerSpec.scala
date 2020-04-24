@@ -76,7 +76,10 @@ class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec")) with A
         val embeddedBroker = s"localhost:${actualConfig.kafkaPort}"
 
         val probe = TestProbe()
-        val expectedNumExceptions = 2
+        // TODO The group manager needs withGroupInstanceId enabled to support fast restarts without consumer group rebalance
+        //  but the CMP Kafka brokers isn't a high enough version to support that yet.  Once it's updated set the expectedNumExceptions
+        //  to 3 to verify we're restarting without rebalancing the consumer group as well.
+        val expectedNumExceptions = 1
         var exceptionCount = 0
 
         def businessLogic(key: String, value: Array[Byte]): Future[Done] = {
@@ -102,7 +105,7 @@ class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec")) with A
 
         consumer1.start()
 
-        probe.expectMsgAllOf(30.seconds, record1, record2, record3)
+        probe.expectMsgAllOf(20.seconds, record1, record2, record3)
         consumer1.stop()
       }
     }
