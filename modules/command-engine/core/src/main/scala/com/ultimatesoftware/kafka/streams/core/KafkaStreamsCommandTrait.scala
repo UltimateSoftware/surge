@@ -38,8 +38,7 @@ abstract class KafkaStreamsCommandImpl[AggId, Agg, Command, Event, CmdMeta, EvtM
   protected val surgeHealthCheck = new SurgeHealthCheck(
     stateMetaHandler,
     kafkaStreamsImpl,
-    actorRouter
-  )(ExecutionContext.global)
+    actorRouter)(ExecutionContext.global)
 
   def healthCheck(): Future[HealthCheck] = {
     surgeHealthCheck.healthCheck()

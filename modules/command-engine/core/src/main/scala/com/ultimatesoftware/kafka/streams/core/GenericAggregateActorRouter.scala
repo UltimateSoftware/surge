@@ -9,7 +9,8 @@ import com.ultimatesoftware.kafka.{ KafkaPartitionShardRouterActor, TopicPartiti
 import com.ultimatesoftware.scala.core.monitoring.metrics.MetricsProvider
 import org.apache.kafka.common.TopicPartition
 import play.api.libs.json.JsValue
-
+import akka.pattern.ask
+import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
 
 private[streams] final class GenericAggregateActorRouter[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
@@ -35,14 +36,18 @@ private[streams] final class GenericAggregateActorRouter[AggId, Agg, Command, Ev
     system.actorOf(shardRouterProps, name = "RouterActor")
   }
 
-  override def healthCheck(): Future[HealthCheck] = Future {
-    HealthCheck(
-      name = "GenericAggregateActorRouter",
-      isHealthy = true,
-      responseTime = Some(1),
-      components = Seq(),
-      message = None)
-  }(ExecutionContext.global)
+  override def healthCheck(): Future[HealthCheck] = {
+    actorRegion
+      .ask(KafkaPartitionShardRouterActor.GetHealthCheck)(1 second)
+      .mapTo[HealthCheck]
+      .recoverWith {
+        case err: Throwable ⇒
+          Future.successful(HealthCheck(
+            name = "RouterActor",
+            running = false,
+            message = Some(err.getMessage)))
+      }(ExecutionContext.global)
+  }
 }
 
 class GenericAggregateActorRegionProvider[AggId, Agg, Command, Event, CmdMeta, EvtMeta](

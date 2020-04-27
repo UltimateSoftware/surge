@@ -142,11 +142,8 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
 
   override def healthCheck(): Future[HealthCheck] = Future {
     HealthCheck(
-      name = "AggregateStateStoreKafkaStreams",
-      isHealthy = true,
-      responseTime = Some(1),
-      components = Seq(),
-      message = None)
+      name = aggregateStateStore,
+      running = streams.state().isRunning)
   }(ExecutionContext.global)
 
   /**

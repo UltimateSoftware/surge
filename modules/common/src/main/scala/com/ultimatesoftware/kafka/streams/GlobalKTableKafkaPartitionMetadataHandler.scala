@@ -8,13 +8,14 @@ import com.ultimatesoftware.scala.core.kafka.{ JsonSerdes, KafkaStringProducer, 
 import com.ultimatesoftware.scala.core.monitoring.HealthCheck
 import org.apache.kafka.clients.consumer.{ ConsumerConfig, ConsumerConfigExtension }
 import org.apache.kafka.common.serialization.{ Serde, Serdes }
+import org.apache.kafka.streams.KafkaStreams.State
 import org.apache.kafka.streams.kstream.Materialized
 import org.apache.kafka.streams.scala.kstream.KStream
 import org.apache.kafka.streams.state.{ QueryableStoreTypes, Stores }
 import org.apache.kafka.streams.{ StreamsConfig, Topology }
 import org.slf4j.LoggerFactory
 import play.api.libs.json.Json
-
+import scala.collection.JavaConverters._
 import scala.concurrent.{ ExecutionContext, Future }
 
 object GlobalStreamsWriteBufferSettings extends WriteBufferSettings {
@@ -87,11 +88,8 @@ class GlobalKTableMetadataHandler(internalMetadataTopic: KafkaTopic, consumerGro
 
   override def healthCheck(): Future[HealthCheck] = Future {
     HealthCheck(
-      name = "GlobalKTableKafkaPartition",
-      isHealthy = true,
-      responseTime = Some(1),
-      components = Seq(),
-      message = None)
+      name = globalStateMetaStoreName,
+      running = globalStreams.state().isRunning)
   }(ExecutionContext.global)
 
   lazy val stateMetaQueryableStore: KafkaStreamsKeyValueStore[String, KafkaPartitionMetadata] = {
