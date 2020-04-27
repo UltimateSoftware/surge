@@ -2,16 +2,17 @@
 
 package com.ultimatesoftware.kafka.streams.core
 
-import java.util.UUID
-
 import akka.actor.ActorSystem
 import com.ultimatesoftware.akka.cluster.ActorSystemHostAwareness
 import com.ultimatesoftware.kafka.KafkaConsumerStateTrackingActor
-import com.ultimatesoftware.kafka.streams.{ AggregateStateStoreKafkaStreams, GlobalKTableMetadataHandler, KafkaStreamsPartitionTrackerActorProvider }
+import com.ultimatesoftware.kafka.streams.{ AggregateStateStoreKafkaStreams, GlobalKTableMetadataHandler, HealthCheck, HealthyComponent, KafkaStreamsPartitionTrackerActorProvider, SurgeHealthCheck }
 import play.api.libs.json.JsValue
+
+import scala.concurrent.{ ExecutionContext, Future }
 
 trait KafkaStreamsCommandTrait[AggId, Agg, Command, Event, CmdMeta, EvtMeta] {
   def start(): Unit // FIXME can this return an instance of the engine instead of being a unit? That way it can just be called inline
+  def healthCheck: Future[HealthCheck]
   val businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta]
   def actorSystem: ActorSystem
 }
@@ -19,7 +20,7 @@ trait KafkaStreamsCommandTrait[AggId, Agg, Command, Event, CmdMeta, EvtMeta] {
 abstract class KafkaStreamsCommandImpl[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
     actorSystem: ActorSystem,
     override val businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta])
-  extends KafkaStreamsCommandTrait[AggId, Agg, Command, Event, CmdMeta, EvtMeta] with ActorSystemHostAwareness {
+  extends KafkaStreamsCommandTrait[AggId, Agg, Command, Event, CmdMeta, EvtMeta] with ActorSystemHostAwareness with HealthyComponent {
 
   private implicit val system: ActorSystem = actorSystem
 
@@ -34,7 +35,18 @@ abstract class KafkaStreamsCommandImpl[AggId, Agg, Command, Event, CmdMeta, EvtM
   protected val actorRouter = new GenericAggregateActorRouter[AggId, Agg, Command, Event, CmdMeta, EvtMeta](actorSystem, stateChangeActor,
     businessLogic, businessLogic.metricsProvider, stateMetaHandler, kafkaStreamsImpl)
 
+  protected val surgeHealthCheck = new SurgeHealthCheck(
+    stateMetaHandler,
+    kafkaStreamsImpl,
+    actorRouter
+  )(ExecutionContext.global)
+
+  def healthCheck(): Future[HealthCheck] = {
+    surgeHealthCheck.healthCheck()
+  }
+
   def start(): Unit = {
     kafkaStreamsImpl.start()
   }
 }
+

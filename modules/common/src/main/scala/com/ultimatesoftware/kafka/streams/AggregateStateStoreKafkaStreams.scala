@@ -56,7 +56,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
     kafkaStateMetadataHandler: KafkaPartitionMetadataHandler,
     aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) ⇒ Boolean,
     applicationHostPort: Option[String],
-    consumerGroupName: String) {
+    consumerGroupName: String) extends HealthyComponent {
 
   import DefaultSerdes._
   import ImplicitConversions._
@@ -139,6 +139,15 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
     consumer.start()
     kafkaStateMetadataHandler.start()
   }
+
+  override def healthCheck(): Future[HealthCheck] = Future {
+    HealthCheck(
+      name = "AggregateStateStoreKafkaStreams",
+      isHealthy = true,
+      responseTime = Some(1),
+      components = Seq(),
+      message = None)
+  }(ExecutionContext.global)
 
   /**
    * Asynchronous interface to the key/value store of aggregates built by the stream

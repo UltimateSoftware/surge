@@ -4,11 +4,13 @@ package com.ultimatesoftware.kafka.streams.core
 
 import akka.actor._
 import com.ultimatesoftware.akka.cluster.{ EntityPropsProvider, PerShardLogicProvider, Shard }
-import com.ultimatesoftware.kafka.streams.{ AggregateStateStoreKafkaStreams, GlobalKTableMetadataHandler }
+import com.ultimatesoftware.kafka.streams.{ AggregateStateStoreKafkaStreams, GlobalKTableMetadataHandler, HealthCheck, HealthyComponent }
 import com.ultimatesoftware.kafka.{ KafkaPartitionShardRouterActor, TopicPartitionRegionCreator }
 import com.ultimatesoftware.scala.core.monitoring.metrics.MetricsProvider
 import org.apache.kafka.common.TopicPartition
 import play.api.libs.json.JsValue
+
+import scala.concurrent.{ ExecutionContext, Future }
 
 private[streams] final class GenericAggregateActorRouter[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
     system: ActorSystem,
@@ -16,7 +18,7 @@ private[streams] final class GenericAggregateActorRouter[AggId, Agg, Command, Ev
     businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta],
     metricsProvider: MetricsProvider,
     stateMetaHandler: GlobalKTableMetadataHandler,
-    kafkaStreamsCommand: AggregateStateStoreKafkaStreams[JsValue]) {
+    kafkaStreamsCommand: AggregateStateStoreKafkaStreams[JsValue]) extends HealthyComponent {
 
   val actorRegion: ActorRef = {
     val shardRegionCreator = new TopicPartitionRegionCreator {
@@ -32,6 +34,15 @@ private[streams] final class GenericAggregateActorRouter[AggId, Agg, Command, Ev
       shardRegionCreator, GenericAggregateActor.RoutableMessage.extractEntityId)
     system.actorOf(shardRouterProps, name = "RouterActor")
   }
+
+  override def healthCheck(): Future[HealthCheck] = Future {
+    HealthCheck(
+      name = "GenericAggregateActorRouter",
+      isHealthy = true,
+      responseTime = Some(1),
+      components = Seq(),
+      message = None)
+  }(ExecutionContext.global)
 }
 
 class GenericAggregateActorRegionProvider[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
