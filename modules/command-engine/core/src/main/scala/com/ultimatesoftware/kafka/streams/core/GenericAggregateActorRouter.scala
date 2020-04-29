@@ -34,8 +34,8 @@ private[streams] final class GenericAggregateActorRouter[AggId, Agg, Command, Ev
           metricsProvider = metricsProvider,
           stateMetaHandler = stateMetaHandler,
           aggregateCommandKafkaStreams = businessLogic)
-        val provider = new GenericAggregateActorRegionProvider(topicPartition, businessLogic,
-          stateMetaHandler, kafkaStreamsCommand, metricsProvider, kafkaProducerActor)
+        val provider = new GenericAggregateActorRegionProvider(businessLogic,
+          kafkaStreamsCommand, metricsProvider, kafkaProducerActor)
 
         Shard.props[AggId, Agg, Event, EvtMeta](topicPartition.toString, provider, GenericAggregateActor.RoutableMessage.extractEntityId, kafkaProducerActor)
       }
@@ -63,9 +63,7 @@ private[streams] final class GenericAggregateActorRouter[AggId, Agg, Command, Ev
 }
 
 class GenericAggregateActorRegionProvider[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
-    assignedPartition: TopicPartition,
     businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta],
-    stateMetaHandler: GlobalKTableMetadataHandler,
     aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue],
     metricsProvider: MetricsProvider,
     aggregateProducerActor: KafkaProducerActor[AggId, Agg, Event, EvtMeta]) extends PerShardLogicProvider[AggId] {
