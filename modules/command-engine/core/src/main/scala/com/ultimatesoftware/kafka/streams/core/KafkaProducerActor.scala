@@ -12,7 +12,7 @@ import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
 import com.ultimatesoftware.config.TimeoutConfig
 import com.ultimatesoftware.kafka.streams.HealthyActor.GetHealth
-import com.ultimatesoftware.kafka.streams.{ GlobalKTableMetadataHandler, HealthCheck, HealthyActor, HealthyComponent, KafkaPartitionMetadata }
+import com.ultimatesoftware.kafka.streams.{ GlobalKTableMetadataHandler, HealthCheck, HealthCheckStatus, HealthyActor, HealthyComponent, KafkaPartitionMetadata }
 import com.ultimatesoftware.scala.core.domain.StateMessage
 import com.ultimatesoftware.scala.core.kafka._
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, Rate, Timer }
@@ -113,11 +113,12 @@ class KafkaProducerActor[AggId, Agg, Event, EvtMeta](
     publisherActor.ask(HealthyActor.GetHealth)(1.second)
       .mapTo[HealthCheck]
       .recoverWith {
-        case er: Throwable ⇒
+        case err: Throwable ⇒
+          log.error(s"Failed to get publisher-actor health check ${err.getMessage}")
           Future.successful(HealthCheck(
-            name = aggregateName,
-            running = false,
-            message = Some(er.getMessage)))
+            name = "publisher-actor",
+            id = aggregateName,
+            status = HealthCheckStatus.DOWN))
       }(ExecutionContext.global)
   }
 }
@@ -363,8 +364,9 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
    */
   private def getHealthCheck(state: KafkaProducerActorState) = {
     val healthCheck = HealthCheck(
-      name = assignedTopicPartitionKey,
-      running = true,
+      name = "producer-actor",
+      id = assignedTopicPartitionKey,
+      status = HealthCheckStatus.UP,
       details = Some(Map(
         "inFlight" -> state.inFlight.size.toString,
         "pendingInitializations" -> state.pendingInitializations.size.toString,

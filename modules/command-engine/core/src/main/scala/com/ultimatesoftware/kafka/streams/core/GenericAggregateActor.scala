@@ -10,7 +10,7 @@ import akka.pattern.pipe
 import com.ultimatesoftware.akka.cluster.Passivate
 import com.ultimatesoftware.config.TimeoutConfig
 import com.ultimatesoftware.kafka.streams.HealthyActor.GetHealth
-import com.ultimatesoftware.kafka.streams.{ AggregateStateStoreKafkaStreams, HealthCheck }
+import com.ultimatesoftware.kafka.streams.{ AggregateStateStoreKafkaStreams, HealthCheck, HealthCheckStatus }
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, Timer }
 import com.ultimatesoftware.scala.core.validations._
 import org.slf4j.LoggerFactory
@@ -146,8 +146,9 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
   private def getHealth() = {
     kafkaProducerActor.healthCheck().map { producerHealthCheck ⇒
       HealthCheck(
-        name = aggregateId.toString,
-        running = true,
+        id = aggregateId.toString,
+        name = "aggregate-actor",
+        status = HealthCheckStatus.UP,
         components = Some(Seq(producerHealthCheck)))
     }.pipeTo(self)(sender())
   }

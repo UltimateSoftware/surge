@@ -11,7 +11,7 @@ import com.typesafe.config.{ Config, ConfigFactory }
 import com.ultimatesoftware.akka.cluster.ActorHostAwareness
 import com.ultimatesoftware.config.TimeoutConfig
 import com.ultimatesoftware.kafka.streams.HealthyActor.GetHealth
-import com.ultimatesoftware.kafka.streams.{ HealthCheck, HealthyActor }
+import com.ultimatesoftware.kafka.streams.{ HealthCheck, HealthCheckStatus, HealthyActor }
 import com.ultimatesoftware.scala.core.kafka._
 import org.apache.kafka.common.TopicPartition
 import org.slf4j.{ Logger, LoggerFactory }
@@ -217,7 +217,7 @@ class KafkaPartitionShardRouterActor[AggIdType](
   private def standbyMode(state: ActorState): Receive = {
     case msg: PartitionAssignments               ⇒ handle(state, msg)
     case GetPartitionRegionAssignments           ⇒ sender() ! state.partitionRegions
-    case GetHealth                               ⇒ sender() ! HealthCheck(name = self.path.name, running = true)
+    case GetHealth                               ⇒ sender() ! HealthCheck(name = "shard-router-actor", id = self.path.name, status = HealthCheckStatus.UP)
     case msg if extractEntityId.isDefinedAt(msg) ⇒ becomeActiveAndDeliverMessage(state, msg)
   }
 
@@ -438,24 +438,27 @@ class KafkaPartitionShardRouterActor[AggIdType](
   }
 
   def getHealthCheck(state: ActorState): Future[HealthCheck] = {
-    Future.sequence(state.partitionRegions.map {
-      case (_, partitionRegion) ⇒
-        partitionRegion.regionManager.resolveOne()
-          .flatMap { actorRef ⇒
-            actorRef.ask(HealthyActor.GetHealth)(1 second).mapTo[HealthCheck]
-          }
-          .recoverWith {
-            case err: Throwable ⇒
-              Future.successful(HealthCheck(
-                name = partitionRegion.regionManager.pathString,
-                running = false,
-                message = Some(err.getMessage)))
-          }
-    }).map { regionsHelthChecks ⇒
-      HealthCheck(
-        name = self.path.name,
-        running = true,
-        components = Some(regionsHelthChecks.toSeq))
-    }
+    Future.sequence(
+      state.partitionRegions.map {
+        case (_, partitionRegion) ⇒
+          partitionRegion.regionManager.resolveOne()
+            .flatMap { actorRef ⇒
+              actorRef.ask(HealthyActor.GetHealth)(1 second).mapTo[HealthCheck]
+            }
+            .recoverWith {
+              case err: Throwable ⇒
+                log.error(s"Failed to get partition region health check ${partitionRegion.regionManager.pathString} {${err.getMessage}}")
+                Future.successful(HealthCheck(
+                  name = partitionRegion.regionManager.pathString,
+                  id = partitionRegion.regionManager.pathString,
+                  status = HealthCheckStatus.DOWN))
+            }
+      }).map { regionsHelthChecks ⇒
+        HealthCheck(
+          name = "shard-router-actor",
+          id = "change-me-shard",
+          status = HealthCheckStatus.UP,
+          components = Some(regionsHelthChecks.toSeq))
+      }
   }
 }

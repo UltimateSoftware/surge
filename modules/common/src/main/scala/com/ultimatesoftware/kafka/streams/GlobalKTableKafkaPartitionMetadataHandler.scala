@@ -85,8 +85,9 @@ class GlobalKTableMetadataHandler(internalMetadataTopic: KafkaTopic, consumerGro
 
   override def healthCheck(): Future[HealthCheck] = Future {
     HealthCheck(
-      name = globalStateMetaStoreName,
-      running = globalStreams.state().isRunning)
+      name = "global-table-stream",
+      id = globalStateMetaStoreName,
+      status = if (globalStreams.state().isRunning) HealthCheckStatus.UP else HealthCheckStatus.DOWN)
   }(ExecutionContext.global)
 
   lazy val stateMetaQueryableStore: KafkaStreamsKeyValueStore[String, KafkaPartitionMetadata] = {

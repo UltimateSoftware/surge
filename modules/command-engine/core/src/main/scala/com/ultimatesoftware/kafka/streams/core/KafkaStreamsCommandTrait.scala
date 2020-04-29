@@ -36,6 +36,7 @@ abstract class KafkaStreamsCommandImpl[AggId, Agg, Command, Event, CmdMeta, EvtM
     businessLogic, businessLogic.metricsProvider, stateMetaHandler, kafkaStreamsImpl)
 
   protected val surgeHealthCheck = new SurgeHealthCheck(
+    businessLogic.aggregateName,
     stateMetaHandler,
     kafkaStreamsImpl,
     actorRouter)(ExecutionContext.global)

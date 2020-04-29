@@ -2,26 +2,33 @@
 
 package com.ultimatesoftware.kafka.streams
 
+import org.slf4j.LoggerFactory
 import play.api.libs.json.{ Format, Json }
 
 import scala.concurrent.{ ExecutionContext, Future }
 
-class SurgeHealthCheck(components: HealthyComponent*)(implicit executionContext: ExecutionContext) {
+class SurgeHealthCheck(healthCheckId: String, components: HealthyComponent*)(implicit executionContext: ExecutionContext) {
+
+  private val log = LoggerFactory.getLogger(getClass)
+
   def healthCheck(): Future[HealthCheck] = {
     Future.sequence(components.map { healthyComponent ⇒
       healthyComponent.healthCheck()
     }).map { healthyComponentChecks ⇒
+      val isUp = healthyComponentChecks.forall(_.status.equals(HealthCheckStatus.UP))
       HealthCheck(
-        name = "Surge",
-        running = healthyComponentChecks.forall(_.running),
+        name = "surge",
+        id = healthCheckId,
+        status = if (isUp) HealthCheckStatus.UP else HealthCheckStatus.DOWN,
         components = Some(healthyComponentChecks))
     }.recoverWith {
       case err: Throwable ⇒
+        log.error(s"Fail to get surge health check ${err.getMessage}")
         Future.successful(
           HealthCheck(
-            name = "Surge",
-            running = false,
-            message = Some(err.getMessage)))
+            name = "surge",
+            id = healthCheckId,
+            status = HealthCheckStatus.DOWN))
     }
   }
 
@@ -33,14 +40,22 @@ trait HealthyComponent {
 
 case class HealthCheck(
     name: String,
-    // com.ultimatesoftware.scala.core.monitoring.HealthCheckStatus vs Boolean isHealthy???
-    running: Boolean,
+    id: String,
+    status: String,
     components: Option[Seq[HealthCheck]] = None,
-    message: Option[String] = None,
-    details: Option[Map[String, String]] = None)
+    details: Option[Map[String, String]] = None) {
+  require(HealthCheckStatus.validStatuses.contains(status))
+}
 
 object HealthCheck {
   implicit val format: Format[HealthCheck] = Json.format
+}
+
+object HealthCheckStatus {
+  val UP = "UP"
+  val DOWN = "DOWN"
+
+  val validStatuses = Seq(HealthCheckStatus.UP, HealthCheckStatus.DOWN)
 }
 
 object HealthyActor {

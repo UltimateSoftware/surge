@@ -4,12 +4,14 @@ package com.ultimatesoftware.kafka.streams.core
 
 import akka.actor._
 import com.ultimatesoftware.akka.cluster.{ EntityPropsProvider, PerShardLogicProvider, Shard }
-import com.ultimatesoftware.kafka.streams.{ AggregateStateStoreKafkaStreams, GlobalKTableMetadataHandler, HealthCheck, HealthyActor, HealthyComponent }
+import com.ultimatesoftware.kafka.streams.{ AggregateStateStoreKafkaStreams, GlobalKTableMetadataHandler, HealthCheck, HealthCheckStatus, HealthyActor, HealthyComponent }
 import com.ultimatesoftware.kafka.{ KafkaPartitionShardRouterActor, TopicPartitionRegionCreator }
 import com.ultimatesoftware.scala.core.monitoring.metrics.MetricsProvider
 import org.apache.kafka.common.TopicPartition
 import play.api.libs.json.JsValue
 import akka.pattern.ask
+import org.slf4j.LoggerFactory
+
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
 
@@ -20,6 +22,8 @@ private[streams] final class GenericAggregateActorRouter[AggId, Agg, Command, Ev
     metricsProvider: MetricsProvider,
     stateMetaHandler: GlobalKTableMetadataHandler,
     kafkaStreamsCommand: AggregateStateStoreKafkaStreams[JsValue]) extends HealthyComponent {
+
+  private val log = LoggerFactory.getLogger(getClass)
 
   val actorRegion: ActorRef = {
     val shardRegionCreator = new TopicPartitionRegionCreator {
@@ -42,11 +46,12 @@ private[streams] final class GenericAggregateActorRouter[AggId, Agg, Command, Ev
       .mapTo[HealthCheck]
       .recoverWith {
         case err: Throwable ⇒
+          log.error(s"Failed to get router-actor health check ${err.getMessage}")
           Future.successful(
             HealthCheck(
-              name = "RouterActor",
-              running = false,
-              message = Some(err.getMessage)))
+              name = "router-actor",
+              id = "set-me",
+              status = HealthCheckStatus.DOWN))
       }(ExecutionContext.global)
   }
 }

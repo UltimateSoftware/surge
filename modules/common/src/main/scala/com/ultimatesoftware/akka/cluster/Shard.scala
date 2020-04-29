@@ -8,7 +8,7 @@ import akka.pattern.pipe
 import akka.pattern.ask
 import akka.actor._
 import akka.util.MessageBufferMap
-import com.ultimatesoftware.kafka.streams.HealthCheck
+import com.ultimatesoftware.kafka.streams.{ HealthCheck, HealthCheckStatus }
 import com.ultimatesoftware.kafka.streams.HealthyActor.GetHealth
 import org.slf4j.{ Logger, LoggerFactory }
 
@@ -170,15 +170,17 @@ class Shard[IdType](
           ref.ask(GetHealth)(100 millis).mapTo[HealthCheck]
             .recoverWith {
               case err: Throwable ⇒
+                log.error(s"Failed to get health check of aggregate-actor $id")
                 Future.successful(HealthCheck(
-                  name = id.toString,
-                  running = false,
-                  message = Some(err.getMessage)))
+                  name = "aggregate-actor",
+                  id = id.toString,
+                  status = HealthCheckStatus.DOWN))
             }(ExecutionContext.global)
       }).map { healthChecks ⇒
         HealthCheck(
-          name = s"Shard-$shardId",
-          running = true,
+          name = s"shard",
+          id = shardId,
+          status = HealthCheckStatus.UP,
           components = Some(healthChecks.toSeq))
       }.pipeTo(self)(sender())
   }
