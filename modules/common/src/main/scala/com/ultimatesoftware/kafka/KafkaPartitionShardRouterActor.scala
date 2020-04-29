@@ -10,7 +10,8 @@ import akka.util.Timeout
 import com.typesafe.config.{ Config, ConfigFactory }
 import com.ultimatesoftware.akka.cluster.ActorHostAwareness
 import com.ultimatesoftware.config.TimeoutConfig
-import com.ultimatesoftware.kafka.streams.HealthCheck
+import com.ultimatesoftware.kafka.streams.HealthyActor.GetHealth
+import com.ultimatesoftware.kafka.streams.{ HealthCheck, HealthyActor }
 import com.ultimatesoftware.scala.core.kafka._
 import org.apache.kafka.common.TopicPartition
 import org.slf4j.{ Logger, LoggerFactory }
@@ -38,7 +39,6 @@ object KafkaPartitionShardRouterActor {
   val askTimeout: Timeout = Timeout(TimeoutConfig.ShardRouter.askTimeout)
   val pendingRetryExpirationThreshold: FiniteDuration = askTimeout.duration * 3
 
-  case object GetHealthCheck
   case object GetPartitionRegionAssignments
   case class ScheduleRetry[IdType](aggregateId: IdType, message: Any, initialAskTime: Instant, failedAt: Instant) {
     def toPendingRetry(sender: ActorRef): PendingRetry[IdType] = {
@@ -214,24 +214,24 @@ class KafkaPartitionShardRouterActor[AggIdType](
   }
 
   // In standby mode, just follow updates to partition assignments and let Kafka streams index the aggregate state
-  private def standbyMode(state: ActorState): Receive = healthCheckReceiver orElse {
+  private def standbyMode(state: ActorState): Receive = {
     case msg: PartitionAssignments               ⇒ handle(state, msg)
     case GetPartitionRegionAssignments           ⇒ sender() ! state.partitionRegions
+    case GetHealth                               ⇒ sender() ! HealthCheck(name = self.path.name, running = true)
     case msg if extractEntityId.isDefinedAt(msg) ⇒ becomeActiveAndDeliverMessage(state, msg)
   }
 
-  private def initialized(state: ActorState): Receive = healthCheckReceiver orElse {
+  private def initialized(state: ActorState): Receive = healthCheckReceiver(state) orElse {
     case msg: PartitionAssignments               ⇒ handle(state, msg)
     case msg: Terminated                         ⇒ handle(state, msg)
     case msg: ScheduleRetry[AggIdType]           ⇒ handle(state, msg)
     case ExpireOldPendingRetries                 ⇒ handleExpireOldPendingRetries(state)
     case GetPartitionRegionAssignments           ⇒ sender() ! state.partitionRegions
-    case GetHealthCheck                          ⇒ getHealthCheck()
     case msg if extractEntityId.isDefinedAt(msg) ⇒ deliverMessage(state, msg)
   }
 
-  private def healthCheckReceiver: Receive = {
-    case GetHealthCheck   ⇒ getHealthCheck().pipeTo(self)(sender())
+  private def healthCheckReceiver(state: ActorState): Receive = {
+    case GetHealth        ⇒ getHealthCheck(state).pipeTo(self)(sender())
     case msg: HealthCheck ⇒ sender() ! msg
   }
 
@@ -437,11 +437,25 @@ class KafkaPartitionShardRouterActor[AggIdType](
     partitionTracker ! KafkaConsumerStateTrackingActor.Register(self)
   }
 
-  private def getHealthCheck(): Future[HealthCheck] = {
-    // TODO: Query all regions for their own health checks and combine them into this one
-    Future.successful(
+  def getHealthCheck(state: ActorState): Future[HealthCheck] = {
+    Future.sequence(state.partitionRegions.map {
+      case (_, partitionRegion) ⇒
+        partitionRegion.regionManager.resolveOne()
+          .flatMap { actorRef ⇒
+            actorRef.ask(HealthyActor.GetHealth)(1 second).mapTo[HealthCheck]
+          }
+          .recoverWith {
+            case err: Throwable ⇒
+              Future.successful(HealthCheck(
+                name = partitionRegion.regionManager.pathString,
+                running = false,
+                message = Some(err.getMessage)))
+          }
+    }).map { regionsHelthChecks ⇒
       HealthCheck(
         name = self.path.name,
-        running = true))
+        running = true,
+        components = Some(regionsHelthChecks.toSeq))
+    }
   }
 }

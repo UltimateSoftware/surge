@@ -4,7 +4,7 @@ package com.ultimatesoftware.kafka.streams.core
 
 import akka.actor._
 import com.ultimatesoftware.akka.cluster.{ EntityPropsProvider, PerShardLogicProvider, Shard }
-import com.ultimatesoftware.kafka.streams.{ AggregateStateStoreKafkaStreams, GlobalKTableMetadataHandler, HealthCheck, HealthyComponent }
+import com.ultimatesoftware.kafka.streams.{ AggregateStateStoreKafkaStreams, GlobalKTableMetadataHandler, HealthCheck, HealthyActor, HealthyComponent }
 import com.ultimatesoftware.kafka.{ KafkaPartitionShardRouterActor, TopicPartitionRegionCreator }
 import com.ultimatesoftware.scala.core.monitoring.metrics.MetricsProvider
 import org.apache.kafka.common.TopicPartition
@@ -38,14 +38,15 @@ private[streams] final class GenericAggregateActorRouter[AggId, Agg, Command, Ev
 
   override def healthCheck(): Future[HealthCheck] = {
     actorRegion
-      .ask(KafkaPartitionShardRouterActor.GetHealthCheck)(1 second)
+      .ask(HealthyActor.GetHealth)(3.seconds)
       .mapTo[HealthCheck]
       .recoverWith {
         case err: Throwable ⇒
-          Future.successful(HealthCheck(
-            name = "RouterActor",
-            running = false,
-            message = Some(err.getMessage)))
+          Future.successful(
+            HealthCheck(
+              name = "RouterActor",
+              running = false,
+              message = Some(err.getMessage)))
       }(ExecutionContext.global)
   }
 }

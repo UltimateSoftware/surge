@@ -4,9 +4,16 @@ package com.ultimatesoftware.akka.cluster
 
 import java.net.URLEncoder
 
+import akka.pattern.pipe
+import akka.pattern.ask
 import akka.actor._
 import akka.util.MessageBufferMap
+import com.ultimatesoftware.kafka.streams.HealthCheck
+import com.ultimatesoftware.kafka.streams.HealthyActor.GetHealth
 import org.slf4j.{ Logger, LoggerFactory }
+
+import scala.concurrent.duration._
+import scala.concurrent.{ ExecutionContext, Future }
 
 /**
  * A shard is a building block for scaling that is responsible for tracking & managing many child actors underneath.  The child
@@ -23,6 +30,8 @@ import org.slf4j.{ Logger, LoggerFactory }
  * buffered will be forwarded to it in the order they were received by the shard.
  */
 object Shard {
+  sealed trait ShardMessage
+
   def props[IdType](shardId: String, regionLogicProvider: PerShardLogicProvider[IdType], extractEntityId: PartialFunction[Any, IdType]): Props = {
     Props(new Shard(shardId, regionLogicProvider, extractEntityId))
   }
@@ -49,6 +58,8 @@ class Shard[IdType](
   override def receive: Receive = {
     case msg: Terminated                         ⇒ receiveTerminated(msg)
     case msg: Passivate                          ⇒ receivePassivate(msg)
+    case GetHealth                               ⇒ getHealthCheck()
+    case msg: HealthCheck                        ⇒ sender() ! msg
     case msg if extractEntityId.isDefinedAt(msg) ⇒ deliverMessage(msg, sender())
   }
 
@@ -149,5 +160,26 @@ class Shard[IdType](
         }
       case None ⇒ log.debug("Unknown entity {}. Not sending stopMessage back to entity.", entity)
     }
+  }
+
+  private def getHealthCheck() = {
+    implicit val executionContext = ExecutionContext.global
+    Future.sequence(
+      refById.map {
+        case (id, ref) ⇒
+          ref.ask(GetHealth)(100 millis).mapTo[HealthCheck]
+            .recoverWith {
+              case err: Throwable ⇒
+                Future.successful(HealthCheck(
+                  name = id.toString,
+                  running = false,
+                  message = Some(err.getMessage)))
+            }(ExecutionContext.global)
+      }).map { healthChecks ⇒
+        HealthCheck(
+          name = s"Shard-$shardId",
+          running = true,
+          components = Some(healthChecks.toSeq))
+      }.pipeTo(self)(sender())
   }
 }

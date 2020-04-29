@@ -11,7 +11,8 @@ import akka.pattern._
 import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
 import com.ultimatesoftware.config.TimeoutConfig
-import com.ultimatesoftware.kafka.streams.{ GlobalKTableMetadataHandler, KafkaPartitionMetadata }
+import com.ultimatesoftware.kafka.streams.HealthyActor.GetHealth
+import com.ultimatesoftware.kafka.streams.{ GlobalKTableMetadataHandler, HealthCheck, HealthyActor, HealthyComponent, KafkaPartitionMetadata }
 import com.ultimatesoftware.scala.core.domain.StateMessage
 import com.ultimatesoftware.scala.core.kafka._
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, Rate, Timer }
@@ -23,10 +24,9 @@ import org.apache.kafka.common.errors.ProducerFencedException
 import org.slf4j.{ Logger, LoggerFactory }
 import play.api.libs.json.JsValue
 
-import scala.compat.java8.OptionConverters._
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
-import scala.util.{ Failure, Success, Try }
+import scala.util.{ Failure, Try }
 
 /**
  * A stateful producer actor responsible for publishing all states + events for
@@ -72,7 +72,7 @@ class KafkaProducerActor[AggId, Agg, Event, EvtMeta](
     assignedPartition: TopicPartition,
     metricsProvider: MetricsProvider,
     stateMetaHandler: GlobalKTableMetadataHandler,
-    aggregateCommandKafkaStreams: KafkaStreamsCommandBusinessLogic[AggId, Agg, _, Event, _, EvtMeta]) {
+    aggregateCommandKafkaStreams: KafkaStreamsCommandBusinessLogic[AggId, Agg, _, Event, _, EvtMeta]) extends HealthyComponent {
 
   private val log = LoggerFactory.getLogger(getClass)
   private val aggregateName: String = aggregateCommandKafkaStreams.aggregateName
@@ -108,12 +108,27 @@ class KafkaProducerActor[AggId, Agg, Event, EvtMeta](
       (publisherActor ? KafkaProducerActorImpl.IsAggregateStateCurrent(aggregateId, expirationTime)).mapTo[Boolean]
     }
   }
+
+  def healthCheck(): Future[HealthCheck] = {
+    publisherActor.ask(HealthyActor.GetHealth)(1.second)
+      .mapTo[HealthCheck]
+      .recoverWith {
+        case er: Throwable ⇒
+          Future.successful(HealthCheck(
+            name = aggregateName,
+            running = false,
+            message = Some(er.getMessage)))
+      }(ExecutionContext.global)
+  }
 }
 
+// TODO: evaluate access modifier here, it was private
 private object KafkaProducerActorImpl {
-  case class Publish(stateKeyValuePairs: Seq[(String, Array[Byte])], eventKeyValuePairs: Seq[(String, Array[Byte])])
-  case class StateProcessed(stateMeta: KafkaPartitionMetadata)
-  case class IsAggregateStateCurrent(aggregateId: String, expirationTime: Instant)
+  sealed trait KafkaProducerActorMessage
+  case class Publish(stateKeyValuePairs: Seq[(String, Array[Byte])], eventKeyValuePairs: Seq[(String, Array[Byte])]) extends KafkaProducerActorMessage
+  case class StateProcessed(stateMeta: KafkaPartitionMetadata) extends KafkaProducerActorMessage
+  case class IsAggregateStateCurrent(aggregateId: String, expirationTime: Instant) extends KafkaProducerActorMessage
+  case class AggregateStateRates(current: Rate, notCurrent: Rate) extends KafkaProducerActorMessage
 
   sealed trait InternalMessage
   case class EventsPublished(originalSenders: Seq[ActorRef], recordMetadata: Seq[KafkaRecordMetadata[String]]) extends InternalMessage
@@ -125,8 +140,6 @@ private object KafkaProducerActorImpl {
   case object FlushMessages extends InternalMessage
   case class PublishWithSender(sender: ActorRef, publish: Publish) extends InternalMessage
   case class PendingInitialization(actor: ActorRef, key: String, expiration: Instant) extends InternalMessage
-
-  case class AggregateStateRates(current: Rate, notCurrent: Rate)
 }
 private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
     assignedPartition: TopicPartition, metrics: MetricsProvider,
@@ -173,6 +186,7 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
     case msg: Initialize            ⇒ handle(msg)
     case FailedToInitialize         ⇒ context.system.scheduler.scheduleOnce(3.seconds)(initializeState())
     case FlushMessages              ⇒ // Ignore from this state
+    case GetHealth                  ⇒ stash()
     case _: Publish                 ⇒ stash()
     case _: StateProcessed          ⇒ stash()
     case _: IsAggregateStateCurrent ⇒ stash()
@@ -182,6 +196,7 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
   private def recoveringBacklog(endOffset: Long): Receive = {
     case msg: StateProcessed        ⇒ handleFromRecoveringState(endOffset, msg)
     case FlushMessages              ⇒ // Ignore from this state
+    case GetHealth                  ⇒ stash()
     case _: Publish                 ⇒ stash()
     case _: IsAggregateStateCurrent ⇒ stash()
     case unknown                    ⇒ log.warn("Receiving unhandled message on recoveringBacklog state", unknown)
@@ -193,6 +208,7 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
     case EventsFailedToPublish        ⇒ handleFailedToPublish(state)
     case msg: StateProcessed          ⇒ handle(state, msg)
     case msg: IsAggregateStateCurrent ⇒ handle(state, msg)
+    case GetHealth                    ⇒ getHealthCheck(state)
     case FlushMessages                ⇒ handleFlushMessages(state)
   }
 
@@ -338,6 +354,23 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
     } else {
       context.become(processing(state.addPendingInitialization(sender(), isAggregateStateCurrent)))
     }
+  }
+
+  /**
+   * This health check guarantees that the actor is in processing state and
+   * gather meaningful information from the state.
+   * @param state
+   */
+  private def getHealthCheck(state: KafkaProducerActorState) = {
+    val healthCheck = HealthCheck(
+      name = assignedTopicPartitionKey,
+      running = true,
+      details = Some(Map(
+        "inFlight" -> state.inFlight.size.toString,
+        "pendingInitializations" -> state.pendingInitializations.size.toString,
+        "pendingWrites" -> state.pendingWrites.size.toString,
+        "transactionInProgress" -> state.transactionInProgress.toString)))
+    sender() ! healthCheck
   }
 }
 

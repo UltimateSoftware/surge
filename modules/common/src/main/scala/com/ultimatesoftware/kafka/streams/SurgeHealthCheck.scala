@@ -42,3 +42,7 @@ case class HealthCheck(
 object HealthCheck {
   implicit val format: Format[HealthCheck] = Json.format
 }
+
+object HealthyActor {
+  case object GetHealth
+}

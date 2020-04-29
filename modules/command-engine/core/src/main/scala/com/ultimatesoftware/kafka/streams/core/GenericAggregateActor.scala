@@ -9,7 +9,8 @@ import akka.actor.{ Actor, Props, ReceiveTimeout, Stash }
 import akka.pattern.pipe
 import com.ultimatesoftware.akka.cluster.Passivate
 import com.ultimatesoftware.config.TimeoutConfig
-import com.ultimatesoftware.kafka.streams.AggregateStateStoreKafkaStreams
+import com.ultimatesoftware.kafka.streams.HealthyActor.GetHealth
+import com.ultimatesoftware.kafka.streams.{ AggregateStateStoreKafkaStreams, HealthCheck }
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, Timer }
 import com.ultimatesoftware.scala.core.validations._
 import org.slf4j.LoggerFactory
@@ -112,7 +113,7 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
 
   override def receive: Receive = uninitialized
 
-  private def freeToProcess(state: InternalActorState): Receive = {
+  private def freeToProcess(state: InternalActorState): Receive = healthCheckReceiver orElse {
     case msg: CommandEnvelope[AggId, Command, CmdMeta] ⇒ handle(state, msg)
     case msg: ApplyEventEnvelope[AggId, Event, EvtMeta] ⇒ handle(state, msg)
     case _: GetState[AggId] ⇒ sender() ! state.stateOpt
@@ -128,13 +129,27 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
     case _                                ⇒ stash()
   }
 
-  private def uninitialized: Receive = {
+  private def uninitialized: Receive = healthCheckReceiver orElse {
     case msg: InitializeWithState ⇒ handle(msg)
     case ReceiveTimeout ⇒
       // Ignore and drop ReceiveTimeout messages from this state
       log.warn(s"Aggregate actor for $aggregateId received a ReceiveTimeout message in uninitialized state. " +
         "This should not happen and is likely a logic error. Dropping the ReceiveTimeout message.")
     case _ ⇒ stash()
+  }
+
+  private def healthCheckReceiver(): Receive = {
+    case GetHealth        ⇒ getHealth()
+    case msg: HealthCheck ⇒ sender() ! msg
+  }
+
+  private def getHealth() = {
+    kafkaProducerActor.healthCheck().map { producerHealthCheck ⇒
+      HealthCheck(
+        name = aggregateId.toString,
+        running = true,
+        components = Some(Seq(producerHealthCheck)))
+    }.pipeTo(self)(sender())
   }
 
   private def handle(state: InternalActorState, commandEnvelope: CommandEnvelope[AggId, Command, CmdMeta]): Unit = {
