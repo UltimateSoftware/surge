@@ -231,8 +231,7 @@ class KafkaPartitionShardRouterActor[AggIdType](
   }
 
   private def healthCheckReceiver(state: ActorState): Receive = {
-    case GetHealth        ⇒ getHealthCheck(state).pipeTo(self)(sender())
-    case msg: HealthCheck ⇒ sender() ! msg
+    case GetHealth ⇒ getHealthCheck(state).pipeTo(sender())
   }
 
   private def deliverMessage(state: ActorState, msg: Any): Unit = {

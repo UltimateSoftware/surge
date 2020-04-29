@@ -61,7 +61,6 @@ class Shard[IdType, Agg, Event, EvtMeta](
     case msg: Terminated                         ⇒ receiveTerminated(msg)
     case msg: Passivate                          ⇒ receivePassivate(msg)
     case GetHealth                               ⇒ getHealthCheck()
-    case msg: HealthCheck                        ⇒ sender() ! msg
     case msg if extractEntityId.isDefinedAt(msg) ⇒ deliverMessage(msg, sender())
   }
 
@@ -172,6 +171,6 @@ class Shard[IdType, Agg, Event, EvtMeta](
         id = shardId,
         status = HealthCheckStatus.UP,
         components = Some(Seq(kafkaActorProducerHealth)))
-    }.pipeTo(self)(sender())
+    }.pipeTo(sender())
   }
 }

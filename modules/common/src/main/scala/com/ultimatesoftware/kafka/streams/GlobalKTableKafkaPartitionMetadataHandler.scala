@@ -13,7 +13,8 @@ import org.apache.kafka.streams.state.{ QueryableStoreTypes, Stores }
 import org.apache.kafka.streams.{ StreamsConfig, Topology }
 import org.slf4j.LoggerFactory
 import play.api.libs.json.Json
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.Future
+import scala.concurrent.ExecutionContext.Implicits.global
 
 object GlobalStreamsWriteBufferSettings extends WriteBufferSettings {
   override def maxWriteBufferNumber: Int = 2
@@ -88,7 +89,7 @@ class GlobalKTableMetadataHandler(internalMetadataTopic: KafkaTopic, consumerGro
       name = "global-table-stream",
       id = globalStateMetaStoreName,
       status = if (globalStreams.state().isRunning) HealthCheckStatus.UP else HealthCheckStatus.DOWN)
-  }(ExecutionContext.global)
+  }
 
   lazy val stateMetaQueryableStore: KafkaStreamsKeyValueStore[String, KafkaPartitionMetadata] = {
     val underlying = globalStreams.store(globalStateMetaStoreName, QueryableStoreTypes.keyValueStore[String, KafkaPartitionMetadata]())

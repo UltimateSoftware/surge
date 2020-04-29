@@ -139,8 +139,7 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
   }
 
   private def healthCheckReceiver(): Receive = {
-    case GetHealth        ⇒ getHealth()
-    case msg: HealthCheck ⇒ sender() ! msg
+    case GetHealth ⇒ getHealth()
   }
 
   private def getHealth() = {
@@ -150,7 +149,7 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
         name = "aggregate-actor",
         status = HealthCheckStatus.UP,
         components = Some(Seq(producerHealthCheck)))
-    }.pipeTo(self)(sender())
+    }.pipeTo(sender())
   }
 
   private def handle(state: InternalActorState, commandEnvelope: CommandEnvelope[AggId, Command, CmdMeta]): Unit = {

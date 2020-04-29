@@ -23,9 +23,9 @@ import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.ProducerFencedException
 import org.slf4j.{ Logger, LoggerFactory }
 import play.api.libs.json.JsValue
-
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.Future
 import scala.util.{ Failure, Try }
 
 /**
@@ -96,7 +96,7 @@ class KafkaProducerActor[AggId, Agg, Event, EvtMeta](
     publishEventsTimer.time {
       implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PublisherActor.publishTimeout)
       (publisherActor ? KafkaProducerActorImpl.Publish(eventKeyValuePairs = eventKeyValuePairs, stateKeyValuePairs = stateKeyValuePairs))
-        .map(_ ⇒ Done)(ExecutionContext.global)
+        .map(_ ⇒ Done)
     }
   }
 
@@ -119,7 +119,7 @@ class KafkaProducerActor[AggId, Agg, Event, EvtMeta](
             name = "publisher-actor",
             id = aggregateName,
             status = HealthCheckStatus.DOWN))
-      }(ExecutionContext.global)
+      }
   }
 }
 
@@ -187,7 +187,7 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
     case msg: Initialize            ⇒ handle(msg)
     case FailedToInitialize         ⇒ context.system.scheduler.scheduleOnce(3.seconds)(initializeState())
     case FlushMessages              ⇒ // Ignore from this state
-    case GetHealth                  ⇒ stash()
+    case GetHealth                  ⇒ getHealthCheck()
     case _: Publish                 ⇒ stash()
     case _: StateProcessed          ⇒ stash()
     case _: IsAggregateStateCurrent ⇒ stash()
@@ -197,7 +197,7 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
   private def recoveringBacklog(endOffset: Long): Receive = {
     case msg: StateProcessed        ⇒ handleFromRecoveringState(endOffset, msg)
     case FlushMessages              ⇒ // Ignore from this state
-    case GetHealth                  ⇒ stash()
+    case GetHealth                  ⇒ getHealthCheck()
     case _: Publish                 ⇒ stash()
     case _: IsAggregateStateCurrent ⇒ stash()
     case unknown                    ⇒ log.warn("Receiving unhandled message on recoveringBacklog state", unknown)
@@ -357,11 +357,14 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
     }
   }
 
-  /**
-   * This health check guarantees that the actor is in processing state and
-   * gather meaningful information from the state.
-   * @param state
-   */
+  private def getHealthCheck() = {
+    val healthCheck = HealthCheck(
+      name = "producer-actor",
+      id = assignedTopicPartitionKey,
+      status = HealthCheckStatus.UP)
+    sender() ! healthCheck
+  }
+
   private def getHealthCheck(state: KafkaProducerActorState) = {
     val healthCheck = HealthCheck(
       name = "producer-actor",
