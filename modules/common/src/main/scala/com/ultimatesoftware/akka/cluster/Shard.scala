@@ -10,6 +10,7 @@ import akka.actor._
 import akka.util.MessageBufferMap
 import com.ultimatesoftware.kafka.streams.{ HealthCheck, HealthCheckStatus }
 import com.ultimatesoftware.kafka.streams.HealthyActor.GetHealth
+import com.ultimatesoftware.kafka.streams.core.KafkaProducerActor
 import org.slf4j.{ Logger, LoggerFactory }
 
 import scala.concurrent.duration._
@@ -32,15 +33,16 @@ import scala.concurrent.{ ExecutionContext, Future }
 object Shard {
   sealed trait ShardMessage
 
-  def props[IdType](shardId: String, regionLogicProvider: PerShardLogicProvider[IdType], extractEntityId: PartialFunction[Any, IdType]): Props = {
-    Props(new Shard(shardId, regionLogicProvider, extractEntityId))
+  def props[IdType, Agg, Event, EvtMeta](shardId: String, regionLogicProvider: PerShardLogicProvider[IdType], extractEntityId: PartialFunction[Any, IdType], kafkaActorProducer: KafkaProducerActor[IdType, Agg, Event, EvtMeta]): Props = {
+    Props(new Shard(shardId, regionLogicProvider, extractEntityId, kafkaActorProducer))
   }
 }
 
-class Shard[IdType](
+class Shard[IdType, Agg, Event, EvtMeta](
     shardId: String,
     regionLogicProvider: PerShardLogicProvider[IdType],
-    extractEntityId: PartialFunction[Any, IdType]) extends Actor {
+    extractEntityId: PartialFunction[Any, IdType],
+    kafkaActorProducer: KafkaProducerActor[IdType, Agg, Event, EvtMeta]) extends Actor {
 
   private val log: Logger = LoggerFactory.getLogger(getClass)
   private val bufferSize = 1000
@@ -164,24 +166,12 @@ class Shard[IdType](
 
   private def getHealthCheck() = {
     implicit val executionContext = ExecutionContext.global
-    Future.sequence(
-      refById.map {
-        case (id, ref) ⇒
-          ref.ask(GetHealth)(100 millis).mapTo[HealthCheck]
-            .recoverWith {
-              case err: Throwable ⇒
-                log.error(s"Failed to get health check of aggregate-actor $id")
-                Future.successful(HealthCheck(
-                  name = "aggregate-actor",
-                  id = id.toString,
-                  status = HealthCheckStatus.DOWN))
-            }(ExecutionContext.global)
-      }).map { healthChecks ⇒
-        HealthCheck(
-          name = s"shard",
-          id = shardId,
-          status = HealthCheckStatus.UP,
-          components = Some(healthChecks.toSeq))
-      }.pipeTo(self)(sender())
+    kafkaActorProducer.healthCheck().map { kafkaActorProducerHealth ⇒
+      HealthCheck(
+        name = s"shard",
+        id = shardId,
+        status = HealthCheckStatus.UP,
+        components = Some(Seq(kafkaActorProducerHealth)))
+    }.pipeTo(self)(sender())
   }
 }

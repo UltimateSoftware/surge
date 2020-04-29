@@ -12,7 +12,7 @@ import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
 import com.ultimatesoftware.config.TimeoutConfig
 import com.ultimatesoftware.kafka.streams.HealthyActor.GetHealth
-import com.ultimatesoftware.kafka.streams.{ GlobalKTableMetadataHandler, HealthCheck, HealthCheckStatus, HealthyActor, HealthyComponent, KafkaPartitionMetadata }
+import com.ultimatesoftware.kafka.streams._
 import com.ultimatesoftware.scala.core.domain.StateMessage
 import com.ultimatesoftware.scala.core.kafka._
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, Rate, Timer }

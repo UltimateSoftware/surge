@@ -52,8 +52,8 @@ object HealthCheck {
 }
 
 object HealthCheckStatus {
-  val UP = "UP"
-  val DOWN = "DOWN"
+  val UP = "up"
+  val DOWN = "down"
 
   val validStatuses = Seq(HealthCheckStatus.UP, HealthCheckStatus.DOWN)
 }

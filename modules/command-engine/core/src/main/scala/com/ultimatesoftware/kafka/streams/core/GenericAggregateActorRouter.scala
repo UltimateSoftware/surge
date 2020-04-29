@@ -28,10 +28,16 @@ private[streams] final class GenericAggregateActorRouter[AggId, Agg, Command, Ev
   val actorRegion: ActorRef = {
     val shardRegionCreator = new TopicPartitionRegionCreator {
       override def propsFromTopicPartition(topicPartition: TopicPartition): Props = {
+        val kafkaProducerActor = new KafkaProducerActor[AggId, Agg, Event, EvtMeta](
+          actorSystem = system,
+          assignedPartition = topicPartition,
+          metricsProvider = metricsProvider,
+          stateMetaHandler = stateMetaHandler,
+          aggregateCommandKafkaStreams = businessLogic)
         val provider = new GenericAggregateActorRegionProvider(topicPartition, businessLogic,
-          stateMetaHandler, kafkaStreamsCommand, metricsProvider)
+          stateMetaHandler, kafkaStreamsCommand, metricsProvider, kafkaProducerActor)
 
-        Shard.props(topicPartition.toString, provider, GenericAggregateActor.RoutableMessage.extractEntityId)
+        Shard.props[AggId, Agg, Event, EvtMeta](topicPartition.toString, provider, GenericAggregateActor.RoutableMessage.extractEntityId, kafkaProducerActor)
       }
     }
 
@@ -61,19 +67,14 @@ class GenericAggregateActorRegionProvider[AggId, Agg, Command, Event, CmdMeta, E
     businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta],
     stateMetaHandler: GlobalKTableMetadataHandler,
     aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue],
-    metricsProvider: MetricsProvider) extends PerShardLogicProvider[AggId] {
+    metricsProvider: MetricsProvider,
+    aggregateProducerActor: KafkaProducerActor[AggId, Agg, Event, EvtMeta]) extends PerShardLogicProvider[AggId] {
 
   override def actorProvider(context: ActorContext): EntityPropsProvider[AggId] = {
-    val kafkaProducerActor = new KafkaProducerActor[AggId, Agg, Event, EvtMeta](
-      actorSystem = context.system,
-      assignedPartition = assignedPartition,
-      metricsProvider = metricsProvider,
-      stateMetaHandler = stateMetaHandler,
-      aggregateCommandKafkaStreams = businessLogic)
 
     val aggregateMetrics = GenericAggregateActor.createMetrics(metricsProvider, businessLogic.aggregateName)
 
     actorId: AggId ⇒ GenericAggregateActor.props(aggregateId = actorId, businessLogic = businessLogic,
-      kafkaProducerActor = kafkaProducerActor, metrics = aggregateMetrics, kafkaStreamsCommand = aggregateKafkaStreamsImpl)
+      kafkaProducerActor = aggregateProducerActor, metrics = aggregateMetrics, kafkaStreamsCommand = aggregateKafkaStreamsImpl)
   }
 }

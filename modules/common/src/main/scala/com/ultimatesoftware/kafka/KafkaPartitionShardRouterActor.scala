@@ -300,6 +300,7 @@ class KafkaPartitionShardRouterActor[AggIdType](
   }
 
   private case class StatePlusRegion(state: ActorState, region: Option[PartitionRegion])
+
   private def newActorRegionForPartition(state: ActorState, partition: Int): StatePlusRegion = {
     // TODO the None case for partition regions to hosts (rebalancing/crashed/etc...) causes
     //  us to not be able to create a partition region for a particular aggregate
@@ -437,28 +438,46 @@ class KafkaPartitionShardRouterActor[AggIdType](
     partitionTracker ! KafkaConsumerStateTrackingActor.Register(self)
   }
 
+  private def getLocalPartitionRegionsHealth(partitionRegions: Map[Int, PartitionRegion]): Seq[Future[HealthCheck]] = {
+    val localPartitionRegions = partitionRegions.filter { case (_, partitionRegion) ⇒ partitionRegion.isLocal }
+    localPartitionRegions.map {
+      case (_, partitionRegion) ⇒
+        partitionRegion.regionManager.ask(HealthyActor.GetHealth)(1.second).mapTo[HealthCheck]
+          .recoverWith {
+            case err: Throwable ⇒
+              log.error(s"Failed to get partition region health check ${partitionRegion.regionManager.pathString} ${err.getMessage}")
+              Future.successful(HealthCheck(
+                name = partitionRegion.regionManager.pathString,
+                id = partitionRegion.regionManager.pathString,
+                status = HealthCheckStatus.DOWN))
+          }
+    }.toSeq
+  }
+
+  private def getPartitionTrackerActorHealthCheck(): Future[HealthCheck] = {
+    partitionTracker.ask(HealthyActor.GetHealth)(1.second).mapTo[HealthCheck].recoverWith {
+      case err: Throwable ⇒
+        log.error(s"Failed to get partition-tracker health check ${err.getMessage}")
+        Future.successful(HealthCheck(
+          name = "partition-tracker",
+          id = s"partition-tracker-actor-${partitionTracker.hashCode()}",
+          status = HealthCheckStatus.DOWN))
+    }
+  }
+
   def getHealthCheck(state: ActorState): Future[HealthCheck] = {
-    Future.sequence(
-      state.partitionRegions.map {
-        case (_, partitionRegion) ⇒
-          partitionRegion.regionManager.resolveOne()
-            .flatMap { actorRef ⇒
-              actorRef.ask(HealthyActor.GetHealth)(1 second).mapTo[HealthCheck]
-            }
-            .recoverWith {
-              case err: Throwable ⇒
-                log.error(s"Failed to get partition region health check ${partitionRegion.regionManager.pathString} {${err.getMessage}}")
-                Future.successful(HealthCheck(
-                  name = partitionRegion.regionManager.pathString,
-                  id = partitionRegion.regionManager.pathString,
-                  status = HealthCheckStatus.DOWN))
-            }
-      }).map { regionsHelthChecks ⇒
-        HealthCheck(
-          name = "shard-router-actor",
-          id = "change-me-shard",
-          status = HealthCheckStatus.UP,
-          components = Some(regionsHelthChecks.toSeq))
-      }
+
+    val localPartitionRegions = getLocalPartitionRegionsHealth(state.partitionRegions)
+    val partitionTrackerHealthCheck = getPartitionTrackerActorHealthCheck()
+
+    Future.sequence(localPartitionRegions :+ partitionTrackerHealthCheck).map { shardHealthChecks ⇒
+      HealthCheck(
+        name = "shard-router-actor",
+        id = trackedTopic.name,
+        status = HealthCheckStatus.UP,
+        details = Some(Map(
+          "enableDRStandby" -> enableDRStandbyInitial.toString)),
+        components = Some(shardHealthChecks))
+    }
   }
 }
