@@ -217,7 +217,7 @@ class KafkaPartitionShardRouterActor[AggIdType](
   private def standbyMode(state: ActorState): Receive = {
     case msg: PartitionAssignments               ⇒ handle(state, msg)
     case GetPartitionRegionAssignments           ⇒ sender() ! state.partitionRegions
-    case GetHealth                               ⇒ sender() ! HealthCheck(name = "shard-router-actor", id = self.path.name, status = HealthCheckStatus.UP)
+    case GetHealth                               ⇒ sender() ! HealthCheck(name = "shard-router-actor", id = s"router-actor-$hashCode", status = HealthCheckStatus.UP)
     case msg if extractEntityId.isDefinedAt(msg) ⇒ becomeActiveAndDeliverMessage(state, msg)
   }
 

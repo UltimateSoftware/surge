@@ -9,7 +9,6 @@ import akka.actor._
 import akka.util.MessageBufferMap
 import com.ultimatesoftware.kafka.streams.{ HealthCheck, HealthCheckStatus }
 import com.ultimatesoftware.kafka.streams.HealthyActor.GetHealth
-import com.ultimatesoftware.kafka.streams.core.KafkaProducerActor
 import org.slf4j.{ Logger, LoggerFactory }
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -30,16 +29,15 @@ import scala.concurrent.ExecutionContext.Implicits.global
 object Shard {
   sealed trait ShardMessage
 
-  def props[IdType, Agg, Event, EvtMeta](shardId: String, regionLogicProvider: PerShardLogicProvider[IdType], extractEntityId: PartialFunction[Any, IdType], kafkaActorProducer: KafkaProducerActor[IdType, Agg, Event, EvtMeta]): Props = {
-    Props(new Shard(shardId, regionLogicProvider, extractEntityId, kafkaActorProducer))
+  def props[IdType](shardId: String, regionLogicProvider: PerShardLogicProvider[IdType], extractEntityId: PartialFunction[Any, IdType]): Props = {
+    Props(new Shard(shardId, regionLogicProvider, extractEntityId))
   }
 }
 
-class Shard[IdType, Agg, Event, EvtMeta](
+class Shard[IdType](
     shardId: String,
     regionLogicProvider: PerShardLogicProvider[IdType],
-    extractEntityId: PartialFunction[Any, IdType],
-    kafkaActorProducer: KafkaProducerActor[IdType, Agg, Event, EvtMeta]) extends Actor {
+    extractEntityId: PartialFunction[Any, IdType]) extends Actor {
 
   private val log: Logger = LoggerFactory.getLogger(getClass)
   private val bufferSize = 1000
@@ -161,16 +159,14 @@ class Shard[IdType, Agg, Event, EvtMeta](
   }
 
   private def getHealthCheck() = {
-    kafkaActorProducer.healthCheck().map { kafkaActorProducerHealth ⇒
+    regionLogicProvider.healthCheck().map { regionProviderHealth ⇒
       HealthCheck(
         name = s"shard",
         id = shardId,
         status = HealthCheckStatus.UP,
-        components = Some(Seq(kafkaActorProducerHealth)),
+        components = Some(Seq(regionProviderHealth)),
         details = Some(Map(
-          "liveAggregates" -> refById.size.toString
-        ))
-      )
+          "liveAggregates" -> refById.size.toString)))
     }.pipeTo(sender())
   }
 }

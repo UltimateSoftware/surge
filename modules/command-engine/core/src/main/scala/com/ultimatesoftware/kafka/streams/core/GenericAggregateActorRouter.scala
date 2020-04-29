@@ -28,16 +28,10 @@ private[streams] final class GenericAggregateActorRouter[AggId, Agg, Command, Ev
   val actorRegion: ActorRef = {
     val shardRegionCreator = new TopicPartitionRegionCreator {
       override def propsFromTopicPartition(topicPartition: TopicPartition): Props = {
-        val kafkaProducerActor = new KafkaProducerActor[AggId, Agg, Event, EvtMeta](
-          actorSystem = system,
-          assignedPartition = topicPartition,
-          metricsProvider = metricsProvider,
-          stateMetaHandler = stateMetaHandler,
-          aggregateCommandKafkaStreams = businessLogic)
-        val provider = new GenericAggregateActorRegionProvider(businessLogic,
-          kafkaStreamsCommand, metricsProvider, kafkaProducerActor)
+        val provider = new GenericAggregateActorRegionProvider(system, topicPartition, businessLogic,
+          stateMetaHandler, kafkaStreamsCommand, metricsProvider)
 
-        Shard.props[AggId, Agg, Event, EvtMeta](topicPartition.toString, provider, GenericAggregateActor.RoutableMessage.extractEntityId, kafkaProducerActor)
+        Shard.props(topicPartition.toString, provider, GenericAggregateActor.RoutableMessage.extractEntityId)
       }
     }
 
@@ -56,23 +50,35 @@ private[streams] final class GenericAggregateActorRouter[AggId, Agg, Command, Ev
           Future.successful(
             HealthCheck(
               name = "router-actor",
-              id = "set-me",
+              id = s"router-actor-${actorRegion.hashCode}",
               status = HealthCheckStatus.DOWN))
       }(ExecutionContext.global)
   }
 }
 
 class GenericAggregateActorRegionProvider[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
+    system: ActorSystem,
+    assignedPartition: TopicPartition,
     businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta],
+    stateMetaHandler: GlobalKTableMetadataHandler,
     aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue],
-    metricsProvider: MetricsProvider,
-    aggregateProducerActor: KafkaProducerActor[AggId, Agg, Event, EvtMeta]) extends PerShardLogicProvider[AggId] {
+    metricsProvider: MetricsProvider) extends PerShardLogicProvider[AggId] {
+
+  val kafkaProducerActor = new KafkaProducerActor[AggId, Agg, Event, EvtMeta](
+    actorSystem = system,
+    assignedPartition = assignedPartition,
+    metricsProvider = metricsProvider,
+    stateMetaHandler = stateMetaHandler,
+    aggregateCommandKafkaStreams = businessLogic)
 
   override def actorProvider(context: ActorContext): EntityPropsProvider[AggId] = {
-
     val aggregateMetrics = GenericAggregateActor.createMetrics(metricsProvider, businessLogic.aggregateName)
 
     actorId: AggId ⇒ GenericAggregateActor.props(aggregateId = actorId, businessLogic = businessLogic,
-      kafkaProducerActor = aggregateProducerActor, metrics = aggregateMetrics, kafkaStreamsCommand = aggregateKafkaStreamsImpl)
+      kafkaProducerActor = kafkaProducerActor, metrics = aggregateMetrics, kafkaStreamsCommand = aggregateKafkaStreamsImpl)
+  }
+
+  override def healthCheck(): Future[HealthCheck] = {
+    kafkaProducerActor.healthCheck()
   }
 }

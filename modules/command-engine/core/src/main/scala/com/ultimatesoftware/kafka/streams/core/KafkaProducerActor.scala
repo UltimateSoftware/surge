@@ -23,9 +23,10 @@ import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.ProducerFencedException
 import org.slf4j.{ Logger, LoggerFactory }
 import play.api.libs.json.JsValue
+
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.duration._
 import scala.concurrent.Future
+import scala.concurrent.duration._
 import scala.util.{ Failure, Try }
 
 /**
@@ -150,7 +151,6 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
 
   import KafkaProducerActorImpl._
   import aggregateCommandKafkaStreams._
-  import context.dispatcher
   import kafka._
 
   private val log: Logger = LoggerFactory.getLogger(getClass)
