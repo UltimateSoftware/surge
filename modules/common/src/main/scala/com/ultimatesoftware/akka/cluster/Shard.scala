@@ -5,16 +5,13 @@ package com.ultimatesoftware.akka.cluster
 import java.net.URLEncoder
 
 import akka.pattern.pipe
-import akka.pattern.ask
 import akka.actor._
 import akka.util.MessageBufferMap
 import com.ultimatesoftware.kafka.streams.{ HealthCheck, HealthCheckStatus }
 import com.ultimatesoftware.kafka.streams.HealthyActor.GetHealth
 import com.ultimatesoftware.kafka.streams.core.KafkaProducerActor
 import org.slf4j.{ Logger, LoggerFactory }
-
-import scala.concurrent.duration._
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.ExecutionContext.Implicits.global
 
 /**
  * A shard is a building block for scaling that is responsible for tracking & managing many child actors underneath.  The child
@@ -164,13 +161,16 @@ class Shard[IdType, Agg, Event, EvtMeta](
   }
 
   private def getHealthCheck() = {
-    implicit val executionContext = ExecutionContext.global
     kafkaActorProducer.healthCheck().map { kafkaActorProducerHealth ⇒
       HealthCheck(
         name = s"shard",
         id = shardId,
         status = HealthCheckStatus.UP,
-        components = Some(Seq(kafkaActorProducerHealth)))
+        components = Some(Seq(kafkaActorProducerHealth)),
+        details = Some(Map(
+          "liveAggregates" -> refById.size.toString
+        ))
+      )
     }.pipeTo(sender())
   }
 }
