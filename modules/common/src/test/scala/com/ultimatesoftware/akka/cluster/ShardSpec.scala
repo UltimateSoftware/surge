@@ -4,9 +4,12 @@ package com.ultimatesoftware.akka.cluster
 
 import akka.actor.{ Actor, ActorContext, ActorRef, ActorSystem, DeadLetter, PoisonPill, Props, Terminated }
 import akka.testkit.{ TestKit, TestProbe }
+import com.ultimatesoftware.kafka.streams.{ HealthCheck, HealthCheckStatus }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 
 object TestActor {
   def props(id: String): Props = Props(new TestActor(id))
@@ -27,6 +30,10 @@ object TestActor {
 
   object RegionLogicProvider extends PerShardLogicProvider[String] {
     override def actorProvider(context: ActorContext): EntityPropsProvider[String] = (actorId: String) ⇒ props(actorId)
+
+    override def healthCheck(): Future[HealthCheck] = Future {
+      HealthCheck("producer-actor", "producer-actor-test", HealthCheckStatus.UP)
+    }
   }
 }
 class TestActor(id: String) extends Actor {

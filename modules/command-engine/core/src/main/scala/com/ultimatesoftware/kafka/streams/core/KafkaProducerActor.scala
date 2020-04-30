@@ -23,9 +23,7 @@ import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.ProducerFencedException
 import org.slf4j.{ Logger, LoggerFactory }
 import play.api.libs.json.JsValue
-
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Future
+import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration._
 import scala.util.{ Failure, Try }
 
@@ -97,7 +95,7 @@ class KafkaProducerActor[AggId, Agg, Event, EvtMeta](
     publishEventsTimer.time {
       implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PublisherActor.publishTimeout)
       (publisherActor ? KafkaProducerActorImpl.Publish(eventKeyValuePairs = eventKeyValuePairs, stateKeyValuePairs = stateKeyValuePairs))
-        .map(_ ⇒ Done)
+        .map(_ ⇒ Done)(ExecutionContext.global)
     }
   }
 
@@ -120,7 +118,7 @@ class KafkaProducerActor[AggId, Agg, Event, EvtMeta](
             name = "publisher-actor",
             id = aggregateName,
             status = HealthCheckStatus.DOWN))
-      }
+      }(ExecutionContext.global)
   }
 }
 
@@ -151,6 +149,7 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
 
   import KafkaProducerActorImpl._
   import aggregateCommandKafkaStreams._
+  import context.dispatcher
   import kafka._
 
   private val log: Logger = LoggerFactory.getLogger(getClass)
