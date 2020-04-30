@@ -26,6 +26,10 @@ object TimeoutConfig {
       config.getDuration("surge.aggregate-actor.ask-timeout", TimeUnit.MILLISECONDS).milliseconds * timeoutScaleFactor
   }
 
+  object HealthCheck {
+    val actorAskTimeout: FiniteDuration = 10.seconds * timeoutScaleFactor
+  }
+
   object Kafka {
     val consumerSessionTimeout: FiniteDuration = if (debugTimeoutEnabled) {
       // Set this one explicitly instead of leveraging the scale factor because we can't exceed the broker configured group max timeout

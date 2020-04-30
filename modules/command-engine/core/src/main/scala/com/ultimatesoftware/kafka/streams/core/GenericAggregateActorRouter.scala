@@ -10,6 +10,7 @@ import com.ultimatesoftware.scala.core.monitoring.metrics.MetricsProvider
 import org.apache.kafka.common.TopicPartition
 import play.api.libs.json.JsValue
 import akka.pattern.ask
+import com.ultimatesoftware.config.TimeoutConfig
 import org.slf4j.LoggerFactory
 
 import scala.concurrent.duration._
@@ -42,11 +43,11 @@ private[streams] final class GenericAggregateActorRouter[AggId, Agg, Command, Ev
 
   override def healthCheck(): Future[HealthCheck] = {
     actorRegion
-      .ask(HealthyActor.GetHealth)(3.seconds)
+      .ask(HealthyActor.GetHealth)(TimeoutConfig.HealthCheck.actorAskTimeout)
       .mapTo[HealthCheck]
       .recoverWith {
         case err: Throwable ⇒
-          log.error(s"Failed to get router-actor health check ${err.getMessage}")
+          log.error(s"Failed to get router-actor health check", err)
           Future.successful(
             HealthCheck(
               name = "router-actor",

@@ -217,7 +217,8 @@ class KafkaPartitionShardRouterActor[AggIdType](
   private def standbyMode(state: ActorState): Receive = {
     case msg: PartitionAssignments               ⇒ handle(state, msg)
     case GetPartitionRegionAssignments           ⇒ sender() ! state.partitionRegions
-    case GetHealth                               ⇒ sender() ! HealthCheck(name = "shard-router-actor", id = s"router-actor-$hashCode", status = HealthCheckStatus.UP)
+    case GetHealth                               ⇒
+      sender() ! HealthCheck(name = "shard-router-actor", id = s"router-actor-$hashCode", status = HealthCheckStatus.UP)
     case msg if extractEntityId.isDefinedAt(msg) ⇒ becomeActiveAndDeliverMessage(state, msg)
   }
 
@@ -325,7 +326,9 @@ class KafkaPartitionShardRouterActor[AggIdType](
 
       state.addRegion(partition, newActorSelection, isLocal = isLocal)
     }.getOrElse {
-      log.warn(s"Whoa hit None case in newActorRegionForPartition for partition $partition")
+      log.warn(s"Unable to find a partition assignment for partition {}.  This typically indicates unhealthiness " +
+        s"in the Kafka streams consumer group.  If this warning continues, check the consumer group for the application to see if " +
+        s"partitions for the aggregate state topic remain unassigned or if the Kafka Streams processor has stopped unexpectedly.", partition)
       StatePlusRegion(state, None)
     }
   }
@@ -441,10 +444,10 @@ class KafkaPartitionShardRouterActor[AggIdType](
     val localPartitionRegions = partitionRegions.filter { case (_, partitionRegion) ⇒ partitionRegion.isLocal }
     localPartitionRegions.map {
       case (_, partitionRegion) ⇒
-        partitionRegion.regionManager.ask(HealthyActor.GetHealth)(1.second).mapTo[HealthCheck]
+        partitionRegion.regionManager.ask(HealthyActor.GetHealth)(TimeoutConfig.HealthCheck.actorAskTimeout).mapTo[HealthCheck]
           .recoverWith {
             case err: Throwable ⇒
-              log.error(s"Failed to get partition region health check ${partitionRegion.regionManager.pathString} ${err.getMessage}")
+              log.error(s"Failed to get partition region health check ${partitionRegion.regionManager.pathString}", err)
               Future.successful(HealthCheck(
                 name = partitionRegion.regionManager.pathString,
                 id = partitionRegion.regionManager.pathString,
@@ -454,9 +457,9 @@ class KafkaPartitionShardRouterActor[AggIdType](
   }
 
   private def getPartitionTrackerActorHealthCheck(): Future[HealthCheck] = {
-    partitionTracker.ask(HealthyActor.GetHealth)(1.second).mapTo[HealthCheck].recoverWith {
+    partitionTracker.ask(HealthyActor.GetHealth)(TimeoutConfig.HealthCheck.actorAskTimeout).mapTo[HealthCheck].recoverWith {
       case err: Throwable ⇒
-        log.error(s"Failed to get partition-tracker health check ${err.getMessage}")
+        log.error(s"Failed to get partition-tracker health check", err)
         Future.successful(HealthCheck(
           name = "partition-tracker",
           id = s"partition-tracker-actor-${partitionTracker.hashCode()}",

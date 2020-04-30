@@ -23,7 +23,7 @@ class SurgeHealthCheck(healthCheckId: String, components: HealthyComponent*)(imp
         components = Some(healthyComponentChecks))
     }.recoverWith {
       case err: Throwable ⇒
-        log.error(s"Fail to get surge health check ${err.getMessage}")
+        log.error(s"Fail to get surge health check", err)
         Future.successful(
           HealthCheck(
             name = "surge",

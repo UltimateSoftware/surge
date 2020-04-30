@@ -109,11 +109,11 @@ class KafkaProducerActor[AggId, Agg, Event, EvtMeta](
   }
 
   def healthCheck(): Future[HealthCheck] = {
-    publisherActor.ask(HealthyActor.GetHealth)(1.second)
+    publisherActor.ask(HealthyActor.GetHealth)(TimeoutConfig.HealthCheck.actorAskTimeout)
       .mapTo[HealthCheck]
       .recoverWith {
         case err: Throwable ⇒
-          log.error(s"Failed to get publisher-actor health check ${err.getMessage}")
+          log.error(s"Failed to get publisher-actor health check", err)
           Future.successful(HealthCheck(
             name = "publisher-actor",
             id = aggregateName,
@@ -287,20 +287,26 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
   }
 
   private def handle(state: KafkaProducerActorState, eventsPublished: EventsPublished): Unit = {
-    val newState = state.addInFlight(eventsPublished.recordMetadata).copy(transactionInProgress = false)
+    val newState = state.addInFlight(eventsPublished.recordMetadata).completeTransaction()
     context.become(processing(newState))
     eventsPublished.originalSenders.foreach(_ ! Done)
   }
 
   private def handleFailedToPublish(state: KafkaProducerActorState): Unit = {
-    val newState = state.copy(transactionInProgress = false)
+    val newState = state.completeTransaction()
     context.become(processing(newState))
   }
 
+  private var lastTransactionInProgressWarningTime: Instant = Instant.ofEpochMilli(0L)
   private val eventsPublishedRate: Rate = metrics.createRate(s"${aggregateName}EventPublishRate")
   private def handleFlushMessages(state: KafkaProducerActorState): Unit = {
     if (state.transactionInProgress) {
-      log.warn(s"KafkaPublisherActor partition $assignedPartition tried to flush, but another transaction is already in progress")
+      if (lastTransactionInProgressWarningTime.plusSeconds(1L).isBefore(Instant.now())) {
+        lastTransactionInProgressWarningTime = Instant.now
+        log.warn(s"KafkaPublisherActor partition {} tried to flush, but another transaction is already in progress. " +
+          s"The previous transaction has been in progress for {} milliseconds. If the time to complete the previous transaction continues to grow " +
+          s"that typically indicates slowness in the Kafka brokers.", assignedPartition, state.currentTransactionTimeMillis)
+      }
     } else if (state.pendingWrites.nonEmpty) {
       val senders = state.pendingWrites.map(_.sender)
       val eventMessages = state.pendingWrites.flatMap(_.publish.eventKeyValuePairs)
@@ -339,7 +345,7 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
             }
         }
       }
-      context.become(processing(state.flushWrites().copy(transactionInProgress = true)))
+      context.become(processing(state.flushWrites().startTransaction()))
       futureMsg.pipeTo(self)(sender())
     }
   }
@@ -365,22 +371,30 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
   }
 
   private def getHealthCheck(state: KafkaProducerActorState) = {
+    val transactionsAppearStuck = state.currentTransactionTimeMillis > 2.minutes.toMillis
+
+    val healthStatus = if (transactionsAppearStuck) {
+      HealthCheckStatus.DOWN
+    } else {
+      HealthCheckStatus.UP
+    }
+
     val healthCheck = HealthCheck(
       name = "producer-actor",
       id = assignedTopicPartitionKey,
-      status = HealthCheckStatus.UP,
+      status = healthStatus,
       details = Some(Map(
         "inFlight" -> state.inFlight.size.toString,
         "pendingInitializations" -> state.pendingInitializations.size.toString,
         "pendingWrites" -> state.pendingWrites.size.toString,
-        "transactionInProgress" -> state.transactionInProgress.toString)))
+        "currentTransactionTimeMillis" -> state.currentTransactionTimeMillis.toString)))
     sender() ! healthCheck
   }
 }
 
 private[core] object KafkaProducerActorState {
   def empty(implicit sender: ActorRef, rates: KafkaProducerActorImpl.AggregateStateRates): KafkaProducerActorState = {
-    KafkaProducerActorState(Seq.empty, Seq.empty, Seq.empty, transactionInProgress = false, sender = sender, rates = rates)
+    KafkaProducerActorState(Seq.empty, Seq.empty, Seq.empty, transactionInProgressSince = None, sender = sender, rates = rates)
   }
 }
 // TODO optimize:
@@ -389,13 +403,18 @@ private[core] case class KafkaProducerActorState(
     inFlight: Seq[KafkaRecordMetadata[String]],
     pendingWrites: Seq[KafkaProducerActorImpl.PublishWithSender],
     pendingInitializations: Seq[KafkaProducerActorImpl.PendingInitialization],
-    transactionInProgress: Boolean,
+    transactionInProgressSince: Option[Instant],
     sender: ActorRef, rates: KafkaProducerActorImpl.AggregateStateRates) {
 
   import KafkaProducerActorImpl._
 
   private implicit val senderActor: ActorRef = sender
   private val log: Logger = LoggerFactory.getLogger(getClass)
+
+  def transactionInProgress: Boolean = transactionInProgressSince.nonEmpty
+  def currentTransactionTimeMillis: Long = {
+    Instant.now.minusMillis(transactionInProgressSince.getOrElse(Instant.now).toEpochMilli).toEpochMilli
+  }
 
   def inFlightByKey: Map[String, Seq[KafkaRecordMetadata[String]]] = {
     inFlight.groupBy(_.key.getOrElse(""))
@@ -420,6 +439,14 @@ private[core] case class KafkaProducerActorState(
 
   def flushWrites(): KafkaProducerActorState = {
     this.copy(pendingWrites = Seq.empty)
+  }
+
+  def startTransaction(): KafkaProducerActorState = {
+    this.copy(transactionInProgressSince = Some(Instant.now))
+  }
+
+  def completeTransaction(): KafkaProducerActorState = {
+    this.copy(transactionInProgressSince = None)
   }
 
   def addInFlight(recordMetadata: Seq[KafkaRecordMetadata[String]]): KafkaProducerActorState = {
