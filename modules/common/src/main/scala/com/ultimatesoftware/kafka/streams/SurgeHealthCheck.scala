@@ -2,6 +2,8 @@
 
 package com.ultimatesoftware.kafka.streams
 
+import java.util.concurrent.CompletionStage
+
 import org.slf4j.LoggerFactory
 import play.api.libs.json.{ Format, Json }
 

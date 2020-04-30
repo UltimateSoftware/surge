@@ -443,7 +443,7 @@ class KafkaPartitionShardRouterActor[AggIdType](
     val localPartitionRegions = partitionRegions.filter { case (_, partitionRegion) ⇒ partitionRegion.isLocal }
     localPartitionRegions.map {
       case (_, partitionRegion) ⇒
-        partitionRegion.regionManager.ask(HealthyActor.GetHealth)(TimeoutConfig.HealthCheck.actorAskTimeout).mapTo[HealthCheck]
+        partitionRegion.regionManager.ask(HealthyActor.GetHealth)(TimeoutConfig.HealthCheck.actorAskTimeout * 2).mapTo[HealthCheck]
           .recoverWith {
             case err: Throwable ⇒
               log.error(s"Failed to get partition region health check ${partitionRegion.regionManager.pathString}", err)

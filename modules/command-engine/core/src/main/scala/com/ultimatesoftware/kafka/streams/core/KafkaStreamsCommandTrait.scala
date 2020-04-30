@@ -12,7 +12,6 @@ import scala.concurrent.{ ExecutionContext, Future }
 
 trait KafkaStreamsCommandTrait[AggId, Agg, Command, Event, CmdMeta, EvtMeta] {
   def start(): Unit // FIXME can this return an instance of the engine instead of being a unit? That way it can just be called inline
-  def healthCheck: Future[HealthCheck]
   val businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta]
   def actorSystem: ActorSystem
 }
@@ -20,7 +19,7 @@ trait KafkaStreamsCommandTrait[AggId, Agg, Command, Event, CmdMeta, EvtMeta] {
 abstract class KafkaStreamsCommandImpl[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
     actorSystem: ActorSystem,
     override val businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta])
-  extends KafkaStreamsCommandTrait[AggId, Agg, Command, Event, CmdMeta, EvtMeta] with ActorSystemHostAwareness with HealthyComponent {
+  extends KafkaStreamsCommandTrait[AggId, Agg, Command, Event, CmdMeta, EvtMeta] with ActorSystemHostAwareness {
 
   private implicit val system: ActorSystem = actorSystem
 

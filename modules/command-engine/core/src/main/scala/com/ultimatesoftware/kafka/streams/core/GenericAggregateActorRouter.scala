@@ -13,7 +13,6 @@ import akka.pattern.ask
 import com.ultimatesoftware.config.TimeoutConfig
 import org.slf4j.LoggerFactory
 
-import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
 
 private[streams] final class GenericAggregateActorRouter[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
@@ -43,7 +42,7 @@ private[streams] final class GenericAggregateActorRouter[AggId, Agg, Command, Ev
 
   override def healthCheck(): Future[HealthCheck] = {
     actorRegion
-      .ask(HealthyActor.GetHealth)(TimeoutConfig.HealthCheck.actorAskTimeout)
+      .ask(HealthyActor.GetHealth)(TimeoutConfig.HealthCheck.actorAskTimeout * 3)
       .mapTo[HealthCheck]
       .recoverWith {
         case err: Throwable ⇒
