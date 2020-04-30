@@ -106,6 +106,7 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
         verify(mockProducer, times(1)).commitTransaction()
       }, 3 seconds, 1 seconds)
     }
+
     "Gets to initialize the state if initializing kafka transactions fails" in {
       TestProbe()
       val assignedPartition = new TopicPartition("testTopic", 1)
@@ -126,6 +127,29 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
         verify(mockProducer, times(1)).putRecord(any[ProducerRecord[String, Array[Byte]]])
       }, 11 seconds, 10 second)
     }
+
+    "Retry initialization if the flush record fails to write to Kafka" in {
+      val probe = TestProbe()
+      val assignedPartition = new TopicPartition("testTopic", 1)
+      val mockProducerFailsPutRecord = mock[KafkaBytesProducer]
+      val failingFlush = testProducerActor(assignedPartition, mockProducerFailsPutRecord)
+
+      val mockMetadata = mockRecordMetadata(assignedPartition)
+      setupTransactions(mockProducerFailsPutRecord)
+      when(mockProducerFailsPutRecord.putRecords(any[Seq[ProducerRecord[String, Array[Byte]]]]))
+        .thenReturn(Seq(Future.successful(mockMetadata)))
+      when(mockProducerFailsPutRecord.putRecord(any[ProducerRecord[String, Array[Byte]]]))
+        .thenReturn(Future.failed(new RuntimeException("This is expected")), Future.successful(mockMetadata))
+
+      probe.send(failingFlush, KafkaProducerActorImpl.Publish(testAggs2, testEvents2))
+      probe.send(failingFlush, KafkaProducerActorImpl.FlushMessages)
+      probe.expectMsg(6.seconds, Done) // Need to wait a little extra since failing to write the flush record will wait 3 seconds before retrying
+
+      verify(mockProducerFailsPutRecord, times(2)).putRecord(any[ProducerRecord[String, Array[Byte]]])
+      verify(mockProducerFailsPutRecord).putRecords(records(testEvents2, testAggs2))
+      verify(mockProducerFailsPutRecord).commitTransaction()
+    }
+
     "Stash IsAggregateStateCurrent messages until fully initialized when no messages inflight" in {
       val probe = TestProbe()
       val assignedPartition = new TopicPartition("testTopic", 1)
@@ -146,6 +170,7 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
       val response = actor.ask(isAggregateStateCurrent)(10 seconds).map(Some(_)).recoverWith { case _ ⇒ Future.successful(None) }
       assert(Await.result(response, 10 seconds).isDefined)
     }
+
     "Answer to IsAggregateStateCurrent when messages in flight" in {
       val probe = TestProbe()
       val assignedPartition = new TopicPartition("testTopic", 1)
@@ -170,6 +195,7 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
       val response = actor.ask(isAggregateStateCurrent)(10 seconds).map(Some(_)).recoverWith { case _ ⇒ Future.successful(None) }
       assert(Await.result(response, 10 seconds).isDefined)
     }
+
     "Stash Publish messages and publish them when fully initialized" in {
       val probe = TestProbe()
       val assignedPartition = new TopicPartition("testTopic", 1)
@@ -190,6 +216,7 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
         verify(mockProducer, times(1)).commitTransaction()
       }, 10 seconds, 1 seconds)
     }
+
     "Try to publish new incoming messages to Kafka if publishing to Kafka fails" in {
       val probe = TestProbe()
       val assignedPartition = new TopicPartition("testTopic", 1)
@@ -216,6 +243,7 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
       verify(mockProducerFailsPutRecords).putRecords(records(testEvents2, testAggs2))
       verify(mockProducerFailsPutRecords).commitTransaction()
     }
+
     "Try to publish new incoming messages to Kafka if committing to Kafka fails" in {
       val probe = TestProbe()
       val assignedPartition = new TopicPartition("testTopic", 1)
