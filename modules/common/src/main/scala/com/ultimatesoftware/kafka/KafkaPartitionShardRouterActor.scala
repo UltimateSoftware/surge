@@ -215,9 +215,9 @@ class KafkaPartitionShardRouterActor[AggIdType](
 
   // In standby mode, just follow updates to partition assignments and let Kafka streams index the aggregate state
   private def standbyMode(state: ActorState): Receive = {
-    case msg: PartitionAssignments               ⇒ handle(state, msg)
-    case GetPartitionRegionAssignments           ⇒ sender() ! state.partitionRegions
-    case GetHealth                               ⇒
+    case msg: PartitionAssignments     ⇒ handle(state, msg)
+    case GetPartitionRegionAssignments ⇒ sender() ! state.partitionRegions
+    case GetHealth ⇒
       sender() ! HealthCheck(name = "shard-router-actor", id = s"router-actor-$hashCode", status = HealthCheckStatus.UP)
     case msg if extractEntityId.isDefinedAt(msg) ⇒ becomeActiveAndDeliverMessage(state, msg)
   }
@@ -307,18 +307,17 @@ class KafkaPartitionShardRouterActor[AggIdType](
     state.partitionsToHosts.get(partition).map { hostPort ⇒
       val isLocal = isHostPortThisNode(hostPort)
       val newActorSelection = if (isLocal) {
-        log.debug(s"Creating partition region actor for partition {}", partition)
+        log.info(s"Creating partition region actor for partition {}", partition)
 
         val topicPartition = new TopicPartition(trackedTopic.name, partition)
         val regionProps = regionCreator.propsFromTopicPartition(topicPartition)
 
-        log.debug(s"Current actor path: ${self.path}")
         val newActor = context.system.actorOf(regionProps)
         context.watch(newActor)
         context.actorSelection(newActor.path)
       } else {
         val remoteAddress = Address(akkaProtocol, context.system.name, hostPort.host, hostPort.port)
-        log.debug(s"Associating new remote router at $remoteAddress for partition $partition from $localHostname")
+        log.info(s"Associating new remote router at $remoteAddress for partition $partition from $localHostname")
 
         val routerActorRemoteNode = self.path.toStringWithAddress(remoteAddress)
         context.actorSelection(routerActorRemoteNode)

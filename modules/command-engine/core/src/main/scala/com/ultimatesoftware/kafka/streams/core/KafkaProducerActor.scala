@@ -258,7 +258,7 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
   }
 
   private def handle(initialize: Initialize): Unit = {
-    log.debug(s"Publisher actor initializing for topic-partition $assignedPartition with end offset ${initialize.endOffset}")
+    log.info(s"Publisher actor initializing for topic-partition $assignedPartition with end offset ${initialize.endOffset}")
     context.become(recoveringBacklog(initialize.endOffset))
   }
 
@@ -326,6 +326,7 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
       val futureMsg = kafkaPublisherTimer.time {
         Try(kafkaPublisher.beginTransaction()) match {
           case Failure(err) ⇒
+            // TODO check for a ProducerFencedException here as well and exit if we're fenced out. Add a test for this
             log.error(s"KafkaPublisherActor partition $assignedPartition there was an error beginning transaction $err")
             Future.successful(EventsFailedToPublish)
           case _ ⇒
