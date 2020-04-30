@@ -3,6 +3,7 @@
 package com.ultimatesoftware.kafka
 
 import akka.actor.{ Actor, ActorRef, Props }
+import com.ultimatesoftware.kafka.streams.{ HealthCheck, HealthCheckStatus, HealthyActor }
 import com.ultimatesoftware.scala.core.kafka.{ HostPort, PartitionAssignments }
 import org.apache.kafka.common.TopicPartition
 import org.slf4j.LoggerFactory
@@ -36,6 +37,7 @@ class KafkaConsumerStateTrackingActor extends Actor {
     case msg: StateUpdated       ⇒ handle(actorState, msg)
     case msg: Register           ⇒ registerActor(actorState, msg.actor)
     case GetPartitionAssignments ⇒ handleGetPartitionAssignments(actorState)
+    case HealthyActor.GetHealth  ⇒ getHealthCheck(actorState)
   }
 
   private def handle(actorState: ActorState, stateUpdated: StateUpdated): Unit = {
@@ -68,5 +70,22 @@ class KafkaConsumerStateTrackingActor extends Actor {
     state.registeredListeners.foreach { listener ⇒
       sendPartitionAssignments(listener, state.clusterState)
     }
+  }
+
+  private def stringifyClusterState(clusterState: Map[HostPort, List[TopicPartition]]): String = {
+    clusterState.map {
+      case (hostPort, listTopicPartition) ⇒
+        val topicsInOneLine = listTopicPartition.map(topic ⇒ topic.toString).mkString("", ", ", "")
+        s"${hostPort.toString()} - $topicsInOneLine"
+    }.mkString("", "; ", "")
+  }
+  private def getHealthCheck(actorState: ActorState) = {
+    sender() ! HealthCheck(
+      name = "partition-tracker-actor",
+      id = s"partition-tracker-actor-${hashCode()}",
+      status = HealthCheckStatus.UP,
+      details = Some(Map(
+        "state" -> stringifyClusterState(actorState.clusterState),
+        "listeners" -> actorState.registeredListeners.size.toString)))
   }
 }

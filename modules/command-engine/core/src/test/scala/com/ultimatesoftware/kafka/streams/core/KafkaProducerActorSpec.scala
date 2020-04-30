@@ -96,7 +96,7 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
       probe.send(actor, KafkaProducerActorImpl.FlushMessages)
       awaitAssert({
         verify(mockProducer, times(1)).beginTransaction()
-      }, 3 seconds, 1 seconds)
+      }, 3.seconds, 1.second)
       verify(mockProducer, times(0)).commitTransaction()
       // Actor should recover from begin transaction error and successfully commit
       probe.send(actor, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
@@ -104,7 +104,7 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
       awaitAssert({
         verify(mockProducer, times(2)).beginTransaction()
         verify(mockProducer, times(1)).commitTransaction()
-      }, 3 seconds, 1 seconds)
+      }, 3.seconds, 1.second)
     }
 
     "Gets to initialize the state if initializing kafka transactions fails" in {
@@ -125,7 +125,7 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
         verify(mockProducer, times(2)).initTransactions()(any[ExecutionContext])
         // second time is a success and it calls initializeState only once, what cause a call to putRecord
         verify(mockProducer, times(1)).putRecord(any[ProducerRecord[String, Array[Byte]]])
-      }, 11 seconds, 10 second)
+      }, 11.seconds, 10.seconds)
     }
 
     "Retry initialization if the flush record fails to write to Kafka" in {
@@ -167,8 +167,8 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
       probe.send(actor, isAggregateStateCurrent)
       // Verify that we haven't initialized transactions yet so we are in the uninitialized state and messages were stashed
       verify(mockProducer, times(0)).initTransactions()(any[ExecutionContext])
-      val response = actor.ask(isAggregateStateCurrent)(10 seconds).map(Some(_)).recoverWith { case _ ⇒ Future.successful(None) }
-      assert(Await.result(response, 10 seconds).isDefined)
+      val response = actor.ask(isAggregateStateCurrent)(10.seconds).map(Some(_)).recoverWith { case _ ⇒ Future.successful(None) }
+      assert(Await.result(response, 10.seconds).isDefined)
     }
 
     "Answer to IsAggregateStateCurrent when messages in flight" in {
@@ -187,13 +187,13 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
       // Wait until published message is committed to be sure we are processing
       awaitAssert({
         verify(mockProducer, times(1)).commitTransaction()
-      }, 10 seconds, 1 seconds)
+      }, 10.seconds, 1.second)
 
       val barRecord1 = KafkaRecordMetadata(Some("bar"), createRecordMeta("testTopic", 0, 0))
       probe.send(actor, KafkaProducerActorImpl.EventsPublished(Seq(probe.ref), Seq(barRecord1)))
       val isAggregateStateCurrent = KafkaProducerActorImpl.IsAggregateStateCurrent("bar", Instant.now.plusSeconds(10L))
-      val response = actor.ask(isAggregateStateCurrent)(10 seconds).map(Some(_)).recoverWith { case _ ⇒ Future.successful(None) }
-      assert(Await.result(response, 10 seconds).isDefined)
+      val response = actor.ask(isAggregateStateCurrent)(10.seconds).map(Some(_)).recoverWith { case _ ⇒ Future.successful(None) }
+      assert(Await.result(response, 1.second).isDefined)
     }
 
     "Stash Publish messages and publish them when fully initialized" in {
@@ -214,7 +214,7 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
       // Wait until the stashed messages gets committed
       awaitAssert({
         verify(mockProducer, times(1)).commitTransaction()
-      }, 10 seconds, 1 seconds)
+      }, 10.seconds, 1.second)
     }
 
     "Try to publish new incoming messages to Kafka if publishing to Kafka fails" in {

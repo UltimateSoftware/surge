@@ -2,8 +2,6 @@
 
 package com.ultimatesoftware.kafka.streams
 
-import java.util.UUID
-
 import com.typesafe.config.ConfigFactory
 import com.ultimatesoftware.config.TimeoutConfig
 import com.ultimatesoftware.scala.core.kafka.{ JsonSerdes, KafkaStringProducer, KafkaTopic, UltiKafkaConsumerConfig }
@@ -15,6 +13,8 @@ import org.apache.kafka.streams.state.{ QueryableStoreTypes, Stores }
 import org.apache.kafka.streams.{ StreamsConfig, Topology }
 import org.slf4j.LoggerFactory
 import play.api.libs.json.Json
+import scala.concurrent.Future
+import scala.concurrent.ExecutionContext.Implicits.global
 
 object GlobalStreamsWriteBufferSettings extends WriteBufferSettings {
   override def maxWriteBufferNumber: Int = 2
@@ -29,7 +29,7 @@ object GlobalStreamsBlockCacheSettings extends BlockCacheSettings {
 
 class KafkaPartitionMetadataGlobalStreamsRocksDBConfig extends CustomRocksDBConfigSetter(GlobalStreamsBlockCacheSettings, GlobalStreamsWriteBufferSettings)
 
-class GlobalKTableMetadataHandler(internalMetadataTopic: KafkaTopic, consumerGroupName: String) extends KafkaPartitionMetadataHandler {
+class GlobalKTableMetadataHandler(internalMetadataTopic: KafkaTopic, consumerGroupName: String) extends KafkaPartitionMetadataHandler with HealthyComponent {
   import DefaultSerdes._
   import ImplicitConversions._
 
@@ -82,6 +82,13 @@ class GlobalKTableMetadataHandler(internalMetadataTopic: KafkaTopic, consumerGro
       globalStreams.cleanUp()
     }
     globalStreams.start()
+  }
+
+  override def healthCheck(): Future[HealthCheck] = Future {
+    HealthCheck(
+      name = "global-table-stream",
+      id = globalStateMetaStoreName,
+      status = if (globalStreams.state().isRunning) HealthCheckStatus.UP else HealthCheckStatus.DOWN)
   }
 
   lazy val stateMetaQueryableStore: KafkaStreamsKeyValueStore[String, KafkaPartitionMetadata] = {

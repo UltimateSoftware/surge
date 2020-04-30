@@ -11,7 +11,8 @@ import akka.pattern._
 import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
 import com.ultimatesoftware.config.TimeoutConfig
-import com.ultimatesoftware.kafka.streams.{ GlobalKTableMetadataHandler, KafkaPartitionMetadata }
+import com.ultimatesoftware.kafka.streams.HealthyActor.GetHealth
+import com.ultimatesoftware.kafka.streams._
 import com.ultimatesoftware.scala.core.domain.StateMessage
 import com.ultimatesoftware.scala.core.kafka._
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, Rate, Timer }
@@ -22,11 +23,9 @@ import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.ProducerFencedException
 import org.slf4j.{ Logger, LoggerFactory }
 import play.api.libs.json.JsValue
-
-import scala.compat.java8.OptionConverters._
-import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
-import scala.util.{ Failure, Success, Try }
+import scala.concurrent.duration._
+import scala.util.{ Failure, Try }
 
 /**
  * A stateful producer actor responsible for publishing all states + events for
@@ -72,7 +71,7 @@ class KafkaProducerActor[AggId, Agg, Event, EvtMeta](
     assignedPartition: TopicPartition,
     metricsProvider: MetricsProvider,
     stateMetaHandler: GlobalKTableMetadataHandler,
-    aggregateCommandKafkaStreams: KafkaStreamsCommandBusinessLogic[AggId, Agg, _, Event, _, EvtMeta]) {
+    aggregateCommandKafkaStreams: KafkaStreamsCommandBusinessLogic[AggId, Agg, _, Event, _, EvtMeta]) extends HealthyComponent {
 
   private val log = LoggerFactory.getLogger(getClass)
   private val aggregateName: String = aggregateCommandKafkaStreams.aggregateName
@@ -108,12 +107,28 @@ class KafkaProducerActor[AggId, Agg, Event, EvtMeta](
       (publisherActor ? KafkaProducerActorImpl.IsAggregateStateCurrent(aggregateId, expirationTime)).mapTo[Boolean]
     }
   }
+
+  def healthCheck(): Future[HealthCheck] = {
+    publisherActor.ask(HealthyActor.GetHealth)(TimeoutConfig.HealthCheck.actorAskTimeout)
+      .mapTo[HealthCheck]
+      .recoverWith {
+        case err: Throwable ⇒
+          log.error(s"Failed to get publisher-actor health check", err)
+          Future.successful(HealthCheck(
+            name = "publisher-actor",
+            id = aggregateName,
+            status = HealthCheckStatus.DOWN))
+      }(ExecutionContext.global)
+  }
 }
 
+// TODO: evaluate access modifier here, it was private
 private object KafkaProducerActorImpl {
-  case class Publish(stateKeyValuePairs: Seq[(String, Array[Byte])], eventKeyValuePairs: Seq[(String, Array[Byte])])
-  case class StateProcessed(stateMeta: KafkaPartitionMetadata)
-  case class IsAggregateStateCurrent(aggregateId: String, expirationTime: Instant)
+  sealed trait KafkaProducerActorMessage
+  case class Publish(stateKeyValuePairs: Seq[(String, Array[Byte])], eventKeyValuePairs: Seq[(String, Array[Byte])]) extends KafkaProducerActorMessage
+  case class StateProcessed(stateMeta: KafkaPartitionMetadata) extends KafkaProducerActorMessage
+  case class IsAggregateStateCurrent(aggregateId: String, expirationTime: Instant) extends KafkaProducerActorMessage
+  case class AggregateStateRates(current: Rate, notCurrent: Rate) extends KafkaProducerActorMessage
 
   sealed trait InternalMessage
   case class EventsPublished(originalSenders: Seq[ActorRef], recordMetadata: Seq[KafkaRecordMetadata[String]]) extends InternalMessage
@@ -125,8 +140,6 @@ private object KafkaProducerActorImpl {
   case object FlushMessages extends InternalMessage
   case class PublishWithSender(sender: ActorRef, publish: Publish) extends InternalMessage
   case class PendingInitialization(actor: ActorRef, key: String, expiration: Instant) extends InternalMessage
-
-  case class AggregateStateRates(current: Rate, notCurrent: Rate)
 }
 private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
     assignedPartition: TopicPartition, metrics: MetricsProvider,
@@ -173,6 +186,7 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
     case msg: Initialize            ⇒ handle(msg)
     case FailedToInitialize         ⇒ context.system.scheduler.scheduleOnce(3.seconds)(initializeState())
     case FlushMessages              ⇒ // Ignore from this state
+    case GetHealth                  ⇒ getHealthCheck()
     case _: Publish                 ⇒ stash()
     case _: StateProcessed          ⇒ stash()
     case _: IsAggregateStateCurrent ⇒ stash()
@@ -182,6 +196,7 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
   private def recoveringBacklog(endOffset: Long): Receive = {
     case msg: StateProcessed        ⇒ handleFromRecoveringState(endOffset, msg)
     case FlushMessages              ⇒ // Ignore from this state
+    case GetHealth                  ⇒ getHealthCheck()
     case _: Publish                 ⇒ stash()
     case _: IsAggregateStateCurrent ⇒ stash()
     case unknown                    ⇒ log.warn("Receiving unhandled message on recoveringBacklog state", unknown)
@@ -193,6 +208,7 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
     case EventsFailedToPublish        ⇒ handleFailedToPublish(state)
     case msg: StateProcessed          ⇒ handle(state, msg)
     case msg: IsAggregateStateCurrent ⇒ handle(state, msg)
+    case GetHealth                    ⇒ getHealthCheck(state)
     case FlushMessages                ⇒ handleFlushMessages(state)
   }
 
@@ -242,7 +258,7 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
   }
 
   private def handle(initialize: Initialize): Unit = {
-    log.debug(s"Publisher actor initializing for topic-partition $assignedPartition with end offset ${initialize.endOffset}")
+    log.info(s"Publisher actor initializing for topic-partition $assignedPartition with end offset ${initialize.endOffset}")
     context.become(recoveringBacklog(initialize.endOffset))
   }
 
@@ -271,20 +287,26 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
   }
 
   private def handle(state: KafkaProducerActorState, eventsPublished: EventsPublished): Unit = {
-    val newState = state.addInFlight(eventsPublished.recordMetadata).copy(transactionInProgress = false)
+    val newState = state.addInFlight(eventsPublished.recordMetadata).completeTransaction()
     context.become(processing(newState))
     eventsPublished.originalSenders.foreach(_ ! Done)
   }
 
   private def handleFailedToPublish(state: KafkaProducerActorState): Unit = {
-    val newState = state.copy(transactionInProgress = false)
+    val newState = state.completeTransaction()
     context.become(processing(newState))
   }
 
+  private var lastTransactionInProgressWarningTime: Instant = Instant.ofEpochMilli(0L)
   private val eventsPublishedRate: Rate = metrics.createRate(s"${aggregateName}EventPublishRate")
   private def handleFlushMessages(state: KafkaProducerActorState): Unit = {
     if (state.transactionInProgress) {
-      log.warn(s"KafkaPublisherActor partition $assignedPartition tried to flush, but another transaction is already in progress")
+      if (lastTransactionInProgressWarningTime.plusSeconds(1L).isBefore(Instant.now())) {
+        lastTransactionInProgressWarningTime = Instant.now
+        log.warn(s"KafkaPublisherActor partition {} tried to flush, but another transaction is already in progress. " +
+          s"The previous transaction has been in progress for {} milliseconds. If the time to complete the previous transaction continues to grow " +
+          s"that typically indicates slowness in the Kafka brokers.", assignedPartition, state.currentTransactionTimeMillis)
+      }
     } else if (state.pendingWrites.nonEmpty) {
       val senders = state.pendingWrites.map(_.sender)
       val eventMessages = state.pendingWrites.flatMap(_.publish.eventKeyValuePairs)
@@ -304,6 +326,7 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
       val futureMsg = kafkaPublisherTimer.time {
         Try(kafkaPublisher.beginTransaction()) match {
           case Failure(err) ⇒
+            // TODO check for a ProducerFencedException here as well and exit if we're fenced out. Add a test for this
             log.error(s"KafkaPublisherActor partition $assignedPartition there was an error beginning transaction $err")
             Future.successful(EventsFailedToPublish)
           case _ ⇒
@@ -323,7 +346,7 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
             }
         }
       }
-      context.become(processing(state.flushWrites().copy(transactionInProgress = true)))
+      context.become(processing(state.flushWrites().startTransaction()))
       futureMsg.pipeTo(self)(sender())
     }
   }
@@ -339,11 +362,40 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
       context.become(processing(state.addPendingInitialization(sender(), isAggregateStateCurrent)))
     }
   }
+
+  private def getHealthCheck() = {
+    val healthCheck = HealthCheck(
+      name = "producer-actor",
+      id = assignedTopicPartitionKey,
+      status = HealthCheckStatus.UP)
+    sender() ! healthCheck
+  }
+
+  private def getHealthCheck(state: KafkaProducerActorState) = {
+    val transactionsAppearStuck = state.currentTransactionTimeMillis > 2.minutes.toMillis
+
+    val healthStatus = if (transactionsAppearStuck) {
+      HealthCheckStatus.DOWN
+    } else {
+      HealthCheckStatus.UP
+    }
+
+    val healthCheck = HealthCheck(
+      name = "producer-actor",
+      id = assignedTopicPartitionKey,
+      status = healthStatus,
+      details = Some(Map(
+        "inFlight" -> state.inFlight.size.toString,
+        "pendingInitializations" -> state.pendingInitializations.size.toString,
+        "pendingWrites" -> state.pendingWrites.size.toString,
+        "currentTransactionTimeMillis" -> state.currentTransactionTimeMillis.toString)))
+    sender() ! healthCheck
+  }
 }
 
 private[core] object KafkaProducerActorState {
   def empty(implicit sender: ActorRef, rates: KafkaProducerActorImpl.AggregateStateRates): KafkaProducerActorState = {
-    KafkaProducerActorState(Seq.empty, Seq.empty, Seq.empty, transactionInProgress = false, sender = sender, rates = rates)
+    KafkaProducerActorState(Seq.empty, Seq.empty, Seq.empty, transactionInProgressSince = None, sender = sender, rates = rates)
   }
 }
 // TODO optimize:
@@ -352,13 +404,18 @@ private[core] case class KafkaProducerActorState(
     inFlight: Seq[KafkaRecordMetadata[String]],
     pendingWrites: Seq[KafkaProducerActorImpl.PublishWithSender],
     pendingInitializations: Seq[KafkaProducerActorImpl.PendingInitialization],
-    transactionInProgress: Boolean,
+    transactionInProgressSince: Option[Instant],
     sender: ActorRef, rates: KafkaProducerActorImpl.AggregateStateRates) {
 
   import KafkaProducerActorImpl._
 
   private implicit val senderActor: ActorRef = sender
   private val log: Logger = LoggerFactory.getLogger(getClass)
+
+  def transactionInProgress: Boolean = transactionInProgressSince.nonEmpty
+  def currentTransactionTimeMillis: Long = {
+    Instant.now.minusMillis(transactionInProgressSince.getOrElse(Instant.now).toEpochMilli).toEpochMilli
+  }
 
   def inFlightByKey: Map[String, Seq[KafkaRecordMetadata[String]]] = {
     inFlight.groupBy(_.key.getOrElse(""))
@@ -383,6 +440,14 @@ private[core] case class KafkaProducerActorState(
 
   def flushWrites(): KafkaProducerActorState = {
     this.copy(pendingWrites = Seq.empty)
+  }
+
+  def startTransaction(): KafkaProducerActorState = {
+    this.copy(transactionInProgressSince = Some(Instant.now))
+  }
+
+  def completeTransaction(): KafkaProducerActorState = {
+    this.copy(transactionInProgressSince = None)
   }
 
   def addInFlight(recordMetadata: Seq[KafkaRecordMetadata[String]]): KafkaProducerActorState = {

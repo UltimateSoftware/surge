@@ -10,10 +10,13 @@ import akka.util.Timeout
 import com.typesafe.config.{ Config, ConfigFactory }
 import com.ultimatesoftware.akka.cluster.ActorHostAwareness
 import com.ultimatesoftware.config.TimeoutConfig
+import com.ultimatesoftware.kafka.streams.HealthyActor.GetHealth
+import com.ultimatesoftware.kafka.streams.{ HealthCheck, HealthCheckStatus, HealthyActor }
 import com.ultimatesoftware.scala.core.kafka._
 import org.apache.kafka.common.TopicPartition
 import org.slf4j.{ Logger, LoggerFactory }
 
+import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.Try
 
@@ -212,18 +215,24 @@ class KafkaPartitionShardRouterActor[AggIdType](
 
   // In standby mode, just follow updates to partition assignments and let Kafka streams index the aggregate state
   private def standbyMode(state: ActorState): Receive = {
-    case msg: PartitionAssignments               ⇒ handle(state, msg)
-    case GetPartitionRegionAssignments           ⇒ sender() ! state.partitionRegions
+    case msg: PartitionAssignments     ⇒ handle(state, msg)
+    case GetPartitionRegionAssignments ⇒ sender() ! state.partitionRegions
+    case GetHealth ⇒
+      sender() ! HealthCheck(name = "shard-router-actor", id = s"router-actor-$hashCode", status = HealthCheckStatus.UP)
     case msg if extractEntityId.isDefinedAt(msg) ⇒ becomeActiveAndDeliverMessage(state, msg)
   }
 
-  private def initialized(state: ActorState): Receive = {
+  private def initialized(state: ActorState): Receive = healthCheckReceiver(state) orElse {
     case msg: PartitionAssignments               ⇒ handle(state, msg)
     case msg: Terminated                         ⇒ handle(state, msg)
     case msg: ScheduleRetry[AggIdType]           ⇒ handle(state, msg)
     case ExpireOldPendingRetries                 ⇒ handleExpireOldPendingRetries(state)
     case GetPartitionRegionAssignments           ⇒ sender() ! state.partitionRegions
     case msg if extractEntityId.isDefinedAt(msg) ⇒ deliverMessage(state, msg)
+  }
+
+  private def healthCheckReceiver(state: ActorState): Receive = {
+    case GetHealth ⇒ getHealthCheck(state).pipeTo(sender())
   }
 
   private def deliverMessage(state: ActorState, msg: Any): Unit = {
@@ -291,24 +300,24 @@ class KafkaPartitionShardRouterActor[AggIdType](
   }
 
   private case class StatePlusRegion(state: ActorState, region: Option[PartitionRegion])
+
   private def newActorRegionForPartition(state: ActorState, partition: Int): StatePlusRegion = {
     // TODO the None case for partition regions to hosts (rebalancing/crashed/etc...) causes
     //  us to not be able to create a partition region for a particular aggregate
     state.partitionsToHosts.get(partition).map { hostPort ⇒
       val isLocal = isHostPortThisNode(hostPort)
       val newActorSelection = if (isLocal) {
-        log.debug(s"Creating partition region actor for partition {}", partition)
+        log.info(s"Creating partition region actor for partition {}", partition)
 
         val topicPartition = new TopicPartition(trackedTopic.name, partition)
         val regionProps = regionCreator.propsFromTopicPartition(topicPartition)
 
-        log.debug(s"Current actor path: ${self.path}")
         val newActor = context.system.actorOf(regionProps)
         context.watch(newActor)
         context.actorSelection(newActor.path)
       } else {
         val remoteAddress = Address(akkaProtocol, context.system.name, hostPort.host, hostPort.port)
-        log.debug(s"Associating new remote router at $remoteAddress for partition $partition from $localHostname")
+        log.info(s"Associating new remote router at $remoteAddress for partition $partition from $localHostname")
 
         val routerActorRemoteNode = self.path.toStringWithAddress(remoteAddress)
         context.actorSelection(routerActorRemoteNode)
@@ -316,7 +325,9 @@ class KafkaPartitionShardRouterActor[AggIdType](
 
       state.addRegion(partition, newActorSelection, isLocal = isLocal)
     }.getOrElse {
-      log.warn(s"Whoa hit None case in newActorRegionForPartition for partition $partition")
+      log.warn(s"Unable to find a partition assignment for partition {}.  This typically indicates unhealthiness " +
+        s"in the Kafka streams consumer group.  If this warning continues, check the consumer group for the application to see if " +
+        s"partitions for the aggregate state topic remain unassigned or if the Kafka Streams processor has stopped unexpectedly.", partition)
       StatePlusRegion(state, None)
     }
   }
@@ -426,5 +437,48 @@ class KafkaPartitionShardRouterActor[AggIdType](
   private def initializeState(): Unit = {
     log.debug(s"Initializing actor router with path = ${self.path}")
     partitionTracker ! KafkaConsumerStateTrackingActor.Register(self)
+  }
+
+  private def getLocalPartitionRegionsHealth(partitionRegions: Map[Int, PartitionRegion]): Seq[Future[HealthCheck]] = {
+    val localPartitionRegions = partitionRegions.filter { case (_, partitionRegion) ⇒ partitionRegion.isLocal }
+    localPartitionRegions.map {
+      case (_, partitionRegion) ⇒
+        partitionRegion.regionManager.ask(HealthyActor.GetHealth)(TimeoutConfig.HealthCheck.actorAskTimeout * 2).mapTo[HealthCheck]
+          .recoverWith {
+            case err: Throwable ⇒
+              log.error(s"Failed to get partition region health check ${partitionRegion.regionManager.pathString}", err)
+              Future.successful(HealthCheck(
+                name = partitionRegion.regionManager.pathString,
+                id = partitionRegion.regionManager.pathString,
+                status = HealthCheckStatus.DOWN))
+          }
+    }.toSeq
+  }
+
+  private def getPartitionTrackerActorHealthCheck(): Future[HealthCheck] = {
+    partitionTracker.ask(HealthyActor.GetHealth)(TimeoutConfig.HealthCheck.actorAskTimeout).mapTo[HealthCheck].recoverWith {
+      case err: Throwable ⇒
+        log.error(s"Failed to get partition-tracker health check", err)
+        Future.successful(HealthCheck(
+          name = "partition-tracker",
+          id = s"partition-tracker-actor-${partitionTracker.hashCode()}",
+          status = HealthCheckStatus.DOWN))
+    }
+  }
+
+  def getHealthCheck(state: ActorState): Future[HealthCheck] = {
+
+    val localPartitionRegions = getLocalPartitionRegionsHealth(state.partitionRegions)
+    val partitionTrackerHealthCheck = getPartitionTrackerActorHealthCheck()
+
+    Future.sequence(localPartitionRegions :+ partitionTrackerHealthCheck).map { shardHealthChecks ⇒
+      HealthCheck(
+        name = "shard-router-actor",
+        id = trackedTopic.name,
+        status = HealthCheckStatus.UP,
+        details = Some(Map(
+          "enableDRStandby" -> enableDRStandbyInitial.toString)),
+        components = Some(shardHealthChecks))
+    }
   }
 }

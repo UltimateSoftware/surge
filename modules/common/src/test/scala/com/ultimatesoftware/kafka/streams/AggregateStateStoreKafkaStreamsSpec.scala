@@ -6,7 +6,6 @@ import com.ultimatesoftware.scala.core.kafka.{ JsonSerdes, KafkaTopic }
 import com.ultimatesoftware.scala.core.utils.JsonUtils
 import org.apache.kafka.common.serialization.StringSerializer
 import org.apache.kafka.streams.KafkaStreams
-import org.apache.kafka.streams.test.ConsumerRecordFactory
 import org.scalatest.BeforeAndAfter
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
@@ -54,13 +53,12 @@ class AggregateStateStoreKafkaStreamsSpec extends AnyWordSpec with Matchers with
       val state2 = MockState("state2", 2)
       val state3 = MockState("state3", 3)
       val invalidValidationState = MockState("invalidValidation", 1)
-      val factory = new ConsumerRecordFactory[String, MockState](stateTopic.name, new StringSerializer(),
-        JsonSerdes.serdeFor[MockState].serializer())
+      val inputTopic = testDriver.createInputTopic(stateTopic.name, new StringSerializer, JsonSerdes.serdeFor[MockState].serializer())
 
-      testDriver.pipeInput(factory.create(stateTopic.name, state1.string, state1))
-      testDriver.pipeInput(factory.create(stateTopic.name, state2.string, state2))
-      testDriver.pipeInput(factory.create(stateTopic.name, state3.string, state3))
-      testDriver.pipeInput(factory.create(stateTopic.name, invalidValidationState.string, invalidValidationState))
+      inputTopic.pipeInput(state1.string, state1)
+      inputTopic.pipeInput(state2.string, state2)
+      inputTopic.pipeInput(state3.string, state3)
+      inputTopic.pipeInput(invalidValidationState.string, invalidValidationState)
 
       val store = testDriver.getKeyValueStore[String, JsValue](aggStoreKafkaStreams.aggregateStateStore)
       store.get(state1.string) shouldEqual Json.toJson(state1).toString().getBytes
@@ -69,7 +67,7 @@ class AggregateStateStoreKafkaStreamsSpec extends AnyWordSpec with Matchers with
       store.get(invalidValidationState.string) shouldEqual Json.toJson(invalidValidationState).toString().getBytes
 
       val updated1 = state1.copy(int = 3)
-      testDriver.pipeInput(factory.create(stateTopic.name, updated1.string, updated1))
+      inputTopic.pipeInput(updated1.string, updated1)
       store.get(state1.string) shouldEqual Json.toJson(updated1).toString().getBytes
     }
   }

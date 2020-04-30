@@ -3,6 +3,7 @@
 package com.ultimatesoftware.akka.cluster
 
 import akka.actor.{ ActorContext, Props }
+import com.ultimatesoftware.kafka.streams.HealthyComponent
 
 /**
  * A shard is an independently operating unit for scaling.  The shard acts as a parent to a cluster of business logic
@@ -12,7 +13,7 @@ import akka.actor.{ ActorContext, Props }
  *
  * @tparam IdType Aggregate ID type for the business logic actors of this shard.
  */
-trait PerShardLogicProvider[IdType] {
+trait PerShardLogicProvider[IdType] extends HealthyComponent {
   /**
    * This is run once per shard on shard startup.  It can be used for creating any entities that need to be run as part
    * of a shard and must return an EntityPropsProvider, which is used to create individual business logic entities on demand

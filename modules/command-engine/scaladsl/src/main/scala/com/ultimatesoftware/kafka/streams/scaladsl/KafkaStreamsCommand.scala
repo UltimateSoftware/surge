@@ -3,9 +3,11 @@
 package com.ultimatesoftware.kafka.streams.scaladsl
 
 import akka.actor.ActorSystem
-import com.ultimatesoftware.kafka.streams.core
+import com.ultimatesoftware.kafka.streams.{ HealthCheck, HealthyComponent, core }
 
-trait KafkaStreamsCommand[AggId, Agg, Command, Event, CmdMeta, EvtMeta] extends core.KafkaStreamsCommandTrait[AggId, Agg, Command, Event, CmdMeta, EvtMeta] {
+trait KafkaStreamsCommand[AggId, Agg, Command, Event, CmdMeta, EvtMeta]
+  extends core.KafkaStreamsCommandTrait[AggId, Agg, Command, Event, CmdMeta, EvtMeta]
+  with HealthCheckTrait {
   def aggregateFor(aggregateId: AggId): AggregateRef[AggId, Agg, Command, CmdMeta, Event, EvtMeta]
 }
 
