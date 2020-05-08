@@ -126,7 +126,7 @@ class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec")) with A
         val consumer = createManager
 
         consumer.start()
-        probe.expectMsg(10.seconds, record1)
+        probe.expectMsg(20.seconds, record1)
 
         consumer.stop()
         val record2 = "record 2"
@@ -134,7 +134,7 @@ class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec")) with A
         probe.expectNoMessage()
 
         consumer.start()
-        probe.expectMsg(10.seconds, record2)
+        probe.expectMsg(20.seconds, record2)
       }
     }
   }

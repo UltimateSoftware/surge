@@ -4,14 +4,15 @@ package com.ultimatesoftware.kafka.streams.core
 
 import akka.actor.Props
 import akka.remote.testconductor.RoleName
-import akka.remote.testkit.{ MultiNodeConfig, MultiNodeSpec, MultiNodeSpecCallbacks }
-import akka.testkit.{ ImplicitSender, TestProbe }
+import akka.remote.testkit.{MultiNodeConfig, MultiNodeSpec, MultiNodeSpecCallbacks}
+import akka.testkit.{ImplicitSender, TestProbe}
+import com.typesafe.config.ConfigFactory
 import com.ultimatesoftware.kafka.streams.KafkaStreamsKeyValueStore
 import com.ultimatesoftware.kafka.streams.core.KTableQueryActor.GetState
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.serialization.StringSerializer
 import org.apache.kafka.streams.KafkaStreams
-import org.apache.kafka.streams.state.{ HostInfo, StreamsMetadata }
+import org.apache.kafka.streams.state.{HostInfo, StreamsMetadata}
 import org.mockito.ArgumentMatchers
 import org.mockito.Mockito._
 import org.mockito.invocation.InvocationOnMock
@@ -22,6 +23,7 @@ import org.scalatestplus.mockito.MockitoSugar
 
 import scala.collection.JavaConverters._
 import scala.concurrent.Future
+import scala.concurrent.duration._
 
 trait STMultiNodeSpec extends MultiNodeSpecCallbacks with AnyWordSpecLike with Matchers with BeforeAndAfterAll {
   self: MultiNodeSpec =>
@@ -38,6 +40,11 @@ trait STMultiNodeSpec extends MultiNodeSpecCallbacks with AnyWordSpecLike with M
 object KTableQueryActorSpecConfig extends MultiNodeConfig {
   val node1: RoleName = role("node1")
   val node2: RoleName = role("node2")
+  val nodesConfig = ConfigFactory.parseString("""
+    akka.actor.allow-java-serialization=on
+    akka.actor.warn-about-java-serializer-usage=off
+    """)
+  commonConfig(nodesConfig)
 }
 
 class KTableQueryActorMultiJvmNode1 extends KTableQueryActorSpecBase
@@ -106,7 +113,7 @@ class KTableQueryActorSpecBase extends MultiNodeSpec(KTableQueryActorSpecConfig)
 
       runOn(node1) {
         probe.send(queryActor, GetState(node2Agg))
-        probe.expectMsg(KTableQueryActor.FetchedState(node2Agg, Some(node2Agg)))
+        probe.expectMsg(10.seconds, KTableQueryActor.FetchedState(node2Agg, Some(node2Agg)))
       }
       enterBarrier("remoteAssignmentTestEnd")
     }

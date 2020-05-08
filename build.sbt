@@ -16,7 +16,8 @@ val multiJvmTestSettings = Seq(
   test in Test := {
     unitTest.in(Test).value
     test.in(MultiJvm).value
-  }
+  },
+  dependencyOverrides ++= Dependencies.dependenciesOverride
 )
 
 lazy val `surge-common` = (project in file("modules/common"))
@@ -26,6 +27,7 @@ lazy val `surge-common` = (project in file("modules/common"))
       Akka.actor,
       Akka.multiNodeTestkit,
       Akka.remote,
+      Akka.jacksonSerialization,
       Alpakka.kafka,
       Alpakka.kafkaTestKit,
       Kafka.kafkaClients,

@@ -6,12 +6,14 @@ object Dependencies extends AutoPlugin {
   object autoImport {
 
     object Akka {
-      val version = "2.5.25"
+      val version = "2.6.5"
 
       val actor = "com.typesafe.akka" %% "akka-actor" % version
       val multiNodeTestkit = "com.typesafe.akka" %% "akka-multi-node-testkit" % version % Test
       val remote = "com.typesafe.akka" %% "akka-remote" % version
       val testKit = "com.typesafe.akka" %% "akka-testkit" % version % Test
+      val akkaStreamTestKit = "com.typesafe.akka" %% "akka-stream-testkit" % version % Test
+      val jacksonSerialization = "com.typesafe.akka" %% "akka-serialization-jackson" % version
     }
 
     object Alpakka {
@@ -48,4 +50,7 @@ object Dependencies extends AutoPlugin {
     val scalatestPlusMockito =  "org.scalatestplus" %% "mockito-3-2" % "3.1.1.0" % Test
     val typesafeConfig = "com.typesafe" % "config" % "1.4.0"
   }
+  val dependenciesOverride = Seq(
+    Dependencies.autoImport.Akka.akkaStreamTestKit
+  )
 }

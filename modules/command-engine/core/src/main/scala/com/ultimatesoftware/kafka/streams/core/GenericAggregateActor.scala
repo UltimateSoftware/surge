@@ -3,11 +3,13 @@
 package com.ultimatesoftware.kafka.streams.core
 
 import java.time.Instant
+import java.util.UUID
 
 import akka.Done
 import akka.actor.{ Actor, Props, ReceiveTimeout, Stash }
 import akka.pattern.pipe
-import com.ultimatesoftware.akka.cluster.Passivate
+import com.fasterxml.jackson.annotation.JsonTypeInfo
+import com.ultimatesoftware.akka.cluster.{ JacksonSerializable, Passivate }
 import com.ultimatesoftware.config.TimeoutConfig
 import com.ultimatesoftware.kafka.streams.AggregateStateStoreKafkaStreams
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, Timer }
@@ -30,7 +32,7 @@ private[streams] object GenericAggregateActor {
       .withDispatcher("generic-aggregate-actor-dispatcher")
   }
 
-  sealed trait RoutableMessage[AggId] {
+  sealed trait RoutableMessage[AggId] extends JacksonSerializable {
     def aggregateId: AggId
   }
   implicit def commandEnvelopeFormat[AggId, Cmd, CmdMeta](implicit
@@ -44,18 +46,27 @@ private[streams] object GenericAggregateActor {
       case routableMessage: RoutableMessage[AggIdType] ⇒ routableMessage.aggregateId
     }
   }
-  case class CommandEnvelope[AggIdType, Cmd, CmdMeta](aggregateId: AggIdType, meta: CmdMeta, command: Cmd) extends RoutableMessage[AggIdType]
-  case class GetState[AggIdType](aggregateId: AggIdType) extends RoutableMessage[AggIdType]
-  case class ApplyEventEnvelope[AggIdType, Event, EvtMeta](aggregateId: AggIdType, event: Event, meta: EvtMeta) extends RoutableMessage[AggIdType]
 
-  case class StateResponse[Agg](aggregateState: Option[Agg])
+  case class CommandEnvelope[AggIdType, Cmd, CmdMeta](
+      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "aggregateIdType", visible = true) aggregateId: AggIdType,
+      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "cmdMetaType", visible = true) meta: CmdMeta,
+      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "cmdType", visible = true) command: Cmd) extends RoutableMessage[AggIdType]
+  case class GetState[AggIdType](
+      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "aggregateIdType", visible = true) aggregateId: AggIdType) extends RoutableMessage[AggIdType]
+  case class ApplyEventEnvelope[AggIdType, Event, EvtMeta](
+      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "aggregateIdType", visible = true) aggregateId: AggIdType,
+      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "eventType", visible = true) event: Event,
+      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "metaEventType", visible = true) meta: EvtMeta) extends RoutableMessage[AggIdType]
+
+  case class StateResponse[Agg](
+      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "aggregateType", visible = true) aggregateState: Option[Agg])
 
   sealed trait CommandResponse
-  case class CommandFailure(validationError: Seq[ValidationError])
-  case class CommandError(exception: Throwable)
+  case class CommandFailure(validationError: Seq[ValidationError]) extends CommandResponse
+  case class CommandError(exception: Throwable) extends CommandResponse
 
   implicit def commandSuccessFormat[Agg](implicit format: Format[Agg]): Format[CommandSuccess[Agg]] = Json.format[CommandSuccess[Agg]]
-  case class CommandSuccess[Agg](aggregateState: Option[Agg])
+  case class CommandSuccess[Agg](aggregateState: Option[Agg]) extends CommandResponse
 
   def createMetrics(metricsProvider: MetricsProvider, aggregateName: String): GenericAggregateActorMetrics = {
     GenericAggregateActorMetrics(

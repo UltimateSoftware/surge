@@ -6,6 +6,7 @@ import akka.actor.{ Actor, DeadLetter, Props }
 import akka.remote.testconductor.RoleName
 import akka.remote.testkit.{ MultiNodeConfig, MultiNodeSpec, MultiNodeSpecCallbacks }
 import akka.testkit.{ ImplicitSender, TestProbe }
+import com.typesafe.config.ConfigFactory
 import com.ultimatesoftware.scala.core.kafka.{ HostPort, KafkaProducerTrait, KafkaTopic, PartitionAssignments }
 import org.apache.kafka.common.TopicPartition
 import org.mockito.ArgumentMatchers.anyString
@@ -31,6 +32,11 @@ trait STMultiNodeSpec extends MultiNodeSpecCallbacks with AnyWordSpecLike with M
 object KafkaPartitionShardRouterActorSpecConfig extends MultiNodeConfig {
   val node1: RoleName = role("node1")
   val node2: RoleName = role("node2")
+  val nodesConfig = ConfigFactory.parseString("""
+    akka.actor.allow-java-serialization=on
+    akka.actor.warn-about-java-serializer-usage=off
+    """)
+  commonConfig(nodesConfig)
 }
 
 class KafkaPartitionShardRouterActorMultiJvmNode1 extends KafkaPartitionShardRouterActorSpecBase

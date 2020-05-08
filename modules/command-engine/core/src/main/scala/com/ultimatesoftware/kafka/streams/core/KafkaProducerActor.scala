@@ -212,6 +212,7 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
     case msg: IsAggregateStateCurrent ⇒ handle(state, msg)
     case GetHealth                    ⇒ getHealthCheck(state)
     case FlushMessages                ⇒ handleFlushMessages(state)
+    case Done                         ⇒ // Ignore to prevent these messages to become dead letters
   }
 
   private def sendFlushRecord: Future[InternalMessage] = {

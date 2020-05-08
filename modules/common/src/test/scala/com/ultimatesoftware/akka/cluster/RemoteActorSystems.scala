@@ -13,8 +13,8 @@ object RemoteActorSystems {
 
   val nettyConfig: Config = ConfigFactory.load("classic-remoting-test-config.conf")
   val nettyConfiguredSystem: ActorSystem = ActorSystem("NettyConfiguredSystem", nettyConfig)
-  val nettyHost: String = nettyConfig.getString("akka.remote.netty.tcp.hostname")
-  val nettyPort: Int = nettyConfig.getInt("akka.remote.netty.tcp.port")
+  val nettyHost: String = nettyConfig.getString("akka.remote.classic.netty.tcp.hostname")
+  val nettyPort: Int = nettyConfig.getInt("akka.remote.classic.netty.tcp.port")
 
   val localConfig: Config = ConfigFactory.load("akka-local.conf")
   val localActorSystem: ActorSystem = ActorSystem("LocalActorSystem", localConfig)
