@@ -15,6 +15,7 @@ import com.typesafe.config.{ Config, ConfigFactory }
 import com.ultimatesoftware.config.TimeoutConfig
 import com.ultimatesoftware.scala.core.kafka.{ KafkaSecurityConfiguration, KafkaTopic }
 import org.apache.kafka.clients.consumer.{ ConsumerConfig, ConsumerConfigExtension }
+import org.apache.kafka.common.requests.IsolationLevel
 import org.apache.kafka.common.serialization.{ ByteArrayDeserializer, Deserializer, StringDeserializer }
 import org.slf4j.{ Logger, LoggerFactory }
 
@@ -96,6 +97,7 @@ object KafkaConsumer extends KafkaSecurityConfiguration {
     baseSettings
       .withBootstrapServers(brokers)
       .withGroupId(groupId)
+      .withProperty(ConsumerConfig.ISOLATION_LEVEL_CONFIG, IsolationLevel.READ_COMMITTED.toString.toLowerCase)
       .withProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
       .withProperty(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, TimeoutConfig.Kafka.consumerSessionTimeout.toMillis.toString)
       .withProperty(ConsumerConfigExtension.LEAVE_GROUP_ON_CLOSE_CONFIG, TimeoutConfig.debugTimeoutEnabled.toString)

@@ -159,8 +159,10 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
   private val flushInterval = config.getDuration("kafka.publisher.flush-interval", TimeUnit.MILLISECONDS).milliseconds
   private val brokers = config.getString("kafka.brokers").split(",")
 
+  private val transactionalIdPrefix = aggregateCommandKafkaStreams.transactionalIdPrefix
+  // TODO revisit this - seems like a long transactional id, but may be close to what we want
+  private val transactionalId = s"$transactionalIdPrefix-${assignedPartition.topic()}-${assignedPartition.partition()}"
   private val kafkaPublisher = kafkaProducerOverride.getOrElse({
-    val transactionalId = s"$aggregateName-event-producer-partition-${assignedPartition.partition()}"
     val kafkaConfig = Map[String, String](
       // ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG -> true, // For exactly once writes. How does this impact performance?
       ProducerConfig.TRANSACTIONAL_ID_CONFIG -> transactionalId)
@@ -234,7 +236,7 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
       initializeState()
     }.recover {
       case err: Throwable ⇒
-        log.error(s"KafkaPublisherActor failed to initialize kafka transactions, retrying in 3 seconds: $assignedPartition $err")
+        log.error(s"KafkaPublisherActor failed to initialize kafka transactions, retrying in 3 seconds: $assignedPartition", err)
         context.system.scheduler.scheduleOnce(3.seconds, self, InitTransactions)
     }
   }
@@ -308,47 +310,62 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
           s"that typically indicates slowness in the Kafka brokers.", assignedPartition, state.currentTransactionTimeMillis)
       }
     } else if (state.pendingWrites.nonEmpty) {
-      val senders = state.pendingWrites.map(_.sender)
       val eventMessages = state.pendingWrites.flatMap(_.publish.eventKeyValuePairs)
       val stateMessages = state.pendingWrites.flatMap(_.publish.stateKeyValuePairs)
 
-      val eventRecords = eventMessages.map { tup ⇒
-        new ProducerRecord(eventsTopic.name, tup._1, tup._2)
+      val eventRecords = eventMessages.map {
+        case (eventKey, eventValue) ⇒
+          new ProducerRecord(eventsTopic.name, eventKey, eventValue)
       }
-      val stateRecords = stateMessages.map { tup ⇒
-        new ProducerRecord(stateTopic.name, tup._1, tup._2)
+      val stateRecords = stateMessages.map {
+        case (aggregateKey, aggregateValue) ⇒
+          new ProducerRecord(stateTopic.name, assignedPartition.partition(), aggregateKey, aggregateValue)
       }
       val records = eventRecords ++ stateRecords
 
       log.info(s"KafkaPublisherActor partition {} writing {} events to Kafka", assignedPartition, eventRecords.length)
       log.info(s"KafkaPublisherActor partition {} writing {} states to Kafka", assignedPartition, stateRecords.length)
       eventsPublishedRate.mark(eventMessages.length)
-      val futureMsg = kafkaPublisherTimer.time {
-        Try(kafkaPublisher.beginTransaction()) match {
-          case Failure(err) ⇒
-            // TODO check for a ProducerFencedException here as well and exit if we're fenced out. Add a test for this
-            log.error(s"KafkaPublisherActor partition $assignedPartition there was an error beginning transaction $err")
-            Future.successful(EventsFailedToPublish)
-          case _ ⇒
-            Future.sequence(kafkaPublisher.putRecords(records)).map { recordMeta ⇒
-              log.info(s"KafkaPublisherActor partition {} committing transaction", assignedPartition)
-              kafkaPublisher.commitTransaction()
-              EventsPublished(senders, recordMeta.filter(_.wrapped.topic() == stateTopic.name))
-            } recover {
-              case _: ProducerFencedException ⇒
-                log.error(s"KafkaPublisherActor partition $assignedPartition tried to commit a transaction, but was fenced out by another producer instance.")
-                kafkaPublisher.abortTransaction()
-                context.stop(self)
-              case e ⇒
-                log.error(s"KafkaPublisherActor partition $assignedPartition got error while trying to publish to Kafka", e)
-                kafkaPublisher.abortTransaction()
-                EventsFailedToPublish
-            }
-        }
-      }
-      context.become(processing(state.flushWrites().startTransaction()))
-      futureMsg.pipeTo(self)(sender())
+      doFlushRecords(state, records)
     }
+  }
+
+  private def doFlushRecords(state: KafkaProducerActorState, records: Seq[ProducerRecord[String, Array[Byte]]]): Unit = {
+    val senders = state.pendingWrites.map(_.sender)
+    val futureMsg = kafkaPublisherTimer.time {
+      Try(kafkaPublisher.beginTransaction()) match {
+        case Failure(_: ProducerFencedException) ⇒
+          producerFenced()
+          Future.successful(EventsFailedToPublish) // Only used for the return type, the actor is stopped in the producerFenced() method
+        case Failure(err) ⇒
+          log.error(s"KafkaPublisherActor partition $assignedPartition there was an error beginning transaction", err)
+          Future.successful(EventsFailedToPublish)
+        case _ ⇒
+          Future.sequence(kafkaPublisher.putRecords(records)).map { recordMeta ⇒
+            log.info(s"KafkaPublisherActor partition {} committing transaction", assignedPartition)
+            kafkaPublisher.commitTransaction()
+            EventsPublished(senders, recordMeta.filter(_.wrapped.topic() == stateTopic.name))
+          } recover {
+            case _: ProducerFencedException ⇒
+              producerFenced()
+            case e ⇒
+              log.error(s"KafkaPublisherActor partition $assignedPartition got error while trying to publish to Kafka", e)
+              kafkaPublisher.abortTransaction()
+              EventsFailedToPublish
+          }
+      }
+    }
+    context.become(processing(state.flushWrites().startTransaction()))
+    futureMsg.pipeTo(self)(sender())
+  }
+
+  private def producerFenced(): Unit = {
+    val producerFencedErrorLog = s"KafkaPublisherActor partition $assignedPartition tried to commit a transaction, but was " +
+      s"fenced out by another producer instance. This instance of the producer for the assigned partition will shut down in favor of the " +
+      s"newer producer for this partition.  If this message persists, check that two independent application clusters are not using the same " +
+      s"transactional id prefix of [$transactionalId] for the same Kafka cluster."
+    log.error(producerFencedErrorLog)
+    context.stop(self)
   }
 
   private def handle(state: KafkaProducerActorState, isAggregateStateCurrent: IsAggregateStateCurrent): Unit = {
@@ -363,7 +380,7 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
     }
   }
 
-  private def getHealthCheck() = {
+  private def getHealthCheck(): Unit = {
     val healthCheck = HealthCheck(
       name = "producer-actor",
       id = assignedTopicPartitionKey,
@@ -371,7 +388,7 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
     sender() ! healthCheck
   }
 
-  private def getHealthCheck(state: KafkaProducerActorState) = {
+  private def getHealthCheck(state: KafkaProducerActorState): Unit = {
     val transactionsAppearStuck = state.currentTransactionTimeMillis > 2.minutes.toMillis
 
     val healthStatus = if (transactionsAppearStuck) {

@@ -5,7 +5,7 @@ package com.ultimatesoftware.kafka.streams.core
 import akka.actor.ActorSystem
 import com.ultimatesoftware.akka.cluster.ActorSystemHostAwareness
 import com.ultimatesoftware.kafka.KafkaConsumerStateTrackingActor
-import com.ultimatesoftware.kafka.streams.{ AggregateStateStoreKafkaStreams, GlobalKTableMetadataHandler, HealthCheck, HealthyComponent, KafkaStreamsPartitionTrackerActorProvider, SurgeHealthCheck }
+import com.ultimatesoftware.kafka.streams._
 import play.api.libs.json.JsValue
 
 import scala.concurrent.{ ExecutionContext, Future }

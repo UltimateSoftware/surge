@@ -3,6 +3,7 @@
 package com.ultimatesoftware.kafka.streams.core
 
 import java.time.Instant
+
 import akka.pattern.ask
 import akka.Done
 import akka.actor.{ ActorRef, ActorSystem, Props }
@@ -13,11 +14,13 @@ import com.ultimatesoftware.scala.core.kafka.{ KafkaBytesProducer, KafkaRecordMe
 import com.ultimatesoftware.scala.core.monitoring.metrics.NoOpMetricsProvider
 import org.apache.kafka.clients.producer.{ ProducerRecord, RecordMetadata }
 import org.apache.kafka.common.TopicPartition
+import org.apache.kafka.common.errors.ProducerFencedException
 import org.mockito.ArgumentMatchers._
 import org.mockito.Mockito._
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
+
 import scala.concurrent.duration._
 import scala.concurrent.{ Await, ExecutionContext, Future }
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -49,12 +52,15 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
   private def testObjects(strings: Seq[String]): Seq[(String, Array[Byte])] = {
     strings.map(str ⇒ str -> str.getBytes())
   }
-  private def records(events: Seq[(String, Array[Byte])], states: Seq[(String, Array[Byte])]): Seq[ProducerRecord[String, Array[Byte]]] = {
-    val eventRecords = events.map { tup ⇒
-      new ProducerRecord(kafkaStreamsLogic.kafka.eventsTopic.name, tup._1, tup._2)
+  private def records(assignedPartition: TopicPartition, events: Seq[(String, Array[Byte])],
+    states: Seq[(String, Array[Byte])]): Seq[ProducerRecord[String, Array[Byte]]] = {
+    val eventRecords = events.map {
+      case (key, value) ⇒
+        new ProducerRecord(kafkaStreamsLogic.kafka.eventsTopic.name, key, value)
     }
-    val stateRecords = states.map { tup ⇒
-      new ProducerRecord(kafkaStreamsLogic.kafka.stateTopic.name, tup._1, tup._2)
+    val stateRecords = states.map {
+      case (key, value) ⇒
+        new ProducerRecord(kafkaStreamsLogic.kafka.stateTopic.name, assignedPartition.partition(), key, value)
     }
 
     eventRecords ++ stateRecords
@@ -146,7 +152,7 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
       probe.expectMsg(6.seconds, Done) // Need to wait a little extra since failing to write the flush record will wait 3 seconds before retrying
 
       verify(mockProducerFailsPutRecord, times(2)).putRecord(any[ProducerRecord[String, Array[Byte]]])
-      verify(mockProducerFailsPutRecord).putRecords(records(testEvents2, testAggs2))
+      verify(mockProducerFailsPutRecord).putRecords(records(assignedPartition, testEvents2, testAggs2))
       verify(mockProducerFailsPutRecord).commitTransaction()
     }
 
@@ -234,13 +240,13 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
       probe.send(failingPut, KafkaProducerActorImpl.FlushMessages)
       probe.expectNoMessage()
       verify(mockProducerFailsPutRecords).beginTransaction()
-      verify(mockProducerFailsPutRecords).putRecords(records(testEvents1, testAggs1))
+      verify(mockProducerFailsPutRecords).putRecords(records(assignedPartition, testEvents1, testAggs1))
       verify(mockProducerFailsPutRecords).abortTransaction()
 
       probe.send(failingPut, KafkaProducerActorImpl.Publish(testAggs2, testEvents2))
       probe.send(failingPut, KafkaProducerActorImpl.FlushMessages)
       probe.expectMsg(Done)
-      verify(mockProducerFailsPutRecords).putRecords(records(testEvents2, testAggs2))
+      verify(mockProducerFailsPutRecords).putRecords(records(assignedPartition, testEvents2, testAggs2))
       verify(mockProducerFailsPutRecords).commitTransaction()
     }
 
@@ -265,7 +271,7 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
       probe.send(failingCommit, KafkaProducerActorImpl.FlushMessages)
       probe.expectNoMessage()
       verify(mockProducerFailsCommit).beginTransaction()
-      verify(mockProducerFailsCommit).putRecords(records(testEvents1, testAggs1))
+      verify(mockProducerFailsCommit).putRecords(records(assignedPartition, testEvents1, testAggs1))
       verify(mockProducerFailsCommit).commitTransaction()
       verify(mockProducerFailsCommit).abortTransaction()
 
@@ -273,7 +279,51 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
       probe.send(failingCommit, KafkaProducerActorImpl.Publish(testAggs2, testEvents2))
       probe.send(failingCommit, KafkaProducerActorImpl.FlushMessages)
       probe.expectNoMessage()
-      verify(mockProducerFailsCommit).putRecords(records(testEvents2, testAggs2))
+      verify(mockProducerFailsCommit).putRecords(records(assignedPartition, testEvents2, testAggs2))
+    }
+
+    "Stop if the producer is fenced out by another instance with the same transaction id" in {
+      val probe = TestProbe()
+      val assignedPartition = new TopicPartition("testTopic", 1)
+      val mockProducerFenceOnBegin = mock[KafkaBytesProducer]
+      val mockProducerFenceOnCommit = mock[KafkaBytesProducer]
+      val fencedOnBegin = testProducerActor(assignedPartition, mockProducerFenceOnBegin)
+      val fencedOnCommit = testProducerActor(assignedPartition, mockProducerFenceOnCommit)
+
+      val mockMetadata = mockRecordMetadata(assignedPartition)
+
+      when(mockProducerFenceOnBegin.initTransactions()(any[ExecutionContext])).thenReturn(Future.unit)
+      doThrow(new ProducerFencedException("This is expected")).when(mockProducerFenceOnBegin).beginTransaction()
+      doNothing().when(mockProducerFenceOnBegin).abortTransaction()
+      doNothing().when(mockProducerFenceOnBegin).commitTransaction()
+      when(mockProducerFenceOnBegin.putRecords(any[Seq[ProducerRecord[String, Array[Byte]]]]))
+        .thenReturn(Seq(Future.successful(mockMetadata)))
+      when(mockProducerFenceOnBegin.putRecord(any[ProducerRecord[String, Array[Byte]]]))
+        .thenReturn(Future.successful(mockMetadata))
+
+      when(mockProducerFenceOnCommit.initTransactions()(any[ExecutionContext])).thenReturn(Future.unit)
+      doNothing().when(mockProducerFenceOnCommit).beginTransaction()
+      doNothing().when(mockProducerFenceOnCommit).abortTransaction()
+      doThrow(new ProducerFencedException("This is expected")).when(mockProducerFenceOnCommit).commitTransaction()
+      when(mockProducerFenceOnCommit.putRecords(any[Seq[ProducerRecord[String, Array[Byte]]]]))
+        .thenReturn(Seq(Future.successful(mockMetadata)))
+      when(mockProducerFenceOnCommit.putRecord(any[ProducerRecord[String, Array[Byte]]]))
+        .thenReturn(Future.successful(mockMetadata))
+
+      probe.watch(fencedOnBegin)
+      probe.send(fencedOnBegin, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
+      probe.send(fencedOnBegin, KafkaProducerActorImpl.FlushMessages)
+      probe.expectTerminated(fencedOnBegin)
+      verify(mockProducerFenceOnBegin).beginTransaction()
+      verify(mockProducerFenceOnBegin, times(0)).putRecords(records(assignedPartition, testEvents1, testAggs1))
+
+      probe.watch(fencedOnCommit)
+      probe.send(fencedOnCommit, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
+      probe.send(fencedOnCommit, KafkaProducerActorImpl.FlushMessages)
+      probe.expectTerminated(fencedOnCommit)
+      verify(mockProducerFenceOnCommit).beginTransaction()
+      verify(mockProducerFenceOnCommit).putRecords(records(assignedPartition, testEvents1, testAggs1))
+      verify(mockProducerFenceOnCommit).commitTransaction()
     }
   }
 

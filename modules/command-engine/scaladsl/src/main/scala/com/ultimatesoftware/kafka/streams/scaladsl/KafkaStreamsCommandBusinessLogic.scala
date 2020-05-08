@@ -50,6 +50,8 @@ trait KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtM
     s"global-ktable-$environment-${internalMetadataTopic.name}"
   }
 
+  def transactionalIdPrefix: String = "surge-transactional-event-producer-partition"
+
   private def kafkaConfig = KafkaStreamsCommandKafkaConfig(stateTopic = stateTopic, eventsTopic = eventsTopic,
     internalMetadataTopic = internalMetadataTopic, eventKeyExtractor = eventKeyExtractor, stateKeyExtractor = stateKeyExtractor)
 
@@ -61,6 +63,7 @@ trait KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtM
       metricsProvider = metricsProvider, metricsPublisher = metricsPublisher, metricsInterval = metricsInterval,
       aggregateComposer = aggregateComposer,
       aggregateConsumerGroupName = aggregateConsumerGroupName,
-      internalConsumerGroupName = internalConsumerGroupName)
+      internalConsumerGroupName = internalConsumerGroupName,
+      transactionalIdPrefix = transactionalIdPrefix)
   }
 }

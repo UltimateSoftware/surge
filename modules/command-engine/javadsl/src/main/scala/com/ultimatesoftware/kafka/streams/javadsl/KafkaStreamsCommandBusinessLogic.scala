@@ -59,6 +59,8 @@ abstract class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdM
     s"global-ktable-$environment-${internalMetadataTopic.name}"
   }
 
+  def transactionalIdPrefix: String = "surge-transactional-event-producer-partition"
+
   private[javadsl] def toCore: com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta] = {
     new com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
       aggregateName = aggregateName, kafka = kafkaConfig,
@@ -67,6 +69,7 @@ abstract class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdM
       metricsProvider = metricsProvider, metricsPublisher = metricsPublisher, metricsInterval = metricsInterval,
       aggregateComposer = aggregateComposer,
       aggregateConsumerGroupName = aggregateConsumerGroupName,
-      internalConsumerGroupName = internalConsumerGroupName)
+      internalConsumerGroupName = internalConsumerGroupName,
+      transactionalIdPrefix = transactionalIdPrefix)
   }
 }
