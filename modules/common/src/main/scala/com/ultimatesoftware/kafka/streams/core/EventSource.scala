@@ -31,7 +31,8 @@ trait EventSource[Event, EvtMeta] extends DataSource[String, Array[Byte]] {
   override val valueDeserializer: Deserializer[Array[Byte]] = new ByteArrayDeserializer()
   private lazy val envelopeUtils = new EnvelopeUtils(formatting)
 
-  private def dataSink(eventSink: EventSink[Event, EvtMeta]): DataSink[String, Array[Byte]] = {
+  // FIXME we need a better way to filter out events we don't care about.
+  protected def dataSink(eventSink: EventSink[Event, EvtMeta]): DataSink[String, Array[Byte]] = {
     (key: String, value: Array[Byte]) ⇒
       {
         envelopeUtils.eventFromBytes(value) match {
