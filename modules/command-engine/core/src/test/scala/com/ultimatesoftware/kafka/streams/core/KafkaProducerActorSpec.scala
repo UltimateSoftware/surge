@@ -14,7 +14,7 @@ import com.ultimatesoftware.scala.core.kafka.{ KafkaBytesProducer, KafkaRecordMe
 import com.ultimatesoftware.scala.core.monitoring.metrics.NoOpMetricsProvider
 import org.apache.kafka.clients.producer.{ ProducerRecord, RecordMetadata }
 import org.apache.kafka.common.TopicPartition
-import org.apache.kafka.common.errors.ProducerFencedException
+import org.apache.kafka.common.errors.{ AuthorizationException, ProducerFencedException }
 import org.mockito.ArgumentMatchers._
 import org.mockito.Mockito._
 import org.scalatest.matchers.should.Matchers
@@ -100,20 +100,41 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
       // First time beginTransaction will fail and commitTransaction won't be executed
       probe.send(actor, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
       probe.send(actor, KafkaProducerActorImpl.FlushMessages)
-      awaitAssert({
-        verify(mockProducer, times(1)).beginTransaction()
-      }, 3.seconds, 1.second)
+      expectNoMessage()
+      verify(mockProducer, times(1)).beginTransaction()
       verify(mockProducer, times(0)).commitTransaction()
+      expectNoMessage()
+      verify(mockProducer, times(1)).beginTransaction()
       // Actor should recover from begin transaction error and successfully commit
       probe.send(actor, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
       probe.send(actor, KafkaProducerActorImpl.FlushMessages)
-      awaitAssert({
-        verify(mockProducer, times(2)).beginTransaction()
-        verify(mockProducer, times(1)).commitTransaction()
-      }, 3.seconds, 1.second)
+      expectNoMessage()
+      verify(mockProducer, times(2)).beginTransaction()
+      verify(mockProducer, times(1)).commitTransaction()
     }
 
-    "Gets to initialize the state if initializing kafka transactions fails" in {
+    "Gets to initialize the state if initializing kafka transactions fails with a fatal error" in {
+      TestProbe()
+      val assignedPartition = new TopicPartition("testTopic", 1)
+      val mockProducer = mock[KafkaBytesProducer]
+      val mockMetadata = mockRecordMetadata(assignedPartition)
+
+      when(mockProducer.initTransactions()(any[ExecutionContext]))
+        .thenReturn(Future.failed(new AuthorizationException("This is expected")))
+        .thenReturn(Future.successful())
+      when(mockProducer.putRecord(any[ProducerRecord[String, Array[Byte]]]))
+        .thenReturn(Future.successful(mockMetadata))
+
+      testProducerActor(assignedPartition, mockProducer)
+      awaitAssert({
+        // tries to initTransactions twice, first time fails
+        verify(mockProducer, times(2)).initTransactions()(any[ExecutionContext])
+        // second time is a success and it calls initializeState only once, what cause a call to putRecord
+        verify(mockProducer, times(1)).putRecord(any[ProducerRecord[String, Array[Byte]]])
+      }, 11.seconds, 10.seconds)
+    }
+
+    "Gets to initialize the state if initializing kafka transactions fails with non-fatal error" in {
       TestProbe()
       val assignedPartition = new TopicPartition("testTopic", 1)
       val mockProducer = mock[KafkaBytesProducer]

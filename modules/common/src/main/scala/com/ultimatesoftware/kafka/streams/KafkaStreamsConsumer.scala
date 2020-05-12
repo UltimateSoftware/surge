@@ -6,6 +6,7 @@ import java.time.Duration
 import java.time.temporal.ChronoUnit
 import java.util.Properties
 
+import com.typesafe.config.ConfigFactory
 import com.ultimatesoftware.kafka.streams.DefaultSerdes._
 import com.ultimatesoftware.scala.core.kafka.{ KafkaSecurityConfiguration, KafkaTopic, UltiKafkaConsumerConfig }
 import org.apache.kafka.common.serialization.Serde
@@ -19,6 +20,15 @@ abstract class KafkaStreamsConsumer[K, V](implicit keySerde: Serde[K], valueSerd
   def consumerConfig: UltiKafkaConsumerConfig
   def kafkaConfig: Map[String, String]
 
+  private val config = ConfigFactory.load()
+  private val environment = config.getString("app.environment")
+  private val applicationId = consumerConfig.consumerGroup match {
+    case name: String if name.contains(s"-$environment") ⇒
+      consumerConfig.consumerGroup
+    case _ ⇒
+      s"${consumerConfig.consumerGroup}-$environment"
+  }
+
   def applicationServerConfig: Option[String]
 
   def topologyProps: Option[Properties]
@@ -27,7 +37,7 @@ abstract class KafkaStreamsConsumer[K, V](implicit keySerde: Serde[K], valueSerd
     val p = new Properties()
     kafkaConfig.foreach(propPair ⇒ p.put(propPair._1, propPair._2))
     p.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, brokers.mkString(","))
-    p.put(StreamsConfig.APPLICATION_ID_CONFIG, consumerConfig.consumerGroup)
+    p.put(StreamsConfig.APPLICATION_ID_CONFIG, applicationId)
     applicationServerConfig.foreach(config ⇒ p.put(StreamsConfig.APPLICATION_SERVER_CONFIG, config))
     configureSecurityProperties(p)
     p

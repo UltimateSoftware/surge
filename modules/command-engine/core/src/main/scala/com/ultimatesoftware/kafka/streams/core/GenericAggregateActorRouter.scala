@@ -64,7 +64,7 @@ class GenericAggregateActorRegionProvider[AggId, Agg, Command, Event, CmdMeta, E
     aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue],
     metricsProvider: MetricsProvider) extends PerShardLogicProvider[AggId] {
 
-  lazy val kafkaProducerActor = new KafkaProducerActor[AggId, Agg, Event, EvtMeta](
+  val kafkaProducerActor = new KafkaProducerActor[AggId, Agg, Event, EvtMeta](
     actorSystem = system,
     assignedPartition = assignedPartition,
     metricsProvider = metricsProvider,

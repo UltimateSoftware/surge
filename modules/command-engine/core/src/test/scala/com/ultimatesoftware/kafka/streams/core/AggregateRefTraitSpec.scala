@@ -94,7 +94,7 @@ class AggregateRefTraitSpec extends TestKit(ActorSystem("AggregateRefTraitSpec")
         testPerson2State shouldEqual Right(None)
         testFailureResponse shouldEqual Left(DomainValidationError(validationErrors))
         testErrorResponse shouldEqual Left(expectedException)
-        testGarbageResponse shouldEqual Right(None)
+        testGarbageResponse shouldBe a[Left[Throwable, _]]
       }
 
     }

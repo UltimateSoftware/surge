@@ -19,10 +19,11 @@ import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, Rat
 import com.ultimatesoftware.scala.core.utils.JsonUtils
 import com.ultimatesoftware.scala.oss.domain.AggregateSegment
 import org.apache.kafka.clients.producer.{ ProducerConfig, ProducerRecord }
-import org.apache.kafka.common.TopicPartition
-import org.apache.kafka.common.errors.ProducerFencedException
+import org.apache.kafka.common.{ KafkaException, TopicPartition }
+import org.apache.kafka.common.errors.{ AuthorizationException, ProducerFencedException, UnsupportedVersionException }
 import org.slf4j.{ Logger, LoggerFactory }
 import play.api.libs.json.JsValue
+
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration._
 import scala.util.{ Failure, Try }
@@ -162,13 +163,8 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
   private val transactionalIdPrefix = aggregateCommandKafkaStreams.transactionalIdPrefix
   // TODO revisit this - seems like a long transactional id, but may be close to what we want
   private val transactionalId = s"$transactionalIdPrefix-${assignedPartition.topic()}-${assignedPartition.partition()}"
-  private val kafkaPublisher = kafkaProducerOverride.getOrElse({
-    val kafkaConfig = Map[String, String](
-      // ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG -> true, // For exactly once writes. How does this impact performance?
-      ProducerConfig.TRANSACTIONAL_ID_CONFIG -> transactionalId)
 
-    KafkaBytesProducer(brokers, stateTopic, partitioner, kafkaConfig)
-  })
+  private var kafkaPublisher = getPublisher()
 
   private val nonTransactionalStatePublisher = kafkaProducerOverride.getOrElse(KafkaBytesProducer(brokers, stateTopic, partitioner = partitioner))
 
@@ -181,6 +177,18 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
   context.system.scheduler.schedule(200.milliseconds, 200.milliseconds)(refreshStateMeta())
   context.system.scheduler.schedule(flushInterval, flushInterval, self, FlushMessages)
 
+  private def getPublisher(): KafkaBytesProducer = {
+    kafkaProducerOverride.getOrElse(newPublisher())
+  }
+
+  private def newPublisher() = {
+    val kafkaConfig = Map[String, String](
+      // ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG -> true, // For exactly once writes. How does this impact performance?
+      ProducerConfig.TRANSACTIONAL_ID_CONFIG -> transactionalId)
+
+    KafkaBytesProducer(brokers, stateTopic, partitioner, kafkaConfig)
+  }
+
   override def receive: Receive = uninitialized
 
   private def uninitialized: Receive = {
@@ -192,7 +200,7 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
     case _: Publish                 ⇒ stash()
     case _: StateProcessed          ⇒ stash()
     case _: IsAggregateStateCurrent ⇒ stash()
-    case unknown                    ⇒ log.warn("Receiving unhandled message on uninitialized state", unknown)
+    case unknown                    ⇒ log.warn("Receiving unhandled message {} on uninitialized state", unknown.getClass.getName)
   }
 
   private def recoveringBacklog(endOffset: Long): Receive = {
@@ -201,7 +209,7 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
     case GetHealth                  ⇒ getHealthCheck()
     case _: Publish                 ⇒ stash()
     case _: IsAggregateStateCurrent ⇒ stash()
-    case unknown                    ⇒ log.warn("Receiving unhandled message on recoveringBacklog state", unknown)
+    case unknown                    ⇒ log.warn("Receiving unhandled message {} on recoveringBacklog state", unknown.getClass.getName)
   }
 
   private def processing(state: KafkaProducerActorState): Receive = {
@@ -236,6 +244,11 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
       log.debug(s"KafkaPublisherActor transactions successfully initialized: $assignedPartition")
       initializeState()
     }.recover {
+      case err @ (_: UnsupportedVersionException | _: AuthorizationException | _: KafkaException) ⇒
+        log.error(s"KafkaPublisherActor failed to initialize transactions with a FATAL error", err)
+        log.debug("Restarting publisher and retrying in 3 seconds")
+        kafkaPublisher = getPublisher()
+        context.system.scheduler.scheduleOnce(3.seconds, self, InitTransactions)
       case err: Throwable ⇒
         log.error(s"KafkaPublisherActor failed to initialize kafka transactions, retrying in 3 seconds: $assignedPartition", err)
         context.system.scheduler.scheduleOnce(3.seconds, self, InitTransactions)
@@ -251,7 +264,6 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
       case Some(meta) ⇒
         self ! StateProcessed(meta)
       case _ ⇒
-        log.warn(s"No state metadata found for $assignedPartition")
         val meta = KafkaPartitionMetadata(assignedPartition.topic, assignedPartition.partition, offset = -1L, key = "")
         self ! StateProcessed(meta)
     } recover {

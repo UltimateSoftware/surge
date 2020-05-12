@@ -6,9 +6,10 @@ import akka.actor.ActorRef
 import akka.pattern._
 import akka.util.Timeout
 import com.ultimatesoftware.config.TimeoutConfig
+import com.ultimatesoftware.exceptions.{ SurgeTimeoutException, SurgeUnexpectedException }
 import org.slf4j.{ Logger, LoggerFactory }
 
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.{ ExecutionContext, Future, TimeoutException }
 
 /**
  * Generic reference to an aggregate that handles proxying messages to the actual aggregate
@@ -38,11 +39,11 @@ trait AggregateRefTrait[AggId, Agg, Cmd, CmdMeta, Evt, EvtMeta] {
     case success: GenericAggregateActor.CommandSuccess[Agg] ⇒ Right(success.aggregateState)
     case failure: GenericAggregateActor.CommandFailure      ⇒ Left(new DomainValidationError(failure.validationError))
     case error: GenericAggregateActor.CommandError ⇒
-      log.error("Error processing command", error.exception)
       Left(error.exception)
     case other ⇒
-      log.error(s"Unable to interpret response from aggregate - this should not happen: $other")
-      Right(None)
+      val errorMsg = s"Unable to interpret response from aggregate - this should not happen: $other"
+      log.error(errorMsg)
+      Left(SurgeUnexpectedException(new IllegalStateException(errorMsg)))
   }
 
   /**
@@ -71,13 +72,15 @@ trait AggregateRefTrait[AggId, Agg, Cmd, CmdMeta, Evt, EvtMeta] {
     envelope: GenericAggregateActor.CommandEnvelope[AggId, Cmd, CmdMeta],
     retriesRemaining: Int = 0)(implicit ec: ExecutionContext): Future[Either[Throwable, Option[Agg]]] = {
     (region ? envelope).map(interpretActorResponse).recoverWith {
-      case e ⇒
-        if (retriesRemaining > 0) {
-          log.warn("Ask timed out to aggregate actor region, retrying request...")
-          askWithRetries(envelope, retriesRemaining - 1)
-        } else {
-          Future.failed[Either[Throwable, Option[Agg]]](e)
-        }
+      case _: Throwable if retriesRemaining > 0 ⇒
+        log.warn("Ask timed out to aggregate actor region, retrying request...")
+        askWithRetries(envelope, retriesRemaining - 1)
+      case _: AskTimeoutException ⇒
+        val msg = s"Ask timed out after $askTimeoutDuration to aggregate actor with id ${envelope.aggregateId} executing command ${envelope.command.getClass.getName}. " +
+          s"This is typically a result of other parts of the engine performing incorrectly or hitting exceptions"
+        Future.successful[Either[Throwable, Option[Agg]]](Left(SurgeTimeoutException(msg)))
+      case e: Throwable ⇒
+        Future.successful[Either[Throwable, Option[Agg]]](Left(SurgeUnexpectedException(e)))
     }
   }
 

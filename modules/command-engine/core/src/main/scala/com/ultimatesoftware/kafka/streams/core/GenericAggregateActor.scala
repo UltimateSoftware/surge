@@ -246,7 +246,7 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
   }
 
   private def handle(initializeWithState: InitializeWithState): Unit = {
-    log.debug(s"Actor for aggregate $aggregateId initializing with state ${initializeWithState.stateOpt}")
+    log.debug(s"Actor state for aggregate $aggregateId successfully initialized")
     unstashAll()
 
     val internalActorState = InternalActorState(
@@ -258,7 +258,7 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
 
   private def initializeState(initializationAttempts: Int): Unit = {
     if (initializationAttempts > maxInitializationAttempts) {
-      log.error(s"Could not initialize actor for ${aggregateId.toString} after $initializationAttempts attempts.  Stopping actor")
+      log.error(s"Could not initialize actor for ${aggregateId} after $initializationAttempts attempts.  Stopping actor")
       context.stop(self)
     } else {
       kafkaProducerActor.isAggregateStateCurrent(aggregateId.toString).map { isStateCurrent ⇒

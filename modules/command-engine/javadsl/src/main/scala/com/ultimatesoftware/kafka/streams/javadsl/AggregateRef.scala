@@ -33,13 +33,10 @@ final class AggregateRefImpl[AggIdType, Agg, Cmd, CmdMeta, Event, EvtMeta](
   def ask(commandProps: CmdMeta, command: Cmd): CompletionStage[CommandResult[Agg]] = {
     val envelope = GenericAggregateActor.CommandEnvelope[AggIdType, Cmd, CmdMeta](aggregateId, commandProps, command)
     val result = askWithRetries(envelope).map {
+      case Left(error: com.ultimatesoftware.kafka.streams.core.DomainValidationError) ⇒
+        CommandFailure[Agg](error.asJava)
       case Left(error) ⇒
-        error match {
-          case scalaValidationError: com.ultimatesoftware.kafka.streams.core.DomainValidationError ⇒
-            CommandFailure[Agg](scalaValidationError.asJava)
-          case _ ⇒
-            CommandFailure[Agg](error)
-        }
+        CommandFailure[Agg](error)
       case Right(aggOpt) ⇒
         CommandSuccess[Agg](aggOpt.asJava)
     }
