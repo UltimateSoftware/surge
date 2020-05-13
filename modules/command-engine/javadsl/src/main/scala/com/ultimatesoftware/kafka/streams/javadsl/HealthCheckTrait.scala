@@ -13,6 +13,7 @@ class HealthCheck(
     val name: String,
     val id: String,
     val status: String,
+    val isHealthy: Boolean,
     val components: java.util.List[HealthCheck],
     val details: java.util.Map[String, String])
 
@@ -24,6 +25,7 @@ object HealthCheck {
         scalaHealthCheck.name,
         scalaHealthCheck.id,
         scalaHealthCheck.status,
+        scalaHealthCheck.isHealthy.getOrElse(false),
         scalaHealthCheck.components.map(scalaHealthCheckList ⇒
           scalaHealthCheckList.map(scalaHealthCheck ⇒
             scalaHealthCheck.asJava).asJava).getOrElse(new util.ArrayList()),

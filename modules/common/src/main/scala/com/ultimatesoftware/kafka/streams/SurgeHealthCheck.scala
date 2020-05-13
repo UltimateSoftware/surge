@@ -2,11 +2,10 @@
 
 package com.ultimatesoftware.kafka.streams
 
-import java.util.concurrent.CompletionStage
-
 import org.slf4j.LoggerFactory
 import play.api.libs.json.{ Format, Json }
 
+import scala.collection.mutable
 import scala.concurrent.{ ExecutionContext, Future }
 
 class SurgeHealthCheck(healthCheckId: String, components: HealthyComponent*)(implicit executionContext: ExecutionContext) {
@@ -18,11 +17,12 @@ class SurgeHealthCheck(healthCheckId: String, components: HealthyComponent*)(imp
       healthyComponent.healthCheck()
     }).map { healthyComponentChecks ⇒
       val isUp = healthyComponentChecks.forall(_.status.equals(HealthCheckStatus.UP))
-      HealthCheck(
+      val baseHealthTree = HealthCheck(
         name = "surge",
         id = healthCheckId,
         status = if (isUp) HealthCheckStatus.UP else HealthCheckStatus.DOWN,
         components = Some(healthyComponentChecks))
+      healthyTree(baseHealthTree)
     }.recoverWith {
       case err: Throwable ⇒
         log.error(s"Fail to get surge health check", err)
@@ -34,6 +34,13 @@ class SurgeHealthCheck(healthCheckId: String, components: HealthyComponent*)(imp
     }
   }
 
+  private def healthyTree(node: HealthCheck): HealthCheck = {
+    val childs = node.components.map(_.map(n ⇒ healthyTree(n)))
+    node.copy(
+      components = childs,
+      isHealthy = Some(node.status == HealthCheckStatus.UP &&
+        (childs.isEmpty || childs.forall(_.forall(_.isHealthy.contains(true))))))
+  }
 }
 
 trait HealthyComponent {
@@ -44,6 +51,7 @@ case class HealthCheck(
     name: String,
     id: String,
     status: String,
+    isHealthy: Option[Boolean] = None,
     components: Option[Seq[HealthCheck]] = None,
     details: Option[Map[String, String]] = None) {
   require(HealthCheckStatus.validStatuses.contains(status))
