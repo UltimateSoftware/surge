@@ -32,6 +32,7 @@ jobs:
       - name: sonar
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: sbt -batch -Dsonar.host.url='https://sonar.ulti.io' -Dsonar.login=$SONAR_TOKEN -Dsonar.projectKey='GEARS_Tools:surge-kafka-streams' -Dsonar.projectName='surge-kafka-streams' sonarScan
       - name: publish library
         run: 'fnd tanagra:deploy:library --npmrc_base64=secrets.dev::artifactory/npm:npmrc-base64 --artifactory_url=https://artifactory.mia.ulti.io/artifactory --artifactory_username=gt --artifactory_password=secrets.dev::artifactory:password'
