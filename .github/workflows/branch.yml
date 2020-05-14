@@ -30,3 +30,9 @@ jobs:
           java-version: adopt@1.8
       - name: test
         run: 'fnd tanagra:build:test'
+      - name: sonar
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: sbt -batch -Dsonar.host.url='https://sonar.ulti.io' -Dsonar.login=$SONAR_TOKEN -Dsonar.projectKey='GEARS_Tools:surge-kafka-streams' -Dsonar.projectName='surge-kafka-streams' sonarScan
+        # TODO I think quark foundry needs to be adjusted for sonar support with Github. The scanner auto-detects we're using github actions and does not like that Quark sets -Dsonar.branch.name
+        #run: 'fnd tanagra:build:sonar --bitbucket_ssh_key=secrets.dev::bitbucket/service-account:ssh-private-key --sonar_host=https://sonar.ulti.io --sonar_token=secrets.dev::sonar:token --sonar_project_key=GEARS_Tools --small_test_reports_dir=target'
