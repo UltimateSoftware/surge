@@ -50,6 +50,7 @@ object Settings extends AutoPlugin {
     organization in ThisBuild := "com.ultimatesoftware",
 
     scalacOptions ++= Seq(
+      "-encoding", "UTF-8",
       "-unchecked",
       "-deprecation",
       "-feature"
