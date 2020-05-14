@@ -30,6 +30,6 @@ jobs:
       - name: test
         run: 'fnd tanagra:build:test'
       - name: sonar
-        run: 'fnd tanagra:build:sonar --sonar_host=https://sonar.ulti.io --sonar_token=secrets.dev::sonar:token --sonar_project_key=GEARS_Tools'
+        run: 'fnd tanagra:build:sonar --sonar_host=https://sonar.ulti.io --sonar_token=secrets.dev::sonar:token --sonar_project_key=GEARS_Tools --small_test_reports_dir=target'
       - name: publish library
         run: 'fnd tanagra:deploy:library --npmrc_base64=secrets.dev::artifactory/npm:npmrc-base64 --artifactory_url=https://artifactory.mia.ulti.io/artifactory --artifactory_username=gt --artifactory_password=secrets.dev::artifactory:password'
