@@ -204,7 +204,7 @@ class KafkaPartitionShardRouterActor[AggIdType](
     }
   }
 
-  private val scheduledInitialize = context.system.scheduler.schedule(0.seconds, 3.seconds)(initializeState())
+  private val scheduledInitialize = context.system.scheduler.scheduleWithFixedDelay(0.seconds, 3.seconds)(() ⇒ initializeState())
 
   override def receive: Receive = uninitialized
 

@@ -6,7 +6,6 @@ import java.time.Duration
 import java.time.temporal.ChronoUnit
 import java.util.Properties
 
-import com.typesafe.config.ConfigFactory
 import com.ultimatesoftware.kafka.streams.DefaultSerdes._
 import com.ultimatesoftware.scala.core.kafka.{ KafkaSecurityConfiguration, KafkaTopic, UltiKafkaConsumerConfig }
 import org.apache.kafka.common.serialization.Serde
@@ -17,17 +16,9 @@ import org.apache.kafka.streams.{ KafkaStreams, StreamsConfig, Topology }
 
 abstract class KafkaStreamsConsumer[K, V](implicit keySerde: Serde[K], valueSerde: Serde[V]) extends KafkaSecurityConfiguration {
   def brokers: Seq[String]
+  def applicationId: String
   def consumerConfig: UltiKafkaConsumerConfig
   def kafkaConfig: Map[String, String]
-
-  private val config = ConfigFactory.load()
-  private val environment = config.getString("app.environment")
-  private val applicationId = consumerConfig.consumerGroup match {
-    case name: String if name.contains(s"-$environment") ⇒
-      consumerConfig.consumerGroup
-    case _ ⇒
-      s"${consumerConfig.consumerGroup}-$environment"
-  }
 
   def applicationServerConfig: Option[String]
 
@@ -65,6 +56,7 @@ abstract class KafkaStreamsConsumer[K, V](implicit keySerde: Serde[K], valueSerd
 
 case class GenericKafkaStreamsConsumer[Value](
     brokers: Seq[String],
+    applicationId: String,
     consumerConfig: UltiKafkaConsumerConfig,
     kafkaConfig: Map[String, String],
     applicationServerConfig: Option[String] = None,
@@ -72,6 +64,7 @@ case class GenericKafkaStreamsConsumer[Value](
 
 case class KafkaStringStreamsConsumer(
     brokers: Seq[String],
+    applicationId: String,
     consumerConfig: UltiKafkaConsumerConfig,
     kafkaConfig: Map[String, String],
     applicationServerConfig: Option[String] = None,
@@ -79,6 +72,7 @@ case class KafkaStringStreamsConsumer(
 
 case class KafkaByteStreamsConsumer(
     brokers: Seq[String],
+    applicationId: String,
     consumerConfig: UltiKafkaConsumerConfig,
     kafkaConfig: Map[String, String],
     applicationServerConfig: Option[String] = None,

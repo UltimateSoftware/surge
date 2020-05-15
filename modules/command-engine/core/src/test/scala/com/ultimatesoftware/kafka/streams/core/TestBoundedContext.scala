@@ -105,6 +105,8 @@ trait TestBoundedContext {
         case _: DoNothing ⇒ Success(Seq.empty)
         case fail: FailCommandProcessing ⇒
           Failure(fail.withError)
+        case _ ⇒
+          throw new RuntimeException("Received unexpected message in command handler! This should not happen and indicates a bad test")
       }
     }
 
@@ -159,8 +161,6 @@ trait TestBoundedContext {
       metricsProvider = NoOpMetricsProvider,
       metricsPublisher = NoOpsMetricsPublisher,
       metricsInterval = 100.seconds,
-      aggregateConsumerGroupName = "count-aggregate-consumer-group-name",
-      internalConsumerGroupName = "internal-global-ktable-consumer-group-name",
+      consumerGroup = "count-aggregate-consumer-group-name",
       transactionalIdPrefix = "test-transaction-id-prefix")
-
 }

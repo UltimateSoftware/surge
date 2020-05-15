@@ -40,14 +40,9 @@ trait KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtM
 
   def metricsProvider: MetricsProvider = NoOpMetricsProvider
 
-  def aggregateConsumerGroupName: String = {
+  def consumerGroup: String = {
     val environment = config.getString("app.environment")
     s"$aggregateName-$environment-command"
-  }
-
-  def internalConsumerGroupName: String = {
-    val environment = config.getString("app.environment")
-    s"global-ktable-$environment-${internalMetadataTopic.name}"
   }
 
   def transactionalIdPrefix: String = "surge-transactional-event-producer-partition"
@@ -62,8 +57,7 @@ trait KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtM
       writeFormatting = writeFormatting, commandValidator = commandValidator, aggregateValidator = aggregateValidator,
       metricsProvider = metricsProvider, metricsPublisher = metricsPublisher, metricsInterval = metricsInterval,
       aggregateComposer = aggregateComposer,
-      aggregateConsumerGroupName = aggregateConsumerGroupName,
-      internalConsumerGroupName = internalConsumerGroupName,
+      consumerGroup = consumerGroup,
       transactionalIdPrefix = transactionalIdPrefix)
   }
 }

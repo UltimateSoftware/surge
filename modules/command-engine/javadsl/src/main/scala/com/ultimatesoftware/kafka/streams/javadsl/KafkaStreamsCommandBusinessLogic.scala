@@ -49,14 +49,14 @@ abstract class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdM
   private def kafkaConfig = KafkaStreamsCommandKafkaConfig(stateTopic = stateTopic, eventsTopic = eventsTopic,
     internalMetadataTopic = internalMetadataTopic, eventKeyExtractor = eventKeyExtractor, stateKeyExtractor = stateKeyExtractor)
 
+  @deprecated("Use consumerGroup to set the consumer group name", "0.4.23")
   def aggregateConsumerGroupName: String = {
     val environment = config.getString("app.environment")
     s"$aggregateName-$environment-command"
   }
 
-  def internalConsumerGroupName: String = {
-    val environment = config.getString("app.environment")
-    s"global-ktable-$environment-${internalMetadataTopic.name}"
+  def consumerGroup: String = {
+    aggregateConsumerGroupName
   }
 
   def transactionalIdPrefix: String = "surge-transactional-event-producer-partition"
@@ -68,8 +68,7 @@ abstract class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdM
       commandValidator = commandValidator, aggregateValidator = scalaAggregateValidator,
       metricsProvider = metricsProvider, metricsPublisher = metricsPublisher, metricsInterval = metricsInterval,
       aggregateComposer = aggregateComposer,
-      aggregateConsumerGroupName = aggregateConsumerGroupName,
-      internalConsumerGroupName = internalConsumerGroupName,
+      consumerGroup = consumerGroup,
       transactionalIdPrefix = transactionalIdPrefix)
   }
 }

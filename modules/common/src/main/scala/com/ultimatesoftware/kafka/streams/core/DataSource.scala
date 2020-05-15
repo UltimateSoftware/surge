@@ -4,7 +4,6 @@ package com.ultimatesoftware.kafka.streams.core
 
 import akka.actor.ActorSystem
 import akka.kafka.ConsumerSettings
-import akka.stream.ActorMaterializer
 import com.typesafe.config.{ Config, ConfigFactory }
 import com.ultimatesoftware.akka.streams.kafka.{ KafkaConsumer, KafkaStreamManager }
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
@@ -34,7 +33,6 @@ trait DataSource[Key, Value] {
   private val useNewConsumer = config.getBoolean("surge.use-new-consumer")
   private[core] def to(consumerSettings: ConsumerSettings[Key, Value])(sink: DataSink[Key, Value]): DataPipeline = {
     implicit val system: ActorSystem = actorSystem
-    implicit val materializer: ActorMaterializer = ActorMaterializer()
     if (useNewConsumer) {
       new ManagedDataPipelineImpl(new KafkaStreamManager(kafkaTopic, consumerSettings, sink.handle, parallelism).start())
     } else {

@@ -174,8 +174,8 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
     notCurrent = metrics.createRate(s"${aggregateName}AggregateStateNotCurrentRate"))
 
   context.system.scheduler.scheduleOnce(10.milliseconds, self, InitTransactions)
-  context.system.scheduler.schedule(200.milliseconds, 200.milliseconds)(refreshStateMeta())
-  context.system.scheduler.schedule(flushInterval, flushInterval, self, FlushMessages)
+  context.system.scheduler.scheduleWithFixedDelay(200.milliseconds, 200.milliseconds)(() ⇒ refreshStateMeta())
+  context.system.scheduler.scheduleWithFixedDelay(flushInterval, flushInterval, self, FlushMessages)
 
   private def getPublisher(): KafkaBytesProducer = {
     kafkaProducerOverride.getOrElse(newPublisher())

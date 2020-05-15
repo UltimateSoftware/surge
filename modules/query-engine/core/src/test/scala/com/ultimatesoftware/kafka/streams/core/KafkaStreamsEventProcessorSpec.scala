@@ -71,19 +71,18 @@ class KafkaStreamsEventProcessorSpec extends AnyWordSpec with Matchers with Kafk
   "KafkaStreamsEventProcessor" should {
     "Store key value pairs from Kafka in a KTable" in withTopologyTestDriver(eventProcessor.createTopology()) { testDriver ⇒
       val store = testDriver.getKeyValueStore[String, Array[Byte]](eventProcessor.aggregateKTableStoreName)
-      val factory = new ConsumerRecordFactory[String, ExampleEvent](eventTopic.name, new StringSerializer(),
-        JsonSerdes.serdeFor[ExampleEvent].serializer())
+      val inputTopic = testDriver.createInputTopic(eventTopic.name, new StringSerializer, JsonSerdes.serdeFor[ExampleEvent].serializer())
 
       val event1 = ExampleEvent("agg1", "state1")
       val update1 = ExampleEvent("agg1", "updatedState")
       val event2 = ExampleEvent("agg2", "otherState")
 
-      testDriver.pipeInput(factory.create(eventTopic.name, s"${event1.aggId}:1", event1))
-      testDriver.pipeInput(factory.create(eventTopic.name, s"${event2.aggId}:1", event2))
+      inputTopic.pipeInput(s"${event1.aggId}:1", event1)
+      inputTopic.pipeInput(s"${event2.aggId}:1", event2)
       extractStateFromStore(store.get(event1.aggId)) shouldEqual Some(event1.toAgg(1))
       extractStateFromStore(store.get(event2.aggId)) shouldEqual Some(event2.toAgg(1))
 
-      testDriver.pipeInput(factory.create(eventTopic.name, s"${update1.aggId}:2", update1))
+      inputTopic.pipeInput(s"${update1.aggId}:2", update1)
       extractStateFromStore(store.get(event1.aggId)) shouldEqual Some(update1.toAgg(2))
     }
   }

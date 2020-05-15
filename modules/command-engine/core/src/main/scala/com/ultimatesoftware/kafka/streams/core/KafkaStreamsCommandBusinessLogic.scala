@@ -27,8 +27,7 @@ private[streams] case class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command
     aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) ⇒ Boolean,
     aggregateComposer: AggregateComposer[AggId, Agg],
     metricsProvider: MetricsProvider, metricsPublisher: MetricsPublisher, metricsInterval: FiniteDuration,
-    aggregateConsumerGroupName: String,
-    internalConsumerGroupName: String,
+    consumerGroup: String,
     transactionalIdPrefix: String) {
   val partitioner: KafkaPartitioner[String] = PartitionStringUpToColon
 }

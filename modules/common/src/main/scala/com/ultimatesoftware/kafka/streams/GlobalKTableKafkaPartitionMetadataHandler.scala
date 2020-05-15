@@ -36,14 +36,15 @@ class GlobalKTableMetadataHandler(internalMetadataTopic: KafkaTopic, consumerGro
   private val config = ConfigFactory.load()
   private val brokers = config.getString("kafka.brokers").split(",")
   private val globalConsumerConfig = UltiKafkaConsumerConfig(consumerGroupName)
+  private val applicationId = s"surge-aggregate-partitioner-progress.${internalMetadataTopic.name}"
   private val twoMb = 2 * 1024 * 1024L
   private val globalStreamsConfig = Map[String, String](
     ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG -> TimeoutConfig.Kafka.consumerSessionTimeout.toMillis.toString,
     ConsumerConfigExtension.LEAVE_GROUP_ON_CLOSE_CONFIG -> TimeoutConfig.debugTimeoutEnabled.toString,
     StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG -> twoMb.toString,
     StreamsConfig.ROCKSDB_CONFIG_SETTER_CLASS_CONFIG -> classOf[KafkaPartitionMetadataGlobalStreamsRocksDBConfig].getName)
-  private val globalKTableConsumer = KafkaStringStreamsConsumer(brokers, globalConsumerConfig,
-    globalStreamsConfig, applicationServerConfig = None, topologyProps = None)
+  private val globalKTableConsumer = KafkaStringStreamsConsumer(brokers = brokers, applicationId = applicationId, consumerConfig = globalConsumerConfig,
+    kafkaConfig = globalStreamsConfig, applicationServerConfig = None, topologyProps = None)
   private val clearStateOnStartup = config.getBoolean("kafka.streams.wipe-state-on-start")
 
   val globalStateMetaStoreName: String = s"${internalMetadataTopic.name}-global-table"

@@ -67,6 +67,13 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
   private val config = ConfigFactory.load()
   private val brokers = config.getString("kafka.brokers").split(",")
   private val consumerConfig = UltiKafkaConsumerConfig(consumerGroupName)
+  private val environment = config.getString("app.environment")
+  private val applicationId = consumerConfig.consumerGroup match {
+    case name: String if name.contains(s"-$environment") ⇒
+      s"${consumerConfig.consumerGroup}-$aggregateName"
+    case _ ⇒
+      s"${consumerConfig.consumerGroup}-$aggregateName-$environment"
+  }
 
   private val cacheHeapPercentage = config.getDouble("kafka.streams.cache-heap-percentage")
   private val totalMemory = Runtime.getRuntime.maxMemory()
@@ -90,7 +97,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
   private val topologyProps = new Properties()
   topologyProps.setProperty(StreamsConfig.TOPOLOGY_OPTIMIZATION, StreamsConfig.OPTIMIZE)
 
-  private val consumer = KafkaByteStreamsConsumer(brokers, consumerConfig,
+  private val consumer = KafkaByteStreamsConsumer(brokers = brokers, applicationId = applicationId, consumerConfig = consumerConfig,
     kafkaConfig = streamsConfig, applicationServerConfig = applicationHostPort, topologyProps = Some(topologyProps))
 
   private val validationProcessor = new ValidationProcessor[Array[Byte]](aggregateName, aggregateValidator)

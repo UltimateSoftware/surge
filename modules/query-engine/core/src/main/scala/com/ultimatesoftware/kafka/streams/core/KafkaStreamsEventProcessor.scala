@@ -27,6 +27,13 @@ class KafkaStreamsEventProcessor[AggId, Agg, Event, EvtMeta](
   private val config = ConfigFactory.load()
   private val brokers = config.getString("kafka.brokers").split(",")
   private val consumerConfig = UltiKafkaConsumerConfig(s"$aggregateName-query")
+  private val environment = config.getString("app.environment")
+  private val applicationId = consumerConfig.consumerGroup match {
+    case name: String if name.contains(s"-$environment") ⇒
+      s"${consumerConfig.consumerGroup}-$aggregateName"
+    case _ ⇒
+      s"${consumerConfig.consumerGroup}-$aggregateName-$environment"
+  }
 
   private val clearStateOnStartup = config.getBoolean("kafka.streams.wipe-state-on-start")
   private val cacheHeapPercentage = config.getDouble("kafka.streams.cache-heap-percentage")
@@ -40,9 +47,8 @@ class KafkaStreamsEventProcessor[AggId, Agg, Event, EvtMeta](
     StreamsConfig.ROCKSDB_CONFIG_SETTER_CLASS_CONFIG -> classOf[AggregateStreamsRocksDBConfig].getName,
     StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG -> cacheMemory.toString)
 
-  private val consumer: KafkaByteStreamsConsumer = KafkaByteStreamsConsumer(brokers, consumerConfig,
-    kafkaConfig = streamsConfig,
-    applicationServerConfig = applicationHostPort)
+  private val consumer: KafkaByteStreamsConsumer = KafkaByteStreamsConsumer(brokers = brokers, applicationId = applicationId, consumerConfig = consumerConfig,
+    kafkaConfig = streamsConfig, applicationServerConfig = applicationHostPort)
 
   private val envelopeUtils = new EnvelopeUtils(readFormatting)
   private val aggProcessor = new EventProcessor[AggId, Agg, Event, EvtMeta](aggregateName, readFormatting, writeFormatting, extractAggregateId,

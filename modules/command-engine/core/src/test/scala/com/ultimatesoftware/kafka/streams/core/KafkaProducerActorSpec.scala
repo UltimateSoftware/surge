@@ -84,7 +84,7 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
       val assignedPartition = new TopicPartition("testTopic", 1)
       val mockProducer = mock[KafkaBytesProducer]
       val mockMetadata = mockRecordMetadata(assignedPartition)
-      when(mockProducer.initTransactions()(any[ExecutionContext])).thenReturn(Future.successful())
+      when(mockProducer.initTransactions()(any[ExecutionContext])).thenReturn(Future.unit)
       when(mockProducer.putRecord(any[ProducerRecord[String, Array[Byte]]])).thenReturn(Future.successful(mockMetadata))
       // Fail first transaction and then succeed always
       doThrow(new IllegalStateException("This is expected")).doNothing().when(mockProducer).beginTransaction()
@@ -121,7 +121,7 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
 
       when(mockProducer.initTransactions()(any[ExecutionContext]))
         .thenReturn(Future.failed(new AuthorizationException("This is expected")))
-        .thenReturn(Future.successful())
+        .thenReturn(Future.unit)
       when(mockProducer.putRecord(any[ProducerRecord[String, Array[Byte]]]))
         .thenReturn(Future.successful(mockMetadata))
 
@@ -142,7 +142,7 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
 
       when(mockProducer.initTransactions()(any[ExecutionContext]))
         .thenReturn(Future.failed(new IllegalStateException("This is expected")))
-        .thenReturn(Future.successful())
+        .thenReturn(Future.unit)
       when(mockProducer.putRecord(any[ProducerRecord[String, Array[Byte]]]))
         .thenReturn(Future.successful(mockMetadata))
 

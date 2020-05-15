@@ -11,7 +11,6 @@ import akka.kafka.scaladsl.Consumer.DrainingControl
 import akka.kafka.scaladsl.{ Committer, Consumer }
 import akka.kafka.{ CommitterSettings, ConsumerMessage, ConsumerSettings, Subscriptions }
 import akka.pattern._
-import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{ Flow, RestartSource, Sink }
 import com.ultimatesoftware.akka.cluster.{ ActorHostAwareness, ActorSystemHostAwareness }
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
@@ -47,8 +46,7 @@ class KafkaStreamManagerActor[Key, Value](topic: KafkaTopic, baseConsumerSetting
     business: (Key, Value) ⇒ Future[Any],
     parallelism: Int) extends Actor with ActorHostAwareness with Stash {
   import KafkaStreamManagerActor._
-  import context.dispatcher
-  private implicit val materializer: ActorMaterializer = ActorMaterializer()
+  import context.{ dispatcher, system }
   private val log = LoggerFactory.getLogger(getClass)
 
   // Set this uniquely per manager actor so that restarts of the Kafka stream don't cause a rebalance of the consumer group
