@@ -85,6 +85,10 @@ class GlobalKTableMetadataHandler(internalMetadataTopic: KafkaTopic, consumerGro
     globalStreams.start()
   }
 
+  override def stop(): Unit = {
+    globalStreams.close()
+  }
+
   override def healthCheck(): Future[HealthCheck] = Future {
     HealthCheck(
       name = "global-table-stream",

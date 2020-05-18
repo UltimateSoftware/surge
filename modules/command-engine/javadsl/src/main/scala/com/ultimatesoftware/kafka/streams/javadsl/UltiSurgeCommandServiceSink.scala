@@ -31,6 +31,8 @@ abstract class UltiSurgeCommandServiceSink[AggId, Command, UpstreamEvent]
   override protected def sendToAggregate(aggId: AggId, cmdMeta: DefaultCommandMetadata, command: Command): Future[Any] = {
     surgeEngine.aggregateFor(aggId).ask(cmdMeta, command).toScala
   }
+
+  override def handleEvent(event: UpstreamEvent, eventProps: EventProperties): Future[Any] = super.handleEvent(event, eventProps)
 }
 
 @deprecated("Extend & implement EventSource and UltiSurgeCommandServiceSink separately and wire them together with EventSource.to(EventSink)", "0.4.8")

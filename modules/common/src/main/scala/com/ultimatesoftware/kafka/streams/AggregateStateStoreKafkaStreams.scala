@@ -147,6 +147,10 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
     kafkaStateMetadataHandler.start()
   }
 
+  def stop(): Unit = {
+    consumer.streams.close()
+  }
+
   override def healthCheck(): Future[HealthCheck] = Future {
     HealthCheck(
       name = "aggregate-state-store",

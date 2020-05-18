@@ -8,6 +8,7 @@ trait KafkaPartitionMetadataHandler {
   def processPartitionMetadata(stream: KStream[String, KafkaPartitionMetadata]): Unit = {}
   def initialize(): Unit = {}
   def start(): Unit = {}
+  def stop(): Unit = {}
 }
 
 object NoOpKafkaPartitionMetadataHandler extends KafkaPartitionMetadataHandler

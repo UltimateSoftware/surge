@@ -52,6 +52,11 @@ trait DataPipeline {
   def stop(): Unit
 }
 
+class TypedDataPipeline[Type](dataPipeline: DataPipeline) extends DataPipeline {
+  override def start(): Unit = dataPipeline.start()
+  override def stop(): Unit = dataPipeline.stop()
+}
+
 private[core] class ManagedDataPipelineImpl(underlyingManager: KafkaStreamManager[_, _]) extends DataPipeline {
   def stop(): Unit = {
     underlyingManager.stop()
