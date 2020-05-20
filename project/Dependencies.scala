@@ -38,10 +38,11 @@ object Dependencies extends AutoPlugin {
 
     object Ultimate {
       object Surge {
-        val scalaCore = "com.ultimatesoftware" %% "ulti-scala-core" % "0.3.14"
+        val scalaCore = "com.ultimatesoftware" %% "ulti-scala-core" % "0.3.16"
       }
     }
 
+    val jacksonKotlin = "com.fasterxml.jackson.module" % "jackson-module-kotlin" % "2.10.3"
     val embeddedKafka = "io.github.embeddedkafka" %% "embedded-kafka" % "2.4.1" % Test
     val junit = "junit" % "junit" % "4.13" % Test
     val logback =  "ch.qos.logback" % "logback-classic" % "1.2.3" % Test
