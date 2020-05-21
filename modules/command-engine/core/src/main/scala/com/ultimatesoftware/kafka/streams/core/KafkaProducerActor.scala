@@ -168,7 +168,7 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
 
   private val nonTransactionalStatePublisher = kafkaProducerOverride.getOrElse(KafkaBytesProducer(brokers, stateTopic, partitioner = partitioner))
 
-  private val kafkaPublisherTimer: Timer = metrics.createTimer(s"${stateTopic.name}KafkaPublisherTimer")
+  private val kafkaPublisherTimer: Timer = metrics.createTimer(s"${aggregateName}AggregateStateKafkaPublisherTimer")
   private implicit val rates: AggregateStateRates = AggregateStateRates(
     current = metrics.createRate(s"${aggregateName}AggregateStateCurrentRate"),
     notCurrent = metrics.createRate(s"${aggregateName}AggregateStateNotCurrentRate"))
