@@ -77,8 +77,6 @@ lazy val `surge-engine-ks-query-core` = (project in file("modules/query-engine/c
     libraryDependencies ++= Seq(
       Akka.actor,
       Akka.testKit,
-      Kafka.kafkaStreams,
-      Kafka.kafkaStreamsTestUtils,
       scalatest,
       scalatestPlusMockito,
       logback,
