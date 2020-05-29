@@ -2,14 +2,12 @@
 
 package com.ultimatesoftware.kafka.streams.core
 
-import com.ultimatesoftware.scala.oss.domain.AggregateSegment
-
 trait SurgeEventReadFormatting[Event, EvtMeta] {
   def readEvent(bytes: Array[Byte]): (Event, Option[EvtMeta])
 }
 
 trait SurgeAggregateReadFormatting[AggId, Agg] {
-  def readState(bytes: Array[Byte]): Option[AggregateSegment[AggId, Agg]]
+  def readState(bytes: Array[Byte]): Option[Agg]
 }
 
 trait SurgeReadFormatting[AggId, Agg, Event, EvtMeta] extends SurgeEventReadFormatting[Event, EvtMeta] with SurgeAggregateReadFormatting[AggId, Agg]
@@ -19,7 +17,7 @@ trait SurgeEventWriteFormatting[Event, EvtMeta] {
 }
 
 trait SurgeAggregateWriteFormatting[AggId, Agg] {
-  def writeState(agg: AggregateSegment[AggId, Agg]): Array[Byte]
+  def writeState(agg: Agg): Array[Byte]
 }
 trait SurgeWriteFormatting[AggId, Agg, Event, EvtMeta] extends SurgeEventWriteFormatting[Event, EvtMeta] with SurgeAggregateWriteFormatting[AggId, Agg]
 

@@ -7,8 +7,7 @@ import com.ultimatesoftware.kafka.streams.core.{ KafkaStreamsCommandKafkaConfig,
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, MetricsPublisher, NoOpMetricsProvider, NoOpsMetricsPublisher }
 import com.ultimatesoftware.scala.core.validations.AsyncCommandValidator
-import com.ultimatesoftware.scala.oss.domain.{ AggregateCommandModel, AggregateComposer }
-import play.api.libs.json.JsValue
+import com.ultimatesoftware.scala.oss.domain.AggregateCommandModel
 
 import scala.concurrent.duration._
 
@@ -21,7 +20,6 @@ trait KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtM
   def eventsTopic: KafkaTopic
   def internalMetadataTopic: KafkaTopic
   def eventKeyExtractor: Event ⇒ String
-  def stateKeyExtractor: JsValue ⇒ String
 
   def commandModel: AggregateCommandModel[AggId, Agg, Command, Event, CmdMeta, EvtMeta]
 
@@ -29,7 +27,6 @@ trait KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtM
   def writeFormatting: SurgeWriteFormatting[AggId, Agg, Event, EvtMeta]
 
   def commandValidator: AsyncCommandValidator[Command, Agg]
-  def aggregateComposer: AggregateComposer[AggId, Agg]
 
   def aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) ⇒ Boolean = { (_, _, _) ⇒ true }
 
@@ -47,8 +44,8 @@ trait KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtM
 
   def transactionalIdPrefix: String = "surge-transactional-event-producer-partition"
 
-  private def kafkaConfig = KafkaStreamsCommandKafkaConfig(stateTopic = stateTopic, eventsTopic = eventsTopic,
-    internalMetadataTopic = internalMetadataTopic, eventKeyExtractor = eventKeyExtractor, stateKeyExtractor = stateKeyExtractor)
+  private def kafkaConfig: KafkaStreamsCommandKafkaConfig[Event] = KafkaStreamsCommandKafkaConfig(stateTopic = stateTopic, eventsTopic = eventsTopic,
+    internalMetadataTopic = internalMetadataTopic, eventKeyExtractor = eventKeyExtractor)
 
   private[scaladsl] def toCore: com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta] = {
     new com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
@@ -56,7 +53,6 @@ trait KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtM
       model = commandModel, readFormatting = readFormatting,
       writeFormatting = writeFormatting, commandValidator = commandValidator, aggregateValidator = aggregateValidator,
       metricsProvider = metricsProvider, metricsPublisher = metricsPublisher, metricsInterval = metricsInterval,
-      aggregateComposer = aggregateComposer,
       consumerGroup = consumerGroup,
       transactionalIdPrefix = transactionalIdPrefix)
   }

@@ -8,8 +8,6 @@ import java.util.UUID
 import com.ultimatesoftware.kafka.streams.KafkaStreamsTestHelpers
 import com.ultimatesoftware.scala.core.kafka.{ JsonSerdes, KafkaTopic }
 import com.ultimatesoftware.scala.core.messaging.EventProperties
-import com.ultimatesoftware.scala.core.utils.JsonUtils
-import com.ultimatesoftware.scala.oss.domain.AggregateSegment
 import org.apache.kafka.common.serialization.StringSerializer
 import org.apache.kafka.streams.test.ConsumerRecordFactory
 import org.scalatest.matchers.should.Matchers
@@ -27,19 +25,18 @@ class KafkaStreamsEventProcessorSpec extends AnyWordSpec with Matchers with Kafk
   private implicit val eventFormat: Format[ExampleEvent] = Json.format
   private val readFormatting = new SurgeReadFormatting[String, ExampleAgg, ExampleEvent, EventProperties] {
     override def readEvent(bytes: Array[Byte]): (ExampleEvent, Option[EventProperties]) = {
-      val event = JsonUtils.parseMaybeCompressedBytes[ExampleEvent](bytes)
+      val event = Json.parse(bytes).asOpt[ExampleEvent]
       val evtProps = EventProperties(UUID.randomUUID(), UUID.randomUUID(), None, Some(event.get.aggId), 1, Instant.now, Instant.now, None, None,
         metadata = Map.empty)
       event.get -> Some(evtProps)
     }
-    override def readState(bytes: Array[Byte]): Option[AggregateSegment[String, ExampleAgg]] = {
-      val unzipped = JsonUtils.parseMaybeCompressedBytes[ExampleAgg](bytes)
-      unzipped.map(agg ⇒ AggregateSegment(agg.aggId, Json.toJson(agg), Some(classOf[ExampleAgg])))
+    override def readState(bytes: Array[Byte]): Option[ExampleAgg] = {
+      Json.parse(bytes).asOpt[ExampleAgg]
     }
   }
   private val writeFormatting = new SurgeAggregateWriteFormatting[String, ExampleAgg] {
-    override def writeState(agg: AggregateSegment[String, ExampleAgg]): Array[Byte] = {
-      JsonUtils.gzip(agg.value)
+    override def writeState(agg: ExampleAgg): Array[Byte] = {
+      Json.toJson(agg).toString().getBytes()
     }
   }
 
@@ -52,20 +49,11 @@ class KafkaStreamsEventProcessorSpec extends AnyWordSpec with Matchers with Kafk
     Some(evtPlusMeta.event.aggId)
   }
 
-  private def createSegment(aggId: String, newState: Option[ExampleAgg]): AggregateSegment[String, ExampleAgg] = {
-    new AggregateSegment[String, ExampleAgg](aggId, Json.toJson(newState), Some(classOf[ExampleAgg]))
-  }
-
-  private def readSegment(aggregateSegment: AggregateSegment[String, ExampleAgg]): Option[ExampleAgg] = {
-    aggregateSegment.value.asOpt[ExampleAgg]
-  }
-
   private val eventProcessor = new KafkaStreamsEventProcessor[String, ExampleAgg, ExampleEvent, EventProperties](
-    "exampleAgg", readFormatting, writeFormatting, eventTopic, None, aggIdExtractor, createSegment, readSegment, eventHandler)
+    "exampleAgg", readFormatting, writeFormatting, eventTopic, None, aggIdExtractor, eventHandler)
 
   private def extractStateFromStore(bytes: Array[Byte]): Option[ExampleAgg] = {
     readFormatting.readState(bytes)
-      .flatMap(segment ⇒ segment.value.asOpt[ExampleAgg])
   }
 
   "KafkaStreamsEventProcessor" should {

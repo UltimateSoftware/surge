@@ -3,7 +3,6 @@
 package com.ultimatesoftware.kafka.streams.core
 
 import java.time.Instant
-import java.util.UUID
 
 import akka.Done
 import akka.actor.{ Actor, Props, ReceiveTimeout, Stash }
@@ -159,12 +158,11 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
         val newState = events.foldLeft(state.stateOpt) { (state, evt) ⇒ businessLogic.model.handleEvent(state, evt, evtMeta) }
         val eventKeyMetaValues = events.map(evt ⇒ (businessLogic.kafka.eventKeyExtractor(evt), evtMeta, evt))
 
-        val states = newState.toSeq.flatMap(state ⇒ businessLogic.aggregateComposer.decompose(aggregateId, state).toSeq)
-        val stateKeyValues = states.map(s ⇒ businessLogic.kafka.stateKeyExtractor(s.value) -> s)
+        val stateKeyValue = aggregateId.toString -> newState
 
         log.trace("GenericAggregateActor for {} publishing messages", aggregateId)
         val publishFuture = if (events.nonEmpty) {
-          kafkaProducerActor.publish(aggregateId = aggregateId, states = stateKeyValues, events = eventKeyMetaValues)
+          kafkaProducerActor.publish(aggregateId = aggregateId, state = stateKeyValue, events = eventKeyMetaValues)
         } else {
           Future.successful(Done)
         }
@@ -192,10 +190,9 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
     context.become(persistingEvents(state))
 
     val newState = businessLogic.model.handleEvent(state.stateOpt, applyEventEnvelope.event, applyEventEnvelope.meta)
-    val states = newState.toSeq.flatMap(state ⇒ businessLogic.aggregateComposer.decompose(aggregateId, state).toSeq)
-    val stateKeyValues = states.map(s ⇒ businessLogic.kafka.stateKeyExtractor(s.value) -> s)
+    val stateKeyValue = aggregateId.toString -> newState
 
-    val futureStatePersisted = kafkaProducerActor.publish(aggregateId = aggregateId, states = stateKeyValues, events = Seq.empty).map { _ ⇒
+    val futureStatePersisted = kafkaProducerActor.publish(aggregateId = aggregateId, state = stateKeyValue, events = Seq.empty).map { _ ⇒
       val newActorState = InternalActorState(stateOpt = newState)
       EventsSuccessfullyPersisted(newActorState, startTime)
     }
@@ -283,20 +280,11 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
   }
 
   private def fetchState(initializationAttempts: Int): Unit = {
-    if (businessLogic.aggregateComposer.expectSingleEntity) {
-      initFromSingleState(initializationAttempts)
-    } else {
-      initFromSubstates(initializationAttempts)
-    }
-  }
+    val fetchedStateFut = metrics.stateInitializationTimer.time(kafkaStreamsCommand.aggregateQueryableStateStore.get(aggregateId.toString))
 
-  private def composeState(initializationAttempts: Int, fetchedStates: Future[Set[Array[Byte]]]): Unit = {
-    fetchedStates.map { substates ⇒
-      log.trace("GenericAggregateActor for {} fetched {} persisted substates", aggregateId, substates.size)
-      val serializedStates = substates.flatMap { s ⇒
-        businessLogic.readFormatting.readState(s)
-      }
-      val stateOpt = businessLogic.aggregateComposer.compose(serializedStates)
+    fetchedStateFut.map { state ⇒
+      log.trace("GenericAggregateActor for {} fetched state", aggregateId)
+      val stateOpt = state.flatMap(businessLogic.readFormatting.readState)
 
       self ! InitializeWithState(stateOpt)
     }.recover {
@@ -306,22 +294,6 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
         log.error(s"Failed to initialize ${businessLogic.aggregateName} actor for aggregate $aggregateId, retrying", exception)
         context.system.scheduler.scheduleOnce(3.seconds)(initializeState(initializationAttempts + 1))
     }
-  }
-
-  private def initFromSingleState(initializationAttempts: Int): Unit = {
-    val fetchedStateFut = metrics.stateInitializationTimer.time(
-      kafkaStreamsCommand.aggregateQueryableStateStore.get(aggregateId.toString))
-      .map(_.toSet)
-
-    composeState(initializationAttempts, fetchedStateFut)
-  }
-
-  private def initFromSubstates(initializationAttempts: Int): Unit = {
-    val fetchedStateFut = metrics.stateInitializationTimer.time(
-      kafkaStreamsCommand.substatesForAggregate(aggregateId.toString))
-      .map(_.map(_._2).toSet[Array[Byte]])
-
-    composeState(initializationAttempts, fetchedStateFut)
   }
 
 }

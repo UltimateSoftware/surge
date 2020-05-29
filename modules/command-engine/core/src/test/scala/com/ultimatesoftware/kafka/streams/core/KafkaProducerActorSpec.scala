@@ -53,17 +53,14 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
     strings.map(str ⇒ str -> str.getBytes())
   }
   private def records(assignedPartition: TopicPartition, events: Seq[(String, Array[Byte])],
-    states: Seq[(String, Array[Byte])]): Seq[ProducerRecord[String, Array[Byte]]] = {
+    state: (String, Array[Byte])): Seq[ProducerRecord[String, Array[Byte]]] = {
     val eventRecords = events.map {
       case (key, value) ⇒
         new ProducerRecord(kafkaStreamsLogic.kafka.eventsTopic.name, key, value)
     }
-    val stateRecords = states.map {
-      case (key, value) ⇒
-        new ProducerRecord(kafkaStreamsLogic.kafka.stateTopic.name, assignedPartition.partition(), key, value)
-    }
+    val stateRecord = new ProducerRecord(kafkaStreamsLogic.kafka.stateTopic.name, assignedPartition.partition(), state._1, state._2)
 
-    eventRecords ++ stateRecords
+    eventRecords :+ stateRecord
   }
 
   private def setupTransactions(mockProducer: KafkaBytesProducer): Unit = {
@@ -75,9 +72,9 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
 
   "KafkaProducerActor" should {
     val testEvents1 = testObjects(Seq("event1", "event2", "event3"))
-    val testAggs1 = testObjects(Seq("event1", "event2", "event3"))
+    val testAggs1 = "agg1" -> "agg1".getBytes()
     val testEvents2 = testObjects(Seq("event3", "event4"))
-    val testAggs2 = testObjects(Seq("agg3", "agg3"))
+    val testAggs2 = "agg3" -> "agg3".getBytes()
 
     "Recovers from beginTransaction failure" in {
       val probe = TestProbe()
@@ -381,7 +378,7 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
       val empty = KafkaProducerActorState.empty
 
       val sender = TestProbe().ref
-      val publishMsg = KafkaProducerActorImpl.Publish(Seq("foo" -> "foo".getBytes()), Seq("foo" -> "foo".getBytes()))
+      val publishMsg = KafkaProducerActorImpl.Publish("foo" -> "foo".getBytes(), Seq("foo" -> "foo".getBytes()))
 
       val newState = empty.addPendingWrites(sender, publishMsg)
       newState.pendingWrites should contain only KafkaProducerActorImpl.PublishWithSender(sender, publishMsg)

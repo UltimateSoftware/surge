@@ -7,9 +7,8 @@ import java.util.UUID
 
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ NoOpMetricsProvider, NoOpsMetricsPublisher }
-import com.ultimatesoftware.scala.core.utils.JsonUtils
 import com.ultimatesoftware.scala.core.validations.{ AsyncCommandValidator, AsyncValidationResult, ValidationError }
-import com.ultimatesoftware.scala.oss.domain.{ AggregateCommandModel, AggregateSegment, CommandProcessor, SimpleJsonAggregateComposer }
+import com.ultimatesoftware.scala.oss.domain.{ AggregateCommandModel, CommandProcessor }
 import play.api.libs.json._
 
 import scala.concurrent.Future
@@ -113,13 +112,6 @@ trait TestBoundedContext {
     val commandValidator: AsyncCommandValidator[BaseTestCommand, State] = AsyncCommandValidator[BaseTestCommand, State] { cmd ⇒
       cmd.msg.validate
     }
-
-    val aggregateComposer: SimpleJsonAggregateComposer[UUID, State] = new SimpleJsonAggregateComposer[UUID, State](stateFormat)
-
-    val stateKeyExtractor: JsValue ⇒ String = { json ⇒
-      aggregateComposer.compose(Set(AggregateSegment[UUID, State](
-        Json.parse(json.toString()).as[Map[String, JsValue]].get("aggregateId").get.toString(), json, Some(classOf[State])))).map(_.aggregateId.toString).getOrElse("")
-    }
   }
 
   object BusinessLogic extends BusinessLogicTrait
@@ -128,25 +120,22 @@ trait TestBoundedContext {
     stateTopic = KafkaTopic("testStateTopic", compacted = false, None),
     eventsTopic = KafkaTopic("testEventsTopic", compacted = false, None),
     internalMetadataTopic = KafkaTopic("metadataTopic", compacted = false, None),
-    eventKeyExtractor = { evt ⇒ s"${evt.aggregateId}:${evt.sequenceNumber}" },
-    stateKeyExtractor = BusinessLogic.stateKeyExtractor)
+    eventKeyExtractor = { evt ⇒ s"${evt.aggregateId}:${evt.sequenceNumber}" })
 
   val readFormats: SurgeReadFormatting[UUID, State, BaseTestEvent, TimestampMeta] = new SurgeReadFormatting[UUID, State, BaseTestEvent, TimestampMeta] {
     override def readEvent(bytes: Array[Byte]): (BaseTestEvent, Option[TimestampMeta]) = {
-      (JsonUtils.parseMaybeCompressedBytes(bytes)(Json.format[BaseTestEvent]).get, None)
+      (Json.parse(bytes).as[BaseTestEvent](baseEventFormat), None)
     }
 
-    override def readState(bytes: Array[Byte]): Option[AggregateSegment[UUID, State]] = {
-      Json.parse(bytes).asOpt[State].map { state ⇒
-        AggregateSegment(state.aggregateId.toString, Json.toJson(state), Some(classOf[State]))
-      }
+    override def readState(bytes: Array[Byte]): Option[State] = {
+      Json.parse(bytes).asOpt[State]
     }
   }
 
   val writeFormats: SurgeWriteFormatting[UUID, State, BaseTestEvent, TimestampMeta] = new SurgeWriteFormatting[UUID, State, BaseTestEvent, TimestampMeta] {
-    override def writeEvent(evt: BaseTestEvent, metadata: TimestampMeta): Array[Byte] = JsonUtils.gzip(evt)(baseEventFormat)
+    override def writeEvent(evt: BaseTestEvent, metadata: TimestampMeta): Array[Byte] = Json.toJson(evt)(baseEventFormat).toString().getBytes()
 
-    override def writeState(agg: AggregateSegment[UUID, State]): Array[Byte] = JsonUtils.gzip(agg.value)
+    override def writeState(agg: State): Array[Byte] = Json.toJson(agg).toString().getBytes()
   }
   val kafkaStreamsLogic: KafkaStreamsCommandBusinessLogic[UUID, State, BaseTestCommand, BaseTestEvent, TimestampMeta, TimestampMeta] =
     KafkaStreamsCommandBusinessLogic(
@@ -157,7 +146,6 @@ trait TestBoundedContext {
       writeFormatting = writeFormats,
       commandValidator = BusinessLogic.commandValidator,
       aggregateValidator = { (_, _, _) ⇒ true },
-      aggregateComposer = BusinessLogic.aggregateComposer,
       metricsProvider = NoOpMetricsProvider,
       metricsPublisher = NoOpsMetricsPublisher,
       metricsInterval = 100.seconds,

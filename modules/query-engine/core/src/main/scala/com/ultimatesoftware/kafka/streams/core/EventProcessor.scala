@@ -2,7 +2,6 @@
 
 package com.ultimatesoftware.kafka.streams.core
 
-import com.ultimatesoftware.scala.oss.domain.AggregateSegment
 import org.apache.kafka.common.serialization.Serdes
 import org.apache.kafka.streams.processor.{ AbstractProcessor, Processor, ProcessorContext }
 import org.apache.kafka.streams.state.{ KeyValueStore, StoreBuilder, Stores }
@@ -12,8 +11,6 @@ class EventProcessor[AggId, Agg, Event, EvtMeta](
     aggReads: SurgeAggregateReadFormatting[AggId, Agg],
     aggWrites: SurgeAggregateWriteFormatting[AggId, Agg],
     extractAggregateId: EventPlusMeta[Event, EvtMeta] ⇒ Option[String],
-    createSegment: (String, Option[Agg]) ⇒ AggregateSegment[AggId, Agg],
-    readSegment: AggregateSegment[AggId, Agg] ⇒ Option[Agg],
     processEvent: (Option[Agg], Event, EvtMeta) ⇒ Option[Agg]) {
 
   val aggregateKTableStoreName: String = s"aggregate-state.$aggregateName"
@@ -41,13 +38,12 @@ class EventProcessor[AggId, Agg, Event, EvtMeta](
         val oldState = Option(keyValueStore.get(aggregateId.toString))
         val previousBody = oldState
           .flatMap(state ⇒ aggReads.readState(state))
-          .flatMap(segment ⇒ readSegment(segment))
 
         val newState = processEvent(previousBody, value.event, value.meta)
 
-        val newStateSerialized = aggWrites.writeState(createSegment(aggregateId, newState))
+        val newStateSerialized = newState.map(aggWrites.writeState)
 
-        keyValueStore.put(aggregateId.toString, newStateSerialized)
+        keyValueStore.put(aggregateId.toString, newStateSerialized.orNull)
       }
     }
 

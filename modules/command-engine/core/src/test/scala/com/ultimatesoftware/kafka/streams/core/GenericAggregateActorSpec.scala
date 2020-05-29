@@ -90,7 +90,7 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
   private def defaultMockProducer: KafkaProducerActor[UUID, State, BaseTestEvent, TimestampMeta] = {
     val mockProducer = mock[KafkaProducerActor[UUID, State, BaseTestEvent, TimestampMeta]]
     when(mockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.successful(true))
-    when(mockProducer.publish(any[UUID], any[Seq[(String, AggregateSegment[UUID, State])]], any[Seq[(String, TimestampMeta, BaseTestEvent)]]))
+    when(mockProducer.publish(any[UUID], any[(String, Option[State])], any[Seq[(String, TimestampMeta, BaseTestEvent)]]))
       .thenReturn(Future.successful(Done))
 
     mockProducer
@@ -100,7 +100,7 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
   private def probeBackedMockProducer(probe: TestProbe): KafkaProducerActor[UUID, State, BaseTestEvent, TimestampMeta] = {
     val mockProducer = mock[KafkaProducerActor[UUID, State, BaseTestEvent, TimestampMeta]]
     when(mockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.successful(true))
-    when(mockProducer.publish(any[UUID], any[Seq[(String, AggregateSegment[UUID, State])]], any[Seq[(String, TimestampMeta, BaseTestEvent)]]))
+    when(mockProducer.publish(any[UUID], any[(String, Option[State])], any[Seq[(String, TimestampMeta, BaseTestEvent)]]))
       .thenAnswer((invocation: InvocationOnMock) ⇒ {
         val aggregateId = invocation.getArgument[UUID](0)
         (probe.ref ? Publish(aggregateId)).map(_ ⇒ Done)(ExecutionContext.global)
@@ -122,10 +122,7 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
 
     probe.expectMsg(GenericAggregateActor.CommandSuccess(expectedState))
 
-    val expectedStateKeyValues = expectedState.toSeq.flatMap { state ⇒
-      val states = kafkaStreamsLogic.aggregateComposer.decompose(state.aggregateId, state).toSeq
-      states.map(s ⇒ BusinessLogic.stateKeyExtractor(s.value) -> s)
-    }
+    val expectedStateKeyValues = state.aggregateId.toString -> expectedState
 
     val expectedKey = expectedEvent.aggregateId.toString + ":" + expectedEvent.sequenceNumber
     val expectedEventKeyVal = (expectedKey, testEnvelope.meta, expectedEvent)
@@ -176,7 +173,7 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
 
       val mockProducer = mock[KafkaProducerActor[UUID, State, BaseTestEvent, TimestampMeta]]
       when(mockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.successful(false), Future.successful(true))
-      when(mockProducer.publish(any[UUID], any[Seq[(String, AggregateSegment[UUID, State])]],
+      when(mockProducer.publish(any[UUID], any[(String, Option[State])],
         any[Seq[(String, TimestampMeta, BaseTestEvent)]])).thenReturn(Future.successful(Done))
 
       val mockStreams = mockKafkaStreams(Map(testAggregateId.toString -> Json.toJson(baseState).toString().getBytes()))
@@ -229,7 +226,7 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
 
       verify(mockProducer, never()).publish(
         any[UUID],
-        any[Seq[(String, AggregateSegment[UUID, State])]],
+        any[(String, Option[State])],
         any[Seq[(String, TimestampMeta, BaseTestEvent)]])
     }
 
@@ -277,7 +274,7 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
     "Crash the actor to force reinitialization if publishing events hits an error" in {
       val crashingMockProducer = mock[KafkaProducerActor[UUID, State, BaseTestEvent, TimestampMeta]]
       when(crashingMockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.successful(true))
-      when(crashingMockProducer.publish(any[UUID], any[Seq[(String, AggregateSegment[UUID, State])]], any[Seq[(String, TimestampMeta, BaseTestEvent)]]))
+      when(crashingMockProducer.publish(any[UUID], any[(String, Option[State])], any[Seq[(String, TimestampMeta, BaseTestEvent)]]))
         .thenReturn(Future.failed(new RuntimeException("This is expected")))
 
       val testContext = TestContext.setupDefault(mockProducer = crashingMockProducer)

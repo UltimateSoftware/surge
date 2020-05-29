@@ -3,7 +3,6 @@
 package com.ultimatesoftware.kafka.streams
 
 import com.ultimatesoftware.scala.core.kafka.{ JsonSerdes, KafkaTopic }
-import com.ultimatesoftware.scala.core.utils.JsonUtils
 import org.apache.kafka.common.serialization.StringSerializer
 import org.apache.kafka.streams.KafkaStreams
 import org.scalatest.BeforeAndAfter
@@ -34,7 +33,7 @@ class AggregateStateStoreKafkaStreamsSpec extends AnyWordSpec with Matchers with
   // Silly mock validator that expects the `string` field of a MockState to be "stateN" where N is the value of the MockState int
   // to trigger valid/invalid validation results
   private def mockValidator(key: String, newValue: Array[Byte], oldValue: Option[Array[Byte]]): Boolean = {
-    val newValueObj = JsonUtils.parseMaybeCompressedBytes[MockState](newValue).get
+    val newValueObj = Json.parse(newValue).as[MockState]
     newValueObj.string == "state" + newValueObj.int
   }
 

@@ -9,8 +9,7 @@ import com.ultimatesoftware.kafka.streams.core.{ KafkaStreamsCommandKafkaConfig,
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, MetricsPublisher, NoOpMetricsProvider, NoOpsMetricsPublisher }
 import com.ultimatesoftware.scala.core.validations.AsyncCommandValidator
-import com.ultimatesoftware.scala.oss.domain.{ AggregateCommandModel, AggregateComposer }
-import play.api.libs.json.JsValue
+import com.ultimatesoftware.scala.oss.domain.AggregateCommandModel
 
 import scala.compat.java8.OptionConverters._
 import scala.concurrent.duration._
@@ -24,7 +23,6 @@ abstract class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdM
   def eventsTopic: KafkaTopic
   def internalMetadataTopic: KafkaTopic
   def eventKeyExtractor(e: Event): String
-  def stateKeyExtractor(json: JsValue): String
 
   def commandModel: AggregateCommandModel[AggId, Agg, Command, Event, CmdMeta, EvtMeta]
 
@@ -32,7 +30,6 @@ abstract class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdM
   def writeFormatting: SurgeWriteFormatting[AggId, Agg, Event, EvtMeta]
 
   def commandValidator: AsyncCommandValidator[Command, Agg]
-  def aggregateComposer: AggregateComposer[AggId, Agg]
 
   def aggregateValidator(key: String, aggJson: Array[Byte], prevAggJsonOpt: Optional[Array[Byte]]): Boolean = true
   private def scalaAggregateValidator: (String, Array[Byte], Option[Array[Byte]]) ⇒ Boolean = { (key, agg, prevAgg) ⇒
@@ -47,7 +44,7 @@ abstract class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdM
   def metricsProvider: MetricsProvider = NoOpMetricsProvider
 
   private def kafkaConfig = KafkaStreamsCommandKafkaConfig(stateTopic = stateTopic, eventsTopic = eventsTopic,
-    internalMetadataTopic = internalMetadataTopic, eventKeyExtractor = eventKeyExtractor, stateKeyExtractor = stateKeyExtractor)
+    internalMetadataTopic = internalMetadataTopic, eventKeyExtractor = eventKeyExtractor)
 
   @deprecated("Use consumerGroup to set the consumer group name", "0.4.23")
   def aggregateConsumerGroupName: String = {
@@ -67,7 +64,6 @@ abstract class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdM
       model = commandModel, writeFormatting = writeFormatting, readFormatting = readFormatting,
       commandValidator = commandValidator, aggregateValidator = scalaAggregateValidator,
       metricsProvider = metricsProvider, metricsPublisher = metricsPublisher, metricsInterval = metricsInterval,
-      aggregateComposer = aggregateComposer,
       consumerGroup = consumerGroup,
       transactionalIdPrefix = transactionalIdPrefix)
   }

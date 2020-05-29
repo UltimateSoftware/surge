@@ -13,19 +13,15 @@ import com.typesafe.config.ConfigFactory
 import com.ultimatesoftware.config.TimeoutConfig
 import com.ultimatesoftware.kafka.streams.HealthyActor.GetHealth
 import com.ultimatesoftware.kafka.streams._
-import com.ultimatesoftware.scala.core.domain.StateMessage
 import com.ultimatesoftware.scala.core.kafka._
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, Rate, Timer }
-import com.ultimatesoftware.scala.core.utils.JsonUtils
-import com.ultimatesoftware.scala.oss.domain.AggregateSegment
 import org.apache.kafka.clients.producer.{ ProducerConfig, ProducerRecord }
-import org.apache.kafka.common.{ KafkaException, TopicPartition }
 import org.apache.kafka.common.errors.{ AuthorizationException, ProducerFencedException, UnsupportedVersionException }
+import org.apache.kafka.common.{ KafkaException, TopicPartition }
 import org.slf4j.{ Logger, LoggerFactory }
-import play.api.libs.json.JsValue
 
-import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration._
+import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.{ Failure, Try }
 
 /**
@@ -82,20 +78,22 @@ class KafkaProducerActor[AggId, Agg, Event, EvtMeta](
       assignedPartition, metricsProvider, stateMetaHandler, aggregateCommandKafkaStreams)).withDispatcher("kafka-publisher-actor-dispatcher"))
 
   private val publishEventsTimer: Timer = metricsProvider.createTimer(s"${aggregateName}PublishEventsTimer")
-  def publish(aggregateId: AggId, states: Seq[(String, AggregateSegment[AggId, Agg])], events: Seq[(String, EvtMeta, Event)]): Future[Done] = {
+  def publish(aggregateId: AggId, state: (String, Option[Agg]), events: Seq[(String, EvtMeta, Event)]): Future[Done] = {
 
-    val eventKeyValuePairs = events.map { eventTuple ⇒
-      log.trace(s"Publishing event for $aggregateName $aggregateId")
-      eventTuple._1 -> aggregateCommandKafkaStreams.writeFormatting.writeEvent(eventTuple._3, eventTuple._2)
+    val eventKeyValuePairs = events.map {
+      case (eventKey, eventMeta, event) ⇒
+        log.trace(s"Publishing event for {} {}", Seq(aggregateName, eventKey): _*)
+        eventKey -> aggregateCommandKafkaStreams.writeFormatting.writeEvent(event, eventMeta)
     }
-    val stateKeyValuePairs = states.map { stateKv ⇒
-      log.trace(s"Publishing state for $aggregateName $aggregateId")
-      stateKv._1 -> aggregateCommandKafkaStreams.writeFormatting.writeState(stateKv._2)
-    }
+
+    val (stateKey, stateValueOpt) = state
+    val stateValue = stateValueOpt.map(aggregateCommandKafkaStreams.writeFormatting.writeState).orNull
+    val stateKeyValuePair = stateKey -> stateValue
+    log.trace(s"Publishing state for {} {}", Seq(aggregateName, stateKey): _*)
 
     publishEventsTimer.time {
       implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PublisherActor.publishTimeout)
-      (publisherActor ? KafkaProducerActorImpl.Publish(eventKeyValuePairs = eventKeyValuePairs, stateKeyValuePairs = stateKeyValuePairs))
+      (publisherActor ? KafkaProducerActorImpl.Publish(eventKeyValuePairs = eventKeyValuePairs, stateKeyValuePair = stateKeyValuePair))
         .map(_ ⇒ Done)(ExecutionContext.global)
     }
   }
@@ -126,7 +124,7 @@ class KafkaProducerActor[AggId, Agg, Event, EvtMeta](
 // TODO: evaluate access modifier here, it was private
 private object KafkaProducerActorImpl {
   sealed trait KafkaProducerActorMessage
-  case class Publish(stateKeyValuePairs: Seq[(String, Array[Byte])], eventKeyValuePairs: Seq[(String, Array[Byte])]) extends KafkaProducerActorMessage
+  case class Publish(stateKeyValuePair: (String, Array[Byte]), eventKeyValuePairs: Seq[(String, Array[Byte])]) extends KafkaProducerActorMessage
   case class StateProcessed(stateMeta: KafkaPartitionMetadata) extends KafkaProducerActorMessage
   case class IsAggregateStateCurrent(aggregateId: String, expirationTime: Instant) extends KafkaProducerActorMessage
   case class AggregateStateRates(current: Rate, notCurrent: Rate) extends KafkaProducerActorMessage
@@ -224,8 +222,7 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
   }
 
   private def sendFlushRecord: Future[InternalMessage] = {
-    val emptyEventMessage = JsonUtils.gzip(StateMessage.empty[JsValue])
-    val flushRecord = new ProducerRecord[String, Array[Byte]](assignedPartition.topic(), assignedPartition.partition(), "", emptyEventMessage)
+    val flushRecord = new ProducerRecord[String, Array[Byte]](assignedPartition.topic(), assignedPartition.partition(), "", "".getBytes)
 
     nonTransactionalStatePublisher.putRecord(flushRecord).map { flushRecordMeta ⇒
       val flushRecordOffset = flushRecordMeta.wrapped.offset()
@@ -324,7 +321,7 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
       }
     } else if (state.pendingWrites.nonEmpty) {
       val eventMessages = state.pendingWrites.flatMap(_.publish.eventKeyValuePairs)
-      val stateMessages = state.pendingWrites.flatMap(_.publish.stateKeyValuePairs)
+      val stateMessages = state.pendingWrites.map(_.publish.stateKeyValuePair)
 
       val eventRecords = eventMessages.map {
         case (eventKey, eventValue) ⇒
