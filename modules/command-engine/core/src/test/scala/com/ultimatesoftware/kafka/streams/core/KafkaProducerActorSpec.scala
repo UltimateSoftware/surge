@@ -37,10 +37,9 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
   private def testProducerActor(assignedPartition: TopicPartition, mockProducer: KafkaBytesProducer): ActorRef = {
     val futureOffset = 100L // Mock for internal metadata handler just returns a high number so that the partition always appears up to date when initializing
     val mockMetaHandler = mock[GlobalKTableMetadataHandler]
-    val mockQueryableStore = mock[KafkaStreamsKeyValueStore[String, KafkaPartitionMetadata]]
-    when(mockQueryableStore.get(anyString))
+    when(mockMetaHandler.isOpen()(any[ExecutionContext])).thenReturn(Future.successful(true))
+    when(mockMetaHandler.getMeta(anyString))
       .thenReturn(Future.successful(Some(KafkaPartitionMetadata(assignedPartition.topic(), assignedPartition.partition(), futureOffset, ""))))
-    when(mockMetaHandler.stateMetaQueryableStore).thenReturn(mockQueryableStore)
     system.actorOf(Props(new KafkaProducerActorImpl(assignedPartition, NoOpMetricsProvider, mockMetaHandler, kafkaStreamsLogic, Some(mockProducer))))
   }
 

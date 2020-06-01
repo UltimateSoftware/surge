@@ -257,15 +257,21 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
   }
 
   private def refreshStateMeta(): Unit = {
-    stateMetaHandler.stateMetaQueryableStore.get(assignedTopicPartitionKey).map {
-      case Some(meta) ⇒
-        self ! StateProcessed(meta)
-      case _ ⇒
-        val meta = KafkaPartitionMetadata(assignedPartition.topic, assignedPartition.partition, offset = -1L, key = "")
-        self ! StateProcessed(meta)
-    } recover {
-      case e ⇒
-        log.error(s"Failed to fetch state metadata for $assignedPartition", e)
+    stateMetaHandler.isOpen().map { isOpen ⇒
+      if (isOpen) {
+        stateMetaHandler.getMeta(assignedTopicPartitionKey).map {
+          case Some(meta) ⇒
+            self ! StateProcessed(meta)
+          case _ ⇒
+            val meta = KafkaPartitionMetadata(assignedPartition.topic, assignedPartition.partition, offset = -1L, key = "")
+            self ! StateProcessed(meta)
+        } recover {
+          case e ⇒
+            log.error(s"Failed to fetch state metadata for $assignedPartition", e)
+        }
+      } else {
+        log.trace(s"Skipping State Meta Refresh, stream is not open for ${assignedPartition}")
+      }
     }
   }
 

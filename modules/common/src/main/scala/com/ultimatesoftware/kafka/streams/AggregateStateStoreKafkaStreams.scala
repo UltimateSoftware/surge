@@ -2,21 +2,16 @@
 
 package com.ultimatesoftware.kafka.streams
 
-import java.util.Properties
-
-import com.typesafe.config.ConfigFactory
-import com.ultimatesoftware.config.TimeoutConfig
-import com.ultimatesoftware.scala.core.kafka.{ KafkaTopic, UltiKafkaConsumerConfig }
-import org.apache.kafka.clients.consumer.{ ConsumerConfig, ConsumerConfigExtension }
-import org.apache.kafka.common.serialization.Serdes.ByteArraySerde
-import org.apache.kafka.streams.kstream.Materialized
-import org.apache.kafka.streams.kstream.internals.{ KTableImpl, KTableImplExtensions }
-import org.apache.kafka.streams.scala.ByteArrayKeyValueStore
-import org.apache.kafka.streams.state._
-import org.apache.kafka.streams.{ KafkaStreams, StreamsConfig, Topology }
-import org.slf4j.LoggerFactory
-
+import akka.pattern.{ BackoffOpts, BackoffSupervisor, ask }
+import akka.actor.{ ActorRef, ActorSystem }
+import akka.util.Timeout
+import com.ultimatesoftware.config.{ BackoffConfig, TimeoutConfig }
+import com.ultimatesoftware.kafka.streams.AggregateStateStoreKafkaStreamsImpl._
+import com.ultimatesoftware.kafka.streams.KafkaStreamLifeCycleManagement.{ Restart, Start, Stop }
+import com.ultimatesoftware.scala.core.kafka.KafkaTopic
+import org.apache.kafka.streams.Topology
 import scala.concurrent.{ ExecutionContext, Future }
+import com.ultimatesoftware.support.{ BackoffChildActorTerminationWatcher, Logging, SystemExit }
 
 object AggregateStreamsWriteBufferSettings extends WriteBufferSettings {
   override def maxWriteBufferNumber: Int = 2
@@ -56,124 +51,75 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
     kafkaStateMetadataHandler: KafkaPartitionMetadataHandler,
     aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) ⇒ Boolean,
     applicationHostPort: Option[String],
-    consumerGroupName: String) extends HealthyComponent {
+    consumerGroupName: String,
+    system: ActorSystem) extends HealthyComponent with Logging {
 
-  import DefaultSerdes._
-  import ImplicitConversions._
-  import KTableImplExtensions._
+  private[streams] lazy val settings = AggregateStateStoreKafkaStreamsImplSettings(consumerGroupName, aggregateName)
 
-  private val log = LoggerFactory.getLogger(getClass)
+  private[streams] val underlyingActor = createUnderlyingActorWithBackOff()
 
-  private val config = ConfigFactory.load()
-  private val brokers = config.getString("kafka.brokers").split(",")
-  private val consumerConfig = UltiKafkaConsumerConfig(consumerGroupName)
-  private val environment = config.getString("app.environment")
-  private val applicationId = consumerConfig.consumerGroup match {
-    case name: String if name.contains(s"-$environment") ⇒
-      s"${consumerConfig.consumerGroup}-$aggregateName"
-    case _ ⇒
-      s"${consumerConfig.consumerGroup}-$aggregateName-$environment"
-  }
-
-  private val cacheHeapPercentage = config.getDouble("kafka.streams.cache-heap-percentage")
-  private val totalMemory = Runtime.getRuntime.maxMemory()
-  private val cacheMemory = (totalMemory * cacheHeapPercentage).longValue
-  log.debug("Kafka streams cache memory being used is {} bytes", cacheMemory)
-  private val standbyReplicas = config.getInt("kafka.streams.num-standby-replicas")
-  private val commitInterval = config.getInt("kafka.streams.commit-interval-ms")
-  private val clearStateOnStartup = config.getBoolean("kafka.streams.wipe-state-on-start")
-
-  private val streamsConfig = Map(
-    ConsumerConfig.ISOLATION_LEVEL_CONFIG -> "read_committed",
-    ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG -> Integer.MAX_VALUE.toString,
-    ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG -> TimeoutConfig.Kafka.consumerSessionTimeout.toMillis.toString,
-    ConsumerConfigExtension.LEAVE_GROUP_ON_CLOSE_CONFIG -> TimeoutConfig.debugTimeoutEnabled.toString,
-    StreamsConfig.COMMIT_INTERVAL_MS_CONFIG -> commitInterval.toString,
-    StreamsConfig.NUM_STANDBY_REPLICAS_CONFIG -> standbyReplicas.toString,
-    StreamsConfig.TOPOLOGY_OPTIMIZATION -> StreamsConfig.OPTIMIZE,
-    StreamsConfig.ROCKSDB_CONFIG_SETTER_CLASS_CONFIG -> classOf[AggregateStreamsRocksDBConfig].getName,
-    StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG -> cacheMemory.toString)
-
-  private val topologyProps = new Properties()
-  topologyProps.setProperty(StreamsConfig.TOPOLOGY_OPTIMIZATION, StreamsConfig.OPTIMIZE)
-
-  private val consumer = KafkaByteStreamsConsumer(brokers = brokers, applicationId = applicationId, consumerConfig = consumerConfig,
-    kafkaConfig = streamsConfig, applicationServerConfig = applicationHostPort, topologyProps = Some(topologyProps))
-
-  private val validationProcessor = new ValidationProcessor[Array[Byte]](aggregateName, aggregateValidator)
-
-  val aggregateStateStore: String = s"${aggregateName}AggregateStateStore"
-
-  private def initStreams(): Unit = {
-    val aggregateStoreMaterialized = Materialized.as[String, Array[Byte], ByteArrayKeyValueStore](aggregateStateStore)
-      .withValueSerde(new ByteArraySerde())
-
-    // Build the KTable directly from Kafka
-    val aggKTable = consumer.builder.table(stateTopic.name, aggregateStoreMaterialized)
-
-    // Reach into the underlying implementation and tell it to send the old value for an aggregate
-    // along with the newly updated value.  The old value is only used for validation
-    val aggKTableJavaImpl = aggKTable.inner.asInstanceOf[KTableImpl[String, Array[Byte], Array[Byte]]]
-    aggKTableJavaImpl.sendOldValues()
-
-    // Run business logic validation and transform values from an aggregate into metadata about
-    // the processed record including topic/partition, and offset of the message in Kafka
-    val stateMeta = aggKTableJavaImpl.toStreamWithChanges.transformValues(validationProcessor.supplier)
-    kafkaStateMetadataHandler.processPartitionMetadata(stateMeta)
-
-    consumer.streams.setStateListener(new KafkaStreamsStateChangeListener(partitionTrackerProvider.create(streams)))
-    consumer.streams.setGlobalStateRestoreListener(new KafkaStreamsStateRestoreListener)
-    consumer.streams.setUncaughtExceptionHandler(new KafkaStreamsUncaughtExceptionHandler)
-  }
-
-  lazy val streams: KafkaStreams = consumer.streams
-
-  def createTopology(): Topology = {
-    initStreams()
-    kafkaStateMetadataHandler.initialize()
-    consumer.topology
-  }
+  private implicit val askTimeoutDuration: Timeout = TimeoutConfig.StateStoreKafkaStreamActor.askTimeout
 
   /**
    * Used to actually start the Kafka Streams process.  Optionally cleans up persistent state directories
    * left behind by previous runs if `kafka.streams.wipe-state-on-start` config setting is set to true.
    */
   def start(): Unit = {
-    createTopology()
-    if (clearStateOnStartup) {
-      consumer.streams.cleanUp()
-    }
-    consumer.start()
-    kafkaStateMetadataHandler.start()
+    underlyingActor ! Start
   }
 
   def stop(): Unit = {
-    consumer.streams.close()
+    underlyingActor ! Stop
   }
 
-  override def healthCheck(): Future[HealthCheck] = Future {
-    HealthCheck(
-      name = "aggregate-state-store",
-      id = aggregateStateStore,
-      status = if (streams.state().isRunning) HealthCheckStatus.UP else HealthCheckStatus.DOWN)
-  }(ExecutionContext.global)
-
-  /**
-   * Asynchronous interface to the key/value store of aggregates built by the stream
-   */
-  lazy val aggregateQueryableStateStore: KafkaStreamsKeyValueStore[String, Array[Byte]] = {
-    val underlying = streams.store(aggregateStateStore, QueryableStoreTypes.keyValueStore[String, Array[Byte]]())
-    new KafkaStreamsKeyValueStore(underlying)
+  def restart(): Unit = {
+    underlyingActor ! Restart
   }
 
   def substatesForAggregate(aggregateId: String)(implicit ec: ExecutionContext): Future[List[(String, Array[Byte])]] = {
-    val unfiltered = aggregateQueryableStateStore.range(aggregateId, s"$aggregateId:~")
-    unfiltered.map { result ⇒
-      result.filter {
-        case (key, _) ⇒
-          val keyBeforeColon = key.takeWhile(_ != ':')
-          keyBeforeColon == aggregateId
-      }
+    underlyingActor.ask(GetSubstatesForAggregate(aggregateId)).mapTo[List[(String, Array[Byte])]]
+  }
+
+  def getAggregateBytes(aggregateId: String): Future[Option[Array[Byte]]] = {
+    underlyingActor.ask(GetAggregateBytes(aggregateId)).mapTo[Option[Array[Byte]]]
+  }
+
+  override def healthCheck(): Future[HealthCheck] = {
+    underlyingActor.ask(HealthyActor.GetHealth).mapTo[HealthCheck]
+  }
+
+  private def createUnderlyingActorWithBackOff(): ActorRef = {
+    def onMaxRetries(): Unit = {
+      log.error(s"Kafka stream ${settings.storeName} failed more than the max number of retries, Surge is killing the JVM")
+      SystemExit.exit(1)
     }
+
+    val aggregateStateStoreKafkaStreamsImplProps = AggregateStateStoreKafkaStreamsImpl.props(
+      aggregateName,
+      stateTopic,
+      partitionTrackerProvider,
+      kafkaStateMetadataHandler,
+      aggregateValidator,
+      applicationHostPort,
+      settings)
+
+    val underlyingActorProps = BackoffSupervisor.props(
+      BackoffOpts.onStop(
+        aggregateStateStoreKafkaStreamsImplProps,
+        childName = settings.storeName,
+        minBackoff = BackoffConfig.StateStoreKafkaStreamActor.minBackoff,
+        maxBackoff = BackoffConfig.StateStoreKafkaStreamActor.maxBackoff,
+        randomFactor = BackoffConfig.StateStoreKafkaStreamActor.randomFactor).withMaxNrOfRetries(
+        BackoffConfig.StateStoreKafkaStreamActor.maxRetries))
+
+    val underlyingCreatedActor = system.actorOf(underlyingActorProps)
+
+    system.actorOf(BackoffChildActorTerminationWatcher.props(underlyingCreatedActor, onMaxRetries))
+
+    underlyingCreatedActor
+  }
+
+  private[streams] def getTopology(): Future[Topology] = {
+    underlyingActor.ask(GetTopology).mapTo[Topology]
   }
 }

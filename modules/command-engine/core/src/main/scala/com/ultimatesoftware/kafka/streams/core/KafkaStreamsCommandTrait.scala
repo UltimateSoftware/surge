@@ -12,7 +12,8 @@ import play.api.libs.json.JsValue
 import scala.concurrent.{ ExecutionContext, Future }
 
 trait KafkaStreamsCommandTrait[AggId, Agg, Command, Event, CmdMeta, EvtMeta] {
-  def start(): Unit // FIXME can this return an instance of the engine instead of being a unit? That way it can just be called inline
+  def start(): Unit
+  def restart(): Unit
   def stop(): Unit
   val businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta]
   def actorSystem: ActorSystem
@@ -27,13 +28,16 @@ abstract class KafkaStreamsCommandImpl[AggId, Agg, Command, Event, CmdMeta, EvtM
   private implicit val system: ActorSystem = actorSystem
 
   private val stateChangeActor = system.actorOf(KafkaConsumerStateTrackingActor.props)
-  private val stateMetaHandler = new GlobalKTableMetadataHandler(businessLogic.kafka.internalMetadataTopic, businessLogic.consumerGroup)
+  private val stateMetaHandler = new GlobalKTableMetadataHandler(
+    businessLogic.kafka.internalMetadataTopic,
+    businessLogic.consumerGroup, system)
   private val kafkaStreamsImpl = new AggregateStateStoreKafkaStreams[JsValue](
     businessLogic.aggregateName,
     businessLogic.kafka.stateTopic,
     new KafkaStreamsPartitionTrackerActorProvider(stateChangeActor), stateMetaHandler, businessLogic.aggregateValidator,
     applicationHostPort,
-    businessLogic.consumerGroup)
+    businessLogic.consumerGroup,
+    system)
   protected val actorRouter = new GenericAggregateActorRouter[AggId, Agg, Command, Event, CmdMeta, EvtMeta](actorSystem, stateChangeActor,
     businessLogic, businessLogic.metricsProvider, stateMetaHandler, kafkaStreamsImpl)
 
@@ -51,13 +55,11 @@ abstract class KafkaStreamsCommandImpl[AggId, Agg, Command, Event, CmdMeta, EvtM
     kafkaStreamsImpl.start()
   }
 
-  /**
-   * WARNING: Don't use this except for shutting down between tests.  The engine can not be restarted properly after shutting down via this method and
-   * the full app must be restarted.  Restarting may be supported in future versions of Surge, but for now it will not work.
-   */
+  def restart(): Unit = {
+    kafkaStreamsImpl.restart()
+  }
+
   def stop(): Unit = {
-    log.warn("Shutting down the Surge engine! The engine should NOT be restarted or it may not work properly. " +
-      "This method should only be used to clean up between integration tests.")
     kafkaStreamsImpl.stop()
   }
 }

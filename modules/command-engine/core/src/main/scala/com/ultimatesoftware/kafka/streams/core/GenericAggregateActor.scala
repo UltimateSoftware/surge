@@ -280,7 +280,7 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
   }
 
   private def fetchState(initializationAttempts: Int): Unit = {
-    val fetchedStateFut = metrics.stateInitializationTimer.time(kafkaStreamsCommand.aggregateQueryableStateStore.get(aggregateId.toString))
+    val fetchedStateFut = metrics.stateInitializationTimer.time(kafkaStreamsCommand.getAggregateBytes(aggregateId.toString))
 
     fetchedStateFut.map { state ⇒
       log.trace("GenericAggregateActor for {} fetched state", aggregateId)

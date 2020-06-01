@@ -4,8 +4,6 @@ package com.ultimatesoftware.kafka.streams
 
 import org.slf4j.LoggerFactory
 import play.api.libs.json.{ Format, Json }
-
-import scala.collection.mutable
 import scala.concurrent.{ ExecutionContext, Future }
 
 class SurgeHealthCheck(healthCheckId: String, components: HealthyComponent*)(implicit executionContext: ExecutionContext) {

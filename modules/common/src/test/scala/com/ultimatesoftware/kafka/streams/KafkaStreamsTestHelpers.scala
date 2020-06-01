@@ -7,11 +7,15 @@ import java.util.Properties
 import org.apache.kafka.streams.{ StreamsConfig, Topology, TopologyTestDriver }
 
 trait KafkaStreamsTestHelpers {
-  private val props = new Properties()
-  props.put(StreamsConfig.APPLICATION_ID_CONFIG, "test")
-  props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "test:1234")
 
   def withTopologyTestDriver(topology: Topology)(testCode: TopologyTestDriver ⇒ Any) {
+    val props = new Properties()
+    props.put(StreamsConfig.APPLICATION_ID_CONFIG, "test")
+    props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "test:1234")
+
+    withTopologyTestDriver(topology, props)(testCode)
+  }
+  def withTopologyTestDriver(topology: Topology, props: Properties)(testCode: TopologyTestDriver ⇒ Any) {
     val testDriver = new TopologyTestDriver(topology, props)
     try {
       testCode(testDriver)

@@ -2,6 +2,8 @@
 
 package com.ultimatesoftware.kafka.streams
 
+import com.ultimatesoftware.kafka.streams.KafkaStreamsUncaughtExceptionHandler.KafkaStreamsUncaughtException
+import com.ultimatesoftware.kafka.streams.KafkaStreamsUpdatePartitionsOnStateChangeListener.KafkaStateChange
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.streams.KafkaStreams.State
 import org.mockito.ArgumentMatchers._
@@ -10,34 +12,46 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatestplus.mockito.MockitoSugar
 
-class KafkaStreamsStateChangeListenerSpec extends AnyWordSpec with Matchers with MockitoSugar {
+class KafkaStreamsUpdatePartitionsOnStateChangeListenerSpec extends AnyWordSpec with Matchers with MockitoSugar {
   trait TestContext {
     val tracker: KafkaStreamsPartitionTracker = mock[KafkaStreamsPartitionTracker]
     doNothing().when(tracker).update()
-    val exiter: Exiter = mock[Exiter]
-    doNothing().when(exiter).exit(anyInt)
 
-    val stateChangeListener = new KafkaStreamsStateChangeListener(tracker, exiter)
-    val exceptionHandler = new KafkaStreamsUncaughtExceptionHandler(exiter)
     val stateRestoreListener = new KafkaStreamsStateRestoreListener
   }
-  "KafkaStreamsStateChangeListener" should {
+  class ExceptionListenerInside {
+    def listenException(exception: KafkaStreamsUncaughtException): Unit = {
+      // Do nothing
+    }
+  }
+  class StateChangeListenerInside {
+    def listenStateChange(change: KafkaStateChange): Unit = {
+      // Do nothing
+    }
+  }
+  "KafkaStreamsUpdatePartitionsOnStateChangeListener" should {
     "Update the partition tracker when transitioning from rebalancing to running" in new TestContext {
+      val stateChangeListener = new KafkaStreamsUpdatePartitionsOnStateChangeListener("TestStreamName", tracker)
       stateChangeListener.onChange(newState = State.RUNNING, oldState = State.REBALANCING)
       verify(tracker).update()
     }
+  }
 
-    "Exit if the stream process goes to an error state and then into a not running state" in new TestContext {
-      stateChangeListener.onChange(newState = State.ERROR, oldState = State.RUNNING)
-      stateChangeListener.onChange(newState = State.NOT_RUNNING, oldState = State.ERROR)
-      verify(exiter).exit(1)
+  "KafkaStreamsNotifyOnStateChangeListener" should {
+    "Notify when changing states" in new TestContext {
+      val notifyTo = mock[StateChangeListenerInside]
+      val stateChangeListener = new KafkaStreamsNotifyOnStateChangeListener("TestStreamName", List(notifyTo.listenStateChange))
+      stateChangeListener.onChange(newState = State.RUNNING, oldState = State.REBALANCING)
+      verify(notifyTo).listenStateChange(any[KafkaStateChange])
     }
   }
 
   "KafkaStreamsUncaughtExceptionHandler" should {
-    "Exit if the stream thread hits an uncaught exception" in new TestContext {
+    "Notifies about any uncaught exception" in new TestContext {
+      val notifyTo = mock[ExceptionListenerInside]
+      val exceptionHandler = new KafkaStreamsUncaughtExceptionHandler(List(notifyTo.listenException))
       exceptionHandler.uncaughtException(Thread.currentThread(), new RuntimeException("This is expected"))
-      verify(exiter).exit(1)
+      verify(notifyTo).listenException(any[KafkaStreamsUncaughtException])
     }
   }
 
