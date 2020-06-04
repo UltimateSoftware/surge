@@ -12,7 +12,6 @@ import scala.concurrent.duration._
 private[streams] case class KafkaStreamsCommandKafkaConfig[Evt](
     stateTopic: KafkaTopic,
     eventsTopic: KafkaTopic,
-    internalMetadataTopic: KafkaTopic,
     eventKeyExtractor: Evt ⇒ String)
 
 private[streams] case class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta](

@@ -12,6 +12,7 @@ import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
 import com.ultimatesoftware.config.TimeoutConfig
 import com.ultimatesoftware.kafka.streams.HealthyActor.GetHealth
+import com.ultimatesoftware.kafka.streams.KafkaPartitionMetadataHandlerImpl.KafkaPartitionMetadataUpdated
 import com.ultimatesoftware.kafka.streams._
 import com.ultimatesoftware.scala.core.kafka._
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, Rate, Timer }
@@ -32,9 +33,10 @@ import scala.util.{ Failure, Try }
  * each aggregate id as messages are published to Kafka and listening to updates of the downstream
  * Kafka Streams consumer as it makes progress through the topic.  As a state is published,
  * this actor remembers the aggregate id and offset the state for that aggregate is.  When the
- * Kafka Streams consumer processes the state (saving it to a KTable) it saves the offset of the most
- * recently processed message for a partition to a global KTable.  This producer actor polls that global
- * table to get the last processed offset and marks any aggregates in the "in flight" state as up to date
+ * Kafka Streams consumer processes the state (saving it to a KTable) it notifies the MetadataHandler with
+ * the offset of the most recently processed message. The MetadataHandler will publish an event KafkaPartitionMetadata
+ * This producer actor subscribes to the KafkaPartitionMetadata events to get the last processed offset
+ * and marks any aggregates in the "in flight" state as up to date
  * if their offset is less than or equal to the last processed offset.
  *
  * When an aggregate actor wants to initialize, it must first ask this stateful producer if
@@ -54,10 +56,6 @@ import scala.util.{ Failure, Try }
  *                          of a stateful producer for a particular partition.  Any older producers for
  *                          that partition will be fenced out by Kafka.
  * @param metricsProvider Metrics provider interface to use for recording internal metrics to
- * @param stateMetaHandler An instance of the Kafka Streams partition metadata global KTable processor that
- *                         is responsible for tracking what offsets in Kafka have been processed by the aggregate
- *                         state indexer process.  The producer will query the underlying global KTable to determine
- *                         which aggregates are in flight.
  * @param aggregateCommandKafkaStreams Command service business logic wrapper used for determining state and event topics
  * @tparam AggId Generic aggregate id type for aggregates publishing states/events through this stateful producer
  * @tparam Agg Generic aggregate type of aggregates publishing states/events through this stateful producer
@@ -67,7 +65,6 @@ class KafkaProducerActor[AggId, Agg, Event, EvtMeta](
     actorSystem: ActorSystem,
     assignedPartition: TopicPartition,
     metricsProvider: MetricsProvider,
-    stateMetaHandler: GlobalKTableMetadataHandler,
     aggregateCommandKafkaStreams: KafkaStreamsCommandBusinessLogic[AggId, Agg, _, Event, _, EvtMeta]) extends HealthyComponent {
 
   private val log = LoggerFactory.getLogger(getClass)
@@ -75,7 +72,7 @@ class KafkaProducerActor[AggId, Agg, Event, EvtMeta](
 
   private val publisherActor = actorSystem.actorOf(
     Props(new KafkaProducerActorImpl(
-      assignedPartition, metricsProvider, stateMetaHandler, aggregateCommandKafkaStreams)).withDispatcher("kafka-publisher-actor-dispatcher"))
+      assignedPartition, metricsProvider, aggregateCommandKafkaStreams)).withDispatcher("kafka-publisher-actor-dispatcher"))
 
   private val publishEventsTimer: Timer = metricsProvider.createTimer(s"${aggregateName}PublishEventsTimer")
   def publish(aggregateId: AggId, state: (String, Option[Agg]), events: Seq[(String, EvtMeta, Event)]): Future[Done] = {
@@ -121,7 +118,6 @@ class KafkaProducerActor[AggId, Agg, Event, EvtMeta](
   }
 }
 
-// TODO: evaluate access modifier here, it was private
 private object KafkaProducerActorImpl {
   sealed trait KafkaProducerActorMessage
   case class Publish(stateKeyValuePair: (String, Array[Byte]), eventKeyValuePairs: Seq[(String, Array[Byte])]) extends KafkaProducerActorMessage
@@ -142,7 +138,6 @@ private object KafkaProducerActorImpl {
 }
 private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
     assignedPartition: TopicPartition, metrics: MetricsProvider,
-    stateMetaHandler: GlobalKTableMetadataHandler,
     aggregateCommandKafkaStreams: KafkaStreamsCommandBusinessLogic[_, Agg, _, Event, _, _],
     kafkaProducerOverride: Option[KafkaBytesProducer] = None) extends Actor with Stash {
 
@@ -171,8 +166,9 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
     current = metrics.createRate(s"${aggregateName}AggregateStateCurrentRate"),
     notCurrent = metrics.createRate(s"${aggregateName}AggregateStateNotCurrentRate"))
 
+  context.system.eventStream.subscribe(self, classOf[KafkaPartitionMetadataUpdated])
+
   context.system.scheduler.scheduleOnce(10.milliseconds, self, InitTransactions)
-  context.system.scheduler.scheduleWithFixedDelay(200.milliseconds, 200.milliseconds)(() ⇒ refreshStateMeta())
   context.system.scheduler.scheduleWithFixedDelay(flushInterval, flushInterval, self, FlushMessages)
 
   private def getPublisher(): KafkaBytesProducer = {
@@ -189,36 +185,41 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
 
   override def receive: Receive = uninitialized
 
+  // scalastyle:off cyclomatic.complexity
   private def uninitialized: Receive = {
-    case InitTransactions           ⇒ initializeTransactions()
-    case msg: Initialize            ⇒ handle(msg)
-    case FailedToInitialize         ⇒ context.system.scheduler.scheduleOnce(3.seconds)(initializeState())
-    case FlushMessages              ⇒ // Ignore from this state
-    case GetHealth                  ⇒ getHealthCheck()
-    case _: Publish                 ⇒ stash()
-    case _: StateProcessed          ⇒ stash()
-    case _: IsAggregateStateCurrent ⇒ stash()
-    case unknown                    ⇒ log.warn("Receiving unhandled message {} on uninitialized state", unknown.getClass.getName)
+    case InitTransactions                 ⇒ initializeTransactions()
+    case msg: Initialize                  ⇒ handle(msg)
+    case FailedToInitialize               ⇒ context.system.scheduler.scheduleOnce(3.seconds)(initializeState())
+    case FlushMessages                    ⇒ // Ignore from this state
+    case GetHealth                        ⇒ getHealthCheck()
+    case _: KafkaPartitionMetadataUpdated ⇒ stash() // process only AFTER flush message is sent
+    case _: Publish                       ⇒ stash()
+    case _: StateProcessed                ⇒ stash()
+    case _: IsAggregateStateCurrent       ⇒ stash()
+    case unknown                          ⇒ log.warn("Receiving unhandled message {} on uninitialized state", unknown.getClass.getName)
   }
+  // scalastyle:on
 
   private def recoveringBacklog(endOffset: Long): Receive = {
-    case msg: StateProcessed        ⇒ handleFromRecoveringState(endOffset, msg)
-    case FlushMessages              ⇒ // Ignore from this state
-    case GetHealth                  ⇒ getHealthCheck()
-    case _: Publish                 ⇒ stash()
-    case _: IsAggregateStateCurrent ⇒ stash()
-    case unknown                    ⇒ log.warn("Receiving unhandled message {} on recoveringBacklog state", unknown.getClass.getName)
+    case msg: KafkaPartitionMetadataUpdated ⇒ handle(msg)
+    case msg: StateProcessed                ⇒ handleFromRecoveringState(endOffset, msg)
+    case FlushMessages                      ⇒ // Ignore from this state
+    case GetHealth                          ⇒ getHealthCheck()
+    case _: Publish                         ⇒ stash()
+    case _: IsAggregateStateCurrent         ⇒ stash()
+    case unknown                            ⇒ log.warn("Receiving unhandled message {} on recoveringBacklog state", unknown.getClass.getName)
   }
 
   private def processing(state: KafkaProducerActorState): Receive = {
-    case msg: Publish                 ⇒ handle(state, msg)
-    case msg: EventsPublished         ⇒ handle(state, msg)
-    case EventsFailedToPublish        ⇒ handleFailedToPublish(state)
-    case msg: StateProcessed          ⇒ handle(state, msg)
-    case msg: IsAggregateStateCurrent ⇒ handle(state, msg)
-    case GetHealth                    ⇒ getHealthCheck(state)
-    case FlushMessages                ⇒ handleFlushMessages(state)
-    case Done                         ⇒ // Ignore to prevent these messages to become dead letters
+    case msg: KafkaPartitionMetadataUpdated ⇒ handle(msg)
+    case msg: Publish                       ⇒ handle(state, msg)
+    case msg: EventsPublished               ⇒ handle(state, msg)
+    case EventsFailedToPublish              ⇒ handleFailedToPublish(state)
+    case msg: StateProcessed                ⇒ handle(state, msg)
+    case msg: IsAggregateStateCurrent       ⇒ handle(state, msg)
+    case GetHealth                          ⇒ getHealthCheck(state)
+    case FlushMessages                      ⇒ handleFlushMessages(state)
+    case Done                               ⇒ // Ignore to prevent these messages to become dead letters
   }
 
   private def sendFlushRecord: Future[InternalMessage] = {
@@ -256,28 +257,15 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
     sendFlushRecord pipeTo self
   }
 
-  private def refreshStateMeta(): Unit = {
-    stateMetaHandler.isOpen().map { isOpen ⇒
-      if (isOpen) {
-        stateMetaHandler.getMeta(assignedTopicPartitionKey).map {
-          case Some(meta) ⇒
-            self ! StateProcessed(meta)
-          case _ ⇒
-            val meta = KafkaPartitionMetadata(assignedPartition.topic, assignedPartition.partition, offset = -1L, key = "")
-            self ! StateProcessed(meta)
-        } recover {
-          case e ⇒
-            log.error(s"Failed to fetch state metadata for $assignedPartition", e)
-        }
-      } else {
-        log.trace(s"Skipping State Meta Refresh, stream is not open for ${assignedPartition}")
-      }
-    }
+  private def handle(event: KafkaPartitionMetadataUpdated): Unit = {
+    if (event.value.topicPartition == assignedTopicPartitionKey)
+      self ! StateProcessed(event.value)
   }
 
   private def handle(initialize: Initialize): Unit = {
     log.info(s"Publisher actor initializing for topic-partition $assignedPartition with end offset ${initialize.endOffset}")
     context.become(recoveringBacklog(initialize.endOffset))
+    unstashAll()
   }
 
   private def handle(state: KafkaProducerActorState, publish: Publish): Unit = {

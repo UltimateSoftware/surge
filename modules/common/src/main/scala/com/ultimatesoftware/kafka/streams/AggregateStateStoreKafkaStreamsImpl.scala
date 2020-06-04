@@ -21,7 +21,8 @@ import scala.concurrent.Future
 private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
     aggregateName: String,
     stateTopic: KafkaTopic,
-    partitionTrackerProvider: KafkaStreamsPartitionTrackerProvider, kafkaStateMetadataHandler: KafkaPartitionMetadataHandler,
+    partitionTrackerProvider: KafkaStreamsPartitionTrackerProvider,
+    kafkaStateMetadataHandler: KafkaPartitionMetadataHandler,
     aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) ⇒ Boolean,
     applicationHostPort: Option[String],
     override val settings: AggregateStateStoreKafkaStreamsImplSettings)
@@ -74,14 +75,6 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
     // the processed record including topic/partition, and offset of the message in Kafka
     val stateMeta = aggKTableJavaImpl.toStreamWithChanges.transformValues(validationProcessor.supplier)
     kafkaStateMetadataHandler.processPartitionMetadata(stateMeta)
-  }
-
-  override def onStart(): Unit = {
-    kafkaStateMetadataHandler.start()
-  }
-
-  override def onStop(consumer: KafkaByteStreamsConsumer): Unit = {
-    kafkaStateMetadataHandler.stop()
   }
 
   override def createQueryableStore(consumer: KafkaByteStreamsConsumer): KafkaStreamsKeyValueStore[String, Array[Byte]] = {

@@ -8,7 +8,9 @@ import akka.pattern.ask
 import akka.Done
 import akka.actor.{ ActorRef, ActorSystem, Props }
 import akka.testkit.{ TestKit, TestProbe }
-import com.ultimatesoftware.kafka.streams.{ GlobalKTableMetadataHandler, KafkaPartitionMetadata, KafkaStreamsKeyValueStore }
+import akka.util.Timeout
+import com.ultimatesoftware.kafka.streams.KafkaPartitionMetadataHandlerImpl.KafkaPartitionMetadataUpdated
+import com.ultimatesoftware.kafka.streams.{ KafkaPartitionMetadata, KafkaPartitionMetadataHandler, KafkaStreamsKeyValueStore }
 import com.ultimatesoftware.kafka.streams.core.KafkaProducerActorImpl.AggregateStateRates
 import com.ultimatesoftware.scala.core.kafka.{ KafkaBytesProducer, KafkaRecordMetadata }
 import com.ultimatesoftware.scala.core.monitoring.metrics.NoOpMetricsProvider
@@ -17,7 +19,10 @@ import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.{ AuthorizationException, ProducerFencedException }
 import org.mockito.ArgumentMatchers._
 import org.mockito.Mockito._
+import org.scalatest.BeforeAndAfterAll
+import org.scalatest.concurrent.{ PatienceConfiguration, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
+import org.scalatest.time.{ Millis, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
 
@@ -25,22 +30,33 @@ import scala.concurrent.duration._
 import scala.concurrent.{ Await, ExecutionContext, Future }
 import scala.concurrent.ExecutionContext.Implicits.global
 
-class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec")) with AnyWordSpecLike with Matchers
-  with TestBoundedContext with MockitoSugar {
+class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec")) with AnyWordSpecLike with Matchers with BeforeAndAfterAll
+  with TestBoundedContext with MockitoSugar with ScalaFutures with PatienceConfiguration {
 
+  override implicit val patienceConfig = PatienceConfig(
+    timeout = Span(3, Seconds), interval = Span(10, Millis)) // scalastyle:ignore magic.number
+
+  override def afterAll(): Unit = {
+    system.terminate()
+    super.afterAll()
+  }
   private def createRecordMeta(topic: String, partition: Int, offset: Int): RecordMetadata = {
     new RecordMetadata(
       new TopicPartition(topic, partition), 0, offset, Instant.now.toEpochMilli,
       0L, 0, 0)
   }
 
-  private def testProducerActor(assignedPartition: TopicPartition, mockProducer: KafkaBytesProducer): ActorRef = {
+  private def sendMetadataUpdated(probe: TestProbe, producerActor: ActorRef, assignedPartition: TopicPartition) = {
     val futureOffset = 100L // Mock for internal metadata handler just returns a high number so that the partition always appears up to date when initializing
-    val mockMetaHandler = mock[GlobalKTableMetadataHandler]
-    when(mockMetaHandler.isOpen()(any[ExecutionContext])).thenReturn(Future.successful(true))
-    when(mockMetaHandler.getMeta(anyString))
-      .thenReturn(Future.successful(Some(KafkaPartitionMetadata(assignedPartition.topic(), assignedPartition.partition(), futureOffset, ""))))
-    system.actorOf(Props(new KafkaProducerActorImpl(assignedPartition, NoOpMetricsProvider, mockMetaHandler, kafkaStreamsLogic, Some(mockProducer))))
+    val event = KafkaPartitionMetadataUpdated(KafkaPartitionMetadata(assignedPartition.topic(), assignedPartition.partition(), futureOffset, ""))
+    // Guarantees that KafkaProducerActor is subscribed to KafkaPartitionMetadataUpdated event
+    system.eventStream.publish(event)
+  }
+  private def testProducerActor(assignedPartition: TopicPartition, mockProducer: KafkaBytesProducer): ActorRef = {
+    val actor = system.actorOf(Props(new KafkaProducerActorImpl(assignedPartition, NoOpMetricsProvider, kafkaStreamsLogic, Some(mockProducer))))
+    // Blocks the execution to wait until the actor is ready so we know its subscribed to the event bus
+    system.actorSelection(actor.path).resolveOne()(Timeout(patienceConfig.timeout)).futureValue
+    actor
   }
 
   private def mockRecordMetadata(assignedPartition: TopicPartition): KafkaRecordMetadata[String] = {
@@ -93,6 +109,8 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
         .thenReturn(Future.successful(mockMetadata))
 
       val actor = testProducerActor(assignedPartition, mockProducer)
+      sendMetadataUpdated(probe, actor, assignedPartition)
+      expectNoMessage()
       // First time beginTransaction will fail and commitTransaction won't be executed
       probe.send(actor, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
       probe.send(actor, KafkaProducerActorImpl.FlushMessages)
@@ -156,7 +174,7 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
       val assignedPartition = new TopicPartition("testTopic", 1)
       val mockProducerFailsPutRecord = mock[KafkaBytesProducer]
       val failingFlush = testProducerActor(assignedPartition, mockProducerFailsPutRecord)
-
+      sendMetadataUpdated(probe, failingFlush, assignedPartition)
       val mockMetadata = mockRecordMetadata(assignedPartition)
       setupTransactions(mockProducerFailsPutRecord)
       when(mockProducerFailsPutRecord.putRecords(any[Seq[ProducerRecord[String, Array[Byte]]]]))
@@ -184,6 +202,7 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
       when(mockProducer.putRecord(any[ProducerRecord[String, Array[Byte]]]))
         .thenReturn(Future.successful(mockMetadata))
       val actor = testProducerActor(assignedPartition, mockProducer)
+      sendMetadataUpdated(probe, actor, assignedPartition)
       probe.send(actor, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
       // Send IsAggregateStateCurrent messages to stash
       val isAggregateStateCurrent = KafkaProducerActorImpl.IsAggregateStateCurrent("bar", Instant.now.plusSeconds(10L))
@@ -205,7 +224,7 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
       when(mockProducer.putRecord(any[ProducerRecord[String, Array[Byte]]]))
         .thenReturn(Future.successful(mockMetadata))
       val actor = testProducerActor(assignedPartition, mockProducer)
-      // Send IsAggregateStateCurrent messages to stash
+      sendMetadataUpdated(probe, actor, assignedPartition)
       probe.send(actor, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
       // Wait until published message is committed to be sure we are processing
       awaitAssert({
@@ -216,7 +235,8 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
       probe.send(actor, KafkaProducerActorImpl.EventsPublished(Seq(probe.ref), Seq(barRecord1)))
       val isAggregateStateCurrent = KafkaProducerActorImpl.IsAggregateStateCurrent("bar", Instant.now.plusSeconds(10L))
       val response = actor.ask(isAggregateStateCurrent)(10.seconds).map(Some(_)).recoverWith { case _ ⇒ Future.successful(None) }
-      assert(Await.result(response, 1.second).isDefined)
+      sendMetadataUpdated(probe, actor, assignedPartition)
+      assert(Await.result(response, 3.second).isDefined)
     }
 
     "Stash Publish messages and publish them when fully initialized" in {
@@ -230,6 +250,7 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
       when(mockProducer.putRecord(any[ProducerRecord[String, Array[Byte]]]))
         .thenReturn(Future.successful(mockMetadata))
       val actor = testProducerActor(assignedPartition, mockProducer)
+      sendMetadataUpdated(probe, actor, assignedPartition)
       // Send publish messages to stash
       probe.send(actor, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
       // Verify that we haven't initialized transactions yet so we are in the uninitialized state and messages were stashed
@@ -245,6 +266,7 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
       val assignedPartition = new TopicPartition("testTopic", 1)
       val mockProducerFailsPutRecords = mock[KafkaBytesProducer]
       val failingPut = testProducerActor(assignedPartition, mockProducerFailsPutRecords)
+      sendMetadataUpdated(probe, failingPut, assignedPartition)
 
       val mockMetadata = mockRecordMetadata(assignedPartition)
       setupTransactions(mockProducerFailsPutRecords)
@@ -272,6 +294,7 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
       val assignedPartition = new TopicPartition("testTopic", 1)
       val mockProducerFailsCommit = mock[KafkaBytesProducer]
       val failingCommit = testProducerActor(assignedPartition, mockProducerFailsCommit)
+      sendMetadataUpdated(probe, failingCommit, assignedPartition)
 
       when(mockProducerFailsCommit.initTransactions()(any[ExecutionContext])).thenReturn(Future.unit)
       doNothing().when(mockProducerFailsCommit).beginTransaction()
@@ -305,7 +328,9 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
       val mockProducerFenceOnBegin = mock[KafkaBytesProducer]
       val mockProducerFenceOnCommit = mock[KafkaBytesProducer]
       val fencedOnBegin = testProducerActor(assignedPartition, mockProducerFenceOnBegin)
+      sendMetadataUpdated(probe, fencedOnBegin, assignedPartition)
       val fencedOnCommit = testProducerActor(assignedPartition, mockProducerFenceOnCommit)
+      sendMetadataUpdated(probe, fencedOnCommit, assignedPartition)
 
       val mockMetadata = mockRecordMetadata(assignedPartition)
 

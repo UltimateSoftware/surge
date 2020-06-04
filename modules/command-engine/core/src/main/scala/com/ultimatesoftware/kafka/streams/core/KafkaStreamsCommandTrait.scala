@@ -24,26 +24,24 @@ abstract class KafkaStreamsCommandImpl[AggId, Agg, Command, Event, CmdMeta, EvtM
     override val businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta])
   extends KafkaStreamsCommandTrait[AggId, Agg, Command, Event, CmdMeta, EvtMeta] with ActorSystemHostAwareness {
 
-  private val log = LoggerFactory.getLogger(getClass)
   private implicit val system: ActorSystem = actorSystem
 
   private val stateChangeActor = system.actorOf(KafkaConsumerStateTrackingActor.props)
-  private val stateMetaHandler = new GlobalKTableMetadataHandler(
-    businessLogic.kafka.internalMetadataTopic,
-    businessLogic.consumerGroup, system)
+  private val stateMetaHandler = new KafkaPartitionMetadataHandlerImpl(system)
   private val kafkaStreamsImpl = new AggregateStateStoreKafkaStreams[JsValue](
     businessLogic.aggregateName,
     businessLogic.kafka.stateTopic,
-    new KafkaStreamsPartitionTrackerActorProvider(stateChangeActor), stateMetaHandler, businessLogic.aggregateValidator,
+    new KafkaStreamsPartitionTrackerActorProvider(stateChangeActor),
+    stateMetaHandler,
+    businessLogic.aggregateValidator,
     applicationHostPort,
     businessLogic.consumerGroup,
     system)
   protected val actorRouter = new GenericAggregateActorRouter[AggId, Agg, Command, Event, CmdMeta, EvtMeta](actorSystem, stateChangeActor,
-    businessLogic, businessLogic.metricsProvider, stateMetaHandler, kafkaStreamsImpl)
+    businessLogic, businessLogic.metricsProvider, kafkaStreamsImpl)
 
   protected val surgeHealthCheck = new SurgeHealthCheck(
     businessLogic.aggregateName,
-    stateMetaHandler,
     kafkaStreamsImpl,
     actorRouter)(ExecutionContext.global)
 

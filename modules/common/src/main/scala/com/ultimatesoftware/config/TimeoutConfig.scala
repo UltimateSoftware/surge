@@ -24,11 +24,6 @@ object TimeoutConfig {
       config.getDuration("surge.state-store-actor.ask-timeout", TimeUnit.MILLISECONDS).milliseconds * timeoutScaleFactor
   }
 
-  object GlobalKTableKafkaStreamActor {
-    val askTimeout: FiniteDuration =
-      config.getDuration("surge.global-ktable-actor.ask-timeout", TimeUnit.MILLISECONDS).milliseconds * timeoutScaleFactor
-  }
-
   object AggregateActor {
     val idleTimeout: FiniteDuration =
       config.getDuration("surge.aggregate-actor.idle-timeout", TimeUnit.MILLISECONDS).milliseconds * timeoutScaleFactor

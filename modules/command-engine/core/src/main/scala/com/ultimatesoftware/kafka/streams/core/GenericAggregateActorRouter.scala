@@ -4,7 +4,7 @@ package com.ultimatesoftware.kafka.streams.core
 
 import akka.actor._
 import com.ultimatesoftware.akka.cluster.{ EntityPropsProvider, PerShardLogicProvider, Shard }
-import com.ultimatesoftware.kafka.streams.{ AggregateStateStoreKafkaStreams, GlobalKTableMetadataHandler, HealthCheck, HealthCheckStatus, HealthyActor, HealthyComponent }
+import com.ultimatesoftware.kafka.streams.{ AggregateStateStoreKafkaStreams, HealthCheck, HealthCheckStatus, HealthyActor, HealthyComponent }
 import com.ultimatesoftware.kafka.{ KafkaPartitionShardRouterActor, TopicPartitionRegionCreator }
 import com.ultimatesoftware.scala.core.monitoring.metrics.MetricsProvider
 import org.apache.kafka.common.TopicPartition
@@ -20,7 +20,6 @@ private[streams] final class GenericAggregateActorRouter[AggId, Agg, Command, Ev
     clusterStateTrackingActor: ActorRef,
     businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta],
     metricsProvider: MetricsProvider,
-    stateMetaHandler: GlobalKTableMetadataHandler,
     kafkaStreamsCommand: AggregateStateStoreKafkaStreams[JsValue]) extends HealthyComponent {
 
   private val log = LoggerFactory.getLogger(getClass)
@@ -29,7 +28,7 @@ private[streams] final class GenericAggregateActorRouter[AggId, Agg, Command, Ev
     val shardRegionCreator = new TopicPartitionRegionCreator {
       override def propsFromTopicPartition(topicPartition: TopicPartition): Props = {
         val provider = new GenericAggregateActorRegionProvider(system, topicPartition, businessLogic,
-          stateMetaHandler, kafkaStreamsCommand, metricsProvider)
+          kafkaStreamsCommand, metricsProvider)
 
         Shard.props(topicPartition.toString, provider, GenericAggregateActor.RoutableMessage.extractEntityId)
       }
@@ -60,7 +59,6 @@ class GenericAggregateActorRegionProvider[AggId, Agg, Command, Event, CmdMeta, E
     system: ActorSystem,
     assignedPartition: TopicPartition,
     businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta],
-    stateMetaHandler: GlobalKTableMetadataHandler,
     aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue],
     metricsProvider: MetricsProvider) extends PerShardLogicProvider[AggId] {
 
@@ -68,7 +66,6 @@ class GenericAggregateActorRegionProvider[AggId, Agg, Command, Event, CmdMeta, E
     actorSystem = system,
     assignedPartition = assignedPartition,
     metricsProvider = metricsProvider,
-    stateMetaHandler = stateMetaHandler,
     aggregateCommandKafkaStreams = businessLogic)
 
   override def actorProvider(context: ActorContext): EntityPropsProvider[AggId] = {

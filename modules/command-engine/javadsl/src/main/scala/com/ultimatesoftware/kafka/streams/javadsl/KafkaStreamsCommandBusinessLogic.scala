@@ -21,7 +21,8 @@ abstract class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdM
   def aggregateName: String
   def stateTopic: KafkaTopic
   def eventsTopic: KafkaTopic
-  def internalMetadataTopic: KafkaTopic
+  @deprecated("Metadata topic is no longer used", "0.4.29")
+  def internalMetadataTopic: KafkaTopic = KafkaTopic("")
   def eventKeyExtractor(e: Event): String
 
   def commandModel: AggregateCommandModel[AggId, Agg, Command, Event, CmdMeta, EvtMeta]
@@ -44,7 +45,7 @@ abstract class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdM
   def metricsProvider: MetricsProvider = NoOpMetricsProvider
 
   private def kafkaConfig = KafkaStreamsCommandKafkaConfig(stateTopic = stateTopic, eventsTopic = eventsTopic,
-    internalMetadataTopic = internalMetadataTopic, eventKeyExtractor = eventKeyExtractor)
+    eventKeyExtractor = eventKeyExtractor)
 
   @deprecated("Use consumerGroup to set the consumer group name", "0.4.23")
   def aggregateConsumerGroupName: String = {

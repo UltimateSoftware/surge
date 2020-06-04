@@ -5,7 +5,6 @@ package com.ultimatesoftware.kafka.streams
 import akka.actor.ActorSystem
 import com.ultimatesoftware.kafka.streams.AggregateStateStoreKafkaStreamsImpl.AggregateStateStoreKafkaStreamsImplSettings
 import com.ultimatesoftware.scala.core.kafka.{ JsonSerdes, KafkaTopic }
-import com.ultimatesoftware.scala.core.utils.JsonUtils
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.common.serialization.StringSerializer
 import org.apache.kafka.streams.scala.kstream.KStream

@@ -18,7 +18,8 @@ trait KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtM
   def aggregateName: String
   def stateTopic: KafkaTopic
   def eventsTopic: KafkaTopic
-  def internalMetadataTopic: KafkaTopic
+  @deprecated("Metadata topic is no longer used", "0.4.29")
+  def internalMetadataTopic: KafkaTopic = KafkaTopic("")
   def eventKeyExtractor: Event ⇒ String
 
   def commandModel: AggregateCommandModel[AggId, Agg, Command, Event, CmdMeta, EvtMeta]
@@ -44,8 +45,7 @@ trait KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtM
 
   def transactionalIdPrefix: String = "surge-transactional-event-producer-partition"
 
-  private def kafkaConfig: KafkaStreamsCommandKafkaConfig[Event] = KafkaStreamsCommandKafkaConfig(stateTopic = stateTopic, eventsTopic = eventsTopic,
-    internalMetadataTopic = internalMetadataTopic, eventKeyExtractor = eventKeyExtractor)
+  private def kafkaConfig: KafkaStreamsCommandKafkaConfig[Event] = KafkaStreamsCommandKafkaConfig(stateTopic, eventsTopic, eventKeyExtractor)
 
   private[scaladsl] def toCore: com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta] = {
     new com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta](

@@ -96,7 +96,7 @@ class Shard[IdType](
       log.debug("Buffer is full, dropping message for entity [{}]", id)
       context.system.deadLetters ! msg
     } else {
-      log.debug("Message for entity [{}] buffered", id)
+      log.trace("Message for entity [{}] buffered", id)
       messageBuffers.append(id, msg, snd)
     }
   }

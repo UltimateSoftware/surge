@@ -119,7 +119,6 @@ trait TestBoundedContext {
   private val kafkaConfig = KafkaStreamsCommandKafkaConfig[BaseTestEvent](
     stateTopic = KafkaTopic("testStateTopic", compacted = false, None),
     eventsTopic = KafkaTopic("testEventsTopic", compacted = false, None),
-    internalMetadataTopic = KafkaTopic("metadataTopic", compacted = false, None),
     eventKeyExtractor = { evt ⇒ s"${evt.aggregateId}:${evt.sequenceNumber}" })
 
   val readFormats: SurgeReadFormatting[UUID, State, BaseTestEvent, TimestampMeta] = new SurgeReadFormatting[UUID, State, BaseTestEvent, TimestampMeta] {
