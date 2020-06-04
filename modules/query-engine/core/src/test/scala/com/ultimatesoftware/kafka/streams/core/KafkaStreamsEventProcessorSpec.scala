@@ -2,14 +2,9 @@
 
 package com.ultimatesoftware.kafka.streams.core
 
-import java.time.Instant
-import java.util.UUID
-
 import com.ultimatesoftware.kafka.streams.KafkaStreamsTestHelpers
 import com.ultimatesoftware.scala.core.kafka.{ JsonSerdes, KafkaTopic }
-import com.ultimatesoftware.scala.core.messaging.EventProperties
 import org.apache.kafka.common.serialization.StringSerializer
-import org.apache.kafka.streams.test.ConsumerRecordFactory
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import play.api.libs.json.{ Format, Json }
@@ -21,13 +16,14 @@ class KafkaStreamsEventProcessorSpec extends AnyWordSpec with Matchers with Kafk
   case class ExampleEvent(aggId: String, newState: String) {
     def toAgg(withCount: Int): ExampleAgg = ExampleAgg(aggId, newState, withCount)
   }
+  case class ExampleMeta(stringProp: String, intProp: Int)
+
   private implicit val aggFormat: Format[ExampleAgg] = Json.format
   private implicit val eventFormat: Format[ExampleEvent] = Json.format
-  private val readFormatting = new SurgeReadFormatting[String, ExampleAgg, ExampleEvent, EventProperties] {
-    override def readEvent(bytes: Array[Byte]): (ExampleEvent, Option[EventProperties]) = {
+  private val readFormatting = new SurgeReadFormatting[String, ExampleAgg, ExampleEvent, ExampleMeta] {
+    override def readEvent(bytes: Array[Byte]): (ExampleEvent, Option[ExampleMeta]) = {
       val event = Json.parse(bytes).asOpt[ExampleEvent]
-      val evtProps = EventProperties(UUID.randomUUID(), UUID.randomUUID(), None, Some(event.get.aggId), 1, Instant.now, Instant.now, None, None,
-        metadata = Map.empty)
+      val evtProps = ExampleMeta("string property", 1)
       event.get -> Some(evtProps)
     }
     override def readState(bytes: Array[Byte]): Option[ExampleAgg] = {
@@ -40,16 +36,16 @@ class KafkaStreamsEventProcessorSpec extends AnyWordSpec with Matchers with Kafk
     }
   }
 
-  private def eventHandler(oldAgg: Option[ExampleAgg], event: ExampleEvent, props: EventProperties): Option[ExampleAgg] = {
+  private def eventHandler(oldAgg: Option[ExampleAgg], event: ExampleEvent, props: ExampleMeta): Option[ExampleAgg] = {
     val incrementedCount = oldAgg.map(_.count).getOrElse(0) + 1
     Some(event.toAgg(incrementedCount))
   }
 
-  private def aggIdExtractor(evtPlusMeta: EventPlusMeta[ExampleEvent, EventProperties]): Option[String] = {
+  private def aggIdExtractor(evtPlusMeta: EventPlusMeta[ExampleEvent, ExampleMeta]): Option[String] = {
     Some(evtPlusMeta.event.aggId)
   }
 
-  private val eventProcessor = new KafkaStreamsEventProcessor[String, ExampleAgg, ExampleEvent, EventProperties](
+  private val eventProcessor = new KafkaStreamsEventProcessor[String, ExampleAgg, ExampleEvent, ExampleMeta](
     "exampleAgg", readFormatting, writeFormatting, eventTopic, None, aggIdExtractor, eventHandler)
 
   private def extractStateFromStore(bytes: Array[Byte]): Option[ExampleAgg] = {

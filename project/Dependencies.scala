@@ -36,13 +36,12 @@ object Dependencies extends AutoPlugin {
       val json = "com.typesafe.play" %% "play-json" % jsonVersion
     }
 
-    object Ultimate {
-      object Surge {
-        val scalaCore = "com.ultimatesoftware" %% "ulti-scala-core" % "0.3.16"
-      }
-    }
+    // TODO this is the last component to move from ulti-scala-core
+    val surgeMetricsInterface = "com.ultimatesoftware" %% "ulti-metrics-interface" % "0.3.17"
 
     val jacksonKotlin = "com.fasterxml.jackson.module" % "jackson-module-kotlin" % "2.10.3"
+    val jacksonScala = "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.10.3"
+    val java8Compat = "org.scala-lang.modules" %% "scala-java8-compat" % "0.9.1"
     val embeddedKafka = "io.github.embeddedkafka" %% "embedded-kafka" % "2.4.1" % Test
     val junit = "junit" % "junit" % "4.13" % Test
     val logback =  "ch.qos.logback" % "logback-classic" % "1.2.3" % Test

@@ -15,11 +15,9 @@ import com.ultimatesoftware.akka.cluster.Passivate
 import com.ultimatesoftware.kafka.streams.core.GenericAggregateActor.Stop
 import com.ultimatesoftware.kafka.streams.{ AggregateStateStoreKafkaStreams, KafkaStreamsKeyValueStore }
 import com.ultimatesoftware.scala.core.monitoring.metrics.NoOpMetricsProvider
-import com.ultimatesoftware.scala.oss.domain.AggregateSegment
 import org.mockito.ArgumentMatchers._
 import org.mockito.Mockito._
 import org.mockito.invocation.InvocationOnMock
-import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatest.{ BeforeAndAfterAll, PartialFunctionValues }
