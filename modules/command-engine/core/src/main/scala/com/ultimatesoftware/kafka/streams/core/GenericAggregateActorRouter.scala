@@ -36,7 +36,8 @@ private[streams] final class GenericAggregateActorRouter[AggId, Agg, Command, Ev
 
     val shardRouterProps = KafkaPartitionShardRouterActor.props(clusterStateTrackingActor, businessLogic.partitioner, businessLogic.kafka.stateTopic,
       shardRegionCreator, GenericAggregateActor.RoutableMessage.extractEntityId)
-    system.actorOf(shardRouterProps, name = "RouterActor")
+    val actorName = s"${businessLogic.aggregateName}RouterActor"
+    system.actorOf(shardRouterProps, name = actorName)
   }
 
   override def healthCheck(): Future[HealthCheck] = {
