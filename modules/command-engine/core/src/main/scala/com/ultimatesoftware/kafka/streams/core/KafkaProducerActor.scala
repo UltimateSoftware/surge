@@ -180,7 +180,9 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
       // ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG -> true, // For exactly once writes. How does this impact performance?
       ProducerConfig.TRANSACTIONAL_ID_CONFIG -> transactionalId)
 
-    KafkaBytesProducer(brokers, stateTopic, partitioner, kafkaConfig)
+    // Set up the producer on the events topic so the partitioner can partition automatically on the events topic since we manually set the partition for the
+    // aggregate state topic record and the events topic could have a different number of partitions
+    KafkaBytesProducer(brokers, eventsTopic, partitioner, kafkaConfig)
   }
 
   override def receive: Receive = uninitialized
