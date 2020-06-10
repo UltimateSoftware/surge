@@ -89,6 +89,15 @@ object JsonFormats {
     }
   }
 
+  def jacksonReader[T](implicit classTag: ClassTag[T]): Reads[T] = new Reads[T] {
+    override def reads(json: JsValue): JsResult[T] = {
+      Try(genericJacksonMapper.readerFor(classTag.runtimeClass).readValue[T](json.toString())) match {
+        case Success(value)     ⇒ JsSuccess(value)
+        case Failure(exception) ⇒ JsError(exception.getMessage)
+      }
+    }
+  }
+
   /**
    * Creates a play json formatter that just leverages an underlying jackson json formatter.
    * This is useful for providing a json serializer for some of the underlying java libraries
@@ -98,17 +107,7 @@ object JsonFormats {
    * @return A new json formatter for type T
    */
   def jsonFormatterFromJackson[T](implicit classTag: ClassTag[T]): Format[T] = new Format[T] {
-    private val jacksonMapper = genericJacksonMapper
-
     override def writes(o: T): JsValue = jacksonWriter[T].writes(o)
-
-    override def reads(json: JsValue): JsResult[T] = {
-      val maybeDeserialized = Try(jacksonMapper.readerFor(classTag.runtimeClass).readValue[T](json.toString))
-
-      maybeDeserialized match {
-        case Success(value)     ⇒ JsSuccess(value)
-        case Failure(exception) ⇒ JsError(exception.getMessage)
-      }
-    }
+    override def reads(json: JsValue): JsResult[T] = jacksonReader[T].reads(json)
   }
 }
