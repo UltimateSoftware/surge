@@ -23,7 +23,7 @@ trait KafkaStreamsStateChangeListenerCommon extends KafkaStreams.StateListener w
   def onNotRunning(): Unit = {}
   def changed(change: KafkaStateChange): Unit = {}
 
-  private def logMessage(msg: String) = {
+  private def logMessage(msg: String): Unit = {
     if (verbose) log.info(msg)
   }
   override def onChange(newState: State, oldState: State): Unit = {
@@ -40,7 +40,8 @@ trait KafkaStreamsStateChangeListenerCommon extends KafkaStreams.StateListener w
       case State.NOT_RUNNING ⇒
         logMessage(s"Kafka stream $streamName is stopped")
         onNotRunning()
-      case _ ⇒ // ignore
+      case _ ⇒
+        log.debug("Kafka stream transitioning from {} to {}", Seq(oldState, newState): _*)
     }
     changed(KafkaStateChange(oldState, newState))
   }

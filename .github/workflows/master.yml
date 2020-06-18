@@ -13,7 +13,7 @@ jobs:
       TEMPLATE_TYPE: lib
       IS_PIPELINE: 'true'
       NAMESPACE: gears-arch
-      NAMESPACE_AIRLOCK_HOST: https://gears-tools-dev-airlock.apps.mia.ulti.io
+      NAMESPACE_AIRLOCK_HOST: https://gateway.quark-airlock.dlas1.ucloud.int/gears-tools
       NAMESPACE_AIRLOCK_HASH: ${{ secrets.AIRLOCK_HASH }}
       NAMESPACE_AIRLOCK_NAME: dev
       PIPELINE_NAME:  surge-kafka-streams.lib
@@ -28,7 +28,7 @@ jobs:
         with:
           java-version: adopt@1.8
       - name: test
-        run: 'fnd tanagra:build:test'
+        run: 'fnd update && fnd tanagra:build:test'
       - name: sonar
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

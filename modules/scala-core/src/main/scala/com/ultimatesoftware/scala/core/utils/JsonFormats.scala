@@ -5,7 +5,7 @@ package com.ultimatesoftware.scala.core.utils
 import java.util.{ Currency, TimeZone, UUID }
 
 import com.fasterxml.jackson.annotation.JsonInclude.Include
-import com.fasterxml.jackson.databind.{ DeserializationFeature, ObjectMapper, SerializationFeature }
+import com.fasterxml.jackson.databind.{ DeserializationFeature, MapperFeature, ObjectMapper, SerializationFeature }
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import com.fasterxml.jackson.module.kotlin.KotlinModule
@@ -72,6 +72,7 @@ object JsonFormats {
   def genericJacksonMapper: ObjectMapper = {
     val m = new ObjectMapper()
     m.registerModules(new JavaTimeModule(), new Jdk8Module(), new KotlinModule(), DefaultScalaModule)
+    m.enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_ENUMS)
     m.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
     m.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
     m.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
