@@ -9,6 +9,7 @@ import akka.testkit.{ TestKit, TestProbe }
 import com.ultimatesoftware.akka.streams.kafka.KafkaConsumer
 import com.ultimatesoftware.kafka.streams.DefaultSerdes
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
+import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, NoOpMetricsProvider }
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.serialization.Serializer
@@ -27,6 +28,8 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
   private implicit val stringSer: Serializer[String] = DefaultSerdes.stringSerde.serializer()
   private def testEventSource(topic: KafkaTopic, kafkaBrokers: String, groupId: String): EventSource[String, String] = {
     new EventSource[String, String] {
+      override def aggregateName: String = "TestAggregate"
+      override def metricsProvider: MetricsProvider = NoOpMetricsProvider
       override def kafkaTopic: KafkaTopic = topic
       override def parallelism: Int = 1
       override def formatting: SurgeEventReadFormatting[String, String] = (bytes: Array[Byte]) ⇒ new String(bytes) -> Some("")

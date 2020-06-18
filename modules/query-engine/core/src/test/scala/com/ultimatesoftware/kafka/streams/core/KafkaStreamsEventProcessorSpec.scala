@@ -4,6 +4,7 @@ package com.ultimatesoftware.kafka.streams.core
 
 import com.ultimatesoftware.kafka.streams.KafkaStreamsTestHelpers
 import com.ultimatesoftware.scala.core.kafka.{ JsonSerdes, KafkaTopic }
+import com.ultimatesoftware.scala.core.monitoring.metrics.NoOpMetricsProvider
 import org.apache.kafka.common.serialization.StringSerializer
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
@@ -46,7 +47,7 @@ class KafkaStreamsEventProcessorSpec extends AnyWordSpec with Matchers with Kafk
   }
 
   private val eventProcessor = new KafkaStreamsEventProcessor[String, ExampleAgg, ExampleEvent, ExampleMeta](
-    "exampleAgg", readFormatting, writeFormatting, eventTopic, None, aggIdExtractor, eventHandler)
+    "exampleAgg", readFormatting, writeFormatting, eventTopic, None, aggIdExtractor, eventHandler, NoOpMetricsProvider)
 
   private def extractStateFromStore(bytes: Array[Byte]): Option[ExampleAgg] = {
     readFormatting.readState(bytes)

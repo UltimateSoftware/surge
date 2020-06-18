@@ -75,16 +75,21 @@ class KafkaProducerActor[AggId, Agg, Event, EvtMeta](
       assignedPartition, metricsProvider, aggregateCommandKafkaStreams)).withDispatcher("kafka-publisher-actor-dispatcher"))
 
   private val publishEventsTimer: Timer = metricsProvider.createTimer(s"${aggregateName}PublishEventsTimer")
+  private val serializeStateTimer: Timer = metricsProvider.createTimer(s"${aggregateName}AggregateStateSerializationTimer")
+  private val serializeEventTimer: Timer = metricsProvider.createTimer(s"${aggregateName}EventSerializationTimer")
+
   def publish(aggregateId: AggId, state: (String, Option[Agg]), events: Seq[(String, EvtMeta, Event)]): Future[Done] = {
 
     val eventKeyValuePairs = events.map {
       case (eventKey, eventMeta, event) ⇒
         log.trace(s"Publishing event for {} {}", Seq(aggregateName, eventKey): _*)
-        eventKey -> aggregateCommandKafkaStreams.writeFormatting.writeEvent(event, eventMeta)
+        eventKey -> serializeEventTimer.time(aggregateCommandKafkaStreams.writeFormatting.writeEvent(event, eventMeta))
     }
 
     val (stateKey, stateValueOpt) = state
-    val stateValue = stateValueOpt.map(aggregateCommandKafkaStreams.writeFormatting.writeState).orNull
+    val stateValue = stateValueOpt.map { value ⇒
+      serializeStateTimer.time(aggregateCommandKafkaStreams.writeFormatting.writeState(value))
+    }.orNull
     val stateKeyValuePair = stateKey -> stateValue
     log.trace(s"Publishing state for {} {}", Seq(aggregateName, stateKey): _*)
 

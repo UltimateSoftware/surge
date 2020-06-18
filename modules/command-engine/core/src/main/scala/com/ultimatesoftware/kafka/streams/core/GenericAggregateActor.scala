@@ -9,7 +9,7 @@ import akka.actor.{ Actor, Props, ReceiveTimeout, Stash }
 import akka.pattern.pipe
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import com.ultimatesoftware.akka.cluster.{ JacksonSerializable, Passivate }
-import com.ultimatesoftware.config.TimeoutConfig
+import com.ultimatesoftware.config.{ RetryConfig, TimeoutConfig }
 import com.ultimatesoftware.kafka.streams.AggregateStateStoreKafkaStreams
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, Timer }
 import com.ultimatesoftware.scala.core.validations._
@@ -69,10 +69,17 @@ private[streams] object GenericAggregateActor {
 
   def createMetrics(metricsProvider: MetricsProvider, aggregateName: String): GenericAggregateActorMetrics = {
     GenericAggregateActorMetrics(
-      stateInitializationTimer = metricsProvider.createTimer(s"${aggregateName}ActorStateInitializationTimer"))
+      stateInitializationTimer = metricsProvider.createTimer(s"${aggregateName}ActorStateInitializationTimer"),
+      aggregateDeserializationTimer = metricsProvider.createTimer(s"${aggregateName}AggregateStateDeserializationTimer"),
+      commandHandlingTimer = metricsProvider.createTimer(s"${aggregateName}CommandHandlingTimer"),
+      eventHandlingTimer = metricsProvider.createTimer(s"${aggregateName}EventHandlingTimer"))
   }
 
-  case class GenericAggregateActorMetrics(stateInitializationTimer: Timer)
+  case class GenericAggregateActorMetrics(
+      stateInitializationTimer: Timer,
+      aggregateDeserializationTimer: Timer,
+      commandHandlingTimer: Timer,
+      eventHandlingTimer: Timer)
   case object Stop
 }
 
@@ -112,13 +119,14 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
 
   private case class InternalActorState(stateOpt: Option[Agg])
 
-  private val maxInitializationAttempts = 10
-
   private val receiveTimeout = TimeoutConfig.AggregateActor.idleTimeout
 
   private val log = LoggerFactory.getLogger(getClass)
 
-  context.system.scheduler.scheduleOnce(0.seconds)(initializeState(initializationAttempts = 0))
+  override def preStart(): Unit = {
+    initializeState(initializationAttempts = 0)
+    super.preStart()
+  }
 
   override def receive: Receive = uninitialized
 
@@ -155,7 +163,9 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
     val futureEventsPersisted = processCommand(state, commandEnvelope).flatMap {
       case Right(Success(events)) ⇒
         val evtMeta = businessLogic.model.cmdMetaToEvtMeta(commandEnvelope.meta)
-        val newState = events.foldLeft(state.stateOpt) { (state, evt) ⇒ businessLogic.model.handleEvent(state, evt, evtMeta) }
+        val newState = events.foldLeft(state.stateOpt) { (state, evt) ⇒
+          metrics.eventHandlingTimer.time(businessLogic.model.handleEvent(state, evt, evtMeta))
+        }
         val eventKeyMetaValues = events.map(evt ⇒ (businessLogic.kafka.eventKeyExtractor(evt), evtMeta, evt))
 
         val stateKeyValue = aggregateId.toString -> newState
@@ -212,7 +222,8 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
     import ValidationDSL._
     (commandPlusState mustSatisfy businessLogic.commandValidator).map { res ⇒
       res.map { _ ⇒
-        businessLogic.model.processCommand(state.stateOpt, commandEnvelope.command, commandEnvelope.meta)
+        metrics.commandHandlingTimer.time(
+          businessLogic.model.processCommand(state.stateOpt, commandEnvelope.command, commandEnvelope.meta))
       }
     }
   }
@@ -254,7 +265,7 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
   }
 
   private def initializeState(initializationAttempts: Int): Unit = {
-    if (initializationAttempts > maxInitializationAttempts) {
+    if (initializationAttempts > RetryConfig.AggregateActor.maxInitializationAttempts) {
       log.error(s"Could not initialize actor for ${aggregateId} after $initializationAttempts attempts.  Stopping actor")
       context.stop(self)
     } else {
@@ -262,8 +273,9 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
         if (isStateCurrent) {
           fetchState(initializationAttempts)
         } else {
-          log.warn(s"State for {} is not up to date in Kafka streams, retrying initialization", aggregateId)
-          context.system.scheduler.scheduleOnce(250.milliseconds)(initializeState(initializationAttempts + 1))
+          val retryIn = RetryConfig.AggregateActor.initializeStateInterval
+          log.warn(s"State for {} is not up to date in Kafka streams, retrying initialization in {}", aggregateId, retryIn)
+          context.system.scheduler.scheduleOnce(retryIn)(initializeState(initializationAttempts + 1))
         }
       }
     }
@@ -284,15 +296,18 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
 
     fetchedStateFut.map { state ⇒
       log.trace("GenericAggregateActor for {} fetched state", aggregateId)
-      val stateOpt = state.flatMap(businessLogic.readFormatting.readState)
+      val stateOpt = state.flatMap { bodyBytes ⇒
+        metrics.aggregateDeserializationTimer.time(businessLogic.readFormatting.readState(bodyBytes))
+      }
 
       self ! InitializeWithState(stateOpt)
     }.recover {
       case _: NullPointerException ⇒
         log.error("Used null for aggregateId - this is weird. Will not try to initialize state again")
       case exception ⇒
-        log.error(s"Failed to initialize ${businessLogic.aggregateName} actor for aggregate $aggregateId, retrying", exception)
-        context.system.scheduler.scheduleOnce(3.seconds)(initializeState(initializationAttempts + 1))
+        val retryIn = RetryConfig.AggregateActor.fetchStateRetryInterval
+        log.error(s"Failed to initialize ${businessLogic.aggregateName} actor for aggregate $aggregateId, retrying in $retryIn", exception)
+        context.system.scheduler.scheduleOnce(retryIn)(initializeState(initializationAttempts + 1))
     }
   }
 

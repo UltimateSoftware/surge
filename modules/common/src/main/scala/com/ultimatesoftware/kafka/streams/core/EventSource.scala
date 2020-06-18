@@ -5,6 +5,7 @@ package com.ultimatesoftware.kafka.streams.core
 import akka.Done
 import akka.actor.ActorSystem
 import akka.kafka.ConsumerSettings
+import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, Timer }
 import org.apache.kafka.common.serialization.{ ByteArrayDeserializer, Deserializer, StringDeserializer }
 import org.slf4j.{ Logger, LoggerFactory }
 
@@ -14,6 +15,9 @@ trait EventSource[Event, EvtMeta] extends DataSource[String, Array[Byte]] {
   private val log: Logger = LoggerFactory.getLogger(getClass)
 
   def formatting: SurgeEventReadFormatting[Event, EvtMeta]
+
+  def aggregateName: String
+  def metricsProvider: MetricsProvider
 
   @deprecated("Used as the default consumer group when using to(sink), but to(sink, consumerGroup) should be used instead.", "0.4.11")
   def consumerGroup: String = {
@@ -31,13 +35,17 @@ trait EventSource[Event, EvtMeta] extends DataSource[String, Array[Byte]] {
   override val valueDeserializer: Deserializer[Array[Byte]] = new ByteArrayDeserializer()
   private lazy val envelopeUtils = new EnvelopeUtils(formatting)
 
+  private val eventDeserializationTimer: Timer = metricsProvider.createTimer(s"${aggregateName}EventDeserializationTimer")
+  private val eventHandlingTimer = metricsProvider.createTimer(s"${aggregateName}EventHandlingTimer")
+
   // FIXME we need a better way to filter out events we don't care about.
   protected def dataSink(eventSink: EventSink[Event, EvtMeta]): DataSink[String, Array[Byte]] = {
     (key: String, value: Array[Byte]) ⇒
       {
-        envelopeUtils.eventFromBytes(value) match {
+        val deserializedEvent = eventDeserializationTimer.time(envelopeUtils.eventFromBytes(value))
+        deserializedEvent match {
           case Some(eventPlusMeta) ⇒
-            eventSink.handleEvent(eventPlusMeta.event, eventPlusMeta.meta)
+            eventHandlingTimer.time(eventSink.handleEvent(eventPlusMeta.event, eventPlusMeta.meta))
           case None ⇒
             log.error(s"Unable to deserialize event from kafka value, key = $key, value = $value")
             Future.successful(Done)

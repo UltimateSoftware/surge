@@ -5,6 +5,7 @@ package com.ultimatesoftware.kafka.streams.core
 import com.typesafe.config.ConfigFactory
 import com.ultimatesoftware.kafka.streams.{ AggregateStreamsRocksDBConfig, KafkaByteStreamsConsumer, KafkaStreamsKeyValueStore }
 import com.ultimatesoftware.scala.core.kafka.{ KafkaTopic, UltiKafkaConsumerConfig }
+import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, Timer }
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.streams.state.QueryableStoreTypes
 import org.apache.kafka.streams.{ KafkaStreams, StreamsConfig, Topology }
@@ -17,7 +18,8 @@ class KafkaStreamsEventProcessor[AggId, Agg, Event, EvtMeta](
     eventsTopic: KafkaTopic,
     applicationHostPort: Option[String],
     extractAggregateId: EventPlusMeta[Event, EvtMeta] ⇒ Option[String],
-    processEvent: (Option[Agg], Event, EvtMeta) ⇒ Option[Agg]) {
+    processEvent: (Option[Agg], Event, EvtMeta) ⇒ Option[Agg],
+    metricsProvider: MetricsProvider) {
 
   private val log = LoggerFactory.getLogger(getClass)
 
@@ -48,14 +50,16 @@ class KafkaStreamsEventProcessor[AggId, Agg, Event, EvtMeta](
     kafkaConfig = streamsConfig, applicationServerConfig = applicationHostPort)
 
   private val envelopeUtils = new EnvelopeUtils(readFormatting)
-  private val aggProcessor = new EventProcessor[AggId, Agg, Event, EvtMeta](aggregateName, readFormatting, writeFormatting, extractAggregateId, processEvent)
+  private val aggProcessor = new EventProcessor[AggId, Agg, Event, EvtMeta](aggregateName, readFormatting, writeFormatting, extractAggregateId, processEvent, metricsProvider)
 
   lazy val streams: KafkaStreams = consumer.streams
+
+  private val eventDeserializationTimer: Timer = metricsProvider.createTimer(s"${aggregateName}EventDeserializationTimer")
 
   private def initStreams(): Unit = {
     consumer.builder.addStateStore(aggProcessor.aggregateKTableStoreBuilder)
     val events = consumer.stream(eventsTopic).flatMapValues { value ⇒
-      envelopeUtils.eventFromBytes(value)
+      eventDeserializationTimer.time(envelopeUtils.eventFromBytes(value))
     }
     events.process(aggProcessor.supplier, aggProcessor.aggregateKTableStoreName)
   }
