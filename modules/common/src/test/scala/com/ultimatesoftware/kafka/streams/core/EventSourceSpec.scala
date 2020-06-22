@@ -28,7 +28,7 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
   private implicit val stringSer: Serializer[String] = DefaultSerdes.stringSerde.serializer()
   private def testEventSource(topic: KafkaTopic, kafkaBrokers: String, groupId: String): EventSource[String, String] = {
     new EventSource[String, String] {
-      override def aggregateName: String = "TestAggregate"
+      override def baseEventName: String = "TestAggregateEvent"
       override def metricsProvider: MetricsProvider = NoOpMetricsProvider
       override def kafkaTopic: KafkaTopic = topic
       override def parallelism: Int = 1

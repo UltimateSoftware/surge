@@ -5,7 +5,7 @@ package com.ultimatesoftware.kafka.streams.core
 import akka.Done
 import akka.actor.ActorSystem
 import akka.kafka.ConsumerSettings
-import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, Timer }
+import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, NoOpMetricsProvider, Timer }
 import org.apache.kafka.common.serialization.{ ByteArrayDeserializer, Deserializer, StringDeserializer }
 import org.slf4j.{ Logger, LoggerFactory }
 
@@ -16,8 +16,8 @@ trait EventSource[Event, EvtMeta] extends DataSource[String, Array[Byte]] {
 
   def formatting: SurgeEventReadFormatting[Event, EvtMeta]
 
-  def aggregateName: String
-  def metricsProvider: MetricsProvider
+  def baseEventName: String = "SurgeDefaultBaseEventName"
+  def metricsProvider: MetricsProvider = NoOpMetricsProvider
 
   @deprecated("Used as the default consumer group when using to(sink), but to(sink, consumerGroup) should be used instead.", "0.4.11")
   def consumerGroup: String = {
@@ -35,8 +35,8 @@ trait EventSource[Event, EvtMeta] extends DataSource[String, Array[Byte]] {
   override val valueDeserializer: Deserializer[Array[Byte]] = new ByteArrayDeserializer()
   private lazy val envelopeUtils = new EnvelopeUtils(formatting)
 
-  private val eventDeserializationTimer: Timer = metricsProvider.createTimer(s"${aggregateName}EventDeserializationTimer")
-  private val eventHandlingTimer = metricsProvider.createTimer(s"${aggregateName}EventHandlingTimer")
+  private lazy val eventDeserializationTimer: Timer = metricsProvider.createTimer(s"${baseEventName}DeserializationTimer")
+  private lazy val eventHandlingTimer = metricsProvider.createTimer(s"${baseEventName}HandlingTimer")
 
   // FIXME we need a better way to filter out events we don't care about.
   protected def dataSink(eventSink: EventSink[Event, EvtMeta]): DataSink[String, Array[Byte]] = {
