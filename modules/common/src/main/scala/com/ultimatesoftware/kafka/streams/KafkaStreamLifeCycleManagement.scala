@@ -153,6 +153,8 @@ trait KafkaStreamLifeCycleManagement[K, V, T <: KafkaStreamsConsumer[K, V], SV] 
     change match {
       case KafkaStateChange(_, newState) if newState == KafkaStreams.State.RUNNING ⇒
         self ! Run
+      case KafkaStateChange(_, newState) if newState == KafkaStreams.State.ERROR ⇒
+        throw new RuntimeException(s"Kafka stream ${settings.storeName} transitioned to ERROR state, crashing this actor to let it restart")
       case _ ⇒
       // Ignore
     }
@@ -185,10 +187,10 @@ trait KafkaStreamLifeCycleManagement[K, V, T <: KafkaStreamsConsumer[K, V], SV] 
 final private[streams] object KafkaStreamLifeCycleManagement {
   sealed private[streams] trait KafkaStreamLifeCycleCommand
 
-  private[streams] case object Start extends KafkaStreamLifeCycleCommand
-  private[streams] case object Restart extends KafkaStreamLifeCycleCommand
-  private[streams] case object Stop extends KafkaStreamLifeCycleCommand
-  private[streams] case object Run extends KafkaStreamLifeCycleCommand
+  case object Start extends KafkaStreamLifeCycleCommand
+  case object Restart extends KafkaStreamLifeCycleCommand
+  case object Stop extends KafkaStreamLifeCycleCommand
+  case object Run extends KafkaStreamLifeCycleCommand
 }
 
 private[streams] trait KafkaStreamSettings {

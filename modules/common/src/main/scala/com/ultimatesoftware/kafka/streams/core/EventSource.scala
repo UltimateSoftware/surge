@@ -35,8 +35,8 @@ trait EventSource[Event, EvtMeta] extends DataSource[String, Array[Byte]] {
   override val valueDeserializer: Deserializer[Array[Byte]] = new ByteArrayDeserializer()
   private lazy val envelopeUtils = new EnvelopeUtils(formatting)
 
-  private lazy val eventDeserializationTimer: Timer = metricsProvider.createTimer(s"${baseEventName}DeserializationTimer")
-  private lazy val eventHandlingTimer = metricsProvider.createTimer(s"${baseEventName}HandlingTimer")
+  protected lazy val eventDeserializationTimer: Timer = metricsProvider.createTimer(s"${baseEventName}DeserializationTimer")
+  protected lazy val eventHandlingTimer = metricsProvider.createTimer(s"${baseEventName}HandlingTimer")
 
   // FIXME we need a better way to filter out events we don't care about.
   protected def dataSink(eventSink: EventSink[Event, EvtMeta]): DataSink[String, Array[Byte]] = {
