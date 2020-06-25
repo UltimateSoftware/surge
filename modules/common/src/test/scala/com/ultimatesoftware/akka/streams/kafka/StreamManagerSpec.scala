@@ -15,13 +15,14 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Millis, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
 
-import scala.concurrent.Future
+import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration._
 
 class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec")) with AnyWordSpecLike with Matchers with EmbeddedKafka with Eventually {
   implicit override val patienceConfig: PatienceConfig =
     PatienceConfig(timeout = scaled(Span(10, Seconds)), interval = scaled(Span(10, Millis)))
 
+  private implicit val ex: ExecutionContext = ExecutionContext.global
   private implicit val stringSer: Serializer[String] = DefaultSerdes.stringSerde.serializer()
   private val stringDeser = DefaultSerdes.stringSerde.deserializer()
 
@@ -36,7 +37,7 @@ class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec")) with A
     val consumerSettings = KafkaConsumer.defaultConsumerSettings(system, groupId)
       .withBootstrapServers(kafkaBrokers)
 
-    new KafkaStreamManager(topic, consumerSettings, businessLogic, 1)
+    KafkaStreamManager(topic, consumerSettings, businessLogic)
   }
 
   "StreamManager" should {

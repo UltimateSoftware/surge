@@ -33,8 +33,9 @@ trait DataSource[Key, Value] {
   private val useNewConsumer = config.getBoolean("surge.use-new-consumer")
   private[core] def to(consumerSettings: ConsumerSettings[Key, Value])(sink: DataSink[Key, Value]): DataPipeline = {
     implicit val system: ActorSystem = actorSystem
+    implicit val executionContext: ExecutionContext = ExecutionContext.global
     if (useNewConsumer) {
-      new ManagedDataPipelineImpl(new KafkaStreamManager(kafkaTopic, consumerSettings, sink.handle, parallelism).start())
+      new ManagedDataPipelineImpl(KafkaStreamManager(kafkaTopic, consumerSettings, sink.handle, parallelism).start())
     } else {
       implicit val executionContext: ExecutionContext = ExecutionContext.global
       KafkaConsumer().streamAndCommitOffsets(kafkaTopic, sink.handle, parallelism, consumerSettings)
