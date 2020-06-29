@@ -37,7 +37,7 @@ class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec")) with A
     val consumerSettings = KafkaConsumer.defaultConsumerSettings(system, groupId)
       .withBootstrapServers(kafkaBrokers)
 
-    KafkaStreamManager(topic, consumerSettings, businessLogic)
+    new KafkaStreamManager(topic, consumerSettings, businessLogic, 1)
   }
 
   "StreamManager" should {

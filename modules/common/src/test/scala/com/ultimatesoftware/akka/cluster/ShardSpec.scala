@@ -29,7 +29,7 @@ object TestActor {
     case m: Message ⇒ m.actorIdentifier
   }
 
-  class RegionLogicProvider(onShardTerminatedCallback: () => Unit = () => {}) extends PerShardLogicProvider[String] {
+  class RegionLogicProvider(onShardTerminatedCallback: () ⇒ Unit = () ⇒ {}) extends PerShardLogicProvider[String] {
     override def actorProvider(context: ActorContext): EntityPropsProvider[String] = (actorId: String) ⇒ props(actorId)
 
     override def healthCheck(): Future[HealthCheck] = Future {
