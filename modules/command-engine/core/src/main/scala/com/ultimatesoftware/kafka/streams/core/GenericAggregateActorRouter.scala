@@ -11,6 +11,7 @@ import org.apache.kafka.common.TopicPartition
 import play.api.libs.json.JsValue
 import akka.pattern.ask
 import com.ultimatesoftware.config.TimeoutConfig
+import com.ultimatesoftware.support.Logging
 import org.slf4j.LoggerFactory
 
 import scala.concurrent.{ ExecutionContext, Future }
@@ -61,7 +62,7 @@ class GenericAggregateActorRegionProvider[AggId, Agg, Command, Event, CmdMeta, E
     assignedPartition: TopicPartition,
     businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta],
     aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue],
-    metricsProvider: MetricsProvider) extends PerShardLogicProvider[AggId] {
+    metricsProvider: MetricsProvider) extends PerShardLogicProvider[AggId] with Logging {
 
   val kafkaProducerActor = new KafkaProducerActor[AggId, Agg, Event, EvtMeta](
     actorSystem = system,
@@ -74,6 +75,11 @@ class GenericAggregateActorRegionProvider[AggId, Agg, Command, Event, CmdMeta, E
 
     actorId: AggId ⇒ GenericAggregateActor.props(aggregateId = actorId, businessLogic = businessLogic,
       kafkaProducerActor = kafkaProducerActor, metrics = aggregateMetrics, kafkaStreamsCommand = aggregateKafkaStreamsImpl)
+  }
+
+  override def onShardTerminated(): Unit = {
+    log.debug("Shard for partition {} terminated, killing partition kafkaProducerActor", assignedPartition)
+    kafkaProducerActor.terminate()
   }
 
   override def healthCheck(): Future[HealthCheck] = {

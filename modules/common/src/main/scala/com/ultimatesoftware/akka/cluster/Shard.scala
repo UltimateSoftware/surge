@@ -169,4 +169,9 @@ class Shard[IdType](
           "liveAggregates" -> refById.size.toString)))
     }.pipeTo(sender())
   }
+
+  override def postStop(): Unit = {
+    regionLogicProvider.onShardTerminated()
+    super.postStop()
+  }
 }

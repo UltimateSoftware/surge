@@ -8,6 +8,7 @@ import com.ultimatesoftware.kafka.streams.{ HealthCheck, HealthCheckStatus }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
+
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
@@ -28,12 +29,15 @@ object TestActor {
     case m: Message ⇒ m.actorIdentifier
   }
 
-  object RegionLogicProvider extends PerShardLogicProvider[String] {
+  class RegionLogicProvider(onShardTerminatedCallback: () => Unit = () => {}) extends PerShardLogicProvider[String] {
     override def actorProvider(context: ActorContext): EntityPropsProvider[String] = (actorId: String) ⇒ props(actorId)
 
     override def healthCheck(): Future[HealthCheck] = Future {
       HealthCheck("producer-actor", "producer-actor-test", HealthCheckStatus.UP)
     }
+
+    override def onShardTerminated(): Unit =
+      onShardTerminatedCallback()
   }
 }
 class TestActor(id: String) extends Actor {
@@ -55,7 +59,7 @@ class TestActor(id: String) extends Actor {
 
 class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with AnyWordSpecLike with Matchers with MockitoSugar {
   import TestActor._
-  private val shardProps = Shard.props("testShard", TestActor.RegionLogicProvider, TestActor.idExtractor)
+  private val shardProps = Shard.props("testShard", new RegionLogicProvider(), TestActor.idExtractor)
 
   private def passivateActor(shard: ActorRef, childId: String): ActorRef = {
     val probe = TestProbe()
@@ -185,6 +189,18 @@ class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with AnyWordSpecLike w
       dead.message shouldEqual droppedMessage
       dead.sender shouldEqual shard
       dead.recipient shouldEqual system.deadLetters
+    }
+
+    "Executes onTerminate callback when shard actor dies" in {
+      val probe = TestProbe()
+      def notifyProbe(): Unit = {
+        probe.ref ! 'Terminated
+        ()
+      }
+      val shardActor = system.actorOf(Shard.props("testShard", new RegionLogicProvider(notifyProbe), TestActor.idExtractor))
+      probe.expectNoMessage()
+      probe.send(shardActor, PoisonPill)
+      probe.expectMsg('Terminated)
     }
   }
 }

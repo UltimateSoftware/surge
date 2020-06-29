@@ -143,9 +143,8 @@ trait KafkaStreamLifeCycleManagement[K, V, T <: KafkaStreamsConsumer[K, V], SV] 
 
   final def receiveUnhandledExceptions(uncaughtException: KafkaStreamsUncaughtException): Unit = {
     log.error(s"Kafka stream unhandled exception in ${settings.storeName}, thread ${uncaughtException.thread}", uncaughtException.exception)
-    log.debug(s"Crashing actor to let it restart")
+    log.debug(s"Kafka stream should transition to ERROR state and this actor should be restarted")
     onStreamUncaughtError(uncaughtException)
-    throw uncaughtException.exception
   }
 
   final def receiveKafkaStreamStateChange(change: KafkaStateChange): Unit = {

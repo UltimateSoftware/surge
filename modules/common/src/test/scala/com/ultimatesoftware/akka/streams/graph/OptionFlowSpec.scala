@@ -31,17 +31,15 @@ class OptionFlowSpec extends TestKit(ActorSystem("OptionFlowSpec")) with AnyWord
       val expectedException = new RuntimeException("This is expected")
 
       val someThrowsExceptionFlow = OptionFlow(
-        someFlow = Flow[String].map(_ => throw expectedException),
-        noneFlow = Flow[None.type].map(_ => "not used")
-      )
+        someFlow = Flow[String].map(_ ⇒ throw expectedException),
+        noneFlow = Flow[None.type].map(_ ⇒ "not used"))
       val someSource = Source(Vector(Some("hello")))
       val someTestFlow = someSource.via(someThrowsExceptionFlow).runWith(testSink)
       someTestFlow.request(1).expectError(expectedException)
 
       val noneThrowsExceptionFlow = OptionFlow(
         someFlow = Flow[String],
-        noneFlow = Flow[None.type].map(_ => throw expectedException)
-      )
+        noneFlow = Flow[None.type].map(_ ⇒ throw expectedException))
       val noneSource = Source(Vector(None))
       val noneTestFlow = noneSource.via(noneThrowsExceptionFlow).runWith(testSink)
       noneTestFlow.request(1).expectError(expectedException)

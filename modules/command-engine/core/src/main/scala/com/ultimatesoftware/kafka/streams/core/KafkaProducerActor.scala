@@ -6,7 +6,7 @@ import java.time.Instant
 import java.util.concurrent.TimeUnit
 
 import akka.Done
-import akka.actor.{ Actor, ActorRef, ActorSystem, Props, Stash }
+import akka.actor.{ Actor, ActorRef, ActorSystem, PoisonPill, Props, Stash }
 import akka.pattern._
 import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
@@ -98,6 +98,10 @@ class KafkaProducerActor[AggId, Agg, Event, EvtMeta](
       (publisherActor ? KafkaProducerActorImpl.Publish(eventKeyValuePairs = eventKeyValuePairs, stateKeyValuePair = stateKeyValuePair))
         .map(_ ⇒ Done)(ExecutionContext.global)
     }
+  }
+
+  def terminate(): Unit = {
+    publisherActor ! PoisonPill
   }
 
   private val isAggregateStateCurrentTimer: Timer = metricsProvider.createTimer(s"${aggregateName}IsAggregateCurrentTimer")

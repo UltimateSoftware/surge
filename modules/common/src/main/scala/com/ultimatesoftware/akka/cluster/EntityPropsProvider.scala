@@ -24,6 +24,8 @@ trait PerShardLogicProvider[IdType] extends HealthyComponent {
    * @return An EntityPropsProvider which is able to create business logic entities with a particular entity identifier.
    */
   def actorProvider(context: ActorContext): EntityPropsProvider[IdType]
+
+  def onShardTerminated(): Unit
 }
 
 /**

@@ -155,7 +155,6 @@ class KafkaPartitionShardRouterActor[AggIdType](
       val newPartitionRegions = partitionRegions.filterNot {
         case (region, _) ⇒ revokedPartitionNumbers.contains(region)
       }
-
       // Stop any locally revoked regions running to preserve memory
       revokedPartitions.foreach {
         case (hostPort, topicPartitions) ⇒
