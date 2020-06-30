@@ -12,6 +12,7 @@ import com.ultimatesoftware.scala.core.kafka.{ KafkaTopic, UltiKafkaConsumerConf
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.serialization.Serdes.ByteArraySerde
 import org.apache.kafka.streams.StreamsConfig
+import org.apache.kafka.streams.errors.InvalidStateStoreException
 import org.apache.kafka.streams.kstream.Materialized
 import org.apache.kafka.streams.kstream.internals.{ KTableImpl, KTableImplExtensions }
 import org.apache.kafka.streams.scala.ByteArrayKeyValueStore
@@ -78,6 +79,7 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
   }
 
   override def createQueryableStore(consumer: KafkaByteStreamsConsumer): KafkaStreamsKeyValueStore[String, Array[Byte]] = {
+    log.debug(s"Initializing state store ${settings.storeName}")
     val underlying = consumer.streams.store(aggregateStateStoreName, QueryableStoreTypes.keyValueStore[String, Array[Byte]]())
     new KafkaStreamsKeyValueStore(underlying)
   }
@@ -112,18 +114,33 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
   def getSubstatesForAggregate(
     aggregateQueryableStateStore: KafkaStreamsKeyValueStore[String, Array[Byte]],
     aggregateId: String): Future[List[(String, Array[Byte])]] = {
-    val unfiltered = aggregateQueryableStateStore.range(aggregateId, s"$aggregateId:~")
-    unfiltered.map { result ⇒
-      result.filter {
-        case (key, _) ⇒
-          val keyBeforeColon = key.takeWhile(_ != ':')
-          keyBeforeColon == aggregateId
+    aggregateQueryableStateStore
+      .range(aggregateId, s"$aggregateId:~")
+      .map { result ⇒
+        result.filter {
+          case (key, _) ⇒
+            val keyBeforeColon = key.takeWhile(_ != ':')
+            keyBeforeColon == aggregateId
+        }
+      }.recoverWith {
+        case err: InvalidStateStoreException ⇒
+          log.error(s"State store ${settings.storeName} is in invalid state, crashing the actor to let it restart")
+          throw err
+        case err: Throwable ⇒
+          log.error(s"State store ${settings.storeName} throw an unexpected error, crashing the actor to let it restart")
+          throw err
       }
-    }
   }
 
   def getAggregateBytes(aggregateQueryableStateStore: KafkaStreamsKeyValueStore[String, Array[Byte]], aggregateId: String): Future[Option[Array[Byte]]] = {
-    aggregateQueryableStateStore.get(aggregateId)
+    aggregateQueryableStateStore.get(aggregateId).recoverWith {
+      case err: InvalidStateStoreException ⇒
+        log.error(s"State store ${settings.storeName} is in invalid state, crashing the actor to let it restart")
+        throw err
+      case err: Throwable ⇒
+        log.error(s"State store ${settings.storeName} throw an unexpected error, crashing the actor to let it restart")
+        throw err
+    }
   }
 
 }
