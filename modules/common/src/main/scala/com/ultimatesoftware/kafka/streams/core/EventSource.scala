@@ -3,7 +3,6 @@
 package com.ultimatesoftware.kafka.streams.core
 
 import akka.Done
-import akka.actor.ActorSystem
 import akka.kafka.ConsumerSettings
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, NoOpMetricsProvider, Timer }
 import org.apache.kafka.common.serialization.{ ByteArrayDeserializer, Deserializer, StringDeserializer }
@@ -30,7 +29,6 @@ trait EventSource[Event, EvtMeta] extends DataSource[String, Array[Byte]] {
     "deprecated-default-surge-consumer-group-for-compatibility"
   }
 
-  override val actorSystem: ActorSystem = ActorSystem()
   override val keyDeserializer: Deserializer[String] = new StringDeserializer()
   override val valueDeserializer: Deserializer[Array[Byte]] = new ByteArrayDeserializer()
   private lazy val envelopeUtils = new EnvelopeUtils(formatting)

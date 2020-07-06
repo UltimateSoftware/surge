@@ -33,6 +33,7 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
       override def kafkaTopic: KafkaTopic = topic
       override def parallelism: Int = 1
       override def formatting: SurgeEventReadFormatting[String, String] = (bytes: Array[Byte]) ⇒ new String(bytes) -> Some("")
+      override def actorSystem: ActorSystem = system
     }
   }
 
