@@ -88,7 +88,7 @@ trait KafkaStreamLifeCycleManagement[K, V, T <: KafkaStreamsConsumer[K, V], SV] 
   }
 
   /**
-   * Be carefull when overriding this method, notice that the stream must set the "stateChangeListener"
+   * Be careful when overriding this method, notice that the stream must set the "stateChangeListener"
    * defined here in order to work correctly
    * Use KafkaStreamsStateChangeWithMultipleListeners(stateChangeListener, yourOwnListener)
    * to add your own state change listener

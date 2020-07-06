@@ -11,6 +11,7 @@ import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.streams.KafkaStreams
 import org.apache.kafka.streams.KafkaStreams.State
 import org.apache.kafka.streams.processor.StateRestoreListener
+import org.slf4j.LoggerFactory
 
 trait KafkaStreamsStateChangeListenerCommon extends KafkaStreams.StateListener with Logging {
 
@@ -77,7 +78,10 @@ object KafkaStreamsUpdatePartitionsOnStateChangeListener {
 }
 
 class KafkaStreamsUncaughtExceptionHandler(notifyTo: List[KafkaStreamsUncaughtException ⇒ Unit] = List()) extends UncaughtExceptionHandler {
+  private val log = LoggerFactory.getLogger(getClass)
   override def uncaughtException(t: Thread, e: Throwable): Unit = {
+    log.warn(s"Kafka Streams uncaught exception is [$e]")
+    log.error("Kafka Streams saw an uncaught exception", e)
     notifyTo.foreach(f ⇒ f(KafkaStreamsUncaughtException(t, e)))
   }
 }
