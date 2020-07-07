@@ -125,10 +125,11 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
       }.recoverWith {
         case err: InvalidStateStoreException ⇒
           log.error(s"State store ${settings.storeName} is in invalid state, crashing the actor to let it restart")
-          throw err
+          restartOnError(err)
+          Future.failed(err)
         case err: Throwable ⇒
-          log.error(s"State store ${settings.storeName} throw an unexpected error, crashing the actor to let it restart")
-          throw err
+          log.error(s"State store ${settings.storeName} throw an unexpected error", err)
+          Future.failed(err)
       }
   }
 
@@ -136,10 +137,11 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
     aggregateQueryableStateStore.get(aggregateId).recoverWith {
       case err: InvalidStateStoreException ⇒
         log.error(s"State store ${settings.storeName} is in invalid state, crashing the actor to let it restart")
-        throw err
+        restartOnError(err)
+        Future.failed(err)
       case err: Throwable ⇒
-        log.error(s"State store ${settings.storeName} throw an unexpected error, crashing the actor to let it restart")
-        throw err
+        log.error(s"State store ${settings.storeName} throw an unexpected error", err)
+        Future.failed(err)
     }
   }
 

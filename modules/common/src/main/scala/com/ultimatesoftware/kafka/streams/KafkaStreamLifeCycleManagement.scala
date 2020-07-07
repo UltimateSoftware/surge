@@ -62,6 +62,7 @@ trait KafkaStreamLifeCycleManagement[K, V, T <: KafkaStreamsConsumer[K, V], SV] 
     subscribeListeners(consumer)
 
     if (settings.clearStateOnStartup) {
+      log.debug(s"Kafka streams ${settings.storeName} clean up on start")
       consumer.streams.cleanUp()
     }
     consumer.start()
@@ -109,7 +110,7 @@ trait KafkaStreamLifeCycleManagement[K, V, T <: KafkaStreamsConsumer[K, V], SV] 
       sender() ! getHealth(HealthCheckStatus.DOWN)
     case Stop | Restart ⇒
     // drop, can't restart or stop if is not running
-  } orElse logUnhandled("uninitialized")
+  } orElse errorHandler orElse logUnhandled("uninitialized")
 
   final def streamCreated(consumer: T): Receive = created(consumer) orElse inlineReceive {
     case Run ⇒
@@ -124,7 +125,7 @@ trait KafkaStreamLifeCycleManagement[K, V, T <: KafkaStreamsConsumer[K, V], SV] 
     case GetHealth ⇒
       val status = if (consumer.streams.state().isRunning) HealthCheckStatus.UP else HealthCheckStatus.DOWN
       sender() ! getHealth(status)
-  } orElse logUnhandled("created")
+  } orElse errorHandler orElse logUnhandled("created")
 
   final def streamRunning(consumer: T, queryableStore: KafkaStreamsKeyValueStore[K, SV]): Receive = running(consumer, queryableStore) orElse inlineReceive {
     case GetHealth ⇒
@@ -134,7 +135,7 @@ trait KafkaStreamLifeCycleManagement[K, V, T <: KafkaStreamsConsumer[K, V], SV] 
       stop(consumer)
     case Restart ⇒
       restart()
-  } orElse logUnhandled("running")
+  } orElse errorHandler orElse logUnhandled("running")
 
   final def logUnhandled(stateName: String): Receive = {
     case unhandledMessage ⇒
@@ -153,10 +154,20 @@ trait KafkaStreamLifeCycleManagement[K, V, T <: KafkaStreamsConsumer[K, V], SV] 
       case KafkaStateChange(_, newState) if newState == KafkaStreams.State.RUNNING ⇒
         self ! Run
       case KafkaStateChange(_, newState) if newState == KafkaStreams.State.ERROR ⇒
-        throw new RuntimeException(s"Kafka stream ${settings.storeName} transitioned to ERROR state, crashing this actor to let it restart")
+        restartOnError(new RuntimeException(s"Kafka stream ${settings.storeName} transitioned to ERROR state, crashing this actor to let it restart"))
       case _ ⇒
       // Ignore
     }
+  }
+
+  final private[streams] def errorHandler: Receive = {
+    case err: Throwable ⇒
+      log.error("Restarting actor with error", err)
+      throw err
+  }
+
+  def restartOnError(err: Throwable): Unit = {
+    self ! err
   }
 
   def getHealth(streamStatus: String): HealthCheck = {
@@ -179,8 +190,14 @@ trait KafkaStreamLifeCycleManagement[K, V, T <: KafkaStreamsConsumer[K, V], SV] 
    */
   override def preRestart(reason: Throwable, message: Option[Any]): Unit = {
     lastConsumerSeen.map(stop)
+    super.preRestart(reason, message)
+  }
+
+  override def postStop(): Unit = {
+    lastConsumerSeen.map(stop)
     super.postStop()
   }
+
 }
 
 final private[streams] object KafkaStreamLifeCycleManagement {

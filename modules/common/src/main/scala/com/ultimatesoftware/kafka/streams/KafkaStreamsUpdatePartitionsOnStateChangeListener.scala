@@ -18,6 +18,7 @@ trait KafkaStreamsStateChangeListenerCommon extends KafkaStreams.StateListener w
   val verbose: Boolean = true
   val streamName: String
 
+  def onCreated(): Unit = {}
   def onRunning(): Unit = {}
   def onRebalancing(): Unit = {}
   def onError(): Unit = {}
@@ -30,16 +31,19 @@ trait KafkaStreamsStateChangeListenerCommon extends KafkaStreams.StateListener w
   override def onChange(newState: State, oldState: State): Unit = {
     newState match {
       case State.RUNNING if oldState == State.REBALANCING ⇒
-        logMessage(s"Kafka stream $streamName transitioned from rebalancing to running")
+        logMessage(s"Kafka stream $streamName state transitioned from REBALANCING to RUNNING")
         onRunning()
       case State.REBALANCING ⇒
-        logMessage(s"Kafka stream $streamName is rebalancing")
+        logMessage(s"Kafka stream $streamName state is REBALANCING")
         onRebalancing()
+      case State.CREATED ⇒
+        logMessage(s"Kafka stream $streamName state is CREATED")
+        onCreated()
       case State.ERROR ⇒
-        logMessage(s"Kafka stream $streamName shutting down because of an error")
+        logMessage(s"Kafka stream $streamName shutting down because it transitioned to state ERROR")
         onError()
       case State.NOT_RUNNING ⇒
-        logMessage(s"Kafka stream $streamName is stopped")
+        logMessage(s"Kafka stream $streamName is NOT_RUNNING")
         onNotRunning()
       case _ ⇒
         log.debug("Kafka stream transitioning from {} to {}", Seq(oldState, newState): _*)
