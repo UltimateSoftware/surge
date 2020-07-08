@@ -15,8 +15,8 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Millis, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
 
-import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration._
+import scala.concurrent.{ ExecutionContext, Future }
 
 class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec")) with AnyWordSpecLike with Matchers with EmbeddedKafka with Eventually {
   implicit override val patienceConfig: PatienceConfig =
@@ -33,11 +33,11 @@ class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec")) with A
   }
 
   private def testStreamManager(topic: KafkaTopic, kafkaBrokers: String, groupId: String,
-    businessLogic: (String, Array[Byte]) ⇒ Future[Done]): KafkaStreamManager[String, Array[Byte]] = {
+    businessLogic: (String, Array[Byte]) ⇒ Future[_]): KafkaStreamManager[String, Array[Byte]] = {
     val consumerSettings = KafkaConsumer.defaultConsumerSettings(system, groupId)
       .withBootstrapServers(kafkaBrokers)
 
-    new KafkaStreamManager(topic, consumerSettings, businessLogic, 1)
+    KafkaStreamManager(topic, consumerSettings, businessLogic)
   }
 
   "StreamManager" should {
@@ -54,9 +54,11 @@ class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec")) with A
         val record1 = "record 1"
         val record2 = "record 2"
         val record3 = "record 3"
+        val record4 = "record 4"
         publishToKafka(new ProducerRecord[String, String](topic.name, 0, record1, record1))
         publishToKafka(new ProducerRecord[String, String](topic.name, 1, record2, record2))
         publishToKafka(new ProducerRecord[String, String](topic.name, 2, record3, record3))
+        publishToKafka(new ProducerRecord[String, String](topic.name, 0, record4, record4))
 
         val consumer1 = createManager
         val consumer2 = createManager
@@ -64,9 +66,35 @@ class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec")) with A
         consumer1.start()
         consumer2.start()
 
-        probe.expectMsgAllOf(10.seconds, record1, record2, record3)
+        probe.expectMsgAllOf(10.seconds, record1, record2, record3, record4)
         consumer1.stop()
         consumer2.stop()
+      }
+    }
+
+    "Continue processing elements from Kafka when the business future completes, even if it does not emit an element" in {
+      withRunningKafkaOnFoundPort(EmbeddedKafkaConfig(kafkaPort = 0, zooKeeperPort = 0)) { implicit actualConfig ⇒
+        val topic = KafkaTopic("testTopic")
+        createCustomTopic(topic.name, partitions = 1)
+        val embeddedBroker = s"localhost:${actualConfig.kafkaPort}"
+        val probe = TestProbe()
+
+        // Returning null here when the future completes gets us the same result as converting from a Java Future that completes with null,
+        // which is typical in cases where the future is just used to signal completion and doesn't care about the return value
+        def handler(key: String, value: Array[Byte]): Future[Any] = sendToTestProbe(probe)(key, value)
+          .flatMap(_ ⇒ Future.successful(null)) // scalastyle:ignore null
+
+        val record1 = "record 1"
+        val record2 = "record 2"
+        val record3 = "record 3"
+        publishToKafka(new ProducerRecord[String, String](topic.name, 0, record1, record1))
+        publishToKafka(new ProducerRecord[String, String](topic.name, 0, record2, record2))
+        publishToKafka(new ProducerRecord[String, String](topic.name, 0, record3, record3))
+
+        val consumer = testStreamManager(topic, kafkaBrokers = embeddedBroker, groupId = "subscription-test", handler)
+        consumer.start()
+        probe.expectMsgAllOf(10.seconds, record1, record2, record3)
+        consumer.stop()
       }
     }
 

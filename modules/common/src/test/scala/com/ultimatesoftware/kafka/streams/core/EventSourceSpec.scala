@@ -62,9 +62,11 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
         val record1 = "record 1"
         val record2 = "record 2"
         val record3 = "record 3"
+        val record4 = "record 4"
         publishToKafka(new ProducerRecord[String, String](topic.name, 0, record1, record1))
         publishToKafka(new ProducerRecord[String, String](topic.name, 1, record2, record2))
         publishToKafka(new ProducerRecord[String, String](topic.name, 2, record3, record3))
+        publishToKafka(new ProducerRecord[String, String](topic.name, 0, record4, record4))
 
         val consumer1 = createConsumer
         val consumer2 = createConsumer
@@ -75,7 +77,7 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
         consumer1.to(consumerSettings)(testSink)
         consumer2.to(consumerSettings)(testSink)
 
-        probe.expectMsgAllOf(10.seconds, record1, record2, record3)
+        probe.expectMsgAllOf(10.seconds, record1, record2, record3, record4)
       }
     }
 

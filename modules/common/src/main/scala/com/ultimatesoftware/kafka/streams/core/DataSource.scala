@@ -35,7 +35,7 @@ trait DataSource[Key, Value] {
     implicit val system: ActorSystem = actorSystem
     implicit val executionContext: ExecutionContext = ExecutionContext.global
     if (useNewConsumer) {
-      new ManagedDataPipelineImpl(new KafkaStreamManager(kafkaTopic, consumerSettings, sink.handle, parallelism).start())
+      new ManagedDataPipelineImpl(KafkaStreamManager(kafkaTopic, consumerSettings, sink.handle, parallelism).start())
     } else {
       implicit val executionContext: ExecutionContext = ExecutionContext.global
       KafkaConsumer().streamAndCommitOffsets(kafkaTopic, sink.handle, parallelism, consumerSettings)
