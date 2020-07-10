@@ -9,8 +9,11 @@ import com.ultimatesoftware.scala.core.kafka.KafkaTopic
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ NoOpMetricsProvider, NoOpsMetricsPublisher }
 import com.ultimatesoftware.scala.core.validations.{ AsyncCommandValidator, AsyncValidationResult, ValidationError }
 import com.ultimatesoftware.scala.oss.domain.{ AggregateCommandModel, CommandProcessor }
+import org.apache.kafka.common.header.Header
+import org.apache.kafka.common.header.internals.RecordHeaders
 import play.api.libs.json._
 
+import scala.collection.JavaConverters._
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.{ Failure, Success }
@@ -119,7 +122,8 @@ trait TestBoundedContext {
   private val kafkaConfig = KafkaStreamsCommandKafkaConfig[BaseTestEvent](
     stateTopic = KafkaTopic("testStateTopic", compacted = false, None),
     eventsTopic = KafkaTopic("testEventsTopic", compacted = false, None),
-    eventKeyExtractor = { evt ⇒ s"${evt.aggregateId}:${evt.sequenceNumber}" })
+    eventKeyExtractor = { evt ⇒ s"${evt.aggregateId}:${evt.sequenceNumber}" },
+    eventHeadersExtractor = { _ ⇒ new RecordHeaders(Seq.empty[Header].asJava) })
 
   val readFormats: SurgeReadFormatting[UUID, State, BaseTestEvent, TimestampMeta] = new SurgeReadFormatting[UUID, State, BaseTestEvent, TimestampMeta] {
     override def readEvent(bytes: Array[Byte]): (BaseTestEvent, Option[TimestampMeta]) = {

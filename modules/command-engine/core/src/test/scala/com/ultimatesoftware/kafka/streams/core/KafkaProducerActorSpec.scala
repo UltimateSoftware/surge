@@ -4,19 +4,20 @@ package com.ultimatesoftware.kafka.streams.core
 
 import java.time.Instant
 
-import akka.pattern.ask
 import akka.Done
 import akka.actor.{ ActorRef, ActorSystem, Props }
+import akka.pattern.ask
 import akka.testkit.{ TestKit, TestProbe }
 import akka.util.Timeout
+import com.ultimatesoftware.kafka.streams.KafkaPartitionMetadata
 import com.ultimatesoftware.kafka.streams.KafkaPartitionMetadataHandlerImpl.KafkaPartitionMetadataUpdated
-import com.ultimatesoftware.kafka.streams.{ KafkaPartitionMetadata, KafkaPartitionMetadataHandler, KafkaStreamsKeyValueStore }
 import com.ultimatesoftware.kafka.streams.core.KafkaProducerActorImpl.AggregateStateRates
 import com.ultimatesoftware.scala.core.kafka.{ KafkaBytesProducer, KafkaRecordMetadata }
 import com.ultimatesoftware.scala.core.monitoring.metrics.NoOpMetricsProvider
 import org.apache.kafka.clients.producer.{ ProducerRecord, RecordMetadata }
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.{ AuthorizationException, ProducerFencedException }
+import org.apache.kafka.common.header.internals.RecordHeader
 import org.mockito.ArgumentMatchers._
 import org.mockito.Mockito._
 import org.scalatest.BeforeAndAfterAll
@@ -26,14 +27,15 @@ import org.scalatest.time.{ Millis, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
 
+import scala.collection.JavaConverters._
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{ Await, ExecutionContext, Future }
-import scala.concurrent.ExecutionContext.Implicits.global
 
 class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec")) with AnyWordSpecLike with Matchers with BeforeAndAfterAll
   with TestBoundedContext with MockitoSugar with ScalaFutures with PatienceConfiguration {
 
-  override implicit val patienceConfig = PatienceConfig(
+  override implicit val patienceConfig: PatienceConfig = PatienceConfig(
     timeout = Span(3, Seconds), interval = Span(10, Millis)) // scalastyle:ignore magic.number
 
   override def afterAll(): Unit = {
@@ -46,7 +48,7 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
       0L, 0, 0)
   }
 
-  private def sendMetadataUpdated(probe: TestProbe, producerActor: ActorRef, assignedPartition: TopicPartition) = {
+  private def sendMetadataUpdated(probe: TestProbe, producerActor: ActorRef, assignedPartition: TopicPartition): Unit = {
     val futureOffset = 100L // Mock for internal metadata handler just returns a high number so that the partition always appears up to date when initializing
     val event = KafkaPartitionMetadataUpdated(KafkaPartitionMetadata(assignedPartition.topic(), assignedPartition.partition(), futureOffset, ""))
     // Guarantees that KafkaProducerActor is subscribed to KafkaPartitionMetadataUpdated event
@@ -64,14 +66,15 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
     new KafkaRecordMetadata[String](None, recordMeta)
   }
 
-  private def testObjects(strings: Seq[String]): Seq[(String, Array[Byte])] = {
-    strings.map(str ⇒ str -> str.getBytes())
+  private def testObjects(strings: Seq[String]): Seq[KafkaProducerActorImpl.EventToPublish] = {
+    strings.map { str ⇒
+      KafkaProducerActorImpl.EventToPublish(str, str.getBytes(), Seq(new RecordHeader("object_name", str.getBytes())))
+    }
   }
-  private def records(assignedPartition: TopicPartition, events: Seq[(String, Array[Byte])],
+  private def records(assignedPartition: TopicPartition, events: Seq[KafkaProducerActorImpl.EventToPublish],
     state: (String, Array[Byte])): Seq[ProducerRecord[String, Array[Byte]]] = {
-    val eventRecords = events.map {
-      case (key, value) ⇒
-        new ProducerRecord(kafkaStreamsLogic.kafka.eventsTopic.name, key, value)
+    val eventRecords = events.map { event ⇒
+      new ProducerRecord(kafkaStreamsLogic.kafka.eventsTopic.name, null, event.key, event.value, event.headers.asJava) // scalastyle:ignore null
     }
     val stateRecord = new ProducerRecord(kafkaStreamsLogic.kafka.stateTopic.name, assignedPartition.partition(), state._1, state._2)
 
@@ -402,7 +405,7 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
       val empty = KafkaProducerActorState.empty
 
       val sender = TestProbe().ref
-      val publishMsg = KafkaProducerActorImpl.Publish("foo" -> "foo".getBytes(), Seq("foo" -> "foo".getBytes()))
+      val publishMsg = KafkaProducerActorImpl.Publish("foo" -> "foo".getBytes(), Seq(KafkaProducerActorImpl.EventToPublish("foo", "foo".getBytes(), Seq.empty)))
 
       val newState = empty.addPendingWrites(sender, publishMsg)
       newState.pendingWrites should contain only KafkaProducerActorImpl.PublishWithSender(sender, publishMsg)

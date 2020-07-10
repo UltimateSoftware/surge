@@ -10,6 +10,7 @@ import com.ultimatesoftware.scala.core.kafka.KafkaTopic
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, MetricsPublisher, NoOpMetricsProvider, NoOpsMetricsPublisher }
 import com.ultimatesoftware.scala.core.validations.AsyncCommandValidator
 import com.ultimatesoftware.scala.oss.domain.AggregateCommandModel
+import org.apache.kafka.common.header.Headers
 
 import scala.compat.java8.OptionConverters._
 import scala.concurrent.duration._
@@ -24,6 +25,7 @@ abstract class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdM
   @deprecated("Metadata topic is no longer used", "0.4.29")
   def internalMetadataTopic: KafkaTopic = KafkaTopic("")
   def eventKeyExtractor(e: Event): String
+  def eventHeadersExtractor(e: Event): Headers
 
   def commandModel: AggregateCommandModel[AggId, Agg, Command, Event, CmdMeta, EvtMeta]
 
@@ -45,7 +47,7 @@ abstract class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdM
   def metricsProvider: MetricsProvider = NoOpMetricsProvider
 
   private def kafkaConfig = KafkaStreamsCommandKafkaConfig(stateTopic = stateTopic, eventsTopic = eventsTopic,
-    eventKeyExtractor = eventKeyExtractor)
+    eventKeyExtractor = eventKeyExtractor, eventHeadersExtractor = eventHeadersExtractor)
 
   @deprecated("Use consumerGroup to set the consumer group name", "0.4.23")
   def aggregateConsumerGroupName: String = {

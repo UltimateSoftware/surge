@@ -18,9 +18,11 @@ import com.ultimatesoftware.scala.core.kafka._
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, Rate, Timer }
 import org.apache.kafka.clients.producer.{ ProducerConfig, ProducerRecord }
 import org.apache.kafka.common.errors.{ AuthorizationException, ProducerFencedException, UnsupportedVersionException }
+import org.apache.kafka.common.header.Header
 import org.apache.kafka.common.{ KafkaException, TopicPartition }
 import org.slf4j.{ Logger, LoggerFactory }
 
+import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.{ Failure, Try }
@@ -83,7 +85,10 @@ class KafkaProducerActor[AggId, Agg, Event, EvtMeta](
     val eventKeyValuePairs = events.map {
       case (eventKey, eventMeta, event) ⇒
         log.trace(s"Publishing event for {} {}", Seq(aggregateName, eventKey): _*)
-        eventKey -> serializeEventTimer.time(aggregateCommandKafkaStreams.writeFormatting.writeEvent(event, eventMeta))
+        KafkaProducerActorImpl.EventToPublish(
+          key = eventKey,
+          value = serializeEventTimer.time(aggregateCommandKafkaStreams.writeFormatting.writeEvent(event, eventMeta)),
+          headers = aggregateCommandKafkaStreams.kafka.eventHeadersExtractor(event).toArray)
     }
 
     val (stateKey, stateValueOpt) = state
@@ -128,8 +133,9 @@ class KafkaProducerActor[AggId, Agg, Event, EvtMeta](
 }
 
 private object KafkaProducerActorImpl {
+  case class EventToPublish(key: String, value: Array[Byte], headers: Seq[Header])
   sealed trait KafkaProducerActorMessage
-  case class Publish(stateKeyValuePair: (String, Array[Byte]), eventKeyValuePairs: Seq[(String, Array[Byte])]) extends KafkaProducerActorMessage
+  case class Publish(stateKeyValuePair: (String, Array[Byte]), eventKeyValuePairs: Seq[EventToPublish]) extends KafkaProducerActorMessage
   case class StateProcessed(stateMeta: KafkaPartitionMetadata) extends KafkaProducerActorMessage
   case class IsAggregateStateCurrent(aggregateId: String, expirationTime: Instant) extends KafkaProducerActorMessage
   case class AggregateStateRates(current: Rate, notCurrent: Rate) extends KafkaProducerActorMessage
@@ -328,9 +334,9 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
       val eventMessages = state.pendingWrites.flatMap(_.publish.eventKeyValuePairs)
       val stateMessages = state.pendingWrites.map(_.publish.stateKeyValuePair)
 
-      val eventRecords = eventMessages.map {
-        case (eventKey, eventValue) ⇒
-          new ProducerRecord(eventsTopic.name, eventKey, eventValue)
+      val eventRecords = eventMessages.map { eventToPublish ⇒
+        // Using null here since we need to add the headers but we don't want to explicitly assign the partition
+        new ProducerRecord(eventsTopic.name, null, eventToPublish.key, eventToPublish.value, eventToPublish.headers.asJava) // scalastyle:ignore null
       }
       val stateRecords = stateMessages.map {
         case (aggregateKey, aggregateValue) ⇒

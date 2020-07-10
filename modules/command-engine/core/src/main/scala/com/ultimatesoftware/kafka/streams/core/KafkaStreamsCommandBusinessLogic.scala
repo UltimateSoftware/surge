@@ -6,13 +6,15 @@ import com.ultimatesoftware.scala.core.kafka.{ KafkaPartitioner, KafkaTopic, Par
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, MetricsPublisher }
 import com.ultimatesoftware.scala.core.validations.AsyncCommandValidator
 import com.ultimatesoftware.scala.oss.domain.AggregateCommandModel
+import org.apache.kafka.common.header.Headers
 
 import scala.concurrent.duration._
 
 private[streams] case class KafkaStreamsCommandKafkaConfig[Evt](
     stateTopic: KafkaTopic,
     eventsTopic: KafkaTopic,
-    eventKeyExtractor: Evt ⇒ String)
+    eventKeyExtractor: Evt ⇒ String,
+    eventHeadersExtractor: Evt ⇒ Headers)
 
 private[streams] case class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
     aggregateName: String,
