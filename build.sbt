@@ -58,8 +58,9 @@ lazy val `surge-common` = (project in file("modules/common"))
       mockitoCore,
       jacksonKotlin
     )
-  ).enablePlugins(MultiJvmPlugin)
-   .configs(MultiJvm)
+  )
+  .enablePlugins(MultiJvmPlugin)
+  .configs(MultiJvm)
   .dependsOn(`surge-scala-core`)
 
 lazy val `surge-engine-ks-command-core` = (project in file("modules/command-engine/core"))

@@ -26,6 +26,7 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
     PatienceConfig(timeout = scaled(Span(10, Seconds)), interval = scaled(Span(10, Millis)))
 
   private implicit val stringSer: Serializer[String] = DefaultSerdes.stringSerde.serializer()
+
   private def testEventSource(topic: KafkaTopic, kafkaBrokers: String, groupId: String): EventSource[String, String] = {
     new EventSource[String, String] {
       override def baseEventName: String = "TestAggregateEvent"

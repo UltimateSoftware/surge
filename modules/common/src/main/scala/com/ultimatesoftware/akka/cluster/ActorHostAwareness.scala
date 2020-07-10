@@ -2,7 +2,7 @@
 
 package com.ultimatesoftware.akka.cluster
 
-import akka.actor.{ ActorContext, ActorSystem, Address }
+import akka.actor.{ ActorContext, ActorPath, ActorSystem, Address }
 import com.ultimatesoftware.scala.core.kafka.HostPort
 import org.apache.kafka.streams.state.HostInfo
 
@@ -29,6 +29,20 @@ trait ActorSystemHostAwareness {
   protected def isHostInfoThisNode(hostInfo: HostInfo): Boolean = {
     val hostPort = HostPort(hostInfo.host(), hostInfo.port())
     isHostPortThisNode(hostPort)
+  }
+
+  protected def remotePath(path: String, remoteAddress: Address): String = {
+    ActorPath.fromString(path).toStringWithAddress(remoteAddress)
+  }
+
+  protected def remotePath(path: String, hostPort: HostPort): String = {
+    remotePath(path, hostPort.toAddress())
+  }
+
+  implicit class HostPortToActorAddress(hostPort: HostPort) {
+    def toAddress(): Address = {
+      Address(akkaProtocol, actorSystem.name, hostPort.host, hostPort.port)
+    }
   }
 }
 

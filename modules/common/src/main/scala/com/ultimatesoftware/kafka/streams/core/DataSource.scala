@@ -2,10 +2,14 @@
 
 package com.ultimatesoftware.kafka.streams.core
 
+import java.util.concurrent.CompletionStage
+
+import scala.compat.java8.FutureConverters._
 import akka.actor.ActorSystem
 import akka.kafka.ConsumerSettings
 import com.typesafe.config.{ Config, ConfigFactory }
 import com.ultimatesoftware.akka.streams.kafka.{ KafkaConsumer, KafkaStreamManager }
+import com.ultimatesoftware.kafka.streams.core.DataPipeline._
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
 import org.apache.kafka.common.serialization.Deserializer
 
@@ -23,6 +27,8 @@ trait DataSource[Key, Value] {
 
   def keyDeserializer: Deserializer[Key]
   def valueDeserializer: Deserializer[Value]
+  def replaySource: EventReplaySource[Key, Value] = EventReplaySource.noOps()
+  def replaySettings: ReplaySourceSettings = DefaultEventSourceSettings
 
   def to(sink: DataSink[Key, Value], consumerGroup: String): DataPipeline = {
     val consumerSettings = KafkaConsumer.consumerSettings[Key, Value](actorSystem, groupId = consumerGroup,
@@ -35,7 +41,7 @@ trait DataSource[Key, Value] {
     implicit val system: ActorSystem = actorSystem
     implicit val executionContext: ExecutionContext = ExecutionContext.global
     if (useNewConsumer) {
-      new ManagedDataPipelineImpl(KafkaStreamManager(kafkaTopic, consumerSettings, sink.handle, parallelism).start())
+      new ManagedDataPipelineImpl(KafkaStreamManager(kafkaTopic, consumerSettings, replaySource, replaySettings, sink.handle, parallelism).start())
     } else {
       implicit val executionContext: ExecutionContext = ExecutionContext.global
       KafkaConsumer().streamAndCommitOffsets(kafkaTopic, sink.handle, parallelism, consumerSettings)
@@ -51,23 +57,40 @@ trait DataSink[Key, Value] {
 trait DataPipeline {
   def start(): Unit
   def stop(): Unit
+  def replay(): Future[ReplayResult]
+  def replayWithCompletionStage(): CompletionStage[ReplayResult] = {
+    replay().toJava
+  }
+}
+
+object DataPipeline {
+  sealed trait ReplayResult
+  // This is a case class on purpose, Kotlin doesn't do pattern matching against scala case objects :(
+  case class ReplaySucceed() extends ReplayResult
+  case class ReplayFailed(reason: Throwable) extends ReplayResult
 }
 
 class TypedDataPipeline[Type](dataPipeline: DataPipeline) extends DataPipeline {
   override def start(): Unit = dataPipeline.start()
   override def stop(): Unit = dataPipeline.stop()
+  override def replay(): Future[ReplayResult] = dataPipeline.replay()
 }
 
 private[core] class ManagedDataPipelineImpl(underlyingManager: KafkaStreamManager[_, _]) extends DataPipeline {
-  def stop(): Unit = {
+  override def stop(): Unit = {
     underlyingManager.stop()
   }
-  def start(): Unit = {
+  override def start(): Unit = {
     underlyingManager.start()
   }
+  override def replay(): Future[ReplayResult] = {
+    underlyingManager.replay()
+  }
+
 }
 
 private[core] object NoOpDataPipelineImpl extends DataPipeline {
   override def start(): Unit = {}
   override def stop(): Unit = {}
+  override def replay(): Future[ReplayResult] = Future.successful(ReplaySucceed())
 }

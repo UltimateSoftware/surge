@@ -53,6 +53,11 @@ object TimeoutConfig {
     val updateTimeout: FiniteDuration = 20.seconds * timeoutScaleFactor
   }
 
+  object ActorRegistry {
+    val askTimeout = 3.seconds * timeoutScaleFactor
+    val resolveActorTimeout = 3.seconds * timeoutScaleFactor
+  }
+
   object PublisherActor {
     val publishTimeout: FiniteDuration =
       config.getDuration("surge.producer.publish-timeout", TimeUnit.MILLISECONDS).milliseconds * timeoutScaleFactor

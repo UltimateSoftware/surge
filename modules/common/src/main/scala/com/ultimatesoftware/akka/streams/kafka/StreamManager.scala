@@ -6,15 +6,19 @@ import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
 
 import akka.{ Done, NotUsed }
-import akka.actor.{ Actor, ActorSystem, Props, Stash }
+import akka.actor.{ Actor, ActorRef, ActorSystem, Address, Props, Stash }
 import akka.kafka.scaladsl.Consumer.DrainingControl
 import akka.kafka.scaladsl.{ Committer, Consumer }
 import akka.kafka.{ CommitterSettings, ConsumerMessage, ConsumerSettings, Subscription, Subscriptions }
 import akka.pattern._
 import akka.stream.scaladsl.{ Flow, Keep, RestartSource, Sink }
-import com.ultimatesoftware.akka.cluster.{ ActorHostAwareness, ActorSystemHostAwareness }
+import akka.util.Timeout
+import com.ultimatesoftware.akka.cluster.{ ActorHostAwareness, ActorRegistry, ActorSystemHostAwareness }
 import com.ultimatesoftware.akka.streams.graph.PassThroughFlow
+import com.ultimatesoftware.kafka.streams.core.DataPipeline._
+import com.ultimatesoftware.kafka.streams.core.{ EventReplaySource, ReplaySourceSettings }
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
+import com.ultimatesoftware.support.Logging
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.slf4j.LoggerFactory
 
@@ -24,7 +28,11 @@ import scala.concurrent.duration._
 object KafkaStreamManager {
   private val log = LoggerFactory.getLogger(getClass)
 
+  val serviceIdentifier = "StreamManager"
+
   def apply[Key, Value](topic: KafkaTopic, consumerSettings: ConsumerSettings[Key, Value],
+    replaySource: EventReplaySource[Key, Value],
+    replaySourceSettings: ReplaySourceSettings,
     business: (Key, Value) ⇒ Future[Any],
     parallelism: Int = 1)(implicit actorSystem: ActorSystem, ec: ExecutionContext): KafkaStreamManager[Key, Value] = {
     val subscription = Subscriptions.topics(topic.name)
@@ -36,15 +44,19 @@ object KafkaStreamManager {
           throw e
       }.map(_ ⇒ Done)
     }
-    new KafkaStreamManager[Key, Value](subscription, topic.name, consumerSettings, businessFlow)
+    new KafkaStreamManager[Key, Value](subscription, topic.name, consumerSettings, replaySource, replaySourceSettings, businessFlow)
   }
+
 }
 
-class KafkaStreamManager[Key, Value](subscription: Subscription, topicName: String, consumerSettings: ConsumerSettings[Key, Value],
-    businessFlow: Flow[ConsumerMessage.CommittableMessage[Key, Value], _, NotUsed])(implicit val actorSystem: ActorSystem)
-  extends ActorSystemHostAwareness {
+class KafkaStreamManager[Key, Value](
+    subscription: Subscription, topicName: String, consumerSettings: ConsumerSettings[Key, Value],
+    replaySource: EventReplaySource[Key, Value], replaySettings: ReplaySourceSettings, businessFlow: Flow[ConsumerMessage.CommittableMessage[Key, Value], _, NotUsed])(implicit val actorSystem: ActorSystem)
+  extends ActorSystemHostAwareness with Logging {
 
-  private val managerActor = actorSystem.actorOf(Props(new KafkaStreamManagerActor(subscription, topicName, consumerSettings, businessFlow)))
+  private val consumerGroup = consumerSettings.getProperty(ConsumerConfig.GROUP_ID_CONFIG)
+  private[streams] val managerActor = actorSystem.actorOf(Props(new KafkaStreamManagerActor(subscription, topicName, consumerSettings, businessFlow)))
+  private[streams] val replayCoordinator = actorSystem.actorOf(Props(new ReplayCoordinator(topicName, consumerGroup, replaySource)))
 
   def start(): KafkaStreamManager[Key, Value] = {
     managerActor ! KafkaStreamManagerActor.StartConsuming
@@ -55,19 +67,43 @@ class KafkaStreamManager[Key, Value](subscription: Subscription, topicName: Stri
     managerActor ! KafkaStreamManagerActor.StopConsuming
     this
   }
+
+  def replay(): Future[ReplayResult] = {
+    implicit val entireProcessTimeout: Timeout = Timeout(replaySettings.entireReplayTimeout)
+    implicit val executionContext: ExecutionContext = ExecutionContext.global
+    (replayCoordinator ? ReplayCoordinator.StartReplay).map {
+      case ReplayCoordinator.ReplayCompleted ⇒
+        ReplaySucceed()
+      case ReplayCoordinator.ReplaySkipped(reason) ⇒
+        ReplayFailed(reason)
+      case ReplayCoordinator.ReplayFailed(err) ⇒
+        ReplayFailed(err)
+    }.recoverWith {
+      case err: Throwable ⇒
+        log.error(s"An unexpected error happened replaying $consumerGroup, " +
+          s"please try again, if the problem persists, reach out the Surge team for support", err)
+        replayCoordinator ! ReplayCoordinator.StopReplay
+        Future.successful(ReplayFailed(err))
+    }
+  }
 }
 
 object KafkaStreamManagerActor {
-  case object StartConsuming
-  case object StopConsuming
-  case object SuccessfullyStopped
+  type OnReplayComplete = (String, Long) ⇒ Unit
+
+  sealed trait KafkaStreamManagerActorCommand
+  case object StartConsuming extends KafkaStreamManagerActorCommand
+  case object StopConsuming extends KafkaStreamManagerActorCommand
+  sealed trait KafkaStreamManagerActorEvent
+  case class SuccessfullyStopped(address: Address, actor: ActorRef) extends KafkaStreamManagerActorEvent
+  case object SuccessfullyStarted extends KafkaStreamManagerActorEvent
 }
 class KafkaStreamManagerActor[Key, Value](subscription: Subscription, topicName: String, baseConsumerSettings: ConsumerSettings[Key, Value],
     businessFlow: Flow[ConsumerMessage.CommittableMessage[Key, Value], _, NotUsed]) extends Actor
-  with ActorHostAwareness with Stash {
+  with ActorHostAwareness with Stash with ActorRegistry with Logging {
   import KafkaStreamManagerActor._
+
   import context.{ dispatcher, system }
-  private val log = LoggerFactory.getLogger(getClass)
 
   // Set this uniquely per manager actor so that restarts of the Kafka stream don't cause a rebalance of the consumer group
   private val clientId = s"surge-event-source-managed-consumer-${UUID.randomUUID()}"
@@ -88,15 +124,19 @@ class KafkaStreamManagerActor[Key, Value](subscription: Subscription, topicName:
 
   private def stopped: Receive = {
     case StartConsuming ⇒ startConsumer()
+    case StopConsuming  ⇒ sender() ! SuccessfullyStopped(localAddress, self)
   }
 
   private def consuming(state: InternalState): Receive = {
-    case StopConsuming ⇒ handleStopConsuming(state)
+    case SuccessfullyStarted ⇒ sender() ! SuccessfullyStarted
+    case StopConsuming       ⇒ handleStopConsuming(state)
   }
 
   private def stopping(state: InternalState): Receive = {
-    case SuccessfullyStopped ⇒ handleSuccessfullyStopped()
-    case _                   ⇒ stash()
+    case msg: SuccessfullyStopped ⇒
+      handleSuccessfullyStopped()
+      sender() ! msg
+    case _ ⇒ stash()
   }
 
   private def startConsumer(): Unit = {
@@ -119,23 +159,26 @@ class KafkaStreamManagerActor[Key, Value](subscription: Subscription, topicName:
       }.runWith(Sink.ignore)
 
     val state = InternalState(control, result)
-
     context.become(consuming(state))
+    result.map(_ ⇒ SuccessfullyStarted).pipeTo(self)(sender())
   }
 
   private def handleStopConsuming(state: InternalState): Unit = {
     val control = state.control.get()
     val drainingControl = DrainingControl(control -> state.streamCompletion)
     log.info("Stopping consumer with client id {} for topic {}", Seq(clientId, topicName): _*)
-    val shutdownFuture = drainingControl.drainAndShutdown().map(_ ⇒ SuccessfullyStopped)
-
-    shutdownFuture.pipeTo(self)(sender())
     context.become(stopping(state))
+    drainingControl.drainAndShutdown().map(_ ⇒ SuccessfullyStopped(localAddress, self)).pipeTo(self)(sender())
   }
 
   private def handleSuccessfullyStopped(): Unit = {
     log.info("Consumer with client id {} for topic {} successfully stopped", Seq(clientId, topicName): _*)
     context.become(stopped)
     unstashAll()
+  }
+
+  override def preStart(): Unit = {
+    registerService(KafkaStreamManager.serviceIdentifier, self, List(topicName))
+    super.preStart()
   }
 }
