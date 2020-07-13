@@ -23,18 +23,12 @@ private[streams] object ReplayCoordinator {
   case class TopicConsumersFound(assignments: Map[TopicPartition, HostPort], actorPaths: List[String]) extends ReplayCoordinatorEvent
   case class TopicAssignmentsFound(assignments: Map[TopicPartition, HostPort]) extends ReplayCoordinatorEvent
   case object ReplayCompleted extends ReplayCoordinatorEvent
-  case class ReplaySkipped(reason: Throwable) extends ReplayCoordinatorEvent
   case object PreReplayCompleted extends ReplayCoordinatorEvent
   case class ReplayFailed(reason: Throwable) extends ReplayCoordinatorEvent
 
   case class ReplayState(replyTo: ActorRef, running: Set[String], stopped: Set[String], assignments: Map[TopicPartition, HostPort])
   object ReplayState {
     def init(sender: ActorRef): ReplayState = ReplayState(sender, Set(), Set(), Map())
-  }
-  class ReplaySkippedByPreReplayException() extends RuntimeException {
-    override def toString: String = {
-      "PreReplay function returned false, therefore the replay did not proceed"
-    }
   }
 }
 
@@ -76,10 +70,6 @@ class ReplayCoordinator[Key, Value](
   } orElse handleStopReplay(replayState)
 
   def replaying(replayState: ReplayState): Receive = inlineReceive {
-    case failure: ReplaySkipped ⇒
-      startStoppedConsumers(replayState)
-      replayState.replyTo ! failure
-      context.become(uninitialized())
     case failure: ReplayFailed ⇒
       startStoppedConsumers(replayState)
       replayState.replyTo ! failure
@@ -109,12 +99,9 @@ class ReplayCoordinator[Key, Value](
   }
 
   def doPreReplay(): Unit = {
-    Future(replaySource.preReplay()).onComplete {
-      case Success(true) ⇒
+    replaySource.preReplay().onComplete {
+      case Success(_) ⇒
         self ! PreReplayCompleted
-      case Success(false) ⇒
-        log.debug("Replay canceled by preReplay")
-        self ! ReplaySkipped(new ReplaySkippedByPreReplayException())
       case Failure(e) ⇒
         log.error(s"An unexpected error happened running replaying $consumerGroup, " +
           s"please try again, if the problem persists, reach out Surge team for support", e)

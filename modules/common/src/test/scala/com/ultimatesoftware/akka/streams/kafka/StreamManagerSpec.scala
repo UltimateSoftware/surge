@@ -198,7 +198,7 @@ class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec"))
         consumer.start()
         probe.expectMsgAllOf(20.seconds, record1, record2, record3)
         val replayResult = consumer.replay().futureValue(Timeout(settings.entireReplayTimeout))
-        replayResult shouldBe ReplaySucceed()
+        replayResult shouldBe ReplaySuccessfullyStarted()
         probe.expectMsgAllOf(40.seconds, record1, record2, record3)
       }
     }

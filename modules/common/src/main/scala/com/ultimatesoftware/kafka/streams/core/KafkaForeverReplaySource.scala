@@ -23,7 +23,7 @@ import scala.concurrent.duration._
 class KafkaForeverReplaySource[Event, EvtMeta](
     actorSystem: ActorSystem,
     settings: KafkaForeverReplaySourceSettings,
-    override val preReplay: () ⇒ Boolean = { () ⇒ true },
+    override val preReplay: () ⇒ Future[Any] = { () ⇒ Future.successful(true) },
     override val postReplay: () ⇒ Unit = { () ⇒ () })(implicit executionContext: ExecutionContext) extends EventReplaySource[Event, EvtMeta] with Logging {
 
   val underlyingActor = actorSystem.actorOf(Props(new TopicResetActor(settings.brokers, settings.topic)))
@@ -65,7 +65,7 @@ object KafkaForeverReplaySource {
   def create[Event, EvtMeta](
     actorSystem: ActorSystem,
     settings: KafkaForeverReplaySourceSettings,
-    preReplay: () ⇒ Boolean = { () ⇒ true },
+    preReplay: () ⇒ Future[Any] = { () ⇒ Future.successful(true) },
     postReplay: () ⇒ Unit = { () ⇒ () }): EventReplaySource[Event, EvtMeta] = {
     new KafkaForeverReplaySource[Event, EvtMeta](
       actorSystem, settings, preReplay, postReplay)(ExecutionContext.global)

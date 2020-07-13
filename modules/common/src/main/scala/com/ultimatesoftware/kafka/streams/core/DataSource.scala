@@ -66,7 +66,7 @@ trait DataPipeline {
 object DataPipeline {
   sealed trait ReplayResult
   // This is a case class on purpose, Kotlin doesn't do pattern matching against scala case objects :(
-  case class ReplaySucceed() extends ReplayResult
+  case class ReplaySuccessfullyStarted() extends ReplayResult
   case class ReplayFailed(reason: Throwable) extends ReplayResult
 }
 
@@ -92,5 +92,5 @@ private[core] class ManagedDataPipelineImpl(underlyingManager: KafkaStreamManage
 private[core] object NoOpDataPipelineImpl extends DataPipeline {
   override def start(): Unit = {}
   override def stop(): Unit = {}
-  override def replay(): Future[ReplayResult] = Future.successful(ReplaySucceed())
+  override def replay(): Future[ReplayResult] = Future.successful(ReplaySuccessfullyStarted())
 }
