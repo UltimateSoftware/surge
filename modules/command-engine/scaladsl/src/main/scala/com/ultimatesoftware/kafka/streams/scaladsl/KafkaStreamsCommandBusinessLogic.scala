@@ -8,7 +8,6 @@ import com.ultimatesoftware.scala.core.kafka.KafkaTopic
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, MetricsPublisher, NoOpMetricsProvider, NoOpsMetricsPublisher }
 import com.ultimatesoftware.scala.core.validations.AsyncCommandValidator
 import com.ultimatesoftware.scala.oss.domain.AggregateCommandModel
-import org.apache.kafka.common.header.Headers
 
 import scala.concurrent.duration._
 
@@ -21,8 +20,6 @@ trait KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtM
   def eventsTopic: KafkaTopic
   @deprecated("Metadata topic is no longer used", "0.4.29")
   def internalMetadataTopic: KafkaTopic = KafkaTopic("")
-  def eventKeyExtractor: Event ⇒ String
-  def eventHeadersExtractor: Event ⇒ Headers
 
   def commandModel: AggregateCommandModel[AggId, Agg, Command, Event, CmdMeta, EvtMeta]
 
@@ -47,8 +44,7 @@ trait KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtM
 
   def transactionalIdPrefix: String = "surge-transactional-event-producer-partition"
 
-  private def kafkaConfig: KafkaStreamsCommandKafkaConfig[Event] = KafkaStreamsCommandKafkaConfig(stateTopic, eventsTopic,
-    eventKeyExtractor, eventHeadersExtractor)
+  private def kafkaConfig: KafkaStreamsCommandKafkaConfig = KafkaStreamsCommandKafkaConfig(stateTopic, eventsTopic)
 
   private[scaladsl] def toCore: com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta] = {
     new com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta](

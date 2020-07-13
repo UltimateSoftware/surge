@@ -166,7 +166,7 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
         val newState = events.foldLeft(state.stateOpt) { (state, evt) ⇒
           metrics.eventHandlingTimer.time(businessLogic.model.handleEvent(state, evt, evtMeta))
         }
-        val eventKeyMetaValues = events.map(evt ⇒ (businessLogic.kafka.eventKeyExtractor(evt), evtMeta, evt))
+        val eventKeyMetaValues = events.map(evt ⇒ (evtMeta, evt))
 
         val stateKeyValue = aggregateId.toString -> newState
 
@@ -266,7 +266,7 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
 
   private def initializeState(initializationAttempts: Int): Unit = {
     if (initializationAttempts > RetryConfig.AggregateActor.maxInitializationAttempts) {
-      log.error(s"Could not initialize actor for ${aggregateId} after $initializationAttempts attempts.  Stopping actor")
+      log.error(s"Could not initialize actor for $aggregateId after $initializationAttempts attempts.  Stopping actor")
       context.stop(self)
     } else {
       kafkaProducerActor.isAggregateStateCurrent(aggregateId.toString).map { isStateCurrent ⇒

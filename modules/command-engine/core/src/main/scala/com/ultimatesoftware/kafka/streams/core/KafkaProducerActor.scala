@@ -19,6 +19,7 @@ import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, Rat
 import org.apache.kafka.clients.producer.{ ProducerConfig, ProducerRecord }
 import org.apache.kafka.common.errors.{ AuthorizationException, ProducerFencedException, UnsupportedVersionException }
 import org.apache.kafka.common.header.Header
+import org.apache.kafka.common.header.internals.RecordHeader
 import org.apache.kafka.common.{ KafkaException, TopicPartition }
 import org.slf4j.{ Logger, LoggerFactory }
 
@@ -80,15 +81,16 @@ class KafkaProducerActor[AggId, Agg, Event, EvtMeta](
   private val serializeStateTimer: Timer = metricsProvider.createTimer(s"${aggregateName}AggregateStateSerializationTimer")
   private val serializeEventTimer: Timer = metricsProvider.createTimer(s"${aggregateName}EventSerializationTimer")
 
-  def publish(aggregateId: AggId, state: (String, Option[Agg]), events: Seq[(String, EvtMeta, Event)]): Future[Done] = {
+  def publish(aggregateId: AggId, state: (String, Option[Agg]), events: Seq[(EvtMeta, Event)]): Future[Done] = {
 
     val eventKeyValuePairs = events.map {
-      case (eventKey, eventMeta, event) ⇒
-        log.trace(s"Publishing event for {} {}", Seq(aggregateName, eventKey): _*)
+      case (eventMeta, event) ⇒
+        val serializedMessage = serializeEventTimer.time(aggregateCommandKafkaStreams.writeFormatting.writeEvent(event, eventMeta))
+        log.trace(s"Publishing event for {} {}", Seq(aggregateName, serializedMessage.key): _*)
         KafkaProducerActorImpl.EventToPublish(
-          key = eventKey,
-          value = serializeEventTimer.time(aggregateCommandKafkaStreams.writeFormatting.writeEvent(event, eventMeta)),
-          headers = aggregateCommandKafkaStreams.kafka.eventHeadersExtractor(event).toArray)
+          key = serializedMessage.key,
+          value = serializedMessage.value,
+          headers = serializedMessage.headers.map(kv ⇒ new RecordHeader(kv._1, kv._2.getBytes())).toSeq)
     }
 
     val (stateKey, stateValueOpt) = state

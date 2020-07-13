@@ -2,6 +2,8 @@
 
 package com.ultimatesoftware.kafka.streams.core
 
+case class SerializedMessage(key: String, value: Array[Byte], headers: Map[String, String])
+
 trait SurgeEventReadFormatting[Event, EvtMeta] {
   def readEvent(bytes: Array[Byte]): (Event, Option[EvtMeta])
 }
@@ -13,7 +15,7 @@ trait SurgeAggregateReadFormatting[AggId, Agg] {
 trait SurgeReadFormatting[AggId, Agg, Event, EvtMeta] extends SurgeEventReadFormatting[Event, EvtMeta] with SurgeAggregateReadFormatting[AggId, Agg]
 
 trait SurgeEventWriteFormatting[Event, EvtMeta] {
-  def writeEvent(evt: Event, metadata: EvtMeta): Array[Byte]
+  def writeEvent(evt: Event, metadata: EvtMeta): SerializedMessage
 }
 
 trait SurgeAggregateWriteFormatting[AggId, Agg] {
