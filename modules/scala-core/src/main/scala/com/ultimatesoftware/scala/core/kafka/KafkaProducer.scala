@@ -44,7 +44,7 @@ trait KafkaProducerTrait[K, V] extends KafkaSecurityConfiguration {
     // If the record is already partitioned, don't change the partitioning
     val partitionOpt = Option(record.partition()).map(_.intValue()) orElse partitionFor(record.key())
     partitionOpt.map { partitionNum ⇒
-      new ProducerRecord(record.topic, partitionNum, record.key, record.value)
+      new ProducerRecord(record.topic, partitionNum, record.timestamp, record.key, record.value, record.headers)
     }.getOrElse(record)
   }
 

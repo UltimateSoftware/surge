@@ -30,7 +30,8 @@ lazy val `surge-scala-core` = (project in file("modules/scala-core"))
       PlayFramework.json,
       scalatest,
       surgeMetricsInterface,
-      typesafeConfig
+      typesafeConfig,
+      mockitoCore
     )
   )
 
