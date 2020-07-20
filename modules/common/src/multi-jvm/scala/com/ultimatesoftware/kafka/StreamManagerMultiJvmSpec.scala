@@ -9,7 +9,8 @@ import akka.testkit.TestProbe
 import com.typesafe.config.ConfigFactory
 import com.ultimatesoftware.akka.streams.kafka.{KafkaConsumer, KafkaStreamManager}
 import com.ultimatesoftware.kafka.streams.DefaultSerdes
-import com.ultimatesoftware.kafka.streams.core.{EventReplaySource, KafkaForeverReplaySource, KafkaForeverReplaySourceSettings, DefaultEventSourceSettings}
+import com.ultimatesoftware.kafka.streams.core.NoOpEventReplayStrategy
+import com.ultimatesoftware.kafka.streams.core.{ DefaultEventReplaySettings, KafkaForeverReplayStrategy, KafkaForeverReplaySettings }
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
 import net.manub.embeddedkafka.{EmbeddedKafka, EmbeddedKafkaConfig}
 import org.apache.kafka.clients.producer.ProducerRecord
@@ -80,8 +81,8 @@ class StreamManagerSpecBase extends MultiNodeSpec(StreamManagerSpecConfig) with 
             enterBarrier("afterReplay")
             ()
           }
-          val replaySettings = KafkaForeverReplaySourceSettings(topic.name).copy(brokers = List(embeddedBroker))
-          val kafkaForeverReplaySource = KafkaForeverReplaySource.create[String, Array[Byte]](
+          val replaySettings = KafkaForeverReplaySettings(topic.name).copy(brokers = List(embeddedBroker))
+          val kafkaForeverReplayStrategy = KafkaForeverReplayStrategy.create(
             actorSystem = system,
             settings = replaySettings,
             postReplay = postReplayDef
@@ -89,7 +90,7 @@ class StreamManagerSpecBase extends MultiNodeSpec(StreamManagerSpecConfig) with 
 
           val probe = TestProbe()
           import probe.system.dispatcher
-          val consumer = KafkaStreamManager(topic, consumerSettings, kafkaForeverReplaySource, replaySettings, sendToTestProbe(probe), 1)
+          val consumer = KafkaStreamManager(topic, consumerSettings, kafkaForeverReplayStrategy, replaySettings, sendToTestProbe(probe), 1)
           consumer.start()
           probe.expectMsgAnyOf(20.seconds, record1, record2)
           consumer.replay()
@@ -100,7 +101,7 @@ class StreamManagerSpecBase extends MultiNodeSpec(StreamManagerSpecConfig) with 
       runOn(node1) {
          val probe = TestProbe()
         import probe.system.dispatcher
-         val consumer = KafkaStreamManager(topic, consumerSettings, EventReplaySource.noOps[String, Array[Byte]](), DefaultEventSourceSettings, sendToTestProbe(probe), 1)
+         val consumer = KafkaStreamManager(topic, consumerSettings, NoOpEventReplayStrategy, DefaultEventReplaySettings, sendToTestProbe(probe), 1)
          consumer.start()
          probe.expectMsgAnyOf(20.seconds, record1, record2)
          enterBarrier("afterReplay")

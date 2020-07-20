@@ -5,8 +5,8 @@ package com.ultimatesoftware.akka.streams.kafka
 import akka.actor.{ Actor, ActorRef, Address }
 import com.ultimatesoftware.akka.cluster.{ ActorHostAwareness, ActorRegistry }
 import com.ultimatesoftware.akka.streams.kafka.KafkaStreamManagerActor.{ StartConsuming, SuccessfullyStopped }
-import com.ultimatesoftware.kafka.streams.core.EventReplaySource
-import com.ultimatesoftware.scala.core.kafka.{ HostPort, KafkaTopic }
+import com.ultimatesoftware.kafka.streams.core.EventReplayStrategy
+import com.ultimatesoftware.scala.core.kafka.HostPort
 import org.apache.kafka.common.TopicPartition
 import akka.pattern.pipe
 import com.ultimatesoftware.support.inlineReceive
@@ -32,10 +32,10 @@ private[streams] object ReplayCoordinator {
   }
 }
 
-class ReplayCoordinator[Key, Value](
+class ReplayCoordinator(
     topicName: String,
     consumerGroup: String,
-    replaySource: EventReplaySource[Key, Value]) extends Actor with ActorHostAwareness with ActorRegistry {
+    replayStrategy: EventReplayStrategy) extends Actor with ActorHostAwareness with ActorRegistry {
 
   import com.ultimatesoftware.akka.streams.kafka.ReplayCoordinator._
 
@@ -75,7 +75,7 @@ class ReplayCoordinator[Key, Value](
       replayState.replyTo ! failure
       context.become(uninitialized())
     case ReplayCompleted ⇒
-      replaySource.postReplay()
+      replayStrategy.postReplay()
       startStoppedConsumers(replayState)
       replayState.replyTo ! ReplayCompleted
       context.become(uninitialized())
@@ -99,7 +99,7 @@ class ReplayCoordinator[Key, Value](
   }
 
   def doPreReplay(): Unit = {
-    replaySource.preReplay().onComplete {
+    replayStrategy.preReplay().onComplete {
       case Success(_) ⇒
         self ! PreReplayCompleted
       case Failure(e) ⇒
@@ -115,7 +115,7 @@ class ReplayCoordinator[Key, Value](
         topicPartition.partition()
     }
     context.become(replaying(replayState))
-    replaySource.replay(consumerGroup, existingPartitions).map { _ ⇒
+    replayStrategy.replay(consumerGroup, existingPartitions).map { _ ⇒
       ReplayCompleted
     }.recoverWith {
       case err: Throwable ⇒

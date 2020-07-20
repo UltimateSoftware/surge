@@ -1,10 +1,8 @@
 // Copyright © 2017-2019 Ultimate Software Group. <https://www.ultimatesoftware.com>
 
 package com.ultimatesoftware.kafka.streams.core
-import java.time.temporal.{ ChronoUnit, TemporalUnit }
-import java.{ time, util }
 import java.util.concurrent.TimeUnit
-
+import java.util
 import akka.pattern.ask
 import akka.Done
 import akka.actor.{ Actor, ActorRef, ActorSystem, Props, Stash }
@@ -13,18 +11,17 @@ import com.typesafe.config.ConfigFactory
 import com.ultimatesoftware.kafka.streams.core.TopicResetActor.{ PartitionsAssigned, ResetTopic, ResetTopicResult, TopicResetFailed, TopicResetSucceed }
 import com.ultimatesoftware.scala.core.kafka.{ KafkaBytesConsumer, UltiKafkaConsumerConfig }
 import com.ultimatesoftware.support.Logging
-import org.apache.kafka.clients.consumer.{ ConsumerConfig, ConsumerConfigExtension, ConsumerRebalanceListener, KafkaConsumer, OffsetAndMetadata }
+import org.apache.kafka.clients.consumer.{ ConsumerConfig, ConsumerRebalanceListener, KafkaConsumer, OffsetAndMetadata }
 import org.apache.kafka.common.TopicPartition
-
 import scala.collection.JavaConverters._
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration._
 
-class KafkaForeverReplaySource[Event, EvtMeta](
+class KafkaForeverReplayStrategy(
     actorSystem: ActorSystem,
-    settings: KafkaForeverReplaySourceSettings,
+    settings: KafkaForeverReplaySettings,
     override val preReplay: () ⇒ Future[Any] = { () ⇒ Future.successful(true) },
-    override val postReplay: () ⇒ Unit = { () ⇒ () })(implicit executionContext: ExecutionContext) extends EventReplaySource[Event, EvtMeta] with Logging {
+    override val postReplay: () ⇒ Unit = { () ⇒ () })(implicit executionContext: ExecutionContext) extends EventReplayStrategy with Logging {
 
   val underlyingActor = actorSystem.actorOf(Props(new TopicResetActor(settings.brokers, settings.topic)))
 
@@ -37,37 +34,37 @@ class KafkaForeverReplaySource[Event, EvtMeta](
   }
 }
 
-trait ReplaySourceSettings {
+trait EventReplaySettings {
   val entireReplayTimeout: FiniteDuration
 }
 
-case class KafkaForeverReplaySourceSettings(
+case class KafkaForeverReplaySettings(
     brokers: List[String],
     resetTopicTimeout: FiniteDuration,
     entireReplayTimeout: FiniteDuration,
-    topic: String) extends ReplaySourceSettings
+    topic: String) extends EventReplaySettings
 
-object KafkaForeverReplaySourceSettings {
+object KafkaForeverReplaySettings {
   val config = ConfigFactory.load()
   lazy val brokers = config.getString("kafka.brokers").split(",").toList
   lazy val resetTopicTimeout: FiniteDuration = config.getDuration("kafka.streams.replay.reset-topic-timeout", TimeUnit.MILLISECONDS).milliseconds
   lazy val entireProcessTimeout: FiniteDuration = config.getDuration("kafka.streams.replay.entire-process-timeout", TimeUnit.MILLISECONDS).milliseconds
 
-  def apply(topic: String): KafkaForeverReplaySourceSettings = {
-    new KafkaForeverReplaySourceSettings(brokers, resetTopicTimeout, entireProcessTimeout, topic)
+  def apply(topic: String): KafkaForeverReplaySettings = {
+    new KafkaForeverReplaySettings(brokers, resetTopicTimeout, entireProcessTimeout, topic)
   }
 
-  def create(topic: String): KafkaForeverReplaySourceSettings = apply(topic)
+  def create(topic: String): KafkaForeverReplaySettings = apply(topic)
 }
 
-object KafkaForeverReplaySource {
+object KafkaForeverReplayStrategy {
 
-  def create[Event, EvtMeta](
+  def create(
     actorSystem: ActorSystem,
-    settings: KafkaForeverReplaySourceSettings,
+    settings: KafkaForeverReplaySettings,
     preReplay: () ⇒ Future[Any] = { () ⇒ Future.successful(true) },
-    postReplay: () ⇒ Unit = { () ⇒ () }): EventReplaySource[Event, EvtMeta] = {
-    new KafkaForeverReplaySource[Event, EvtMeta](
+    postReplay: () ⇒ Unit = { () ⇒ () }): EventReplayStrategy = {
+    new KafkaForeverReplayStrategy(
       actorSystem, settings, preReplay, postReplay)(ExecutionContext.global)
   }
 

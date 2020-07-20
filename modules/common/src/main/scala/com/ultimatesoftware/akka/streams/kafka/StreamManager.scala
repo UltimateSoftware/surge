@@ -16,7 +16,7 @@ import akka.util.Timeout
 import com.ultimatesoftware.akka.cluster.{ ActorHostAwareness, ActorRegistry, ActorSystemHostAwareness }
 import com.ultimatesoftware.akka.streams.graph.PassThroughFlow
 import com.ultimatesoftware.kafka.streams.core.DataPipeline._
-import com.ultimatesoftware.kafka.streams.core.{ EventReplaySource, ReplaySourceSettings }
+import com.ultimatesoftware.kafka.streams.core.{ EventReplayStrategy, EventReplaySettings }
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
 import com.ultimatesoftware.support.Logging
 import org.apache.kafka.clients.consumer.ConsumerConfig
@@ -31,8 +31,8 @@ object KafkaStreamManager {
   val serviceIdentifier = "StreamManager"
 
   def apply[Key, Value](topic: KafkaTopic, consumerSettings: ConsumerSettings[Key, Value],
-    replaySource: EventReplaySource[Key, Value],
-    replaySourceSettings: ReplaySourceSettings,
+    replayStrategy: EventReplayStrategy,
+    replaySettings: EventReplaySettings,
     business: (Key, Value) ⇒ Future[Any],
     parallelism: Int = 1)(implicit actorSystem: ActorSystem, ec: ExecutionContext): KafkaStreamManager[Key, Value] = {
     val subscription = Subscriptions.topics(topic.name)
@@ -44,19 +44,19 @@ object KafkaStreamManager {
           throw e
       }.map(_ ⇒ Done)
     }
-    new KafkaStreamManager[Key, Value](subscription, topic.name, consumerSettings, replaySource, replaySourceSettings, businessFlow)
+    new KafkaStreamManager[Key, Value](subscription, topic.name, consumerSettings, replayStrategy, replaySettings, businessFlow)
   }
 
 }
 
 class KafkaStreamManager[Key, Value](
     subscription: Subscription, topicName: String, consumerSettings: ConsumerSettings[Key, Value],
-    replaySource: EventReplaySource[Key, Value], replaySettings: ReplaySourceSettings, businessFlow: Flow[ConsumerMessage.CommittableMessage[Key, Value], _, NotUsed])(implicit val actorSystem: ActorSystem)
+    replayStrategy: EventReplayStrategy, replaySettings: EventReplaySettings, businessFlow: Flow[ConsumerMessage.CommittableMessage[Key, Value], _, NotUsed])(implicit val actorSystem: ActorSystem)
   extends ActorSystemHostAwareness with Logging {
 
   private val consumerGroup = consumerSettings.getProperty(ConsumerConfig.GROUP_ID_CONFIG)
   private[streams] val managerActor = actorSystem.actorOf(Props(new KafkaStreamManagerActor(subscription, topicName, consumerSettings, businessFlow)))
-  private[streams] val replayCoordinator = actorSystem.actorOf(Props(new ReplayCoordinator(topicName, consumerGroup, replaySource)))
+  private[streams] val replayCoordinator = actorSystem.actorOf(Props(new ReplayCoordinator(topicName, consumerGroup, replayStrategy)))
 
   def start(): KafkaStreamManager[Key, Value] = {
     managerActor ! KafkaStreamManagerActor.StartConsuming

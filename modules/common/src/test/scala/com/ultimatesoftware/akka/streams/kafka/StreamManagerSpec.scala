@@ -7,6 +7,7 @@ import akka.actor.ActorSystem
 import akka.testkit.{ TestKit, TestProbe }
 import com.ultimatesoftware.kafka.streams.core.DataPipeline._
 import com.ultimatesoftware.kafka.streams.DefaultSerdes
+import com.ultimatesoftware.kafka.streams.core.NoOpEventReplayStrategy
 import com.ultimatesoftware.kafka.streams.core._
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
@@ -43,11 +44,11 @@ class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec"))
   }
 
   private def testStreamManager(topic: KafkaTopic, kafkaBrokers: String, groupId: String,
-    businessLogic: (String, Array[Byte]) ⇒ Future[_], replaySource: EventReplaySource[String, Array[Byte]] = EventReplaySource.noOps[String, Array[Byte]](), replaySettings: ReplaySourceSettings = DefaultEventSourceSettings): KafkaStreamManager[String, Array[Byte]] = {
+    businessLogic: (String, Array[Byte]) ⇒ Future[_], replayStrategy: EventReplayStrategy = NoOpEventReplayStrategy, replaySettings: EventReplaySettings = DefaultEventReplaySettings): KafkaStreamManager[String, Array[Byte]] = {
     val consumerSettings = KafkaConsumer.defaultConsumerSettings(system, groupId)
       .withBootstrapServers(kafkaBrokers)
 
-    KafkaStreamManager(topic, consumerSettings, replaySource, replaySettings, businessLogic)
+    KafkaStreamManager(topic, consumerSettings, replayStrategy, replaySettings, businessLogic)
   }
 
   "StreamManager" should {
@@ -191,9 +192,9 @@ class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec"))
         publishToKafka(new ProducerRecord[String, String](topic.name, 1, record2, record2))
         publishToKafka(new ProducerRecord[String, String](topic.name, 2, record3, record3))
 
-        val settings = KafkaForeverReplaySourceSettings(topic.name).copy(brokers = List(embeddedBroker))
-        val kafkaForeverReplaySource = KafkaForeverReplaySource.create[String, Array[Byte]](system, settings)
-        val consumer = testStreamManager(topic, kafkaBrokers = embeddedBroker, groupId = "replay-test", sendToTestProbe(probe), kafkaForeverReplaySource, settings)
+        val settings = KafkaForeverReplaySettings(topic.name).copy(brokers = List(embeddedBroker))
+        val kafkaForeverReplayStrategy = KafkaForeverReplayStrategy.create(system, settings)
+        val consumer = testStreamManager(topic, kafkaBrokers = embeddedBroker, groupId = "replay-test", sendToTestProbe(probe), kafkaForeverReplayStrategy, settings)
 
         consumer.start()
         probe.expectMsgAllOf(20.seconds, record1, record2, record3)

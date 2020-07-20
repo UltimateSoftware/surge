@@ -27,8 +27,8 @@ trait DataSource[Key, Value] {
 
   def keyDeserializer: Deserializer[Key]
   def valueDeserializer: Deserializer[Value]
-  def replaySource: EventReplaySource[Key, Value] = EventReplaySource.noOps()
-  def replaySettings: ReplaySourceSettings = DefaultEventSourceSettings
+  def replayStrategy: EventReplayStrategy = NoOpEventReplayStrategy
+  def replaySettings: EventReplaySettings = DefaultEventReplaySettings
 
   def to(sink: DataSink[Key, Value], consumerGroup: String): DataPipeline = {
     val consumerSettings = KafkaConsumer.consumerSettings[Key, Value](actorSystem, groupId = consumerGroup,
@@ -41,7 +41,7 @@ trait DataSource[Key, Value] {
     implicit val system: ActorSystem = actorSystem
     implicit val executionContext: ExecutionContext = ExecutionContext.global
     if (useNewConsumer) {
-      new ManagedDataPipelineImpl(KafkaStreamManager(kafkaTopic, consumerSettings, replaySource, replaySettings, sink.handle, parallelism).start())
+      new ManagedDataPipelineImpl(KafkaStreamManager(kafkaTopic, consumerSettings, replayStrategy, replaySettings, sink.handle, parallelism).start())
     } else {
       implicit val executionContext: ExecutionContext = ExecutionContext.global
       KafkaConsumer().streamAndCommitOffsets(kafkaTopic, sink.handle, parallelism, consumerSettings)

@@ -11,28 +11,25 @@ import scala.concurrent.duration._
 import scala.concurrent.Future
 import scala.concurrent.duration.FiniteDuration
 
-trait EventReplaySource[Event, EvtMeta] {
+trait EventReplayStrategy {
   def preReplay: () ⇒ Future[Any]
   def postReplay: () ⇒ Unit
   def replay(consumerGroup: String, partitions: Iterable[Int]): Future[Done]
 }
 
-object DefaultEventSourceSettings extends ReplaySourceSettings {
+object DefaultEventReplaySettings extends EventReplaySettings {
   val config = ConfigFactory.load()
   val entireProcessTimeout: FiniteDuration = config.getDuration("kafka.streams.replay.entire-process-timeout", TimeUnit.MILLISECONDS).milliseconds
   override val entireReplayTimeout: FiniteDuration = entireProcessTimeout
 }
-object EventReplaySource extends Logging {
-  def noOps[Key, Value](): EventReplaySource[Key, Value] = {
-    new EventReplaySource[Key, Value] {
-      override def preReplay: () ⇒ Future[Any] = () ⇒ Future.successful(true)
-      override def postReplay: () ⇒ Unit = () ⇒ {}
-      override def replay(
-        consumerGroup: String,
-        partitions: Iterable[Int]): Future[Done] = {
-        log.warn("Event Replay has been used with the default NoOps implementation, please refer to the docs to properly chose your replay strategy")
-        Future.successful(Done)
-      }
-    }
+
+case object NoOpEventReplayStrategy extends EventReplayStrategy with Logging {
+  override def preReplay: () ⇒ Future[Any] = () ⇒ Future.successful(true)
+  override def postReplay: () ⇒ Unit = () ⇒ {}
+  override def replay(
+    consumerGroup: String,
+    partitions: Iterable[Int]): Future[Done] = {
+    log.warn("Event Replay has been used with the default NoOps implementation, please refer to the docs to properly chose your replay strategy")
+    Future.successful(Done)
   }
 }
