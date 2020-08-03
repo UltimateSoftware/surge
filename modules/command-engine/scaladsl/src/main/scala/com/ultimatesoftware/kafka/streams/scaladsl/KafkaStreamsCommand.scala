@@ -15,6 +15,11 @@ object KafkaStreamsCommand {
   def apply[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
     businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta]): KafkaStreamsCommand[AggId, Agg, Command, Event, CmdMeta, EvtMeta] = {
     val actorSystem = ActorSystem(s"${businessLogic.aggregateName}ActorSystem")
+    apply(actorSystem, businessLogic)
+  }
+  def apply[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
+    actorSystem: ActorSystem,
+    businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta]): KafkaStreamsCommand[AggId, Agg, Command, Event, CmdMeta, EvtMeta] = {
     new KafkaStreamsCommandImpl(actorSystem, businessLogic.toCore)
   }
 }
