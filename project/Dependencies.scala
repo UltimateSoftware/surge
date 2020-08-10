@@ -37,7 +37,7 @@ object Dependencies extends AutoPlugin {
     }
 
     // TODO this is the last component to move from ulti-scala-core
-    val surgeMetricsInterface = "com.ultimatesoftware" %% "ulti-metrics-interface" % "0.3.17"
+    val surgeMetricsInterface = "com.ultimatesoftware" %% "ulti-metrics-interface" % "0.3.20"
 
     val jacksonKotlin = "com.fasterxml.jackson.module" % "jackson-module-kotlin" % "2.10.3"
     val jacksonScala = "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.10.3"
