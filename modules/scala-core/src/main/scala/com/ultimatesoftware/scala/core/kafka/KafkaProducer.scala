@@ -114,6 +114,9 @@ trait KafkaProducerTrait[K, V] extends KafkaSecurityConfiguration {
 
   def abortTransaction(): Unit =
     producer.abortTransaction()
+
+  def close(): Unit =
+    producer.close()
 }
 
 object KafkaStringProducer {

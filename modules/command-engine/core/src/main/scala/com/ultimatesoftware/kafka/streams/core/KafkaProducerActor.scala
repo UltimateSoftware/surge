@@ -6,7 +6,7 @@ import java.time.Instant
 import java.util.concurrent.TimeUnit
 
 import akka.Done
-import akka.actor.{ Actor, ActorRef, ActorSystem, PoisonPill, Props, Stash }
+import akka.actor.{ Actor, ActorRef, ActorSystem, PoisonPill, Props, Stash, Status }
 import akka.pattern._
 import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
@@ -26,7 +26,7 @@ import org.slf4j.{ Logger, LoggerFactory }
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
-import scala.util.{ Failure, Try }
+import scala.util.{ Failure, Success, Try }
 
 /**
  * A stateful producer actor responsible for publishing all states + events for
@@ -145,6 +145,7 @@ private object KafkaProducerActorImpl {
   sealed trait InternalMessage
   case class EventsPublished(originalSenders: Seq[ActorRef], recordMetadata: Seq[KafkaRecordMetadata[String]]) extends InternalMessage
   case object EventsFailedToPublish extends InternalMessage
+  case class AbortTransactionFailed(underlyingException: Throwable) extends InternalMessage
   case object InitTransactions extends InternalMessage
   case object FailedToInitTransactions extends InternalMessage
   case class Initialize(endOffset: Long) extends InternalMessage
@@ -192,7 +193,7 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
     kafkaProducerOverride.getOrElse(newPublisher())
   }
 
-  private def newPublisher() = {
+  private def newPublisher(): KafkaBytesProducer = {
     val kafkaConfig = Map[String, String](
       // ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG -> true, // For exactly once writes. How does this impact performance?
       ProducerConfig.TRANSACTIONAL_ID_CONFIG -> transactionalId)
@@ -239,6 +240,9 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
     case GetHealth                          ⇒ getHealthCheck(state)
     case FlushMessages                      ⇒ handleFlushMessages(state)
     case Done                               ⇒ // Ignore to prevent these messages to become dead letters
+    case msg: AbortTransactionFailed        ⇒ handle(msg)
+    case Status.Failure(e) ⇒
+      log.error(s"Saw unhandled exception in producer for $assignedPartition", e)
   }
 
   private def sendFlushRecord: Future[InternalMessage] = {
@@ -373,8 +377,12 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
               producerFenced()
             case e ⇒
               log.error(s"KafkaPublisherActor partition $assignedPartition got error while trying to publish to Kafka", e)
-              kafkaPublisher.abortTransaction()
-              EventsFailedToPublish
+              Try(kafkaPublisher.abortTransaction()) match {
+                case Success(_) ⇒
+                  EventsFailedToPublish
+                case Failure(exception) ⇒
+                  AbortTransactionFailed(exception)
+              }
           }
       }
     }
@@ -382,6 +390,13 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
     futureMsg.pipeTo(self)(sender())
   }
 
+  private def handle(abortTransactionFailed: AbortTransactionFailed): Unit = {
+    log.error(s"KafkaPublisherActor partition $assignedPartition saw an error aborting transaction, will recreate the producer.",
+      abortTransactionFailed.underlyingException)
+    kafkaPublisher.close()
+    context.system.scheduler.scheduleOnce(10.milliseconds, self, InitTransactions)
+    context.become(uninitialized)
+  }
   private def producerFenced(): Unit = {
     val producerFencedErrorLog = s"KafkaPublisherActor partition $assignedPartition tried to commit a transaction, but was " +
       s"fenced out by another producer instance. This instance of the producer for the assigned partition will shut down in favor of the " +

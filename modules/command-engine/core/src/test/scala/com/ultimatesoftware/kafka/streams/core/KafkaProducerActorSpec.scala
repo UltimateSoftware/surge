@@ -130,6 +130,43 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
       verify(mockProducer, times(1)).commitTransaction()
     }
 
+    "Recovers from abortTransaction failure" in {
+      val probe = TestProbe()
+      val assignedPartition = new TopicPartition("testTopic", 1)
+      val mockProducer = mock[KafkaBytesProducer]
+      val mockMetadata = mockRecordMetadata(assignedPartition)
+      when(mockProducer.initTransactions()(any[ExecutionContext])).thenReturn(Future.unit)
+      when(mockProducer.putRecord(any[ProducerRecord[String, Array[Byte]]])).thenReturn(Future.successful(mockMetadata))
+      // Fail first transaction and then succeed always
+      doNothing().when(mockProducer).beginTransaction()
+      doNothing().when(mockProducer).close()
+      doThrow(new IllegalStateException("This is expected")).when(mockProducer).abortTransaction()
+      doThrow(new IllegalStateException("This is expected")).doNothing().when(mockProducer).commitTransaction()
+
+      when(mockProducer.putRecords(any[Seq[ProducerRecord[String, Array[Byte]]]]))
+        .thenReturn(Seq(Future.successful(mockMetadata)))
+      when(mockProducer.putRecord(any[ProducerRecord[String, Array[Byte]]]))
+        .thenReturn(Future.successful(mockMetadata))
+
+      val actor = testProducerActor(assignedPartition, mockProducer)
+      sendMetadataUpdated(probe, actor, assignedPartition)
+      expectNoMessage()
+      // First time beginTransaction will fail and commitTransaction won't be executed
+      probe.send(actor, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
+      probe.send(actor, KafkaProducerActorImpl.FlushMessages)
+      expectNoMessage()
+      verify(mockProducer, times(1)).beginTransaction()
+      verify(mockProducer, times(1)).commitTransaction()
+      verify(mockProducer, times(1)).abortTransaction()
+      //verify(mockProducer, times(1)).close()
+      probe.send(actor, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
+      probe.send(actor, KafkaProducerActorImpl.FlushMessages)
+      sendMetadataUpdated(probe, actor, assignedPartition)
+      expectNoMessage()
+      verify(mockProducer, times(2)).beginTransaction()
+      verify(mockProducer, times(2)).commitTransaction()
+    }
+
     "Gets to initialize the state if initializing kafka transactions fails with a fatal error" in {
       TestProbe()
       val assignedPartition = new TopicPartition("testTopic", 1)
