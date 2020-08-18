@@ -2,6 +2,8 @@
 
 import Keys._
 
+scalaVersion in ThisBuild := "2.12.8"
+
 skip in publish := true
 
 lazy val unitTest = taskKey[Unit]("Runs only the unit tests")

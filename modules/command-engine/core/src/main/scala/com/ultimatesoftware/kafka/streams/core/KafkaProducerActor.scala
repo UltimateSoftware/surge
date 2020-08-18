@@ -391,7 +391,8 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
   }
 
   private def handle(abortTransactionFailed: AbortTransactionFailed): Unit = {
-    log.error(s"KafkaPublisherActor partition $assignedPartition saw an error aborting transaction, will recreate the producer.",
+    log.error(
+      s"KafkaPublisherActor partition $assignedPartition saw an error aborting transaction, will recreate the producer.",
       abortTransactionFailed.underlyingException)
     kafkaPublisher.close()
     context.system.scheduler.scheduleOnce(10.milliseconds, self, InitTransactions)
