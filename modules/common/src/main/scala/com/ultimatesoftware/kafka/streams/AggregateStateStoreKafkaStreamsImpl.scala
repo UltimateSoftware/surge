@@ -3,8 +3,9 @@
 package com.ultimatesoftware.kafka.streams
 
 import java.util.Properties
-import akka.pattern.pipe
+
 import akka.actor.Props
+import akka.pattern.pipe
 import com.typesafe.config.ConfigFactory
 import com.ultimatesoftware.kafka.streams.AggregateStateStoreKafkaStreamsImpl._
 import com.ultimatesoftware.kafka.streams.HealthyActor.GetHealth
@@ -15,8 +16,8 @@ import org.apache.kafka.streams.StreamsConfig
 import org.apache.kafka.streams.errors.InvalidStateStoreException
 import org.apache.kafka.streams.kstream.Materialized
 import org.apache.kafka.streams.kstream.internals.{ KTableImpl, KTableImplExtensions }
-import org.apache.kafka.streams.scala.ByteArrayKeyValueStore
 import org.apache.kafka.streams.state.QueryableStoreTypes
+
 import scala.concurrent.Future
 
 private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
@@ -34,14 +35,16 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
   import KTableImplExtensions._
   import context.dispatcher
 
-  val aggregateStateStoreName = settings.storeName
+  private val persistencePlugin = SurgeKafkaStreamsPersistencePluginLoader.load()
+
+  val aggregateStateStoreName: String = settings.storeName
 
   val healthCheckName = "aggregate-state-store"
 
   val topologyProps = new Properties()
   topologyProps.setProperty(StreamsConfig.TOPOLOGY_OPTIMIZATION, StreamsConfig.OPTIMIZE)
 
-  val streamsConfig = baseStreamsConfig ++ Map(
+  val streamsConfig: Map[String, String] = baseStreamsConfig ++ Map(
     ConsumerConfig.ISOLATION_LEVEL_CONFIG -> "read_committed",
     ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG -> Integer.MAX_VALUE.toString,
     StreamsConfig.COMMIT_INTERVAL_MS_CONFIG -> settings.commitInterval.toString,
@@ -61,7 +64,7 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
   }
 
   override def initialize(consumer: KafkaByteStreamsConsumer): Unit = {
-    val aggregateStoreMaterialized = Materialized.as[String, Array[Byte], ByteArrayKeyValueStore](aggregateStateStoreName)
+    val aggregateStoreMaterialized = Materialized.as[String, Array[Byte]](persistencePlugin.createSupplier(aggregateStateStoreName))
       .withValueSerde(new ByteArraySerde())
 
     // Build the KTable directly from Kafka
@@ -124,11 +127,9 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
         }
       }.recoverWith {
         case err: InvalidStateStoreException ⇒
-          log.error(s"State store ${settings.storeName} is in invalid state, crashing the actor to let it restart")
-          restartOnError(err)
-          Future.failed(err)
+          handleInvalidStateStore(err)
         case err: Throwable ⇒
-          log.error(s"State store ${settings.storeName} throw an unexpected error", err)
+          log.error(s"State store ${settings.storeName} threw an unexpected error", err)
           Future.failed(err)
       }
   }
@@ -136,15 +137,18 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
   def getAggregateBytes(aggregateQueryableStateStore: KafkaStreamsKeyValueStore[String, Array[Byte]], aggregateId: String): Future[Option[Array[Byte]]] = {
     aggregateQueryableStateStore.get(aggregateId).recoverWith {
       case err: InvalidStateStoreException ⇒
-        log.error(s"State store ${settings.storeName} is in invalid state, crashing the actor to let it restart")
-        restartOnError(err)
-        Future.failed(err)
+        handleInvalidStateStore(err)
       case err: Throwable ⇒
-        log.error(s"State store ${settings.storeName} throw an unexpected error", err)
+        log.error(s"State store ${settings.storeName} threw an unexpected error", err)
         Future.failed(err)
     }
   }
 
+  private def handleInvalidStateStore[T](err: InvalidStateStoreException): Future[T] = {
+    log.error(s"State store ${settings.storeName} is in invalid state, crashing the actor to let it restart")
+    restartOnError(err)
+    Future.failed(err)
+  }
 }
 
 private[streams] object AggregateStateStoreKafkaStreamsImpl {

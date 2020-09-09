@@ -327,10 +327,13 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
   }
 
   private var lastTransactionInProgressWarningTime: Instant = Instant.ofEpochMilli(0L)
+  private val transactionTimeWarningThreshold = flushInterval.toMillis * 4
   private val eventsPublishedRate: Rate = metrics.createRate(s"${aggregateName}EventPublishRate")
   private def handleFlushMessages(state: KafkaProducerActorState): Unit = {
     if (state.transactionInProgress) {
-      if (lastTransactionInProgressWarningTime.plusSeconds(1L).isBefore(Instant.now())) {
+      if (state.currentTransactionTimeMillis >= transactionTimeWarningThreshold &&
+        lastTransactionInProgressWarningTime.plusSeconds(1L).isBefore(Instant.now())) {
+
         lastTransactionInProgressWarningTime = Instant.now
         log.warn(s"KafkaPublisherActor partition {} tried to flush, but another transaction is already in progress. " +
           s"The previous transaction has been in progress for {} milliseconds. If the time to complete the previous transaction continues to grow " +
