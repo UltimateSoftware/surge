@@ -1,4 +1,3 @@
-
 // Copyright © 2017-2019 Ultimate Software Group. <https://www.ultimatesoftware.com>
 
 package com.ultimatesoftware.kafka.streams
@@ -35,30 +34,43 @@ class SurgeHealthCheckSpec extends AnyWordSpec with Matchers with PrivateMethodT
   }
 
   private def findNode(node: HealthCheck, name: String): Option[HealthCheck] = {
-    if (node.name equals name)
+    if (node.name == name) {
       Some(node)
-    else
+    } else {
       node.components.flatMap(_.flatMap(n ⇒ findNode(n, name)).find(_.name.equals(name)))
+    }
   }
 
   "SurgeHealthCheck" should {
-    "Calculate correctly isHealthy parameter if a leaf is DOWN" in {
+    "Calculate correctly isHealthy parameter and status if a leaf is DOWN" in {
       val root = buildTree(Map("3.1" -> HealthCheckStatus.DOWN))
       val healthyTree = PrivateMethod[HealthCheck]('healthyTree)
       val healthyNode = surgeHealthCheck invokePrivate healthyTree(root)
 
       assert(healthyNode.isHealthy.contains(false))
+      healthyNode.status shouldEqual HealthCheckStatus.DOWN
+
       val modifiedNode21 = findNode(healthyNode, "2.1")
       assert(modifiedNode21.exists(_.isHealthy.contains(false)))
+      modifiedNode21.get.status shouldEqual HealthCheckStatus.DOWN
+
       val modifiedNode22 = findNode(healthyNode, "2.2")
       assert(modifiedNode22.exists(_.isHealthy.contains(true)))
+      modifiedNode22.get.status shouldEqual HealthCheckStatus.UP
+
       val modifiedNode31 = findNode(healthyNode, "3.1")
       assert(modifiedNode31.exists(_.isHealthy.contains(false)))
+      modifiedNode31.get.status shouldEqual HealthCheckStatus.DOWN
+
       val modifiedNode32 = findNode(healthyNode, "3.2")
       assert(modifiedNode32.exists(_.isHealthy.contains(true)))
+      modifiedNode32.get.status shouldEqual HealthCheckStatus.UP
+
       val modifiedNode33 = findNode(healthyNode, "3.3")
       assert(modifiedNode33.exists(_.isHealthy.contains(true)))
+      modifiedNode33.get.status shouldEqual HealthCheckStatus.UP
     }
+
     "Calculate correctly isHealthy parameter if a middle level node is DOWN" in {
       val root = buildTree(Map("2.2" -> HealthCheckStatus.DOWN))
       val healthyTree = PrivateMethod[HealthCheck]('healthyTree)
@@ -76,6 +88,7 @@ class SurgeHealthCheckSpec extends AnyWordSpec with Matchers with PrivateMethodT
       val modifiedNode33 = findNode(healthyNode, "3.3")
       assert(modifiedNode33.exists(_.isHealthy.contains(true)))
     }
+
     "Calculate correctly isHealthy parameter if all nodes are UP" in {
       val root = buildTree()
       val healthyTree = PrivateMethod[HealthCheck]('healthyTree)

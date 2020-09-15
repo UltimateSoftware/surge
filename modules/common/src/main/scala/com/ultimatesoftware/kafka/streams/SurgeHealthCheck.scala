@@ -34,10 +34,17 @@ class SurgeHealthCheck(healthCheckId: String, components: HealthyComponent*)(imp
 
   private def healthyTree(node: HealthCheck): HealthCheck = {
     val childs = node.components.map(_.map(n ⇒ healthyTree(n)))
+    val isHealthy = node.status == HealthCheckStatus.UP && (childs.isEmpty || childs.forall(_.forall(_.isHealthy.contains(true))))
+    val newStatus = if (isHealthy) {
+      HealthCheckStatus.UP
+    } else {
+      HealthCheckStatus.DOWN
+    }
+
     node.copy(
       components = childs,
-      isHealthy = Some(node.status == HealthCheckStatus.UP &&
-        (childs.isEmpty || childs.forall(_.forall(_.isHealthy.contains(true))))))
+      status = newStatus,
+      isHealthy = Some(isHealthy))
   }
 }
 
