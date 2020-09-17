@@ -49,7 +49,7 @@ object HostAssignmentTracker {
     }
 
     private def handleUpdateState(clusterState: ClusterState, update: UpdateState): Unit = {
-      log.debug("Host {} is now responsible for partition {}", Seq(update.hostPort, update.partition): _*)
+      log.trace("Host {} is now responsible for partition {}", Seq(update.hostPort, update.partition): _*)
 
       val newStateMap = clusterState.state + (update.partition -> update.hostPort)
       val newClusterState = clusterState.copy(state = newStateMap)

@@ -20,7 +20,7 @@ trait KafkaStreamLifeCycleManagement[K, V, T <: KafkaStreamsConsumer[K, V], SV] 
   var lastConsumerSeen: Option[T] = None
   val healthCheckName: String
 
-  log.debug(s"Kafka streams ${settings.storeName} cache memory being used is {} bytes", settings.cacheMemory)
+  log.debug(s"Kafka streams ${settings.storeName} cache memory being used is {} KiB", Math.round(settings.cacheMemory / 1024))
 
   protected val streamsConfig: Map[String, String]
 
@@ -28,7 +28,7 @@ trait KafkaStreamLifeCycleManagement[K, V, T <: KafkaStreamsConsumer[K, V], SV] 
    * Base configuration for all streams, extend as needed
    * Ex: override val streamsConfig = baseStreamsConfig ++ Map[String, String](... stream specific config ...)
    */
-  val baseStreamsConfig = Map[String, String](
+  val baseStreamsConfig: Map[String, String] = Map[String, String](
     ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG -> TimeoutConfig.Kafka.consumerSessionTimeout.toMillis.toString,
     ConsumerConfigExtension.LEAVE_GROUP_ON_CLOSE_CONFIG -> TimeoutConfig.debugTimeoutEnabled.toString,
     StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG -> settings.cacheMemory.toString)
@@ -144,7 +144,7 @@ trait KafkaStreamLifeCycleManagement[K, V, T <: KafkaStreamsConsumer[K, V], SV] 
 
   final def receiveUnhandledExceptions(uncaughtException: KafkaStreamsUncaughtException): Unit = {
     log.error(s"Kafka stream unhandled exception in ${settings.storeName}, thread ${uncaughtException.thread}", uncaughtException.exception)
-    log.debug(s"Kafka stream should transition to ERROR state and this actor should be restarted")
+    log.debug(s"Kafka stream should transition to ERROR state and be restarted")
     onStreamUncaughtError(uncaughtException)
   }
 

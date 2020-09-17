@@ -145,8 +145,8 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
   }
 
   private def handleInvalidStateStore[T](err: InvalidStateStoreException): Future[T] = {
-    log.error(s"State store ${settings.storeName} is in invalid state, crashing the actor to let it restart")
-    restartOnError(err)
+    log.warn(s"State store ${settings.storeName} saw InvalidStateStoreException: ${err.getMessage}. " +
+      s"This error is typically caused by a consumer group rebalance.")
     Future.failed(err)
   }
 }
