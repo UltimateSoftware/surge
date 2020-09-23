@@ -353,8 +353,8 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
       }
       val records = eventRecords ++ stateRecords
 
-      log.info(s"KafkaPublisherActor partition {} writing {} events to Kafka", assignedPartition, eventRecords.length)
-      log.info(s"KafkaPublisherActor partition {} writing {} states to Kafka", assignedPartition, stateRecords.length)
+      log.debug(s"KafkaPublisherActor partition {} writing {} events to Kafka", assignedPartition, eventRecords.length)
+      log.debug(s"KafkaPublisherActor partition {} writing {} states to Kafka", assignedPartition, stateRecords.length)
       eventsPublishedRate.mark(eventMessages.length)
       doFlushRecords(state, records)
     }
@@ -372,7 +372,7 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
           Future.successful(EventsFailedToPublish)
         case _ ⇒
           Future.sequence(kafkaPublisher.putRecords(records)).map { recordMeta ⇒
-            log.info(s"KafkaPublisherActor partition {} committing transaction", assignedPartition)
+            log.debug(s"KafkaPublisherActor partition {} committing transaction", assignedPartition)
             kafkaPublisher.commitTransaction()
             EventsPublished(senders, recordMeta.filter(_.wrapped.topic() == stateTopic.name))
           } recover {
@@ -521,7 +521,7 @@ private[core] case class KafkaProducerActorState(
 
     if (processedRecordsFromPartition.nonEmpty) {
       val processedOffsets = processedRecordsFromPartition.map(_.wrapped.offset())
-      log.debug(s"${stateMeta.topic}:${stateMeta.partition} processed up to offset ${stateMeta.offset}. " +
+      log.trace(s"${stateMeta.topic}:${stateMeta.partition} processed up to offset ${stateMeta.offset}. " +
         s"Outstanding offsets that were processed are [${processedOffsets.min} -> ${processedOffsets.max}]")
     }
     val newInFlight = inFlight.filterNot(processedRecordsFromPartition.contains)
