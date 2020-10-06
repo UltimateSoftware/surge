@@ -1,4 +1,4 @@
-// Copyright © 2017-2019 Ultimate Software Group. <https://www.ultimatesoftware.com>
+// Copyright © 2018-2020 Ultimate Software Group. <https://www.ultimatesoftware.com>
 
 // Scalariform - Scala code formatting
 addSbtPlugin("org.scalariform" % "sbt-scalariform" % "1.8.3")

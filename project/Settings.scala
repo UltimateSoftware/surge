@@ -1,4 +1,4 @@
-// Copyright © 2017-2019 Ultimate Software Group. <https://www.ultimatesoftware.com>
+// Copyright © 2018-2020 Ultimate Software Group. <https://www.ultimatesoftware.com>
 
 import com.typesafe.sbt.SbtScalariform.autoImport.scalariformPreferences
 import de.heikoseeberger.sbtheader.HeaderPlugin.autoImport._
@@ -10,7 +10,7 @@ object Settings extends AutoPlugin {
   object autoImport {
   }
   private val headerSettings = Seq(
-    headerLicense := Some(HeaderLicense.Custom("Copyright © 2017-2019 Ultimate Software Group. <https://www.ultimatesoftware.com>")),
+    headerLicense := Some(HeaderLicense.Custom("Copyright © 2018-2020 Ultimate Software Group. <https://www.ultimatesoftware.com>")),
 
     headerMappings := headerMappings.value ++ Seq(
       HeaderFileType.scala -> HeaderCommentStyle.cppStyleLineComment,

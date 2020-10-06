@@ -1,4 +1,4 @@
-// Copyright © 2017-2019 Ultimate Software Group. <https://www.ultimatesoftware.com>
+// Copyright © 2018-2020 Ultimate Software Group. <https://www.ultimatesoftware.com>
 
 package com.ultimatesoftware.kafka.streams.core
 import java.util.concurrent.TimeUnit
