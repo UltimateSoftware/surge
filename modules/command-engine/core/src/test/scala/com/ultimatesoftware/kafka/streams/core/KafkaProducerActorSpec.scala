@@ -158,7 +158,7 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
       verify(mockProducer, times(1)).beginTransaction()
       verify(mockProducer, times(1)).commitTransaction()
       verify(mockProducer, times(1)).abortTransaction()
-      //verify(mockProducer, times(1)).close()
+      verify(mockProducer, times(1)).close()
       probe.send(actor, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
       probe.send(actor, KafkaProducerActorImpl.FlushMessages)
       sendMetadataUpdated(probe, actor, assignedPartition)
@@ -167,7 +167,7 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
       verify(mockProducer, times(2)).commitTransaction()
     }
 
-    "Gets to initialize the state if initializing kafka transactions fails with a fatal error" in {
+    "Gets to initialize the state if initializing kafka transactions fails with any error" in {
       TestProbe()
       val assignedPartition = new TopicPartition("testTopic", 1)
       val mockProducer = mock[KafkaBytesProducer]
@@ -175,26 +175,6 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
 
       when(mockProducer.initTransactions()(any[ExecutionContext]))
         .thenReturn(Future.failed(new AuthorizationException("This is expected")))
-        .thenReturn(Future.unit)
-      when(mockProducer.putRecord(any[ProducerRecord[String, Array[Byte]]]))
-        .thenReturn(Future.successful(mockMetadata))
-
-      testProducerActor(assignedPartition, mockProducer)
-      awaitAssert({
-        // tries to initTransactions twice, first time fails
-        verify(mockProducer, times(2)).initTransactions()(any[ExecutionContext])
-        // second time is a success and it calls initializeState only once, what cause a call to putRecord
-        verify(mockProducer, times(1)).putRecord(any[ProducerRecord[String, Array[Byte]]])
-      }, 11.seconds, 10.seconds)
-    }
-
-    "Gets to initialize the state if initializing kafka transactions fails with non-fatal error" in {
-      TestProbe()
-      val assignedPartition = new TopicPartition("testTopic", 1)
-      val mockProducer = mock[KafkaBytesProducer]
-      val mockMetadata = mockRecordMetadata(assignedPartition)
-
-      when(mockProducer.initTransactions()(any[ExecutionContext]))
         .thenReturn(Future.failed(new IllegalStateException("This is expected")))
         .thenReturn(Future.unit)
       when(mockProducer.putRecord(any[ProducerRecord[String, Array[Byte]]]))
@@ -202,9 +182,7 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
 
       testProducerActor(assignedPartition, mockProducer)
       awaitAssert({
-        // tries to initTransactions twice, first time fails
-        verify(mockProducer, times(2)).initTransactions()(any[ExecutionContext])
-        // second time is a success and it calls initializeState only once, what cause a call to putRecord
+        verify(mockProducer, times(3)).initTransactions()(any[ExecutionContext])
         verify(mockProducer, times(1)).putRecord(any[ProducerRecord[String, Array[Byte]]])
       }, 11.seconds, 10.seconds)
     }

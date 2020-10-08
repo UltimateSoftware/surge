@@ -265,15 +265,16 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
       log.debug(s"KafkaPublisherActor transactions successfully initialized: $assignedPartition")
       initializeState()
     }.recover {
-      case err @ (_: UnsupportedVersionException | _: AuthorizationException | _: KafkaException) ⇒
-        log.error(s"KafkaPublisherActor failed to initialize transactions with a FATAL error", err)
-        log.debug("Restarting publisher and retrying in 3 seconds")
-        kafkaPublisher = getPublisher()
-        context.system.scheduler.scheduleOnce(3.seconds, self, InitTransactions)
       case err: Throwable ⇒
         log.error(s"KafkaPublisherActor failed to initialize kafka transactions, retrying in 3 seconds: $assignedPartition", err)
+        closeAndRecreatePublisher()
         context.system.scheduler.scheduleOnce(3.seconds, self, InitTransactions)
     }
+  }
+
+  private def closeAndRecreatePublisher(): Unit = {
+    Try(kafkaPublisher.close())
+    kafkaPublisher = getPublisher()
   }
 
   private def initializeState(): Unit = {
@@ -281,8 +282,9 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
   }
 
   private def handle(event: KafkaPartitionMetadataUpdated): Unit = {
-    if (event.value.topicPartition == assignedTopicPartitionKey)
+    if (event.value.topicPartition == assignedTopicPartitionKey) {
       self ! StateProcessed(event.value)
+    }
   }
 
   private def handle(initialize: Initialize): Unit = {
@@ -397,10 +399,11 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
     log.error(
       s"KafkaPublisherActor partition $assignedPartition saw an error aborting transaction, will recreate the producer.",
       abortTransactionFailed.underlyingException)
-    kafkaPublisher.close()
+    closeAndRecreatePublisher()
     context.system.scheduler.scheduleOnce(10.milliseconds, self, InitTransactions)
     context.become(uninitialized)
   }
+
   private def producerFenced(): Unit = {
     val producerFencedErrorLog = s"KafkaPublisherActor partition $assignedPartition tried to commit a transaction, but was " +
       s"fenced out by another producer instance. This instance of the producer for the assigned partition will shut down in favor of the " +
