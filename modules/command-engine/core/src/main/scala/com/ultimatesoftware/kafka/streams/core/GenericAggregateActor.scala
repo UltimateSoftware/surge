@@ -58,14 +58,17 @@ private[streams] object GenericAggregateActor {
       @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "metaEventType", visible = true) meta: EvtMeta) extends RoutableMessage[AggIdType]
 
   case class StateResponse[Agg](
-      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "aggregateType", visible = true) aggregateState: Option[Agg])
+      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "aggregateType", visible = true) aggregateState: Option[Agg]
+                               ) extends JacksonSerializable
 
   sealed trait CommandResponse
   case class CommandFailure(validationError: Seq[ValidationError]) extends CommandResponse
   case class CommandError(exception: Throwable) extends CommandResponse
 
   implicit def commandSuccessFormat[Agg](implicit format: Format[Agg]): Format[CommandSuccess[Agg]] = Json.format[CommandSuccess[Agg]]
-  case class CommandSuccess[Agg](aggregateState: Option[Agg]) extends CommandResponse
+  case class CommandSuccess[Agg](
+    @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "aggregateType", visible = true) aggregateState: Option[Agg]
+  ) extends CommandResponse with JacksonSerializable
 
   def createMetrics(metricsProvider: MetricsProvider, aggregateName: String): GenericAggregateActorMetrics = {
     GenericAggregateActorMetrics(
