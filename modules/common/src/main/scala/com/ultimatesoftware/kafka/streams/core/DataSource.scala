@@ -2,95 +2,77 @@
 
 package com.ultimatesoftware.kafka.streams.core
 
-import java.util.concurrent.CompletionStage
-
-import scala.compat.java8.FutureConverters._
+import akka.{ Done, NotUsed }
 import akka.actor.ActorSystem
 import akka.kafka.ConsumerSettings
+import akka.stream.scaladsl.Flow
 import com.typesafe.config.{ Config, ConfigFactory }
 import com.ultimatesoftware.akka.streams.kafka.{ KafkaConsumer, KafkaStreamManager }
-import com.ultimatesoftware.kafka.streams.core.DataPipeline._
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
 import org.apache.kafka.common.serialization.Deserializer
+import org.slf4j.LoggerFactory
 
 import scala.concurrent.{ ExecutionContext, Future }
 
-trait DataSource[Key, Value] {
+trait DataSource {
+  def replayStrategy: EventReplayStrategy = NoOpEventReplayStrategy
+  def replaySettings: EventReplaySettings = DefaultEventReplaySettings
+}
+
+trait KafkaDataSource[Key, Value] extends DataSource {
   private val config: Config = ConfigFactory.load()
   private val defaultBrokers = config.getString("kafka.brokers")
 
   def kafkaBrokers: String = defaultBrokers
   def kafkaTopic: KafkaTopic
-  def parallelism: Int
+
+  @deprecated("Parallelism is now set by the sink instead of the source and should be overridden there", "0.4.57")
+  def parallelism: Int = 1
 
   def actorSystem: ActorSystem
 
   def keyDeserializer: Deserializer[Key]
   def valueDeserializer: Deserializer[Value]
-  def replayStrategy: EventReplayStrategy = NoOpEventReplayStrategy
-  def replaySettings: EventReplaySettings = DefaultEventReplaySettings
 
-  def to(sink: DataSink[Key, Value], consumerGroup: String): DataPipeline = {
+  def to(sink: DataHandler[Key, Value], consumerGroup: String): DataPipeline = {
     val consumerSettings = KafkaConsumer.consumerSettings[Key, Value](actorSystem, groupId = consumerGroup,
       brokers = kafkaBrokers)(keyDeserializer, valueDeserializer)
     to(consumerSettings)(sink)
   }
 
-  private val useNewConsumer = config.getBoolean("surge.use-new-consumer")
-  private[core] def to(consumerSettings: ConsumerSettings[Key, Value])(sink: DataSink[Key, Value]): DataPipeline = {
+  private[core] def to(consumerSettings: ConsumerSettings[Key, Value])(sink: DataHandler[Key, Value]): DataPipeline = {
     implicit val system: ActorSystem = actorSystem
     implicit val executionContext: ExecutionContext = ExecutionContext.global
-    if (useNewConsumer) {
-      new ManagedDataPipelineImpl(KafkaStreamManager(kafkaTopic, consumerSettings, replayStrategy, replaySettings, sink.handle, parallelism).start())
-    } else {
-      implicit val executionContext: ExecutionContext = ExecutionContext.global
-      KafkaConsumer().streamAndCommitOffsets(kafkaTopic, sink.handle, parallelism, consumerSettings)
-      NoOpDataPipelineImpl
+
+    new ManagedDataPipelineImpl(KafkaStreamManager(kafkaTopic, consumerSettings, replayStrategy, replaySettings, sink.dataHandler).start())
+  }
+}
+
+object FlowConverter {
+  private val log = LoggerFactory.getLogger(getClass)
+
+  def flowFor[Key, Value](
+    businessLogic: (Key, Value) ⇒ Future[Any],
+    parallelism: Int)(implicit ec: ExecutionContext): Flow[(Key, Value), Done, NotUsed] = {
+    Flow[(Key, Value)].mapAsync(parallelism) {
+      case (key, value) ⇒
+        businessLogic(key, value).recover {
+          case e ⇒
+            log.error(s"An exception was thrown by the event handler! The stream will restart and the message will be retried.", e)
+            throw e
+        }.map(_ ⇒ Done)
     }
   }
 }
 
-trait DataSink[Key, Value] {
+trait DataHandler[Key, Value] {
+  def dataHandler: Flow[(Key, Value), Any, NotUsed]
+}
+trait DataSink[Key, Value] extends DataHandler[Key, Value] {
+  def parallelism: Int = 1
   def handle(key: Key, value: Value): Future[Any]
-}
 
-trait DataPipeline {
-  def start(): Unit
-  def stop(): Unit
-  def replay(): Future[ReplayResult]
-  def replayWithCompletionStage(): CompletionStage[ReplayResult] = {
-    replay().toJava
+  override def dataHandler: Flow[(Key, Value), Any, NotUsed] = {
+    FlowConverter.flowFor(handle, parallelism)(ExecutionContext.global)
   }
-}
-
-object DataPipeline {
-  sealed trait ReplayResult
-  // This is a case class on purpose, Kotlin doesn't do pattern matching against scala case objects :(
-  case class ReplaySuccessfullyStarted() extends ReplayResult
-  case class ReplayFailed(reason: Throwable) extends ReplayResult
-}
-
-class TypedDataPipeline[Type](dataPipeline: DataPipeline) extends DataPipeline {
-  override def start(): Unit = dataPipeline.start()
-  override def stop(): Unit = dataPipeline.stop()
-  override def replay(): Future[ReplayResult] = dataPipeline.replay()
-}
-
-private[core] class ManagedDataPipelineImpl(underlyingManager: KafkaStreamManager[_, _]) extends DataPipeline {
-  override def stop(): Unit = {
-    underlyingManager.stop()
-  }
-  override def start(): Unit = {
-    underlyingManager.start()
-  }
-  override def replay(): Future[ReplayResult] = {
-    underlyingManager.replay()
-  }
-
-}
-
-private[core] object NoOpDataPipelineImpl extends DataPipeline {
-  override def start(): Unit = {}
-  override def stop(): Unit = {}
-  override def replay(): Future[ReplayResult] = Future.successful(ReplaySuccessfullyStarted())
 }

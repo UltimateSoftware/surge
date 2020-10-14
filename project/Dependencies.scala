@@ -18,6 +18,7 @@ object Dependencies extends AutoPlugin {
 
     object Alpakka {
       val alpakkaVersion = "2.0.2"
+      val amqp = "com.lightbend.akka" %% "akka-stream-alpakka-amqp" % alpakkaVersion
       val kafka = "com.typesafe.akka" %% "akka-stream-kafka" % alpakkaVersion
       val kafkaTestKit = "com.typesafe.akka" %% "akka-stream-kafka-testkit" % alpakkaVersion % Test
     }

@@ -5,48 +5,38 @@ package com.ultimatesoftware.akka.streams.kafka
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
 
-import akka.{ Done, NotUsed }
 import akka.actor.{ Actor, ActorRef, ActorSystem, Address, Props, Stash }
 import akka.kafka.scaladsl.Consumer.DrainingControl
 import akka.kafka.scaladsl.{ Committer, Consumer }
-import akka.kafka.{ CommitterSettings, ConsumerMessage, ConsumerSettings, Subscription, Subscriptions }
+import akka.kafka._
 import akka.pattern._
 import akka.stream.scaladsl.{ Flow, Keep, RestartSource, Sink }
 import akka.util.Timeout
+import akka.{ Done, NotUsed }
 import com.ultimatesoftware.akka.cluster.{ ActorHostAwareness, ActorRegistry, ActorSystemHostAwareness }
 import com.ultimatesoftware.akka.streams.graph.PassThroughFlow
 import com.ultimatesoftware.kafka.streams.core.DataPipeline._
-import com.ultimatesoftware.kafka.streams.core.{ EventReplayStrategy, EventReplaySettings }
+import com.ultimatesoftware.kafka.streams.core.{ EventReplaySettings, EventReplayStrategy }
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
 import com.ultimatesoftware.support.Logging
 import org.apache.kafka.clients.consumer.ConsumerConfig
-import org.slf4j.LoggerFactory
 
-import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration._
+import scala.concurrent.{ ExecutionContext, Future }
 
 object KafkaStreamManager {
-  private val log = LoggerFactory.getLogger(getClass)
-
   val serviceIdentifier = "StreamManager"
 
   def apply[Key, Value](topic: KafkaTopic, consumerSettings: ConsumerSettings[Key, Value],
     replayStrategy: EventReplayStrategy,
     replaySettings: EventReplaySettings,
-    business: (Key, Value) ⇒ Future[Any],
-    parallelism: Int = 1)(implicit actorSystem: ActorSystem, ec: ExecutionContext): KafkaStreamManager[Key, Value] = {
+    business: Flow[(Key, Value), Any, _])(implicit actorSystem: ActorSystem, ec: ExecutionContext): KafkaStreamManager[Key, Value] = {
     val subscription = Subscriptions.topics(topic.name)
-    val businessFlow = Flow[ConsumerMessage.CommittableMessage[Key, Value]].mapAsync(parallelism) { msg ⇒
-      business(msg.record.key, msg.record.value).recover {
-        case e ⇒
-          log.error(s"An exception was thrown by the event handler in consumer for topic ${topic.name}! " +
-            s"The stream will restart and the message will be retried.", e)
-          throw e
-      }.map(_ ⇒ Done)
-    }
+    val businessFlow = Flow[ConsumerMessage.CommittableMessage[Key, Value]].map(msg ⇒ msg.record.key() -> msg.record.value())
+      .via(business)
+      .map(_ ⇒ Done)
     new KafkaStreamManager[Key, Value](subscription, topic.name, consumerSettings, replayStrategy, replaySettings, businessFlow)
   }
-
 }
 
 class KafkaStreamManager[Key, Value](
@@ -100,7 +90,6 @@ class KafkaStreamManagerActor[Key, Value](subscription: Subscription, topicName:
     businessFlow: Flow[ConsumerMessage.CommittableMessage[Key, Value], _, NotUsed]) extends Actor
   with ActorHostAwareness with Stash with ActorRegistry with Logging {
   import KafkaStreamManagerActor._
-
   import context.{ dispatcher, system }
 
   // Set this uniquely per manager actor so that restarts of the Kafka stream don't cause a rebalance of the consumer group

@@ -2,26 +2,25 @@
 
 package com.ultimatesoftware.kafka
 
-import akka.Done
 import akka.remote.testconductor.RoleName
-import akka.remote.testkit.{MultiNodeConfig, MultiNodeSpec, MultiNodeSpecCallbacks}
+import akka.remote.testkit.{ MultiNodeConfig, MultiNodeSpec, MultiNodeSpecCallbacks }
+import akka.stream.scaladsl.Flow
 import akka.testkit.TestProbe
+import akka.{ Done, NotUsed }
 import com.typesafe.config.ConfigFactory
-import com.ultimatesoftware.akka.streams.kafka.{KafkaConsumer, KafkaStreamManager}
+import com.ultimatesoftware.akka.streams.kafka.{ KafkaConsumer, KafkaStreamManager }
 import com.ultimatesoftware.kafka.streams.DefaultSerdes
-import com.ultimatesoftware.kafka.streams.core.NoOpEventReplayStrategy
-import com.ultimatesoftware.kafka.streams.core.{ DefaultEventReplaySettings, KafkaForeverReplayStrategy, KafkaForeverReplaySettings }
+import com.ultimatesoftware.kafka.streams.core.{ DefaultEventReplaySettings, KafkaForeverReplaySettings, KafkaForeverReplayStrategy, NoOpEventReplayStrategy }
 import com.ultimatesoftware.scala.core.kafka.KafkaTopic
-import net.manub.embeddedkafka.{EmbeddedKafka, EmbeddedKafkaConfig}
+import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.serialization.Serializer
-import org.scalatest.{BeforeAndAfterAll, OptionValues}
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
+import org.scalatest.{ BeforeAndAfterAll, OptionValues }
 
 import scala.concurrent.duration._
-import scala.concurrent.Future
 
 trait StreamManagerMultiNodeSpec extends MultiNodeSpecCallbacks with AnyWordSpecLike with Matchers with BeforeAndAfterAll {
   self: MultiNodeSpec =>
@@ -64,10 +63,13 @@ class StreamManagerSpecBase extends MultiNodeSpec(StreamManagerSpecConfig) with 
       val topic = KafkaTopic(topicName)
       val record1 = "record 1"
       val record2 = "record 2"
-      def sendToTestProbe(testProbe: TestProbe)(key: String, value: Array[Byte]): Future[Done] = {
-        val msg = stringDeserializer.deserialize("", value)
-        testProbe.ref ! msg
-        Future.successful(Done)
+      def sendToTestProbe(testProbe: TestProbe): Flow[(String, Array[Byte]), Done, NotUsed] = {
+        Flow[(String, Array[Byte])].map {
+          case (key, value) =>
+            val msg = stringDeserializer.deserialize("", value)
+            testProbe.ref ! msg
+            Done
+        }
       }
       val embeddedBroker = s"${node(node0).address.host.getOrElse("localhost")}:${config.kafkaPort}"
       val consumerSettings = KafkaConsumer.defaultConsumerSettings(system, "replay-test").withBootstrapServers(embeddedBroker)
@@ -90,7 +92,7 @@ class StreamManagerSpecBase extends MultiNodeSpec(StreamManagerSpecConfig) with 
 
           val probe = TestProbe()
           import probe.system.dispatcher
-          val consumer = KafkaStreamManager(topic, consumerSettings, kafkaForeverReplayStrategy, replaySettings, sendToTestProbe(probe), 1)
+          val consumer = KafkaStreamManager(topic, consumerSettings, kafkaForeverReplayStrategy, replaySettings, sendToTestProbe(probe))
           consumer.start()
           probe.expectMsgAnyOf(20.seconds, record1, record2)
           consumer.replay()
@@ -101,7 +103,7 @@ class StreamManagerSpecBase extends MultiNodeSpec(StreamManagerSpecConfig) with 
       runOn(node1) {
          val probe = TestProbe()
         import probe.system.dispatcher
-         val consumer = KafkaStreamManager(topic, consumerSettings, NoOpEventReplayStrategy, DefaultEventReplaySettings, sendToTestProbe(probe), 1)
+         val consumer = KafkaStreamManager(topic, consumerSettings, NoOpEventReplayStrategy, DefaultEventReplaySettings, sendToTestProbe(probe))
          consumer.start()
          probe.expectMsgAnyOf(20.seconds, record1, record2)
          enterBarrier("afterReplay")

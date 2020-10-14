@@ -66,6 +66,16 @@ lazy val `surge-common` = (project in file("modules/common"))
   .configs(MultiJvm)
   .dependsOn(`surge-scala-core`)
 
+lazy val `surge-rabbitmq-support` = (project in file ("modules/rabbit-support"))
+  .settings(
+    libraryDependencies ++= Seq(
+      Alpakka.amqp,
+      Akka.testKit,
+      scalatest
+    )
+  )
+  .dependsOn(`surge-common`)
+
 lazy val `surge-engine-ks-command-core` = (project in file("modules/command-engine/core"))
   .settings(
     libraryDependencies ++= Seq(
@@ -110,7 +120,8 @@ lazy val `surge-kafka-streams` = project.in(file("."))
     `surge-engine-ks-command-javadsl`,
     `surge-engine-ks-command-scaladsl`,
     `surge-engine-ks-query-core`,
-    `surge-scala-core`
+    `surge-scala-core`,
+    `surge-rabbitmq-support`
   )
   .settings(
     skip in publish := true,
