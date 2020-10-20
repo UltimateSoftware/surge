@@ -37,11 +37,11 @@ class AggregateRefTraitSpec extends TestKit(ActorSystem("AggregateRefTraitSpec")
 
       val testPerson1StateFut = aggregateRef1.getState
       testProbe1.expectMsg(GenericAggregateActor.GetState(testPerson1.name))
-      testProbe1.reply(Some(testPerson1))
+      testProbe1.reply(GenericAggregateActor.StateResponse(Some(testPerson1)))
 
       val testPerson2StateFut = aggregateRef2.getState
       testProbe2.expectMsg(GenericAggregateActor.GetState(testPerson2.name))
-      testProbe2.reply(None)
+      testProbe2.reply(GenericAggregateActor.StateResponse(None))
 
       for {
         testPerson1State ← testPerson1StateFut

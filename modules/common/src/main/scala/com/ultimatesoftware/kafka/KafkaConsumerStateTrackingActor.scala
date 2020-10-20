@@ -2,18 +2,19 @@
 
 package com.ultimatesoftware.kafka
 
-import akka.actor.{ Actor, ActorRef, Props }
+import akka.actor.{ Actor, ActorRef, NoSerializationVerificationNeeded, Props }
 import com.ultimatesoftware.kafka.streams.{ HealthCheck, HealthCheckStatus, HealthyActor }
 import com.ultimatesoftware.scala.core.kafka.{ HostPort, PartitionAssignments }
 import org.apache.kafka.common.TopicPartition
 import org.slf4j.LoggerFactory
 
 object KafkaConsumerStateTrackingActor {
-  case class StateUpdated(newClusterState: Map[HostPort, List[TopicPartition]])
-  case object GetPartitionAssignments
-  case class Register(actor: ActorRef)
+  sealed trait Message extends NoSerializationVerificationNeeded // These should only ever be locally sent
+  case class StateUpdated(newClusterState: Map[HostPort, List[TopicPartition]]) extends Message
+  case object GetPartitionAssignments extends Message
+  case class Register(actor: ActorRef) extends Message
 
-  case object Ack
+  case object Ack extends Message
 
   def props: Props = {
     Props(new KafkaConsumerStateTrackingActor)

@@ -5,7 +5,7 @@ package com.ultimatesoftware.kafka.streams.core
 import java.time.Instant
 
 import akka.Done
-import akka.actor.{ Actor, Props, ReceiveTimeout, Stash }
+import akka.actor.{ Actor, NoSerializationVerificationNeeded, Props, ReceiveTimeout, Stash }
 import akka.pattern.pipe
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import com.ultimatesoftware.akka.cluster.{ JacksonSerializable, Passivate }
@@ -14,7 +14,7 @@ import com.ultimatesoftware.kafka.streams.AggregateStateStoreKafkaStreams
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, Timer }
 import com.ultimatesoftware.scala.core.validations._
 import org.slf4j.LoggerFactory
-import play.api.libs.json._
+import play.api.libs.json.JsValue
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -33,12 +33,6 @@ private[streams] object GenericAggregateActor {
 
   sealed trait RoutableMessage[AggId] extends JacksonSerializable {
     def aggregateId: AggId
-  }
-  implicit def commandEnvelopeFormat[AggId, Cmd, CmdMeta](implicit
-    aggIdTypeFormat: Format[AggId],
-    cmdFormat: Format[Cmd],
-    propsFormat: Format[CmdMeta]): Format[CommandEnvelope[AggId, Cmd, CmdMeta]] = {
-    Json.format[CommandEnvelope[AggId, Cmd, CmdMeta]]
   }
   object RoutableMessage {
     def extractEntityId[AggIdType]: PartialFunction[Any, AggIdType] = {
@@ -65,7 +59,6 @@ private[streams] object GenericAggregateActor {
   case class CommandFailure(validationError: Seq[ValidationError]) extends CommandResponse
   case class CommandError(exception: Throwable) extends CommandResponse
 
-  implicit def commandSuccessFormat[Agg](implicit format: Format[Agg]): Format[CommandSuccess[Agg]] = Json.format[CommandSuccess[Agg]]
   case class CommandSuccess[Agg](
       @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "aggregateType", visible = true) aggregateState: Option[Agg]) extends CommandResponse
 
@@ -116,8 +109,9 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
   import GenericAggregateActor._
   import context.dispatcher
 
-  private case class InitializeWithState(stateOpt: Option[Agg])
-  private case class EventsSuccessfullyPersisted(newState: InternalActorState, commandReceivedTime: Instant)
+  private sealed trait Internal extends NoSerializationVerificationNeeded
+  private case class InitializeWithState(stateOpt: Option[Agg]) extends Internal
+  private case class EventsSuccessfullyPersisted(newState: InternalActorState, commandReceivedTime: Instant) extends Internal
 
   private case class InternalActorState(stateOpt: Option[Agg])
 
@@ -135,7 +129,7 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
   private def freeToProcess(state: InternalActorState): Receive = {
     case msg: CommandEnvelope[AggId, Command, CmdMeta] ⇒ handle(state, msg)
     case msg: ApplyEventEnvelope[AggId, Event, EvtMeta] ⇒ handle(state, msg)
-    case _: GetState[AggId] ⇒ sender() ! state.stateOpt
+    case _: GetState[AggId] ⇒ sender() ! StateResponse(state.stateOpt)
     case ReceiveTimeout ⇒ handlePassivate()
     case Stop ⇒ handleStop()
   }
@@ -219,14 +213,8 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
   private def processCommand(
     state: InternalActorState,
     commandEnvelope: CommandEnvelope[AggId, Command, CmdMeta]): Future[Either[Seq[ValidationError], Try[Seq[Event]]]] = {
-    val commandPlusState = MessagePlusCurrentAggregate(commandEnvelope.command, state.stateOpt)
-
-    import ValidationDSL._
-    (commandPlusState mustSatisfy businessLogic.commandValidator).map { res ⇒
-      res.map { _ ⇒
-        metrics.commandHandlingTimer.time(
-          businessLogic.model.processCommand(state.stateOpt, commandEnvelope.command, commandEnvelope.meta))
-      }
+    Future {
+      metrics.commandHandlingTimer.time(Right(businessLogic.model.processCommand(state.stateOpt, commandEnvelope.command, commandEnvelope.meta)))
     }
   }
 

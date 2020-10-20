@@ -6,7 +6,7 @@ import java.time.Instant
 import java.util.concurrent.TimeUnit
 
 import akka.Done
-import akka.actor.{ Actor, ActorRef, ActorSystem, PoisonPill, Props, Stash, Status }
+import akka.actor.{ Actor, ActorRef, ActorSystem, NoSerializationVerificationNeeded, PoisonPill, Props, Stash, Status }
 import akka.pattern._
 import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
@@ -136,13 +136,13 @@ class KafkaProducerActor[AggId, Agg, Event, EvtMeta](
 
 private object KafkaProducerActorImpl {
   case class EventToPublish(key: String, value: Array[Byte], headers: Seq[Header])
-  sealed trait KafkaProducerActorMessage
+  sealed trait KafkaProducerActorMessage extends NoSerializationVerificationNeeded
   case class Publish(stateKeyValuePair: (String, Array[Byte]), eventKeyValuePairs: Seq[EventToPublish]) extends KafkaProducerActorMessage
   case class StateProcessed(stateMeta: KafkaPartitionMetadata) extends KafkaProducerActorMessage
   case class IsAggregateStateCurrent(aggregateId: String, expirationTime: Instant) extends KafkaProducerActorMessage
   case class AggregateStateRates(current: Rate, notCurrent: Rate) extends KafkaProducerActorMessage
 
-  sealed trait InternalMessage
+  sealed trait InternalMessage extends NoSerializationVerificationNeeded
   case class EventsPublished(originalSenders: Seq[ActorRef], recordMetadata: Seq[KafkaRecordMetadata[String]]) extends InternalMessage
   case object EventsFailedToPublish extends InternalMessage
   case class AbortTransactionFailed(underlyingException: Throwable) extends InternalMessage

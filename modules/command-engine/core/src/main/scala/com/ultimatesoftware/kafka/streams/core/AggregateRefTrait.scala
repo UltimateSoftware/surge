@@ -9,7 +9,7 @@ import com.ultimatesoftware.config.TimeoutConfig
 import com.ultimatesoftware.exceptions.{ SurgeTimeoutException, SurgeUnexpectedException }
 import org.slf4j.{ Logger, LoggerFactory }
 
-import scala.concurrent.{ ExecutionContext, Future, TimeoutException }
+import scala.concurrent.{ ExecutionContext, Future }
 
 /**
  * Generic reference to an aggregate that handles proxying messages to the actual aggregate
@@ -51,8 +51,8 @@ trait AggregateRefTrait[AggId, Agg, Cmd, CmdMeta, Evt, EvtMeta] {
    * @return A future of either None (the aggregate has no state) or some aggregate state for the
    *         aggregate with the aggregate id of this reference
    */
-  protected def queryState: Future[Option[Agg]] = {
-    (region ? GenericAggregateActor.GetState(aggregateId)).mapTo[Option[Agg]]
+  protected def queryState(implicit ec: ExecutionContext): Future[Option[Agg]] = {
+    (region ? GenericAggregateActor.GetState(aggregateId)).mapTo[GenericAggregateActor.StateResponse[Agg]].map(_.aggregateState)
   }
 
   /**

@@ -6,7 +6,6 @@ import akka.actor.ActorSystem
 import com.ultimatesoftware.akka.cluster.ActorSystemHostAwareness
 import com.ultimatesoftware.kafka.KafkaConsumerStateTrackingActor
 import com.ultimatesoftware.kafka.streams._
-import org.slf4j.LoggerFactory
 import play.api.libs.json.JsValue
 
 import scala.concurrent.{ ExecutionContext, Future }

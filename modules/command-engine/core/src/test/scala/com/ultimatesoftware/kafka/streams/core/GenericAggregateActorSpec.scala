@@ -7,8 +7,9 @@ import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 import akka.Done
-import akka.actor.{ ActorRef, ActorSystem, Props, ReceiveTimeout }
+import akka.actor.{ ActorRef, ActorSystem, NoSerializationVerificationNeeded, Props, ReceiveTimeout }
 import akka.pattern._
+import akka.serialization.Serializers
 import akka.testkit.{ TestKit, TestProbe }
 import akka.util.Timeout
 import com.ultimatesoftware.akka.cluster.Passivate
@@ -29,6 +30,7 @@ import scala.concurrent.{ ExecutionContext, Future }
 
 class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateActorSpec")) with AnyWordSpecLike with Matchers
   with BeforeAndAfterAll with MockitoSugar with TestBoundedContext with PartialFunctionValues {
+  import TestBoundedContext._
 
   private implicit val timeout: Timeout = Timeout(10.seconds)
   override def afterAll(): Unit = {
@@ -53,27 +55,6 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
     GenericAggregateActor.CommandEnvelope(cmd.aggregateId, TimestampMeta(Instant.now.truncatedTo(ChronoUnit.SECONDS)), cmd)
   }
 
-  private def mockAggregateKeyValueStore(contents: Map[String, Array[Byte]]): KafkaStreamsKeyValueStore[String, Array[Byte]] = {
-    val mockStore = mock[KafkaStreamsKeyValueStore[String, Array[Byte]]]
-    when(mockStore.get(anyString)).thenAnswer((invocation: InvocationOnMock) ⇒ {
-      val id = invocation.getArgument[String](0)
-      Future.successful(contents.get(id))
-    })
-
-    when(mockStore.range(anyString, anyString)).thenAnswer((invocation: InvocationOnMock) ⇒ {
-      val from = invocation.getArgument[String](0)
-      val to = invocation.getArgument[String](1)
-
-      val results = contents.filterKeys { key ⇒
-        from <= key && key <= to
-      }
-
-      Future.successful(results.toList)
-    })
-
-    mockStore
-  }
-
   private def mockKafkaStreams(state: State): AggregateStateStoreKafkaStreams[JsValue] = {
     val mockStreams = mock[AggregateStateStoreKafkaStreams[JsValue]]
     when(mockStreams.getAggregateBytes(anyString)).thenReturn(Future.successful(Some(Json.toJson(state).toString().getBytes())))
@@ -91,7 +72,7 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
     mockProducer
   }
 
-  case class Publish(aggregateId: UUID)
+  case class Publish(aggregateId: UUID) extends NoSerializationVerificationNeeded
   private def probeBackedMockProducer(probe: TestProbe): KafkaProducerActor[UUID, State, BaseTestEvent, TimestampMeta] = {
     val mockProducer = mock[KafkaProducerActor[UUID, State, BaseTestEvent, TimestampMeta]]
     when(mockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.successful(true))
@@ -150,13 +131,9 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
       import testContext._
 
       probe.send(actor, GenericAggregateActor.GetState(testAggregateId))
-      probe.expectMsg(Some(baseState))
+      probe.expectMsg(GenericAggregateActor.StateResponse(Some(baseState)))
 
       processIncrementCommand(actor, baseState, mockProducer)
-    }
-
-    "Be able to initialize from multiple substates" in {
-
     }
 
     "Retry initialization if not up to date" in {
@@ -175,7 +152,7 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
       val actor = testActor(testAggregateId, mockProducer, mockStreams)
 
       probe.send(actor, GenericAggregateActor.GetState(testAggregateId))
-      probe.expectMsg(Some(baseState))
+      probe.expectMsg(GenericAggregateActor.StateResponse(Some(baseState)))
     }
 
     "Retry initialization on a failure to read from the KTable" in {
@@ -195,18 +172,7 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
       val actor = testActor(testAggregateId, mockProducer, mockStreams)
 
       probe.send(actor, GenericAggregateActor.GetState(testAggregateId))
-      probe.expectMsg(5.seconds, Some(baseState))
-    }
-
-    "Handle validation failures by returning a CommandFailure" in {
-      val testContext = TestContext.setupDefault
-      import testContext._
-
-      val validationCmd = CauseInvalidValidation(testAggregateId)
-      val testEnvelope = envelope(validationCmd)
-
-      probe.send(actor, testEnvelope)
-      probe.expectMsg(GenericAggregateActor.CommandFailure(validationCmd.validationErrors))
+      probe.expectMsg(5.seconds, GenericAggregateActor.StateResponse(Some(baseState)))
     }
 
     "Not update state if there are no events processed" in {
@@ -233,7 +199,10 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
       val testEnvelope = envelope(validationCmd)
 
       probe.send(actor, testEnvelope)
-      probe.expectMsg(GenericAggregateActor.CommandError(testException))
+      val commandError = probe.expectMsgClass(classOf[GenericAggregateActor.CommandError])
+      // Fuzzy matching because serializing and deserializing gets a different object and messes up .equals even though the two are identical
+      commandError.exception shouldBe a[RuntimeException]
+      commandError.exception.getMessage shouldEqual testException.getMessage
     }
 
     "Process commands one at a time" in {
@@ -315,6 +284,20 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
       probe.reply(Stop)
 
       probe.expectTerminated(actor)
+    }
+
+    "Serialize/Deserialize a CommandEnvelope from Akka" in {
+      import akka.serialization.SerializationExtension
+      def doSerde[A, B, C](envelope: GenericAggregateActor.CommandEnvelope[A, B, C]): Unit = {
+        val serialization = SerializationExtension.get(system)
+        val serializer = serialization.findSerializerFor(envelope)
+        val serialized = serialization.serialize(envelope).get
+        val manifest = Serializers.manifestFor(serializer, envelope)
+        val deserialized = serialization.deserialize(serialized, serializer.identifier, manifest).get
+        deserialized shouldEqual envelope
+      }
+      doSerde(GenericAggregateActor.CommandEnvelope[String, String, String]("hello", "test2", "test3"))
+      doSerde(envelope(Increment(UUID.randomUUID())))
     }
   }
 }

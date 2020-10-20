@@ -9,7 +9,7 @@ import scala.concurrent.{ ExecutionContext, Future }
 
 trait AggregateRef[AggIdType, Agg, Cmd, CmdMeta, Event, EvtMeta] {
   def ask(commandProps: CmdMeta, command: Cmd)(implicit ec: ExecutionContext): Future[CommandResult[Agg]]
-  def getState: Future[Option[Agg]]
+  def getState(implicit ec: ExecutionContext): Future[Option[Agg]]
   def applyEvent(event: Event, eventMeta: EvtMeta)(implicit ec: ExecutionContext): Future[ApplyEventResult[Agg]]
 }
 
@@ -28,7 +28,7 @@ final class AggregateRefImpl[AggIdType, Agg, Cmd, CmdMeta, Event, EvtMeta](
     }
   }
 
-  def getState: Future[Option[Agg]] = queryState
+  def getState(implicit ec: ExecutionContext): Future[Option[Agg]] = queryState
 
   def applyEvent(event: Event, eventMeta: EvtMeta)(implicit ec: ExecutionContext): Future[ApplyEventResult[Agg]] = {
     val envelope = GenericAggregateActor.ApplyEventEnvelope[AggIdType, Event, EvtMeta](aggregateId, event, eventMeta)

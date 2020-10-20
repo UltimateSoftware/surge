@@ -15,10 +15,40 @@ import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.{ Failure, Success }
 
-trait TestBoundedContext {
+object TestBoundedContext {
   case class State(aggregateId: UUID, count: Int, version: Int, timestamp: Instant)
-
   implicit val stateFormat: Format[State] = Json.format
+
+  sealed trait BaseTestCommand {
+    def aggregateId: UUID
+    def expectedVersion: Int = 0
+    def validate: Seq[AsyncValidationResult[_]] = Seq.empty
+  }
+
+  case class Increment(incrementAggregateId: UUID) extends BaseTestCommand {
+    val aggregateId: UUID = incrementAggregateId
+  }
+
+  case class Decrement(decrementAggregateId: UUID) extends BaseTestCommand {
+    val aggregateId: UUID = decrementAggregateId
+  }
+
+  case class DoNothing(aggregateId: UUID) extends BaseTestCommand
+
+  case class CauseInvalidValidation(aggregateId: UUID) extends BaseTestCommand {
+    val validationErrors: Seq[ValidationError] = Seq(ValidationError("This command is invalid"))
+    override def validate: Seq[AsyncValidationResult[_]] = Seq(
+      Future.successful(Left(validationErrors)))
+  }
+  case class FailCommandProcessing(failProcessingId: UUID, withError: RuntimeException) extends BaseTestCommand {
+    val aggregateId: UUID = failProcessingId
+  }
+
+  case class TimestampMeta(timestamp: Instant)
+}
+
+trait TestBoundedContext {
+  import TestBoundedContext._
   implicit val countIncrementedFormat: Format[CountIncremented] = Json.format
   implicit val countDecrementedFormat: Format[CountDecremented] = Json.format
 
@@ -49,33 +79,6 @@ trait TestBoundedContext {
   case class CountDecremented(aggregateId: UUID, decrementBy: Int, sequenceNumber: Int, timestamp: Instant) extends BaseTestEvent {
     val eventName: String = "countDecremented"
   }
-
-  sealed trait BaseTestCommand {
-    def aggregateId: UUID
-    def expectedVersion: Int = 0
-    def validate: Seq[AsyncValidationResult[_]] = Seq.empty
-  }
-
-  case class Increment(incrementAggregateId: UUID) extends BaseTestCommand {
-    val aggregateId: UUID = incrementAggregateId
-  }
-
-  case class Decrement(decrementAggregateId: UUID) extends BaseTestCommand {
-    val aggregateId: UUID = decrementAggregateId
-  }
-
-  case class DoNothing(aggregateId: UUID) extends BaseTestCommand
-
-  case class CauseInvalidValidation(aggregateId: UUID) extends BaseTestCommand {
-    val validationErrors: Seq[ValidationError] = Seq(ValidationError("This command is invalid"))
-    override def validate: Seq[AsyncValidationResult[_]] = Seq(
-      Future.successful(Left(validationErrors)))
-  }
-  case class FailCommandProcessing(failProcessingId: UUID, withError: Exception) extends BaseTestCommand {
-    val aggregateId: UUID = failProcessingId
-  }
-
-  case class TimestampMeta(timestamp: Instant)
 
   trait BusinessLogicTrait extends AggregateCommandModel[UUID, State, BaseTestCommand, BaseTestEvent, TimestampMeta, TimestampMeta] {
 
