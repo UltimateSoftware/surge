@@ -3,7 +3,6 @@
 package com.ultimatesoftware.scala.core.kafka
 
 import java.time.Instant
-import java.util.Properties
 import java.util.concurrent.CompletableFuture
 
 import org.apache.kafka.clients.producer.{ Callback, KafkaProducer, ProducerRecord, RecordMetadata }
@@ -17,9 +16,7 @@ import org.scalatest.wordspec.AnyWordSpec
 
 class KafkaProducerSpec extends AnyWordSpec with Matchers {
   class MockProducer(val producer: KafkaProducer[String, String]) extends KafkaProducerTrait[String, String] {
-    override def brokers: Seq[String] = Seq.empty
     override def topic: KafkaTopic = KafkaTopic("")
-    override def props: Properties = new Properties()
     override def partitioner: KafkaPartitionerBase[String] = NoPartitioner[String]
   }
   private def createRecordMeta(topic: String, partition: Int, offset: Int): RecordMetadata = {

@@ -7,6 +7,7 @@ import java.util.Properties
 import org.apache.kafka.clients.consumer.OffsetAndMetadata
 import org.apache.kafka.clients.producer._
 import org.apache.kafka.common.TopicPartition
+import org.apache.kafka.common.header.Headers
 import org.apache.kafka.common.serialization.{ ByteArraySerializer, StringSerializer }
 
 import scala.collection.JavaConverters._
@@ -17,20 +18,17 @@ import scala.util.{ Failure, Success, Try }
 
 final case class KafkaRecordMetadata[Key](key: Option[Key], wrapped: RecordMetadata)
 
-trait KafkaProducerTrait[K, V] extends KafkaSecurityConfiguration {
-  def brokers: Seq[String]
+trait KafkaProducerHelperCommon[K, V] {
   def topic: KafkaTopic
-  def props: Properties
-
   def partitioner: KafkaPartitionerBase[K]
   def producer: KafkaProducer[K, V]
 
   lazy val numberPartitions: Int = producer.partitionsFor(topic.name).size
 
-  def partitionFor(key: K): Option[Int] = {
-    partitioner.optionalPartitionBy.flatMap(partitionFun ⇒ partitionFor(key, numberPartitions, partitionFun))
+  protected def getPartitionFor(key: K): Option[Int] = {
+    partitioner.optionalPartitionBy.flatMap(partitionFun ⇒ getPartitionFor(key, numberPartitions, partitionFun))
   }
-  def partitionFor(key: K, numPartitions: Int, keyToPartitionString: K ⇒ String): Option[Int] = {
+  protected def getPartitionFor(key: K, numPartitions: Int, keyToPartitionString: K ⇒ String): Option[Int] = {
     val partitionByString = keyToPartitionString(key)
     if (partitionByString.isEmpty) {
       None
@@ -42,7 +40,7 @@ trait KafkaProducerTrait[K, V] extends KafkaSecurityConfiguration {
 
   private def recordWithPartition(record: ProducerRecord[K, V]): ProducerRecord[K, V] = {
     // If the record is already partitioned, don't change the partitioning
-    val partitionOpt = Option(record.partition()).map(_.intValue()) orElse partitionFor(record.key())
+    val partitionOpt = Option(record.partition()).map(_.intValue()) orElse getPartitionFor(record.key())
     partitionOpt.map { partitionNum ⇒
       new ProducerRecord(record.topic, partitionNum, record.timestamp, record.key, record.value, record.headers)
     }.getOrElse(record)
@@ -61,7 +59,7 @@ trait KafkaProducerTrait[K, V] extends KafkaSecurityConfiguration {
       }
     }
 
-  def putRecord(record: ProducerRecord[K, V]): Future[KafkaRecordMetadata[K]] = {
+  protected def doPutRecord(record: ProducerRecord[K, V]): Future[KafkaRecordMetadata[K]] = {
     // Since the Kafka interface returns a java Future instead of a scala future we can leverage the
     // producer send with a callback to get a scala future when the write is completed
     val promise = Promise[KafkaRecordMetadata[K]]()
@@ -75,34 +73,16 @@ trait KafkaProducerTrait[K, V] extends KafkaSecurityConfiguration {
     promise.future
   }
 
-  def putRecords(records: Seq[ProducerRecord[K, V]]): Seq[Future[KafkaRecordMetadata[K]]] = {
-    records.map(putRecord)
-  }
-
-  private def makeRecord(value: V): ProducerRecord[K, V] = {
+  protected def makeRecord(value: V): ProducerRecord[K, V] = {
     new ProducerRecord[K, V](topic.name, value)
   }
-  def putValue(value: V): Future[KafkaRecordMetadata[K]] = {
-    putRecord(makeRecord(value))
-  }
-  def putValues(values: Seq[V]): Seq[Future[KafkaRecordMetadata[K]]] = {
-    putRecords(values.map(makeRecord))
-  }
-
-  private def makeRecord(keyValuePair: (K, V)): ProducerRecord[K, V] = {
+  protected def makeRecord(keyValuePair: (K, V)): ProducerRecord[K, V] = {
     new ProducerRecord[K, V](topic.name, keyValuePair._1, keyValuePair._2)
   }
-  def putKeyValue(keyValuePair: (K, V)): Future[KafkaRecordMetadata[K]] = {
-    putRecord(makeRecord(keyValuePair))
+  def makeRecord(key: K, value: V, headers: Headers): ProducerRecord[K, V] = {
+    // Using null here since we need to add the headers but we don't want to explicitly assign the partition
+    new ProducerRecord[K, V](topic.name, null, key, value, headers) // scalastyle:ignore null
   }
-  def putKeyValues(keyValues: Seq[(K, V)]): Seq[Future[KafkaRecordMetadata[K]]] = {
-    putRecords(keyValues.map(makeRecord))
-  }
-
-  def initTransactions()(implicit ec: ExecutionContext): Future[Unit] = Future {
-    producer.initTransactions()
-  }
-
   def beginTransaction(): Unit =
     producer.beginTransaction()
 
@@ -119,13 +99,40 @@ trait KafkaProducerTrait[K, V] extends KafkaSecurityConfiguration {
     producer.close()
 }
 
+trait KafkaProducerTrait[K, V] extends KafkaSecurityConfiguration with KafkaProducerHelperCommon[K, V] {
+  def partitionFor(key: K): Option[Int] = getPartitionFor(key)
+
+  def putRecord(record: ProducerRecord[K, V]): Future[KafkaRecordMetadata[K]] = doPutRecord(record)
+  def putRecords(records: Seq[ProducerRecord[K, V]]): Seq[Future[KafkaRecordMetadata[K]]] = {
+    records.map(doPutRecord)
+  }
+
+  def putValue(value: V): Future[KafkaRecordMetadata[K]] = {
+    doPutRecord(makeRecord(value))
+  }
+  def putValues(values: Seq[V]): Seq[Future[KafkaRecordMetadata[K]]] = {
+    putRecords(values.map(makeRecord))
+  }
+
+  def putKeyValue(keyValuePair: (K, V)): Future[KafkaRecordMetadata[K]] = {
+    doPutRecord(makeRecord(keyValuePair))
+  }
+  def putKeyValues(keyValues: Seq[(K, V)]): Seq[Future[KafkaRecordMetadata[K]]] = {
+    putRecords(keyValues.map(makeRecord))
+  }
+
+  def initTransactions()(implicit ec: ExecutionContext): Future[Unit] = Future {
+    producer.initTransactions()
+  }
+}
+
 object KafkaStringProducer {
   def create(brokers: java.util.Collection[String], topic: KafkaTopic): KafkaStringProducer = {
     KafkaStringProducer(brokers.asScala.toSeq, topic)
   }
 }
 case class KafkaStringProducer(
-    override val brokers: Seq[String],
+    brokers: Seq[String],
     override val topic: KafkaTopic,
     override val partitioner: KafkaPartitionerBase[String] = NoPartitioner[String],
     kafkaConfig: Map[String, String] = Map.empty) extends KafkaProducerTrait[String, String] {
@@ -143,7 +150,7 @@ case class KafkaStringProducer(
 }
 
 case class KafkaBytesProducer(
-    override val brokers: Seq[String],
+    brokers: Seq[String],
     override val topic: KafkaTopic,
     override val partitioner: KafkaPartitionerBase[String] = NoPartitioner[String],
     kafkaConfig: Map[String, String] = Map.empty) extends KafkaProducerTrait[String, Array[Byte]] {

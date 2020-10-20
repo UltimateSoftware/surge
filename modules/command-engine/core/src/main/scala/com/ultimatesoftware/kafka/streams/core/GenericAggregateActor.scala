@@ -59,8 +59,7 @@ private[streams] object GenericAggregateActor {
 
   // FIXME Kotlin code can't properly match against a StateResponse/CommandSuccess when we use jackson serialization
   case class StateResponse[Agg](
-      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "aggregateType", visible = true) aggregateState: Option[Agg]
-                               )
+      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "aggregateType", visible = true) aggregateState: Option[Agg])
 
   sealed trait CommandResponse
   case class CommandFailure(validationError: Seq[ValidationError]) extends CommandResponse
@@ -68,8 +67,7 @@ private[streams] object GenericAggregateActor {
 
   implicit def commandSuccessFormat[Agg](implicit format: Format[Agg]): Format[CommandSuccess[Agg]] = Json.format[CommandSuccess[Agg]]
   case class CommandSuccess[Agg](
-    @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "aggregateType", visible = true) aggregateState: Option[Agg]
-  ) extends CommandResponse
+      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "aggregateType", visible = true) aggregateState: Option[Agg]) extends CommandResponse
 
   def createMetrics(metricsProvider: MetricsProvider, aggregateName: String): GenericAggregateActorMetrics = {
     GenericAggregateActorMetrics(
