@@ -14,13 +14,13 @@ import scala.concurrent.Future
 //  https://www.testcontainers.org looks interesting for that sort of thing
 
 class RabbitEventSourceSpec extends TestKit(ActorSystem("RabbitEventSourceSpec")) with AnyWordSpecLike {
-  class TestRabbitEventSource(val rabbitMqUri: String, val queueName: String) extends RabbitEventSource[String, String] {
+  class TestRabbitEventSource(val rabbitMqUri: String, val queueName: String) extends RabbitEventSource[String] {
     override def actorSystem: ActorSystem = system
-    override def formatting: SurgeEventReadFormatting[String, String] = (bytes: Array[Byte]) ⇒ new String(bytes) -> None
+    override def formatting: SurgeEventReadFormatting[String] = (bytes: Array[Byte]) ⇒ new String(bytes)
   }
 
-  class TestProbeSink(probe: TestProbe) extends EventSink[String, String] {
-    override def handleEvent(event: String, eventProps: String): Future[Any] = {
+  class TestProbeSink(probe: TestProbe) extends EventSink[String] {
+    override def handleEvent(event: String): Future[Any] = {
       probe.ref ! event
       Future.successful(Done)
     }

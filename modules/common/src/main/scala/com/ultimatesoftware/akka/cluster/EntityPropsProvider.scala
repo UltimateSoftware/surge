@@ -10,8 +10,6 @@ import com.ultimatesoftware.kafka.streams.HealthyComponent
  * implementing actors and potentially other per shard actors (ex. a shared producer for all business logic actors
  * within the shard). The PerShardLogicProvider is passed into a shard on creation and is used for creating anything
  * that should be run on each shard within a cluster of shards.
- *
- * @tparam IdType Aggregate ID type for the business logic actors of this shard.
  */
 trait PerShardLogicProvider[IdType] extends HealthyComponent {
   /**
@@ -33,7 +31,6 @@ trait PerShardLogicProvider[IdType] extends HealthyComponent {
  * will always be delivered to an actor whose Props are returned by this function.  This is used by a shard to create an actor
  * by a particular id when it does not already have a child business entity with the same id.
  *
- * @tparam IdType The id type for the business logic entity
  */
 trait EntityPropsProvider[IdType] {
   def actorPropsById(actorId: IdType): Props

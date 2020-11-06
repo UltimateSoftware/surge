@@ -1,36 +1,35 @@
 // Copyright © 2018-2020 Ultimate Software Group. <https://www.ultimatesoftware.com>
 
 package com.ultimatesoftware.kafka.streams.core
-
-import org.slf4j.{ Logger, LoggerFactory }
-
+import com.ultimatesoftware.support.Logging
 import scala.concurrent.{ ExecutionContext, Future }
 
-trait SurgeMultiCommandServiceSink[AggId, Command, CmdMeta, Event, EvtMeta] extends EventSink[Event, EvtMeta] {
-  private val log: Logger = LoggerFactory.getLogger(getClass)
+trait SurgeMultiCommandServiceSink[Command, Event] extends EventSink[Event] with Logging {
+
   def eventToCommands: Event ⇒ Seq[Command]
-  def surgeEngine: KafkaStreamsCommandTrait[AggId, _, Command, _, CmdMeta, _]
   implicit def executionContext: ExecutionContext
-  protected def sendToAggregate(aggId: AggId, cmdMeta: CmdMeta, command: Command): Future[Any]
+  protected def sendToAggregate(aggId: String, command: Command): Future[Any]
 
-  def evtMetaToCmdMeta(evtMeta: EvtMeta): CmdMeta
+  def aggregateIdFromCommand: Command ⇒ String
 
-  def handleEvent(event: Event, eventProps: EvtMeta): Future[Any] = {
-    val commands = eventToCommands(event)
-    if (commands.isEmpty) {
+  def handleEvent(event: Event): Future[Any] = {
+    val aggregateCommands = eventToCommands(event).map { cmd ⇒
+      (aggregateIdFromCommand(cmd), cmd)
+    }
+
+    if (aggregateCommands.isEmpty) {
       log.info(s"Skipping event with class ${event.getClass} since it was not converted into a command")
     }
-    val appliedCommands = commands.map { command ⇒
-      val aggId = surgeEngine.businessLogic.model.aggIdFromCommand(command)
-      val cmdMeta = evtMetaToCmdMeta(eventProps)
-      sendToAggregate(aggId, cmdMeta, command)
+    val appliedCommands = aggregateCommands.map {
+      case (aggregateId, command) ⇒
+        sendToAggregate(aggregateId, command)
     }
     Future.sequence(appliedCommands)
   }
 }
 
-trait SurgeCommandServiceSink[AggId, Command, CmdMeta, Event, EvtMeta]
-  extends SurgeMultiCommandServiceSink[AggId, Command, CmdMeta, Event, EvtMeta] {
+trait SurgeCommandServiceSink[Command, Event]
+  extends SurgeMultiCommandServiceSink[Command, Event] {
   def eventToCommand: Event ⇒ Option[Command]
   override def eventToCommands: Event ⇒ Seq[Command] = eventToCommand.andThen(_.toSeq)
 }

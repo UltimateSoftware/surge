@@ -21,32 +21,30 @@ class KafkaStreamsEventProcessorSpec extends AnyWordSpec with Matchers with Kafk
 
   private implicit val aggFormat: Format[ExampleAgg] = Json.format
   private implicit val eventFormat: Format[ExampleEvent] = Json.format
-  private val readFormatting = new SurgeReadFormatting[String, ExampleAgg, ExampleEvent, ExampleMeta] {
-    override def readEvent(bytes: Array[Byte]): (ExampleEvent, Option[ExampleMeta]) = {
-      val event = Json.parse(bytes).asOpt[ExampleEvent]
-      val evtProps = ExampleMeta("string property", 1)
-      event.get -> Some(evtProps)
+  private val readFormatting = new SurgeReadFormatting[ExampleAgg, ExampleEvent] {
+    override def readEvent(bytes: Array[Byte]): ExampleEvent = {
+      Json.parse(bytes).as[ExampleEvent]
     }
     override def readState(bytes: Array[Byte]): Option[ExampleAgg] = {
       Json.parse(bytes).asOpt[ExampleAgg]
     }
   }
-  private val writeFormatting = new SurgeAggregateWriteFormatting[String, ExampleAgg] {
-    override def writeState(agg: ExampleAgg): Array[Byte] = {
-      Json.toJson(agg).toString().getBytes()
+  private val writeFormatting = new SurgeAggregateWriteFormatting[ExampleAgg] {
+    override def writeState(agg: ExampleAgg): SerializedAggregate = {
+      SerializedAggregate(Json.toJson(agg).toString().getBytes(), Map.empty)
     }
   }
 
-  private def eventHandler(oldAgg: Option[ExampleAgg], event: ExampleEvent, props: ExampleMeta): Option[ExampleAgg] = {
+  private def eventHandler(oldAgg: Option[ExampleAgg], event: ExampleEvent): Option[ExampleAgg] = {
     val incrementedCount = oldAgg.map(_.count).getOrElse(0) + 1
     Some(event.toAgg(incrementedCount))
   }
 
-  private def aggIdExtractor(evtPlusMeta: EventPlusMeta[ExampleEvent, ExampleMeta]): Option[String] = {
-    Some(evtPlusMeta.event.aggId)
+  private def aggIdExtractor(event: ExampleEvent): Option[String] = {
+    Some(event.aggId)
   }
 
-  private val eventProcessor = new KafkaStreamsEventProcessor[String, ExampleAgg, ExampleEvent, ExampleMeta](
+  private val eventProcessor = new KafkaStreamsEventProcessor[ExampleAgg, ExampleEvent](
     "exampleAgg", readFormatting, writeFormatting, eventTopic, None, aggIdExtractor, eventHandler, NoOpMetricsProvider)
 
   private def extractStateFromStore(bytes: Array[Byte]): Option[ExampleAgg] = {

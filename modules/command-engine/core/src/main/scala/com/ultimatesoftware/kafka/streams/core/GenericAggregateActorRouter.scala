@@ -16,10 +16,10 @@ import org.slf4j.LoggerFactory
 
 import scala.concurrent.{ ExecutionContext, Future }
 
-private[streams] final class GenericAggregateActorRouter[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
+private[streams] final class GenericAggregateActorRouter[Agg, Command, Event](
     system: ActorSystem,
     clusterStateTrackingActor: ActorRef,
-    businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta],
+    businessLogic: KafkaStreamsCommandBusinessLogic[Agg, Command, Event],
     metricsProvider: MetricsProvider,
     kafkaStreamsCommand: AggregateStateStoreKafkaStreams[JsValue]) extends HealthyComponent {
 
@@ -57,23 +57,23 @@ private[streams] final class GenericAggregateActorRouter[AggId, Agg, Command, Ev
   }
 }
 
-class GenericAggregateActorRegionProvider[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
+class GenericAggregateActorRegionProvider[Agg, Command, Event](
     system: ActorSystem,
     assignedPartition: TopicPartition,
-    businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta],
+    businessLogic: KafkaStreamsCommandBusinessLogic[Agg, Command, Event],
     aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue],
-    metricsProvider: MetricsProvider) extends PerShardLogicProvider[AggId] with Logging {
+    metricsProvider: MetricsProvider) extends PerShardLogicProvider[String] with Logging {
 
-  val kafkaProducerActor = new KafkaProducerActor[AggId, Agg, Event, EvtMeta](
+  val kafkaProducerActor = new KafkaProducerActor[Agg, Event](
     actorSystem = system,
     assignedPartition = assignedPartition,
     metricsProvider = metricsProvider,
     aggregateCommandKafkaStreams = businessLogic)
 
-  override def actorProvider(context: ActorContext): EntityPropsProvider[AggId] = {
+  override def actorProvider(context: ActorContext): EntityPropsProvider[String] = {
     val aggregateMetrics = GenericAggregateActor.createMetrics(metricsProvider, businessLogic.aggregateName)
 
-    actorId: AggId ⇒ GenericAggregateActor.props(aggregateId = actorId, businessLogic = businessLogic,
+    actorId: String ⇒ GenericAggregateActor.props(aggregateId = actorId, businessLogic = businessLogic,
       kafkaProducerActor = kafkaProducerActor, metrics = aggregateMetrics, kafkaStreamsCommand = aggregateKafkaStreamsImpl)
   }
 

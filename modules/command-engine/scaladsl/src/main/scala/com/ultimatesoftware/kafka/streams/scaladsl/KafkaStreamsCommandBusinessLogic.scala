@@ -11,20 +11,18 @@ import com.ultimatesoftware.scala.oss.domain.AggregateCommandModel
 
 import scala.concurrent.duration._
 
-trait KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta] {
+trait KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event] {
 
   private val config = ConfigFactory.load()
 
   def aggregateName: String
   def stateTopic: KafkaTopic
   def eventsTopic: KafkaTopic
-  @deprecated("Metadata topic is no longer used", "0.4.29")
-  def internalMetadataTopic: KafkaTopic = KafkaTopic("")
 
-  def commandModel: AggregateCommandModel[AggId, Agg, Command, Event, CmdMeta, EvtMeta]
+  def commandModel: AggregateCommandModel[Agg, Command, Event]
 
-  def readFormatting: SurgeAggregateReadFormatting[AggId, Agg]
-  def writeFormatting: SurgeWriteFormatting[AggId, Agg, Event, EvtMeta]
+  def readFormatting: SurgeAggregateReadFormatting[Agg]
+  def writeFormatting: SurgeWriteFormatting[Agg, Event]
 
   def commandValidator: AsyncCommandValidator[Command, Agg]
 
@@ -37,7 +35,9 @@ trait KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtM
 
   def metricsProvider: MetricsProvider = NoOpMetricsProvider
 
-  def consumerGroup: String = {
+  def aggregateIdToString: AggId ⇒ String
+
+  def consumerGroupBase: String = {
     val environment = config.getString("app.environment")
     s"$aggregateName-$environment-command"
   }
@@ -46,13 +46,13 @@ trait KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtM
 
   private def kafkaConfig: KafkaStreamsCommandKafkaConfig = KafkaStreamsCommandKafkaConfig(stateTopic, eventsTopic)
 
-  private[scaladsl] def toCore: com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta] = {
-    new com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
+  private[scaladsl] def toCore: com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[Agg, Command, Event] = {
+    new com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[Agg, Command, Event](
       aggregateName = aggregateName, kafka = kafkaConfig,
       model = commandModel, readFormatting = readFormatting,
       writeFormatting = writeFormatting, commandValidator = commandValidator, aggregateValidator = aggregateValidator,
       metricsProvider = metricsProvider, metricsPublisher = metricsPublisher, metricsInterval = metricsInterval,
-      consumerGroup = consumerGroup,
+      consumerGroup = consumerGroupBase,
       transactionalIdPrefix = transactionalIdPrefix)
   }
 }

@@ -7,15 +7,15 @@ import akka.stream.scaladsl.Flow
 
 import scala.concurrent.{ ExecutionContext, Future }
 
-trait EventHandler[Event, EvtMeta] {
-  def eventHandler: Flow[(Event, EvtMeta), Any, NotUsed]
+trait EventHandler[Event] {
+  def eventHandler: Flow[Event, Any, NotUsed]
 }
 
-trait EventSink[Event, EvtMeta] extends EventHandler[Event, EvtMeta] {
+trait EventSink[Event] extends EventHandler[Event] {
   def parallelism: Int = 1
-  def handleEvent(event: Event, eventProps: EvtMeta): Future[Any]
+  def handleEvent(event: Event): Future[Any]
 
-  override def eventHandler: Flow[(Event, EvtMeta), Any, NotUsed] = {
+  override def eventHandler: Flow[Event, Any, NotUsed] = {
     FlowConverter.flowFor(handleEvent, parallelism)(ExecutionContext.global)
   }
 }

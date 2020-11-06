@@ -7,12 +7,12 @@ import org.apache.kafka.common.serialization.Serdes
 import org.apache.kafka.streams.processor.{ AbstractProcessor, Processor, ProcessorContext }
 import org.apache.kafka.streams.state.{ KeyValueStore, StoreBuilder, Stores }
 
-class EventProcessor[AggId, Agg, Event, EvtMeta](
+class EventProcessor[Agg, Event](
     aggregateName: String,
-    aggReads: SurgeAggregateReadFormatting[AggId, Agg],
-    aggWrites: SurgeAggregateWriteFormatting[AggId, Agg],
-    extractAggregateId: EventPlusMeta[Event, EvtMeta] ⇒ Option[String],
-    processEvent: (Option[Agg], Event, EvtMeta) ⇒ Option[Agg],
+    aggReads: SurgeAggregateReadFormatting[Agg],
+    aggWrites: SurgeAggregateWriteFormatting[Agg],
+    extractAggregateId: Event ⇒ Option[String],
+    processEvent: (Option[Agg], Event) ⇒ Option[Agg],
     metricsProvider: MetricsProvider) {
 
   val aggregateDeserializationTimer = metricsProvider.createTimer(s"${aggregateName}AggregateStateDeserializationTimer")
@@ -27,11 +27,11 @@ class EventProcessor[AggId, Agg, Event, EvtMeta](
     Serdes.String(),
     Serdes.ByteArray())
 
-  val supplier: () ⇒ Processor[String, EventPlusMeta[Event, EvtMeta]] = {
+  val supplier: () ⇒ Processor[String, Event] = {
     () ⇒ new StateProcessorImpl
   }
 
-  private class StateProcessorImpl extends AbstractProcessor[String, EventPlusMeta[Event, EvtMeta]] {
+  private class StateProcessorImpl extends AbstractProcessor[String, Event] {
     private var keyValueStore: AggKTable = _
 
     override def init(context: ProcessorContext): Unit = {
@@ -39,20 +39,20 @@ class EventProcessor[AggId, Agg, Event, EvtMeta](
       this.keyValueStore = context.getStateStore(aggregateKTableStoreName).asInstanceOf[AggKTable]
     }
 
-    override def process(key: String, value: EventPlusMeta[Event, EvtMeta]): Unit = {
+    override def process(key: String, value: Event): Unit = {
       extractAggregateId(value).foreach { aggregateId ⇒
         val oldState = Option(keyValueStore.get(aggregateId))
         val previousBody = oldState
           .flatMap(state ⇒
             aggregateDeserializationTimer.time(aggReads.readState(state)))
 
-        val newState = eventHandlingTimer.time(processEvent(previousBody, value.event, value.meta))
+        val newState = eventHandlingTimer.time(processEvent(previousBody, value))
 
         val newStateSerialized = newState.map { newStateValue ⇒
           aggregateSerializationTimer.time(aggWrites.writeState(newStateValue))
         }
 
-        keyValueStore.put(aggregateId, newStateSerialized.orNull)
+        keyValueStore.put(aggregateId, newStateSerialized.map(_.value).orNull)
       }
     }
 

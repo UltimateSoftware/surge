@@ -14,11 +14,11 @@ class AggregateRefTraitSpec extends TestKit(ActorSystem("AggregateRefTraitSpec")
 
   case class Person(name: String, favoriteColor: String)
 
-  case class TestAggregateRef(aggregateId: String, regionTestProbe: TestProbe) extends AggregateRefTrait[String, Person, String, String, String, String] {
+  case class TestAggregateRef(aggregateId: String, regionTestProbe: TestProbe) extends AggregateRefTrait[Person, String, String] {
     override val region: ActorRef = regionTestProbe.ref
 
     def ask(command: String, retries: Int = 0): Future[Either[Throwable, Option[Person]]] = {
-      val envelope = GenericAggregateActor.CommandEnvelope(aggregateId, "", command)
+      val envelope = GenericAggregateActor.CommandEnvelope(aggregateId, command)
       askWithRetries(envelope, retries)
     }
     def getState: Future[Option[Person]] = queryState
@@ -56,31 +56,31 @@ class AggregateRefTraitSpec extends TestKit(ActorSystem("AggregateRefTraitSpec")
       val testProbe1 = TestProbe()
       val aggregateRef1 = TestAggregateRef(testPerson1.name, testProbe1)
       val testPerson1StateFut = aggregateRef1.ask("Command1")
-      testProbe1.expectMsg(GenericAggregateActor.CommandEnvelope(testPerson1.name, "", "Command1"))
+      testProbe1.expectMsg(GenericAggregateActor.CommandEnvelope(testPerson1.name, "Command1"))
       testProbe1.reply(GenericAggregateActor.CommandSuccess(Some(testPerson1)))
 
       val testProbe2 = TestProbe()
       val aggregateRef2 = TestAggregateRef(testPerson2.name, testProbe2)
       val testPerson2StateFut = aggregateRef2.ask("Command2")
-      testProbe2.expectMsg(GenericAggregateActor.CommandEnvelope(testPerson2.name, "", "Command2"))
+      testProbe2.expectMsg(GenericAggregateActor.CommandEnvelope(testPerson2.name, "Command2"))
       testProbe2.reply(GenericAggregateActor.CommandSuccess(None))
 
       val failureProbe = TestProbe()
       val validationErrors = Seq(ValidationError("This is expected"))
       val aggregateRef3 = TestAggregateRef(testPerson3.name, failureProbe)
       val testFailureResponseFut = aggregateRef3.ask("Command3")
-      failureProbe.expectMsg(GenericAggregateActor.CommandEnvelope(testPerson3.name, "", "Command3"))
+      failureProbe.expectMsg(GenericAggregateActor.CommandEnvelope(testPerson3.name, "Command3"))
       failureProbe.reply(GenericAggregateActor.CommandFailure(validationErrors))
 
       val errorProbe = TestProbe()
       val expectedException = new RuntimeException("This is expected")
       val testErrorResponseFut = TestAggregateRef("error", errorProbe).ask("Command4")
-      errorProbe.expectMsg(GenericAggregateActor.CommandEnvelope("error", "", "Command4"))
+      errorProbe.expectMsg(GenericAggregateActor.CommandEnvelope("error", "Command4"))
       errorProbe.reply(GenericAggregateActor.CommandError(expectedException))
 
       val garbageProbe = TestProbe()
       val testGarbageResponseFut = TestAggregateRef("foo", garbageProbe).ask("Command5")
-      garbageProbe.expectMsg(GenericAggregateActor.CommandEnvelope("foo", "", "Command5"))
+      garbageProbe.expectMsg(GenericAggregateActor.CommandEnvelope("foo", "Command5"))
       garbageProbe.reply("Not a person object")
 
       for {

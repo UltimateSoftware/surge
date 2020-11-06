@@ -3,25 +3,26 @@
 package com.ultimatesoftware.kafka.streams.core
 
 case class SerializedMessage(key: String, value: Array[Byte], headers: Map[String, String])
+case class SerializedAggregate(value: Array[Byte], headers: Map[String, String])
 
-trait SurgeEventReadFormatting[Event, EvtMeta] {
-  def readEvent(bytes: Array[Byte]): (Event, Option[EvtMeta])
+trait SurgeEventReadFormatting[Event] {
+  def readEvent(bytes: Array[Byte]): Event
 }
 
-trait SurgeAggregateReadFormatting[AggId, Agg] {
+trait SurgeAggregateReadFormatting[Agg] {
   def readState(bytes: Array[Byte]): Option[Agg]
 }
 
-trait SurgeReadFormatting[AggId, Agg, Event, EvtMeta] extends SurgeEventReadFormatting[Event, EvtMeta] with SurgeAggregateReadFormatting[AggId, Agg]
+trait SurgeReadFormatting[Agg, Event] extends SurgeEventReadFormatting[Event] with SurgeAggregateReadFormatting[Agg]
 
-trait SurgeEventWriteFormatting[Event, EvtMeta] {
-  def writeEvent(evt: Event, metadata: EvtMeta): SerializedMessage
+trait SurgeEventWriteFormatting[Event] {
+  def writeEvent(evt: Event): SerializedMessage
 }
 
-trait SurgeAggregateWriteFormatting[AggId, Agg] {
-  def writeState(agg: Agg): Array[Byte]
+trait SurgeAggregateWriteFormatting[Agg] {
+  def writeState(agg: Agg): SerializedAggregate
 }
-trait SurgeWriteFormatting[AggId, Agg, Event, EvtMeta] extends SurgeEventWriteFormatting[Event, EvtMeta] with SurgeAggregateWriteFormatting[AggId, Agg]
+trait SurgeWriteFormatting[Agg, Event] extends SurgeEventWriteFormatting[Event] with SurgeAggregateWriteFormatting[Agg]
 
-trait SurgeAggregateFormatting[AggId, Agg] extends SurgeAggregateReadFormatting[AggId, Agg] with SurgeAggregateWriteFormatting[AggId, Agg]
-trait SurgeEventFormatting[Event, EvtMeta] extends SurgeEventReadFormatting[Event, EvtMeta] with SurgeEventWriteFormatting[Event, EvtMeta]
+trait SurgeAggregateFormatting[Agg] extends SurgeAggregateReadFormatting[Agg] with SurgeAggregateWriteFormatting[Agg]
+trait SurgeEventFormatting[Event] extends SurgeEventReadFormatting[Event] with SurgeEventWriteFormatting[Event]

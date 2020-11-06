@@ -2,8 +2,6 @@
 
 package com.ultimatesoftware.kafka.streams.core
 
-import java.time.Instant
-import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 import akka.Done
@@ -37,22 +35,24 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
     TestKit.shutdownActorSystem(system)
   }
 
-  private def testActor(aggregateId: UUID = UUID.randomUUID(), producerActor: KafkaProducerActor[UUID, State, BaseTestEvent, TimestampMeta],
+  def randomUUID: String = UUID.randomUUID().toString
+
+  private def testActor(aggregateId: String = randomUUID, producerActor: KafkaProducerActor[State, BaseTestEvent],
     aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue]): ActorRef = {
 
     val props = testActorProps(aggregateId, producerActor, aggregateKafkaStreamsImpl)
     system.actorOf(props)
   }
 
-  private def testActorProps(aggregateId: UUID = UUID.randomUUID(), producerActor: KafkaProducerActor[UUID, State, BaseTestEvent, TimestampMeta],
+  private def testActorProps(aggregateId: String = randomUUID, producerActor: KafkaProducerActor[State, BaseTestEvent],
     aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue]): Props = {
     val metrics = GenericAggregateActor.createMetrics(NoOpMetricsProvider, "testAggregate")
 
     GenericAggregateActor.props(aggregateId, kafkaStreamsLogic, producerActor, metrics, aggregateKafkaStreamsImpl)
   }
 
-  private def envelope(cmd: BaseTestCommand): GenericAggregateActor.CommandEnvelope[UUID, BaseTestCommand, TimestampMeta] = {
-    GenericAggregateActor.CommandEnvelope(cmd.aggregateId, TimestampMeta(Instant.now.truncatedTo(ChronoUnit.SECONDS)), cmd)
+  private def envelope(cmd: BaseTestCommand): GenericAggregateActor.CommandEnvelope[BaseTestCommand] = {
+    GenericAggregateActor.CommandEnvelope(cmd.aggregateId, cmd)
   }
 
   private def mockKafkaStreams(state: State): AggregateStateStoreKafkaStreams[JsValue] = {
@@ -63,44 +63,44 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
     mockStreams
   }
 
-  private def defaultMockProducer: KafkaProducerActor[UUID, State, BaseTestEvent, TimestampMeta] = {
-    val mockProducer = mock[KafkaProducerActor[UUID, State, BaseTestEvent, TimestampMeta]]
+  private def defaultMockProducer: KafkaProducerActor[State, BaseTestEvent] = {
+    val mockProducer = mock[KafkaProducerActor[State, BaseTestEvent]]
     when(mockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.successful(true))
-    when(mockProducer.publish(any[UUID], any[(String, Option[State])], any[Seq[(TimestampMeta, BaseTestEvent)]]))
+    when(mockProducer.publish(anyString, any[(String, Option[State])], any[Seq[BaseTestEvent]]))
       .thenReturn(Future.successful(Done))
 
     mockProducer
   }
 
-  case class Publish(aggregateId: UUID) extends NoSerializationVerificationNeeded
-  private def probeBackedMockProducer(probe: TestProbe): KafkaProducerActor[UUID, State, BaseTestEvent, TimestampMeta] = {
-    val mockProducer = mock[KafkaProducerActor[UUID, State, BaseTestEvent, TimestampMeta]]
+  case class Publish(aggregateId: String) extends NoSerializationVerificationNeeded
+  private def probeBackedMockProducer(probe: TestProbe): KafkaProducerActor[State, BaseTestEvent] = {
+    val mockProducer = mock[KafkaProducerActor[State, BaseTestEvent]]
     when(mockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.successful(true))
-    when(mockProducer.publish(any[UUID], any[(String, Option[State])], any[Seq[(TimestampMeta, BaseTestEvent)]]))
+    when(mockProducer.publish(anyString, any[(String, Option[State])], any[Seq[BaseTestEvent]]))
       .thenAnswer((invocation: InvocationOnMock) ⇒ {
-        val aggregateId = invocation.getArgument[UUID](0)
+        val aggregateId = invocation.getArgument[String](0)
         (probe.ref ? Publish(aggregateId)).map(_ ⇒ Done)(ExecutionContext.global)
       })
 
     mockProducer
   }
 
-  private def processIncrementCommand(actor: ActorRef, state: State, mockProducer: KafkaProducerActor[UUID, State, BaseTestEvent, TimestampMeta]): Unit = {
+  private def processIncrementCommand(actor: ActorRef, state: State, mockProducer: KafkaProducerActor[State, BaseTestEvent]): Unit = {
     val probe = TestProbe()
 
     val incrementCmd = Increment(state.aggregateId)
     val testEnvelope = envelope(incrementCmd)
 
-    val expectedEvent = CountIncremented(state.aggregateId, 1, state.version + 1, testEnvelope.meta.timestamp)
+    val expectedEvent = CountIncremented(state.aggregateId, 1, state.version + 1)
     probe.send(actor, testEnvelope)
 
-    val expectedState = BusinessLogic.handleEvent(Some(state), expectedEvent, testEnvelope.meta)
+    val expectedState = BusinessLogic.handleEvent(Some(state), expectedEvent)
 
     probe.expectMsg(GenericAggregateActor.CommandSuccess(expectedState))
 
-    val expectedStateKeyValues = state.aggregateId.toString -> expectedState
+    val expectedStateKeyValues = state.aggregateId -> expectedState
 
-    val expectedEventKeyVal = (testEnvelope.meta, expectedEvent)
+    val expectedEventKeyVal = expectedEvent
     verify(mockProducer).publish(state.aggregateId, expectedStateKeyValues, Seq(expectedEventKeyVal))
   }
 
@@ -110,19 +110,19 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
     }
 
     def setupDefault(
-      testAggregateId: UUID = UUID.randomUUID(),
-      mockProducer: KafkaProducerActor[UUID, State, BaseTestEvent, TimestampMeta] = defaultMockProducer): TestContext = {
+      testAggregateId: String = randomUUID,
+      mockProducer: KafkaProducerActor[State, BaseTestEvent] = defaultMockProducer): TestContext = {
       val probe = TestProbe()
 
-      val baseState = State(testAggregateId, 3, 3, Instant.now)
+      val baseState = State(testAggregateId, 3, 3)
       val mockStreams = mockKafkaStreams(baseState)
       val actor = probe.childActorOf(testActorProps(testAggregateId, mockProducer, mockStreams))
 
       TestContext(probe, baseState, mockProducer, actor)
     }
   }
-  case class TestContext(probe: TestProbe, baseState: State, mockProducer: KafkaProducerActor[UUID, State, BaseTestEvent, TimestampMeta], actor: ActorRef) {
-    val testAggregateId: UUID = baseState.aggregateId
+  case class TestContext(probe: TestProbe, baseState: State, mockProducer: KafkaProducerActor[State, BaseTestEvent], actor: ActorRef) {
+    val testAggregateId: String = baseState.aggregateId
   }
 
   "GenericAggregateActor" should {
@@ -139,13 +139,13 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
     "Retry initialization if not up to date" in {
       val probe = TestProbe()
 
-      val testAggregateId = UUID.randomUUID()
-      val baseState = State(testAggregateId, 3, 3, Instant.now)
+      val testAggregateId = UUID.randomUUID().toString
+      val baseState = State(testAggregateId, 3, 3)
 
-      val mockProducer = mock[KafkaProducerActor[UUID, State, BaseTestEvent, TimestampMeta]]
+      val mockProducer = mock[KafkaProducerActor[State, BaseTestEvent]]
       when(mockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.successful(false), Future.successful(true))
-      when(mockProducer.publish(any[UUID], any[(String, Option[State])],
-        any[Seq[(TimestampMeta, BaseTestEvent)]])).thenReturn(Future.successful(Done))
+      when(mockProducer.publish(anyString, any[(String, Option[State])],
+        any[Seq[BaseTestEvent]])).thenReturn(Future.successful(Done))
 
       val mockStreams = mockKafkaStreams(baseState)
 
@@ -158,8 +158,8 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
     "Retry initialization on a failure to read from the KTable" in {
       val probe = TestProbe()
 
-      val testAggregateId = UUID.randomUUID()
-      val baseState = State(testAggregateId, 3, 3, Instant.now)
+      val testAggregateId = UUID.randomUUID().toString
+      val baseState = State(testAggregateId, 3, 3)
 
       val mockProducer = defaultMockProducer
 
@@ -185,9 +185,9 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
       probe.expectMsg(GenericAggregateActor.CommandSuccess(Some(baseState)))
 
       verify(mockProducer, never()).publish(
-        any[UUID],
+        anyString,
         any[(String, Option[State])],
-        any[Seq[(TimestampMeta, BaseTestEvent)]])
+        any[Seq[BaseTestEvent]])
     }
 
     "Handle exceptions from the domain by returning a CommandError" in {
@@ -215,11 +215,11 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
       val incrementCmd = Increment(baseState.aggregateId)
       val testEnvelope = envelope(incrementCmd)
 
-      val expectedEvent1 = CountIncremented(baseState.aggregateId, 1, baseState.version + 1, testEnvelope.meta.timestamp)
-      val expectedState1 = BusinessLogic.handleEvent(Some(baseState), expectedEvent1, testEnvelope.meta)
+      val expectedEvent1 = CountIncremented(baseState.aggregateId, 1, baseState.version + 1)
+      val expectedState1 = BusinessLogic.handleEvent(Some(baseState), expectedEvent1)
 
-      val expectedEvent2 = CountIncremented(expectedState1.get.aggregateId, 1, expectedState1.get.version + 1, testEnvelope.meta.timestamp)
-      val expectedState2 = BusinessLogic.handleEvent(expectedState1, expectedEvent2, testEnvelope.meta)
+      val expectedEvent2 = CountIncremented(expectedState1.get.aggregateId, 1, expectedState1.get.version + 1)
+      val expectedState2 = BusinessLogic.handleEvent(expectedState1, expectedEvent2)
 
       probe.send(actor, testEnvelope)
       actor ! ReceiveTimeout // This should be ignored while the actor is processing a command
@@ -235,9 +235,9 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
     }
 
     "Crash the actor to force reinitialization if publishing events hits an error" in {
-      val crashingMockProducer = mock[KafkaProducerActor[UUID, State, BaseTestEvent, TimestampMeta]]
+      val crashingMockProducer = mock[KafkaProducerActor[State, BaseTestEvent]]
       when(crashingMockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.successful(true))
-      when(crashingMockProducer.publish(any[UUID], any[(String, Option[State])], any[Seq[(TimestampMeta, BaseTestEvent)]]))
+      when(crashingMockProducer.publish(anyString, any[(String, Option[State])], any[Seq[BaseTestEvent]]))
         .thenReturn(Future.failed(new RuntimeException("This is expected")))
 
       val testContext = TestContext.setupDefault(mockProducer = crashingMockProducer)
@@ -252,20 +252,20 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
     }
 
     "Be able to correctly extract the correct aggregate ID from messages" in {
-      val command1 = GenericAggregateActor.CommandEnvelope(aggregateId = "foobarbaz", meta = TimestampMeta(Instant.now),
+      val command1 = GenericAggregateActor.CommandEnvelope(
+        aggregateId = "foobarbaz",
         command = "unused")
       val command2 = GenericAggregateActor.CommandEnvelope(
-        aggregateId = UUID.randomUUID(),
-        meta = TimestampMeta(Instant.now), command = "unused")
+        aggregateId = randomUUID, command = "unused")
 
       val getState1 = GenericAggregateActor.GetState(aggregateId = "foobarbaz")
-      val getState2 = GenericAggregateActor.GetState(aggregateId = UUID.randomUUID())
+      val getState2 = GenericAggregateActor.GetState(aggregateId = randomUUID)
 
-      GenericAggregateActor.RoutableMessage.extractEntityId[String](command1) shouldEqual command1.aggregateId
-      GenericAggregateActor.RoutableMessage.extractEntityId[UUID](command2) shouldEqual command2.aggregateId
+      GenericAggregateActor.RoutableMessage.extractEntityId(command1) shouldEqual command1.aggregateId
+      GenericAggregateActor.RoutableMessage.extractEntityId(command2) shouldEqual command2.aggregateId
 
-      GenericAggregateActor.RoutableMessage.extractEntityId[String](getState1) shouldEqual getState1.aggregateId
-      GenericAggregateActor.RoutableMessage.extractEntityId[UUID](getState2) shouldEqual getState2.aggregateId
+      GenericAggregateActor.RoutableMessage.extractEntityId(getState1) shouldEqual getState1.aggregateId
+      GenericAggregateActor.RoutableMessage.extractEntityId(getState2) shouldEqual getState2.aggregateId
     }
 
     "Passivate after the actor idle timeout threshold is exceeded" in {
@@ -288,7 +288,7 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
 
     "Serialize/Deserialize a CommandEnvelope from Akka" in {
       import akka.serialization.SerializationExtension
-      def doSerde[A, B, C](envelope: GenericAggregateActor.CommandEnvelope[A, B, C]): Unit = {
+      def doSerde[A](envelope: GenericAggregateActor.CommandEnvelope[A]): Unit = {
         val serialization = SerializationExtension.get(system)
         val serializer = serialization.findSerializerFor(envelope)
         val serialized = serialization.serialize(envelope).get
@@ -296,8 +296,8 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
         val deserialized = serialization.deserialize(serialized, serializer.identifier, manifest).get
         deserialized shouldEqual envelope
       }
-      doSerde(GenericAggregateActor.CommandEnvelope[String, String, String]("hello", "test2", "test3"))
-      doSerde(envelope(Increment(UUID.randomUUID())))
+      doSerde(GenericAggregateActor.CommandEnvelope[String]("hello", "test2"))
+      doSerde(envelope(Increment(UUID.randomUUID().toString)))
     }
   }
 }

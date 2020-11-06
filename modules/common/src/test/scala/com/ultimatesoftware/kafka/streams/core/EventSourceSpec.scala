@@ -27,13 +27,12 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
 
   private implicit val stringSer: Serializer[String] = DefaultSerdes.stringSerde.serializer()
 
-  private def testEventSource(topic: KafkaTopic, kafkaBrokers: String, groupId: String): EventSource[String, String] = {
-    new EventSource[String, String] {
+  private def testEventSource(topic: KafkaTopic, kafkaBrokers: String, groupId: String): EventSource[String] = {
+    new EventSource[String] {
       override def baseEventName: String = "TestAggregateEvent"
       override def metricsProvider: MetricsProvider = NoOpMetricsProvider
       override def kafkaTopic: KafkaTopic = topic
-      override def parallelism: Int = 1
-      override def formatting: SurgeEventReadFormatting[String, String] = (bytes: Array[Byte]) ⇒ new String(bytes) -> Some("")
+      override def formatting: SurgeEventReadFormatting[String] = bytes ⇒ new String(bytes)
       override def actorSystem: ActorSystem = system
     }
   }
@@ -43,7 +42,7 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
       .withBootstrapServers(kafkaBrokers)
   }
 
-  private def testEventSink(probe: TestProbe): EventSink[String, String] = (event: String, _: String) ⇒ {
+  private def testEventSink(probe: TestProbe): EventSink[String] = (event: String) ⇒ {
     probe.ref ! event
     Future.successful(Done)
   }
@@ -57,7 +56,7 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
         val embeddedBroker = s"localhost:${actualConfig.kafkaPort}"
 
         val groupId = "subscription-test"
-        def createConsumer: EventSource[String, String] =
+        def createConsumer: EventSource[String] =
           testEventSource(topic, kafkaBrokers = embeddedBroker, groupId = groupId)
 
         val record1 = "record 1"
@@ -93,7 +92,7 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
         val embeddedBroker = s"localhost:${actualConfig.kafkaPort}"
 
         val groupId = "restart-test"
-        def createConsumer: EventSource[String, String] =
+        def createConsumer: EventSource[String] =
           testEventSource(topic, kafkaBrokers = embeddedBroker, groupId = groupId)
 
         val record1 = "record 1"
@@ -106,10 +105,10 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
         val consumer1 = createConsumer
 
         val probe = TestProbe()
-        def createTestSink: EventSink[String, String] = new EventSink[String, String] {
+        def createTestSink: EventSink[String] = new EventSink[String] {
           private val expectedNumExceptions = 1
           private var exceptionCount = 0
-          override def handleEvent(event: String, eventProps: String): Future[Any] = {
+          override def handleEvent(event: String): Future[Any] = {
             if (exceptionCount < expectedNumExceptions) {
               exceptionCount = exceptionCount + 1
               Future.failed(new RuntimeException("This is expected"))

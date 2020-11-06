@@ -21,35 +21,32 @@ import scala.concurrent.duration._
 import scala.util.{ Failure, Success, Try }
 
 private[streams] object GenericAggregateActor {
-  def props[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
-    aggregateId: AggId,
-    businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, _, EvtMeta],
-    kafkaProducerActor: KafkaProducerActor[AggId, Agg, Event, EvtMeta],
+  def props[Agg, Command, Event](
+    aggregateId: String,
+    businessLogic: KafkaStreamsCommandBusinessLogic[Agg, Command, Event],
+    kafkaProducerActor: KafkaProducerActor[Agg, Event],
     metrics: GenericAggregateActorMetrics,
     kafkaStreamsCommand: AggregateStateStoreKafkaStreams[JsValue]): Props = {
     Props(new GenericAggregateActor(aggregateId, kafkaProducerActor, businessLogic, metrics, kafkaStreamsCommand))
       .withDispatcher("generic-aggregate-actor-dispatcher")
   }
 
-  sealed trait RoutableMessage[AggId] extends JacksonSerializable {
-    def aggregateId: AggId
+  sealed trait RoutableMessage extends JacksonSerializable {
+    def aggregateId: String
   }
   object RoutableMessage {
-    def extractEntityId[AggIdType]: PartialFunction[Any, AggIdType] = {
-      case routableMessage: RoutableMessage[AggIdType] ⇒ routableMessage.aggregateId
+    def extractEntityId: PartialFunction[Any, String] = {
+      case routableMessage: RoutableMessage ⇒ routableMessage.aggregateId
     }
   }
 
-  case class CommandEnvelope[AggIdType, Cmd, CmdMeta](
-      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "aggregateIdType", visible = true) aggregateId: AggIdType,
-      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "cmdMetaType", visible = true) meta: CmdMeta,
-      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "cmdType", visible = true) command: Cmd) extends RoutableMessage[AggIdType]
-  case class GetState[AggIdType](
-      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "aggregateIdType", visible = true) aggregateId: AggIdType) extends RoutableMessage[AggIdType]
-  case class ApplyEventEnvelope[AggIdType, Event, EvtMeta](
-      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "aggregateIdType", visible = true) aggregateId: AggIdType,
-      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "eventType", visible = true) event: Event,
-      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "metaEventType", visible = true) meta: EvtMeta) extends RoutableMessage[AggIdType]
+  case class CommandEnvelope[Cmd](
+      aggregateId: String,
+      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "cmdType", visible = true) command: Cmd) extends RoutableMessage
+  case class GetState(aggregateId: String) extends RoutableMessage
+  case class ApplyEventEnvelope[Event](
+      aggregateId: String,
+      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "eventType", visible = true) event: Event) extends RoutableMessage
 
   // FIXME Kotlin code can't properly match against a StateResponse/CommandSuccess when we use jackson serialization
   case class StateResponse[Agg](
@@ -93,17 +90,14 @@ private[streams] object GenericAggregateActor {
  * @param metrics A reference to the metrics interface for exposing internal actor metrics
  * @param kafkaStreamsCommand A reference to the aggregate state store in Kafka Streams used
  *                            to fetch the state of an aggregate on initialization
- * @tparam AggId Aggregate id type
  * @tparam Agg Type of aggregate represented by this actor
  * @tparam Command Type of command handled by the aggregate
  * @tparam Event Type of events emitted by the aggregate
- * @tparam CmdMeta Type of metadata associated with incoming commands passed to the business logic to enhance commands
- * @tparam EvtMeta Type of metadata about events passed to the business logic to enhance published events
  */
-private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
-    aggregateId: AggId,
-    kafkaProducerActor: KafkaProducerActor[AggId, Agg, Event, EvtMeta],
-    businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta],
+private[core] class GenericAggregateActor[Agg, Command, Event](
+    aggregateId: String,
+    kafkaProducerActor: KafkaProducerActor[Agg, Event],
+    businessLogic: KafkaStreamsCommandBusinessLogic[Agg, Command, Event],
     metrics: GenericAggregateActor.GenericAggregateActorMetrics,
     kafkaStreamsCommand: AggregateStateStoreKafkaStreams[JsValue]) extends Actor with Stash {
   import GenericAggregateActor._
@@ -127,11 +121,11 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
   override def receive: Receive = uninitialized
 
   private def freeToProcess(state: InternalActorState): Receive = {
-    case msg: CommandEnvelope[AggId, Command, CmdMeta] ⇒ handle(state, msg)
-    case msg: ApplyEventEnvelope[AggId, Event, EvtMeta] ⇒ handle(state, msg)
-    case _: GetState[AggId] ⇒ sender() ! StateResponse(state.stateOpt)
-    case ReceiveTimeout ⇒ handlePassivate()
-    case Stop ⇒ handleStop()
+    case msg: CommandEnvelope[Command]  ⇒ handle(state, msg)
+    case msg: ApplyEventEnvelope[Event] ⇒ handle(state, msg)
+    case _: GetState                    ⇒ sender() ! StateResponse(state.stateOpt)
+    case ReceiveTimeout                 ⇒ handlePassivate()
+    case Stop                           ⇒ handleStop()
   }
 
   private def persistingEvents(state: InternalActorState): Receive = {
@@ -151,24 +145,21 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
     case _ ⇒ stash()
   }
 
-  private def handle(state: InternalActorState, commandEnvelope: CommandEnvelope[AggId, Command, CmdMeta]): Unit = {
+  private def handle(state: InternalActorState, commandEnvelope: CommandEnvelope[Command]): Unit = {
     val startTime = Instant.now
     context.setReceiveTimeout(Duration.Inf)
     context.become(persistingEvents(state))
 
     val futureEventsPersisted = processCommand(state, commandEnvelope).flatMap {
       case Right(Success(events)) ⇒
-        val evtMeta = businessLogic.model.cmdMetaToEvtMeta(commandEnvelope.meta)
         val newState = events.foldLeft(state.stateOpt) { (state, evt) ⇒
-          metrics.eventHandlingTimer.time(businessLogic.model.handleEvent(state, evt, evtMeta))
+          metrics.eventHandlingTimer.time(businessLogic.model.handleEvent(state, evt))
         }
-        val eventKeyMetaValues = events.map(evt ⇒ (evtMeta, evt))
-
-        val stateKeyValue = aggregateId.toString -> newState
+        val stateKeyValue = aggregateId -> newState
 
         log.trace("GenericAggregateActor for {} publishing messages", aggregateId)
         val publishFuture = if (events.nonEmpty) {
-          kafkaProducerActor.publish(aggregateId = aggregateId, state = stateKeyValue, events = eventKeyMetaValues)
+          kafkaProducerActor.publish(aggregateId = aggregateId, state = stateKeyValue, events = events)
         } else {
           Future.successful(Done)
         }
@@ -190,12 +181,12 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
     }.pipeTo(self)(sender())
   }
 
-  private def handle(state: InternalActorState, applyEventEnvelope: ApplyEventEnvelope[AggId, Event, EvtMeta]): Unit = {
+  private def handle(state: InternalActorState, applyEventEnvelope: ApplyEventEnvelope[Event]): Unit = {
     val startTime = Instant.now
     context.setReceiveTimeout(Duration.Inf)
     context.become(persistingEvents(state))
 
-    val newState = businessLogic.model.handleEvent(state.stateOpt, applyEventEnvelope.event, applyEventEnvelope.meta)
+    val newState = businessLogic.model.handleEvent(state.stateOpt, applyEventEnvelope.event)
     val stateKeyValue = aggregateId.toString -> newState
 
     val futureStatePersisted = kafkaProducerActor.publish(aggregateId = aggregateId, state = stateKeyValue, events = Seq.empty).map { _ ⇒
@@ -212,9 +203,9 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
 
   private def processCommand(
     state: InternalActorState,
-    commandEnvelope: CommandEnvelope[AggId, Command, CmdMeta]): Future[Either[Seq[ValidationError], Try[Seq[Event]]]] = {
+    commandEnvelope: CommandEnvelope[Command]): Future[Either[Seq[ValidationError], Try[Seq[Event]]]] = {
     Future {
-      metrics.commandHandlingTimer.time(Right(businessLogic.model.processCommand(state.stateOpt, commandEnvelope.command, commandEnvelope.meta)))
+      metrics.commandHandlingTimer.time(Right(businessLogic.model.processCommand(state.stateOpt, commandEnvelope.command)))
     }
   }
 
@@ -259,12 +250,12 @@ private[core] class GenericAggregateActor[AggId, Agg, Command, Event, CmdMeta, E
       log.error(s"Could not initialize actor for $aggregateId after $initializationAttempts attempts.  Stopping actor")
       context.stop(self)
     } else {
-      kafkaProducerActor.isAggregateStateCurrent(aggregateId.toString).map { isStateCurrent ⇒
+      kafkaProducerActor.isAggregateStateCurrent(aggregateId).map { isStateCurrent ⇒
         if (isStateCurrent) {
           fetchState(initializationAttempts)
         } else {
           val retryIn = RetryConfig.AggregateActor.initializeStateInterval
-          log.warn(s"State for {} is not up to date in Kafka streams, retrying initialization in {}", aggregateId, retryIn)
+          log.warn("State for {} is not up to date in Kafka streams, retrying initialization in {}", Seq(aggregateId, retryIn): _*)
           context.system.scheduler.scheduleOnce(retryIn)(initializeState(initializationAttempts + 1))
         }
       }

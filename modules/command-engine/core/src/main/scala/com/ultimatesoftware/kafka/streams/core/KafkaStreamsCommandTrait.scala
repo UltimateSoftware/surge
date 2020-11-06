@@ -10,18 +10,18 @@ import play.api.libs.json.JsValue
 
 import scala.concurrent.{ ExecutionContext, Future }
 
-trait KafkaStreamsCommandTrait[AggId, Agg, Command, Event, CmdMeta, EvtMeta] {
+trait KafkaStreamsCommandTrait[Agg, Command, Event] {
   def start(): Unit
   def restart(): Unit
   def stop(): Unit
-  val businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta]
+  val businessLogic: KafkaStreamsCommandBusinessLogic[Agg, Command, Event]
   def actorSystem: ActorSystem
 }
 
-abstract class KafkaStreamsCommandImpl[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
+abstract class KafkaStreamsCommandImpl[Agg, Command, Event](
     actorSystem: ActorSystem,
-    override val businessLogic: KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta])
-  extends KafkaStreamsCommandTrait[AggId, Agg, Command, Event, CmdMeta, EvtMeta] with ActorSystemHostAwareness {
+    override val businessLogic: KafkaStreamsCommandBusinessLogic[Agg, Command, Event])
+  extends KafkaStreamsCommandTrait[Agg, Command, Event] with ActorSystemHostAwareness {
 
   private implicit val system: ActorSystem = actorSystem
 
@@ -36,7 +36,7 @@ abstract class KafkaStreamsCommandImpl[AggId, Agg, Command, Event, CmdMeta, EvtM
     applicationHostPort,
     businessLogic.consumerGroup,
     system)
-  protected val actorRouter = new GenericAggregateActorRouter[AggId, Agg, Command, Event, CmdMeta, EvtMeta](actorSystem, stateChangeActor,
+  protected val actorRouter = new GenericAggregateActorRouter[Agg, Command, Event](actorSystem, stateChangeActor,
     businessLogic, businessLogic.metricsProvider, kafkaStreamsImpl)
 
   protected val surgeHealthCheck = new SurgeHealthCheck(

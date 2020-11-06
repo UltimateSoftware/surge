@@ -16,15 +16,8 @@ final case class CommandUnauthorizedException(msg: String) extends CommandProces
  * @tparam Agg  The Aggregate Type
  * @tparam Cmd  The Aggregate's Base Command Type
  * @tparam Evt  The Aggregate's Base Event Type
- * @tparam CmdMeta The Meta Data Type for Commands
- * @tparam EvtMeta The Meta Data Type for Events
  */
-trait AggregateCommandModel[AggId, Agg, Cmd, Evt, CmdMeta, EvtMeta] {
-
-  def aggIdFromCommand: Cmd ⇒ AggId
-
-  def cmdMetaToEvtMeta: CmdMeta ⇒ EvtMeta
-
-  def processCommand: CommandProcessor[Agg, Cmd, Evt, CmdMeta]
-  def handleEvent: EventHandler[Agg, Evt, EvtMeta]
+trait AggregateCommandModel[Agg, Cmd, Evt] {
+  def processCommand: CommandProcessor[Agg, Cmd, Evt]
+  def handleEvent: EventHandler[Agg, Evt]
 }

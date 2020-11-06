@@ -17,10 +17,10 @@ import com.ultimatesoftware.kafka.streams._
 import com.ultimatesoftware.scala.core.kafka._
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, Rate, Timer }
 import org.apache.kafka.clients.producer.{ ProducerConfig, ProducerRecord }
-import org.apache.kafka.common.errors.{ AuthorizationException, ProducerFencedException, UnsupportedVersionException }
+import org.apache.kafka.common.TopicPartition
+import org.apache.kafka.common.errors.ProducerFencedException
 import org.apache.kafka.common.header.Header
 import org.apache.kafka.common.header.internals.RecordHeader
-import org.apache.kafka.common.{ KafkaException, TopicPartition }
 import org.slf4j.{ Logger, LoggerFactory }
 
 import scala.collection.JavaConverters._
@@ -60,15 +60,14 @@ import scala.util.{ Failure, Success, Try }
  *                          that partition will be fenced out by Kafka.
  * @param metricsProvider Metrics provider interface to use for recording internal metrics to
  * @param aggregateCommandKafkaStreams Command service business logic wrapper used for determining state and event topics
- * @tparam AggId Generic aggregate id type for aggregates publishing states/events through this stateful producer
  * @tparam Agg Generic aggregate type of aggregates publishing states/events through this stateful producer
  * @tparam Event Generic base type for events that aggregate instances publish through this stateful producer
  */
-class KafkaProducerActor[AggId, Agg, Event, EvtMeta](
+class KafkaProducerActor[Agg, Event](
     actorSystem: ActorSystem,
     assignedPartition: TopicPartition,
     metricsProvider: MetricsProvider,
-    aggregateCommandKafkaStreams: KafkaStreamsCommandBusinessLogic[AggId, Agg, _, Event, _, EvtMeta]) extends HealthyComponent {
+    aggregateCommandKafkaStreams: KafkaStreamsCommandBusinessLogic[Agg, _, Event]) extends HealthyComponent {
 
   private val log = LoggerFactory.getLogger(getClass)
   private val aggregateName: String = aggregateCommandKafkaStreams.aggregateName
@@ -81,28 +80,30 @@ class KafkaProducerActor[AggId, Agg, Event, EvtMeta](
   private val serializeStateTimer: Timer = metricsProvider.createTimer(s"${aggregateName}AggregateStateSerializationTimer")
   private val serializeEventTimer: Timer = metricsProvider.createTimer(s"${aggregateName}EventSerializationTimer")
 
-  def publish(aggregateId: AggId, state: (String, Option[Agg]), events: Seq[(EvtMeta, Event)]): Future[Done] = {
+  def publish(aggregateId: String, state: (String, Option[Agg]), events: Seq[Event]): Future[Done] = {
 
-    val eventKeyValuePairs = events.map {
-      case (eventMeta, event) ⇒
-        val serializedMessage = serializeEventTimer.time(aggregateCommandKafkaStreams.writeFormatting.writeEvent(event, eventMeta))
-        log.trace(s"Publishing event for {} {}", Seq(aggregateName, serializedMessage.key): _*)
-        KafkaProducerActorImpl.EventToPublish(
-          key = serializedMessage.key,
-          value = serializedMessage.value,
-          headers = serializedMessage.headers.map(kv ⇒ new RecordHeader(kv._1, kv._2.getBytes())).toSeq)
+    val eventKeyValuePairs = events.map { event ⇒
+      val serializedMessage = serializeEventTimer.time(aggregateCommandKafkaStreams.writeFormatting.writeEvent(event))
+      log.trace(s"Publishing event for {} {}", Seq(aggregateName, serializedMessage.key): _*)
+      KafkaProducerActorImpl.MessageToPublish(
+        key = serializedMessage.key,
+        value = serializedMessage.value,
+        headers = serializedMessage.headers.map(kv ⇒ new RecordHeader(kv._1, kv._2.getBytes())).toSeq)
     }
 
     val (stateKey, stateValueOpt) = state
-    val stateValue = stateValueOpt.map { value ⇒
+    val serializedStateOpt = stateValueOpt.map { value ⇒
       serializeStateTimer.time(aggregateCommandKafkaStreams.writeFormatting.writeState(value))
-    }.orNull
-    val stateKeyValuePair = stateKey -> stateValue
+    }
+    val stateToPublish = KafkaProducerActorImpl.MessageToPublish(
+      key = stateKey,
+      value = serializedStateOpt.map(_.value).orNull,
+      headers = serializedStateOpt.map(_.headers.map(kv ⇒ new RecordHeader(kv._1, kv._2.getBytes())).toSeq).getOrElse(Seq.empty))
     log.trace(s"Publishing state for {} {}", Seq(aggregateName, stateKey): _*)
 
     publishEventsTimer.time {
       implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PublisherActor.publishTimeout)
-      (publisherActor ? KafkaProducerActorImpl.Publish(eventKeyValuePairs = eventKeyValuePairs, stateKeyValuePair = stateKeyValuePair))
+      (publisherActor ? KafkaProducerActorImpl.Publish(eventKeyValuePairs = eventKeyValuePairs, stateKeyValuePair = stateToPublish))
         .map(_ ⇒ Done)(ExecutionContext.global)
     }
   }
@@ -135,9 +136,9 @@ class KafkaProducerActor[AggId, Agg, Event, EvtMeta](
 }
 
 private object KafkaProducerActorImpl {
-  case class EventToPublish(key: String, value: Array[Byte], headers: Seq[Header])
+  case class MessageToPublish(key: String, value: Array[Byte], headers: Seq[Header])
   sealed trait KafkaProducerActorMessage extends NoSerializationVerificationNeeded
-  case class Publish(stateKeyValuePair: (String, Array[Byte]), eventKeyValuePairs: Seq[EventToPublish]) extends KafkaProducerActorMessage
+  case class Publish(stateKeyValuePair: MessageToPublish, eventKeyValuePairs: Seq[MessageToPublish]) extends KafkaProducerActorMessage
   case class StateProcessed(stateMeta: KafkaPartitionMetadata) extends KafkaProducerActorMessage
   case class IsAggregateStateCurrent(aggregateId: String, expirationTime: Instant) extends KafkaProducerActorMessage
   case class AggregateStateRates(current: Rate, notCurrent: Rate) extends KafkaProducerActorMessage
@@ -154,9 +155,9 @@ private object KafkaProducerActorImpl {
   case class PublishWithSender(sender: ActorRef, publish: Publish) extends InternalMessage
   case class PendingInitialization(actor: ActorRef, key: String, expiration: Instant) extends InternalMessage
 }
-private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
+private class KafkaProducerActorImpl[Agg, Event](
     assignedPartition: TopicPartition, metrics: MetricsProvider,
-    aggregateCommandKafkaStreams: KafkaStreamsCommandBusinessLogic[_, Agg, _, Event, _, _],
+    aggregateCommandKafkaStreams: KafkaStreamsCommandBusinessLogic[Agg, _, Event],
     kafkaProducerOverride: Option[KafkaBytesProducer] = None) extends Actor with Stash {
 
   import KafkaProducerActorImpl._
@@ -349,9 +350,8 @@ private class KafkaProducerActorImpl[Agg, Event, EvtMeta](
         // Using null here since we need to add the headers but we don't want to explicitly assign the partition
         new ProducerRecord(eventsTopic.name, null, eventToPublish.key, eventToPublish.value, eventToPublish.headers.asJava) // scalastyle:ignore null
       }
-      val stateRecords = stateMessages.map {
-        case (aggregateKey, aggregateValue) ⇒
-          new ProducerRecord(stateTopic.name, assignedPartition.partition(), aggregateKey, aggregateValue)
+      val stateRecords = stateMessages.map { stateToPublish ⇒
+        new ProducerRecord(stateTopic.name, assignedPartition.partition(), stateToPublish.key, stateToPublish.value, stateToPublish.headers.asJava)
       }
       val records = eventRecords ++ stateRecords
 

@@ -24,12 +24,12 @@ object KafkaPartitionShardRouterActor {
   private val config: Config = ConfigFactory.load()
   private val brokers = config.getString("kafka.brokers").split(",")
 
-  def props[Agg, AggIdType, Command, Event, Resource, CmdMeta](
+  def props[Agg, Command, Event](
     partitionTracker: ActorRef,
     partitioner: KafkaPartitioner[String],
     trackedTopic: KafkaTopic,
     regionCreator: TopicPartitionRegionCreator,
-    extractEntityId: PartialFunction[Any, AggIdType]): Props = {
+    extractEntityId: PartialFunction[Any, String]): Props = {
 
     // This producer is only used for determining partition assignments, not actually producing
     val producer = KafkaBytesProducer(brokers, trackedTopic, partitioner)
@@ -40,16 +40,16 @@ object KafkaPartitionShardRouterActor {
   val pendingRetryExpirationThreshold: FiniteDuration = askTimeout.duration * 3
 
   case object GetPartitionRegionAssignments
-  case class ScheduleRetry[IdType](aggregateId: IdType, message: Any, initialAskTime: Instant, failedAt: Instant) {
-    def toPendingRetry(sender: ActorRef): PendingRetry[IdType] = {
+  case class ScheduleRetry(aggregateId: String, message: Any, initialAskTime: Instant, failedAt: Instant) {
+    def toPendingRetry(sender: ActorRef): PendingRetry = {
       val expirationTime = failedAt.plusMillis(pendingRetryExpirationThreshold.toMillis)
       PendingRetry(sender, aggregateId, message, initialAskTime, expirationTime)
     }
   }
-  case class PendingRetry[IdType](initialSender: ActorRef, aggregateId: IdType, message: Any, initialAskTime: Instant, expirationTime: Instant) {
+  case class PendingRetry(initialSender: ActorRef, aggregateId: String, message: Any, initialAskTime: Instant, expirationTime: Instant) {
     def isExpired: Boolean = Instant.now.isAfter(expirationTime)
 
-    def toScheduleRetry: ScheduleRetry[IdType] = {
+    def toScheduleRetry: ScheduleRetry = {
       val failedAt = expirationTime.minusMillis(pendingRetryExpirationThreshold.toMillis)
       ScheduleRetry(aggregateId = aggregateId, message = message, initialAskTime = initialAskTime, failedAt = failedAt)
     }
@@ -82,13 +82,12 @@ object KafkaPartitionShardRouterActor {
  * @param regionCreator An subclass of `TopicPartitionRegionCreator` used to create a new shard for messages destined to a local shard/partition
  *                      that does not yet exist.
  * @param extractEntityId A partial function to extract an entity id from an incoming message.  This actor can only handle routing
- * @tparam AggIdType Generic aggregate id type. Must be able to extract an instance of this type from a message to be able to route it
  */
-class KafkaPartitionShardRouterActor[AggIdType](
+class KafkaPartitionShardRouterActor(
     partitionTracker: ActorRef,
     kafkaStateProducer: KafkaProducerTrait[String, _],
     regionCreator: TopicPartitionRegionCreator,
-    extractEntityId: PartialFunction[Any, AggIdType]) extends Actor with Stash with ActorHostAwareness {
+    extractEntityId: PartialFunction[Any, String]) extends Actor with Stash with ActorHostAwareness {
 
   import KafkaPartitionShardRouterActor._
   import context.dispatcher
@@ -105,7 +104,7 @@ class KafkaPartitionShardRouterActor[AggIdType](
   private case object ExpireOldPendingRetries extends InternalMessage
 
   private case class ActorState(partitionAssignments: PartitionAssignments, partitionRegions: Map[Int, PartitionRegion],
-      pendingRetries: Map[Int, List[PendingRetry[AggIdType]]], enableDRStandby: Boolean = enableDRStandbyInitial) {
+      pendingRetries: Map[Int, List[PendingRetry]], enableDRStandby: Boolean = enableDRStandbyInitial) {
     def partitionsToHosts: Map[Int, HostPort] = {
       partitionAssignments.topicPartitionsToHosts.map {
         case (tp, host) ⇒ tp.partition() -> host
@@ -121,7 +120,7 @@ class KafkaPartitionShardRouterActor[AggIdType](
       StatePlusRegion(newState, Some(partitionRegion))
     }
 
-    def addPendingRetry(partition: Int, retry: PendingRetry[AggIdType]): ActorState = {
+    def addPendingRetry(partition: Int, retry: PendingRetry): ActorState = {
       val oldRetriesForPartition = pendingRetries.getOrElse(partition, List.empty)
       val newRetriesForPartition = partition -> (oldRetriesForPartition :+ retry)
       val newPendingRetries = pendingRetries + newRetriesForPartition
@@ -134,7 +133,7 @@ class KafkaPartitionShardRouterActor[AggIdType](
         retries.filterNot { retry ⇒
           if (retry.isExpired) {
             log.debug(
-              "Removing expired pending retry for aggregate {} which expired at {}", retry.aggregateId, retry.expirationTime)
+              "Removing expired pending retry for aggregate {} which expired at {}", Seq(retry.aggregateId, retry.expirationTime): _*)
           }
           retry.isExpired
         }
@@ -224,7 +223,7 @@ class KafkaPartitionShardRouterActor[AggIdType](
   private def initialized(state: ActorState): Receive = healthCheckReceiver(state) orElse {
     case msg: PartitionAssignments               ⇒ handle(state, msg)
     case msg: Terminated                         ⇒ handle(state, msg)
-    case msg: ScheduleRetry[AggIdType]           ⇒ handle(state, msg)
+    case msg: ScheduleRetry                      ⇒ handle(state, msg)
     case ExpireOldPendingRetries                 ⇒ handleExpireOldPendingRetries(state)
     case GetPartitionRegionAssignments           ⇒ sender() ! state.partitionRegions
     case msg if extractEntityId.isDefinedAt(msg) ⇒ deliverMessage(state, msg)
@@ -244,12 +243,11 @@ class KafkaPartitionShardRouterActor[AggIdType](
     }
   }
 
-  private def deliverMessage(state: ActorState, aggregateId: AggIdType, msg: Any): Unit = {
+  private def deliverMessage(state: ActorState, aggregateId: String, msg: Any): Unit = {
     partitionRegionFor(state, aggregateId) match {
       case Some(responsiblePartitionRegion) ⇒
         log.trace(
-          s"RouterActor forwarding command envelope for aggregate {} to region {}. Msg $msg",
-          aggregateId, responsiblePartitionRegion.regionManager.pathString)
+          s"RouterActor forwarding command envelope for aggregate $aggregateId to region ${responsiblePartitionRegion.regionManager.pathString}. Msg $msg")
 
         val initialSender = sender()
         (responsiblePartitionRegion.regionManager ? msg).map { resp ⇒
@@ -276,11 +274,11 @@ class KafkaPartitionShardRouterActor[AggIdType](
     }
   }
 
-  private def partitionForAggregateId(aggregateId: AggIdType): Option[Int] = {
-    kafkaStateProducer.partitionFor(aggregateId.toString)
+  private def partitionForAggregateId(aggregateId: String): Option[Int] = {
+    kafkaStateProducer.partitionFor(aggregateId)
   }
 
-  private def partitionRegionFor(state: ActorState, aggregateId: AggIdType): Option[PartitionRegion] = {
+  private def partitionRegionFor(state: ActorState, aggregateId: String): Option[PartitionRegion] = {
     partitionForAggregateId(aggregateId) match {
       case Some(partition) ⇒
         partitionRegionFor(state, partition).region
@@ -345,7 +343,7 @@ class KafkaPartitionShardRouterActor[AggIdType](
     context.become(initialized(state.copy(partitionRegions = newPartitionRegions)))
   }
 
-  private def attemptRetry(state: ActorState, pendingRetry: PendingRetry[AggIdType]): Unit = {
+  private def attemptRetry(state: ActorState, pendingRetry: PendingRetry): Unit = {
     partitionRegionFor(state, pendingRetry.aggregateId).foreach { responsiblePartitionRegion ⇒
       log.debug(
         "RouterActor attempting redelivery of command envelope for aggregate {} to region {}",
@@ -370,7 +368,7 @@ class KafkaPartitionShardRouterActor[AggIdType](
     }
   }
 
-  private def handle(state: ActorState, scheduleRetry: ScheduleRetry[AggIdType]): Unit = {
+  private def handle(state: ActorState, scheduleRetry: ScheduleRetry): Unit = {
     partitionForAggregateId(scheduleRetry.aggregateId) match {
       case Some(partition) ⇒
         val pendingRetry = scheduleRetry.toPendingRetry(sender())

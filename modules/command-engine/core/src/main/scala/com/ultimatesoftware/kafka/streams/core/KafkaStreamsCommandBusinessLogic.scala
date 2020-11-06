@@ -13,12 +13,12 @@ private[streams] case class KafkaStreamsCommandKafkaConfig(
     stateTopic: KafkaTopic,
     eventsTopic: KafkaTopic)
 
-private[streams] case class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
+private[streams] case class KafkaStreamsCommandBusinessLogic[Agg, Command, Event](
     aggregateName: String,
     kafka: KafkaStreamsCommandKafkaConfig,
-    model: AggregateCommandModel[AggId, Agg, Command, Event, CmdMeta, EvtMeta],
-    readFormatting: SurgeAggregateReadFormatting[AggId, Agg],
-    writeFormatting: SurgeWriteFormatting[AggId, Agg, Event, EvtMeta],
+    model: AggregateCommandModel[Agg, Command, Event],
+    readFormatting: SurgeAggregateReadFormatting[Agg],
+    writeFormatting: SurgeWriteFormatting[Agg, Event],
     commandValidator: AsyncCommandValidator[Command, Agg],
     aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) ⇒ Boolean,
     metricsProvider: MetricsProvider, metricsPublisher: MetricsPublisher, metricsInterval: FiniteDuration,

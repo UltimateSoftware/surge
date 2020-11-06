@@ -11,14 +11,16 @@ import org.apache.kafka.streams.state.QueryableStoreTypes
 import org.apache.kafka.streams.{ KafkaStreams, StreamsConfig, Topology }
 import org.slf4j.LoggerFactory
 
-class KafkaStreamsEventProcessor[AggId, Agg, Event, EvtMeta](
+import scala.util.Try
+
+class KafkaStreamsEventProcessor[Agg, Event](
     aggregateName: String,
-    readFormatting: SurgeReadFormatting[AggId, Agg, Event, EvtMeta],
-    writeFormatting: SurgeAggregateWriteFormatting[AggId, Agg],
+    readFormatting: SurgeReadFormatting[Agg, Event],
+    writeFormatting: SurgeAggregateWriteFormatting[Agg],
     eventsTopic: KafkaTopic,
     applicationHostPort: Option[String],
-    extractAggregateId: EventPlusMeta[Event, EvtMeta] ⇒ Option[String],
-    processEvent: (Option[Agg], Event, EvtMeta) ⇒ Option[Agg],
+    extractAggregateId: Event ⇒ Option[String],
+    processEvent: (Option[Agg], Event) ⇒ Option[Agg],
     metricsProvider: MetricsProvider) {
 
   private val log = LoggerFactory.getLogger(getClass)
@@ -49,8 +51,7 @@ class KafkaStreamsEventProcessor[AggId, Agg, Event, EvtMeta](
   private val consumer: KafkaByteStreamsConsumer = KafkaByteStreamsConsumer(brokers = brokers, applicationId = applicationId, consumerConfig = consumerConfig,
     kafkaConfig = streamsConfig, applicationServerConfig = applicationHostPort)
 
-  private val envelopeUtils = new EnvelopeUtils(readFormatting)
-  private val aggProcessor = new EventProcessor[AggId, Agg, Event, EvtMeta](aggregateName, readFormatting, writeFormatting, extractAggregateId, processEvent, metricsProvider)
+  private val aggProcessor = new EventProcessor[Agg, Event](aggregateName, readFormatting, writeFormatting, extractAggregateId, processEvent, metricsProvider)
 
   lazy val streams: KafkaStreams = consumer.streams
 
@@ -59,7 +60,7 @@ class KafkaStreamsEventProcessor[AggId, Agg, Event, EvtMeta](
   private def initStreams(): Unit = {
     consumer.builder.addStateStore(aggProcessor.aggregateKTableStoreBuilder)
     val events = consumer.stream(eventsTopic).flatMapValues { value ⇒
-      eventDeserializationTimer.time(envelopeUtils.eventFromBytes(value))
+      eventDeserializationTimer.time(Try(readFormatting.readEvent(value)).toOption)
     }
     events.process(aggProcessor.supplier, aggProcessor.aggregateKTableStoreName)
   }

@@ -10,7 +10,9 @@ import akka.util.MessageBufferMap
 import com.ultimatesoftware.kafka.streams.{ HealthCheck, HealthCheckStatus }
 import com.ultimatesoftware.kafka.streams.HealthyActor.GetHealth
 import org.slf4j.{ Logger, LoggerFactory }
+
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 
 /**
  * A shard is a building block for scaling that is responsible for tracking & managing many child actors underneath.  The child
@@ -55,7 +57,7 @@ class Shard[IdType](
   override def receive: Receive = {
     case msg: Terminated                         ⇒ receiveTerminated(msg)
     case msg: Passivate                          ⇒ receivePassivate(msg)
-    case GetHealth                               ⇒ getHealthCheck()
+    case GetHealth                               ⇒ getHealthCheck
     case msg if extractEntityId.isDefinedAt(msg) ⇒ deliverMessage(msg, sender())
   }
 
@@ -158,7 +160,7 @@ class Shard[IdType](
     }
   }
 
-  private def getHealthCheck() = {
+  private def getHealthCheck: Future[HealthCheck] = {
     regionLogicProvider.healthCheck().map { regionProviderHealth ⇒
       HealthCheck(
         name = s"shard",

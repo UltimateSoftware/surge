@@ -14,22 +14,22 @@ import com.ultimatesoftware.scala.oss.domain.AggregateCommandModel
 import scala.compat.java8.OptionConverters._
 import scala.concurrent.duration._
 
-abstract class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta] {
+abstract class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event] {
 
   private val config = ConfigFactory.load()
 
   def aggregateName: String
   def stateTopic: KafkaTopic
   def eventsTopic: KafkaTopic
-  @deprecated("Metadata topic is no longer used", "0.4.29")
-  def internalMetadataTopic: KafkaTopic = KafkaTopic("")
 
-  def commandModel: AggregateCommandModel[AggId, Agg, Command, Event, CmdMeta, EvtMeta]
+  def commandModel: AggregateCommandModel[Agg, Command, Event]
 
-  def readFormatting: SurgeAggregateReadFormatting[AggId, Agg]
-  def writeFormatting: SurgeWriteFormatting[AggId, Agg, Event, EvtMeta]
+  def readFormatting: SurgeAggregateReadFormatting[Agg]
+  def writeFormatting: SurgeWriteFormatting[Agg, Event]
 
   def commandValidator: AsyncCommandValidator[Command, Agg]
+
+  def aggregateIdToString(aggId: AggId): String = aggId.toString
 
   def aggregateValidator(key: String, aggJson: Array[Byte], prevAggJsonOpt: Optional[Array[Byte]]): Boolean = true
   private def scalaAggregateValidator: (String, Array[Byte], Option[Array[Byte]]) ⇒ Boolean = { (key, agg, prevAgg) ⇒
@@ -45,25 +45,20 @@ abstract class KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdM
 
   private def kafkaConfig = KafkaStreamsCommandKafkaConfig(stateTopic = stateTopic, eventsTopic = eventsTopic)
 
-  @deprecated("Use consumerGroup to set the consumer group name", "0.4.23")
-  def aggregateConsumerGroupName: String = {
+  def consumerGroupBase: String = {
     val environment = config.getString("app.environment")
     s"$aggregateName-$environment-command"
   }
 
-  def consumerGroup: String = {
-    aggregateConsumerGroupName
-  }
-
   def transactionalIdPrefix: String = "surge-transactional-event-producer-partition"
 
-  private[javadsl] def toCore: com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta] = {
-    new com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[AggId, Agg, Command, Event, CmdMeta, EvtMeta](
+  private[javadsl] def toCore: com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[Agg, Command, Event] = {
+    new com.ultimatesoftware.kafka.streams.core.KafkaStreamsCommandBusinessLogic[Agg, Command, Event](
       aggregateName = aggregateName, kafka = kafkaConfig,
       model = commandModel, writeFormatting = writeFormatting, readFormatting = readFormatting,
       commandValidator = commandValidator, aggregateValidator = scalaAggregateValidator,
       metricsProvider = metricsProvider, metricsPublisher = metricsPublisher, metricsInterval = metricsInterval,
-      consumerGroup = consumerGroup,
+      consumerGroup = consumerGroupBase,
       transactionalIdPrefix = transactionalIdPrefix)
   }
 }

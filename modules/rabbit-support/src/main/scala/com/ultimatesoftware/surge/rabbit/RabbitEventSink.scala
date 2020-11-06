@@ -13,10 +13,10 @@ import com.ultimatesoftware.kafka.streams.core.{ EventHandler, SurgeEventWriteFo
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 
-trait RabbitEventSink[Event, EvtMeta] extends EventHandler[Event, EvtMeta] {
+trait RabbitEventSink[Event] extends EventHandler[Event] {
   def rabbitMqUri: String
   def queueName: String
-  def writeFormatting: SurgeEventWriteFormatting[Event, EvtMeta]
+  def writeFormatting: SurgeEventWriteFormatting[Event]
 
   private lazy val connectionProvider: AmqpConnectionProvider = AmqpUriConnectionProvider(rabbitMqUri)
   private lazy val writeSettings = AmqpWriteSettings(connectionProvider)
@@ -27,8 +27,8 @@ trait RabbitEventSink[Event, EvtMeta] extends EventHandler[Event, EvtMeta] {
 
   private lazy val rabbitWriteFlow = AmqpFlow.withConfirm(writeSettings)
 
-  override def eventHandler: Flow[(Event, EvtMeta), Any, NotUsed] = {
-    Flow[(Event, EvtMeta)].map { case (event, meta) ⇒ writeFormatting.writeEvent(event, meta) }
+  override def eventHandler: Flow[Event, Any, NotUsed] = {
+    Flow[Event].map { event ⇒ writeFormatting.writeEvent(event) }
       .map { serialized ⇒
         val headers: Map[String, AnyRef] = serialized.headers
         val props = new BasicProperties.Builder()

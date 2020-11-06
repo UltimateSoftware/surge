@@ -48,7 +48,8 @@ class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec"))
     val consumerSettings = KafkaConsumer.defaultConsumerSettings(system, groupId)
       .withBootstrapServers(kafkaBrokers)
 
-    val businessFlow = FlowConverter.flowFor((key: String, value: Array[Byte]) ⇒ businessLogic(key, value), 1)
+    val tupleFlow: ((String, Array[Byte])) ⇒ Future[_] = { tup ⇒ businessLogic(tup._1, tup._2) }
+    val businessFlow = FlowConverter.flowFor(tupleFlow, 1)
     KafkaStreamManager(topic, consumerSettings, replayStrategy, replaySettings, businessFlow)
   }
 

@@ -26,9 +26,6 @@ trait KafkaDataSource[Key, Value] extends DataSource {
   def kafkaBrokers: String = defaultBrokers
   def kafkaTopic: KafkaTopic
 
-  @deprecated("Parallelism is now set by the sink instead of the source and should be overridden there", "0.4.57")
-  def parallelism: Int = 1
-
   def actorSystem: ActorSystem
 
   def keyDeserializer: Deserializer[Key]
@@ -51,16 +48,15 @@ trait KafkaDataSource[Key, Value] extends DataSource {
 object FlowConverter {
   private val log = LoggerFactory.getLogger(getClass)
 
-  def flowFor[Key, Value](
-    businessLogic: (Key, Value) ⇒ Future[Any],
-    parallelism: Int)(implicit ec: ExecutionContext): Flow[(Key, Value), Done, NotUsed] = {
-    Flow[(Key, Value)].mapAsync(parallelism) {
-      case (key, value) ⇒
-        businessLogic(key, value).recover {
-          case e ⇒
-            log.error(s"An exception was thrown by the event handler! The stream will restart and the message will be retried.", e)
-            throw e
-        }.map(_ ⇒ Done)
+  def flowFor[T](
+    businessLogic: T ⇒ Future[Any],
+    parallelism: Int)(implicit ec: ExecutionContext): Flow[T, Done, NotUsed] = {
+    Flow[T].mapAsync(parallelism) { t ⇒
+      businessLogic(t).recover {
+        case e ⇒
+          log.error(s"An exception was thrown by the event handler! The stream will restart and the message will be retried.", e)
+          throw e
+      }.map(_ ⇒ Done)
     }
   }
 }
@@ -73,6 +69,7 @@ trait DataSink[Key, Value] extends DataHandler[Key, Value] {
   def handle(key: Key, value: Value): Future[Any]
 
   override def dataHandler: Flow[(Key, Value), Any, NotUsed] = {
-    FlowConverter.flowFor(handle, parallelism)(ExecutionContext.global)
+    val tupHandler: ((Key, Value)) ⇒ Future[Any] = { tup ⇒ handle(tup._1, tup._2) }
+    FlowConverter.flowFor(tupHandler, parallelism)(ExecutionContext.global)
   }
 }
