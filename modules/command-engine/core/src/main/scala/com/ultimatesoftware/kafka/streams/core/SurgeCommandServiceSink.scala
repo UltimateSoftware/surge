@@ -4,13 +4,13 @@ package com.ultimatesoftware.kafka.streams.core
 import com.ultimatesoftware.support.Logging
 import scala.concurrent.{ ExecutionContext, Future }
 
-trait SurgeMultiCommandServiceSink[Command, Event] extends EventSink[Event] with Logging {
+trait SurgeMultiCommandServiceSink[AggId, Command, Event] extends EventSink[Event] with Logging {
 
   def eventToCommands: Event ⇒ Seq[Command]
   implicit def executionContext: ExecutionContext
-  protected def sendToAggregate(aggId: String, command: Command): Future[Any]
+  protected def sendToAggregate(aggId: AggId, command: Command): Future[Any]
 
-  def aggregateIdFromCommand: Command ⇒ String
+  def aggregateIdFromCommand: Command ⇒ AggId
 
   def handleEvent(event: Event): Future[Any] = {
     val aggregateCommands = eventToCommands(event).map { cmd ⇒
@@ -28,8 +28,8 @@ trait SurgeMultiCommandServiceSink[Command, Event] extends EventSink[Event] with
   }
 }
 
-trait SurgeCommandServiceSink[Command, Event]
-  extends SurgeMultiCommandServiceSink[Command, Event] {
+trait SurgeCommandServiceSink[AggId, Command, Event]
+  extends SurgeMultiCommandServiceSink[AggId, Command, Event] {
   def eventToCommand: Event ⇒ Option[Command]
   override def eventToCommands: Event ⇒ Seq[Command] = eventToCommand.andThen(_.toSeq)
 }

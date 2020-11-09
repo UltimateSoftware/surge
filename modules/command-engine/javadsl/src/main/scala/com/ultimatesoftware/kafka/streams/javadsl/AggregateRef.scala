@@ -19,10 +19,10 @@ trait AggregateRef[Agg, Cmd, Event] {
   def applyEvent(event: Event): CompletionStage[ApplyEventResult[Agg]]
 }
 
-final class AggregateRefImpl[Agg, Cmd, Event](
-    val aggregateId: String,
+final class AggregateRefImpl[AggId, Agg, Cmd, Event](
+    val aggregateId: AggId,
     val region: ActorRef) extends AggregateRef[Agg, Cmd, Event]
-  with AggregateRefTrait[Agg, Cmd, Event] {
+  with AggregateRefTrait[AggId, Agg, Cmd, Event] {
 
   import DomainValidationError._
   private implicit val ec: ExecutionContext = ExecutionContext.global
@@ -32,7 +32,7 @@ final class AggregateRefImpl[Agg, Cmd, Event](
   }
 
   def ask(command: Cmd): CompletionStage[CommandResult[Agg]] = {
-    val envelope = GenericAggregateActor.CommandEnvelope[Cmd](aggregateId, command)
+    val envelope = GenericAggregateActor.CommandEnvelope[Cmd](aggregateId.toString, command)
     val result = askWithRetries(envelope).map {
       case Left(error: core.DomainValidationError) ⇒
         CommandFailure[Agg](error.asJava)
@@ -45,7 +45,7 @@ final class AggregateRefImpl[Agg, Cmd, Event](
   }
 
   def applyEvent(event: Event): CompletionStage[ApplyEventResult[Agg]] = {
-    val envelope = GenericAggregateActor.ApplyEventEnvelope[Event](aggregateId, event)
+    val envelope = GenericAggregateActor.ApplyEventEnvelope[Event](aggregateId.toString, event)
     val result = applyEventsWithRetries(envelope)
       .map(aggOpt ⇒ ApplyEventsSuccess[Agg](aggOpt.asJava))
       .recover {

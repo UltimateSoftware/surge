@@ -18,13 +18,14 @@ import scala.concurrent.{ ExecutionContext, Future }
  * will be forwarded to the same business logic aggregate actor responsible for the same aggregateId
  * as the AggregateRef is responsible for.
  *
+ * @tparam AggId The type of the aggregate id for the underlying business logic aggregate
  * @tparam Agg The type of the business logic aggregate being proxied to
  * @tparam Cmd The command type that the business logic aggregate handles
  * @tparam Event The event type that the business logic aggregate generates and can handle to update state
  */
-trait AggregateRefTrait[Agg, Cmd, Event] {
+trait AggregateRefTrait[AggId, Agg, Cmd, Event] {
 
-  val aggregateId: String
+  val aggregateId: AggId
   val region: ActorRef
 
   private val askTimeoutDuration = TimeoutConfig.AggregateActor.askTimeout
@@ -49,7 +50,7 @@ trait AggregateRefTrait[Agg, Cmd, Event] {
    *         aggregate with the aggregate id of this reference
    */
   protected def queryState(implicit ec: ExecutionContext): Future[Option[Agg]] = {
-    (region ? GenericAggregateActor.GetState(aggregateId)).mapTo[GenericAggregateActor.StateResponse[Agg]].map(_.aggregateState)
+    (region ? GenericAggregateActor.GetState(aggregateId.toString)).mapTo[GenericAggregateActor.StateResponse[Agg]].map(_.aggregateState)
   }
 
   /**
