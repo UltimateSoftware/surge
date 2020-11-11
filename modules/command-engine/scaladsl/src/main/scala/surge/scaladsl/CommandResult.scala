@@ -1,6 +1,6 @@
 // Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
 
-package surge.kafka.streams.scaladsl
+package surge.scaladsl
 
 sealed trait CommandResult[Agg]
 case class CommandSuccess[Agg](aggregateState: Option[Agg]) extends CommandResult[Agg]

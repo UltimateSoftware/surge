@@ -1,6 +1,6 @@
 // Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
 
-package surge.kafka.streams.javadsl
+package surge.javadsl
 
 import surge.core.{ DomainValidationError ⇒ ScalaDomainValidationError }
 import surge.scala.core.validations.ValidationError

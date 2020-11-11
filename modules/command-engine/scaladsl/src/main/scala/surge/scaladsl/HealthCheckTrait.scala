@@ -1,6 +1,6 @@
 // Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
 
-package surge.kafka.streams.scaladsl
+package surge.scaladsl
 
 import surge.kafka.streams.HealthCheck
 

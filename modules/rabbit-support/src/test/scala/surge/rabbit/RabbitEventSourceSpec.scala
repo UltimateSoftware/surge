@@ -1,6 +1,6 @@
 // Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
 
-package surge.surge.rabbit
+package surge.rabbit
 
 import akka.Done
 import akka.actor.ActorSystem

@@ -1,6 +1,6 @@
 // Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
 
-package surge.kafka.streams.javadsl
+package surge.javadsl
 
 import java.util
 import java.util.concurrent.CompletionStage

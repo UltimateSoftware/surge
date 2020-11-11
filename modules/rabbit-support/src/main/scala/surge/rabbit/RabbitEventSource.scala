@@ -1,6 +1,6 @@
 // Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
 
-package surge.surge.rabbit
+package surge.rabbit
 
 import akka.NotUsed
 import akka.actor.ActorSystem
@@ -9,7 +9,7 @@ import akka.stream.alpakka.amqp.{ AmqpConnectionProvider, AmqpUriConnectionProvi
 import akka.stream.scaladsl.{ Flow, Keep, Sink }
 import akka.util.ByteString
 import surge.akka.streams.graph.PassThroughFlow
-import surge.core.{ DataHandler, DataPipeline, DataSource, EventHandler, EventSourceDeserialization }
+import surge.core._
 import surge.support.Logging
 
 trait RabbitDataSource[Key, Value] extends DataSource {
