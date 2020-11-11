@@ -1,16 +1,16 @@
-// Copyright © 2018-2020 Ultimate Software Group. <https://www.ultimatesoftware.com>
+// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
 
 import com.typesafe.sbt.SbtScalariform.autoImport.scalariformPreferences
 import de.heikoseeberger.sbtheader.HeaderPlugin.autoImport._
-import sbt._
 import sbt.Keys._
+import sbt._
 import scalariform.formatter.preferences._
 
 object Settings extends AutoPlugin {
   object autoImport {
   }
   private val headerSettings = Seq(
-    headerLicense := Some(HeaderLicense.Custom("Copyright © 2018-2020 Ultimate Software Group. <https://www.ultimatesoftware.com>")),
+    headerLicense := Some(HeaderLicense.Custom("Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>")),
 
     headerMappings := headerMappings.value ++ Seq(
       HeaderFileType.scala -> HeaderCommentStyle.cppStyleLineComment,
@@ -47,7 +47,7 @@ object Settings extends AutoPlugin {
   )
 
   override def buildSettings: Seq[Def.Setting[_]] = Seq(
-    organization in ThisBuild := "com.ultimatesoftware",
+    organization in ThisBuild := "com.ukg",
 
     scalacOptions ++= Seq(
       "-encoding", "UTF-8",

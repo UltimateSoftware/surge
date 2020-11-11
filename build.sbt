@@ -1,6 +1,6 @@
-// Copyright © 2018-2020 Ultimate Software Group. <https://www.ultimatesoftware.com>
+// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
 
-import Keys._
+import sbt.Keys._
 
 scalaVersion in ThisBuild := "2.12.8"
 
@@ -76,7 +76,7 @@ lazy val `surge-rabbitmq-support` = (project in file ("modules/rabbit-support"))
   )
   .dependsOn(`surge-common`)
 
-lazy val `surge-engine-ks-command-core` = (project in file("modules/command-engine/core"))
+lazy val `surge-engine-command-core` = (project in file("modules/command-engine/core"))
   .settings(
     libraryDependencies ++= Seq(
       Akka.actor,
@@ -91,13 +91,13 @@ lazy val `surge-engine-ks-command-core` = (project in file("modules/command-engi
     )
   ).dependsOn(`surge-common`)
 
-lazy val `surge-engine-ks-command-scaladsl` = (project in file("modules/command-engine/scaladsl"))
-  .dependsOn(`surge-engine-ks-command-core`)
+lazy val `surge-engine-command-scaladsl` = (project in file("modules/command-engine/scaladsl"))
+  .dependsOn(`surge-engine-command-core`)
 
-lazy val `surge-engine-ks-command-javadsl` = (project in file("modules/command-engine/javadsl"))
-  .dependsOn(`surge-engine-ks-command-core`)
+lazy val `surge-engine-command-javadsl` = (project in file("modules/command-engine/javadsl"))
+  .dependsOn(`surge-engine-command-core`)
 
-lazy val `surge-engine-ks-query-core` = (project in file("modules/query-engine/core"))
+lazy val `surge-engine-query-core` = (project in file("modules/query-engine/core"))
   .settings(
     multiJvmTestSettings,
     jvmOptions in MultiJvm := Seq("-Dmultinode.server-port=4712"),
@@ -113,13 +113,13 @@ lazy val `surge-engine-ks-query-core` = (project in file("modules/query-engine/c
    .enablePlugins(MultiJvmPlugin)
    .configs(MultiJvm)
 
-lazy val `surge-kafka-streams` = project.in(file("."))
+lazy val `surge` = project.in(file("."))
   .aggregate(
     `surge-common`,
-    `surge-engine-ks-command-core`,
-    `surge-engine-ks-command-javadsl`,
-    `surge-engine-ks-command-scaladsl`,
-    `surge-engine-ks-query-core`,
+    `surge-engine-command-core`,
+    `surge-engine-command-javadsl`,
+    `surge-engine-command-scaladsl`,
+    `surge-engine-query-core`,
     `surge-scala-core`,
     `surge-rabbitmq-support`
   )
