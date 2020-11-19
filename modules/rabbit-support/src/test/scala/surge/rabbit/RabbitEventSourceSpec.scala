@@ -20,10 +20,12 @@ class RabbitEventSourceSpec extends TestKit(ActorSystem("RabbitEventSourceSpec")
   }
 
   class TestProbeSink(probe: TestProbe) extends EventSink[String] {
+    override def parallelism: Int = 16
     override def handleEvent(event: String): Future[Any] = {
       probe.ref ! event
       Future.successful(Done)
     }
+    override def partitionBy(event: String): String = event
   }
 
   "RabbitEventSource" should {

@@ -12,10 +12,11 @@ trait EventHandler[Event] {
 }
 
 trait EventSink[Event] extends EventHandler[Event] {
-  def parallelism: Int = 1
+  def parallelism: Int = 8
   def handleEvent(event: Event): Future[Any]
+  def partitionBy(event: Event): String
 
   override def eventHandler: Flow[Event, Any, NotUsed] = {
-    FlowConverter.flowFor(handleEvent, parallelism)(ExecutionContext.global)
+    FlowConverter.flowFor(handleEvent, partitionBy, parallelism)(ExecutionContext.global)
   }
 }

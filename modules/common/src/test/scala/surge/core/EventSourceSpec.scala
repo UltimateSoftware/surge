@@ -42,9 +42,14 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
       .withBootstrapServers(kafkaBrokers)
   }
 
-  private def testEventSink(probe: TestProbe): EventSink[String] = (event: String) ⇒ {
-    probe.ref ! event
-    Future.successful(Done)
+  private def testEventSink(probe: TestProbe): EventSink[String] = new EventSink[String] {
+    override def parallelism: Int = 16
+    override def handleEvent(event: String): Future[Any] = {
+      probe.ref ! event
+      Future.successful(Done)
+    }
+
+    override def partitionBy(event: String): String = event
   }
 
   "EventSource" should {
@@ -117,6 +122,7 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
               Future.successful(Done)
             }
           }
+          override def partitionBy(event: String): String = event
         }
 
         val consumerSettings = testConsumerSettings(embeddedBroker, groupId)

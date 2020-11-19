@@ -2,8 +2,11 @@
 
 package surge.akka.streams.kafka
 
+import java.time.Instant
+
 import akka.Done
 import akka.actor.ActorSystem
+import akka.stream.scaladsl.{ Sink, Source }
 import akka.testkit.{ TestKit, TestProbe }
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.clients.producer.ProducerRecord
@@ -20,7 +23,7 @@ import surge.core.{ DefaultEventReplaySettings, EventReplaySettings, EventReplay
 import surge.scala.core.kafka.KafkaTopic
 
 import scala.concurrent.duration._
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.{ Await, ExecutionContext, Future }
 
 class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec"))
   with AnyWordSpecLike with Matchers with EmbeddedKafka with Eventually with BeforeAndAfterAll with ScalaFutures {
@@ -47,12 +50,32 @@ class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec"))
     val consumerSettings = KafkaConsumer.defaultConsumerSettings(system, groupId)
       .withBootstrapServers(kafkaBrokers)
 
+    val parallelism = 16
     val tupleFlow: ((String, Array[Byte])) ⇒ Future[_] = { tup ⇒ businessLogic(tup._1, tup._2) }
-    val businessFlow = FlowConverter.flowFor(tupleFlow, 1)
+    val partitionBy: ((String, Array[Byte])) ⇒ String = _._1
+    val businessFlow = FlowConverter.flowFor(tupleFlow, partitionBy, parallelism)
     KafkaStreamManager(topic, consumerSettings, replayStrategy, replaySettings, businessFlow)
   }
 
   "StreamManager" should {
+
+    "Process a flow with parallelism > 1" in {
+      val businessLogic: (String, Array[Byte]) ⇒ Future[Unit] = { (s, _) ⇒
+        Future { Thread.sleep(5L) }
+      }
+      val parallelism = 16
+      val tupleFlow: ((String, Array[Byte])) ⇒ Future[_] = { tup ⇒ businessLogic(tup._1, tup._2) }
+      val toPartition: ((String, Array[Byte])) ⇒ String = _._1
+      val newFlow = FlowConverter.flowFor(tupleFlow, toPartition, parallelism)
+      //      val oldFlow = FlowConverter.oldFlowFor(tupleFlow, 1)
+      val testSource = Source((1 to 10000).map(num ⇒ s"record $num" -> s"record $num".getBytes))
+      val startTime = Instant.now
+      val materialized = testSource.via(newFlow).runWith(Sink.ignore)
+      Await.result(materialized, Duration.Inf)
+      val endTime = Instant.now
+      println(s"Time taken is: ${endTime.toEpochMilli - startTime.toEpochMilli} ms")
+    }
+
     "Subscribe to events from Kafka" in {
       withRunningKafkaOnFoundPort(EmbeddedKafkaConfig(kafkaPort = 0, zooKeeperPort = 0)) { implicit actualConfig ⇒
         val topic = KafkaTopic("testTopic")
