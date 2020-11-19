@@ -13,6 +13,7 @@ import akka.pattern._
 import akka.stream.scaladsl.{ Flow, Keep, RestartSource, Sink }
 import akka.util.Timeout
 import akka.{ Done, NotUsed }
+import com.typesafe.config.ConfigFactory
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import surge.akka.cluster.{ ActorHostAwareness, ActorRegistry, ActorSystemHostAwareness }
 import surge.akka.streams.graph.PassThroughFlow
@@ -92,18 +93,24 @@ class KafkaStreamManagerActor[Key, Value](subscription: Subscription, topicName:
   import KafkaStreamManagerActor._
   import context.{ dispatcher, system }
 
+  private val config = ConfigFactory.load()
+  private val reuseConsumerId = config.getBoolean("surge.kafka-reuse-consumer-id")
   // Set this uniquely per manager actor so that restarts of the Kafka stream don't cause a rebalance of the consumer group
   private val clientId = s"surge-event-source-managed-consumer-${UUID.randomUUID()}"
 
-  private lazy val consumerSettings = baseConsumerSettings
+  private lazy val consumerSettingsWithHost = baseConsumerSettings
     .withProperty(ConsumerConfig.PARTITION_ASSIGNMENT_STRATEGY_CONFIG, classOf[HostAwareRangeAssignor].getName)
     .withProperty(HostAwarenessConfig.HOST_CONFIG, localHostname)
     .withProperty(HostAwarenessConfig.PORT_CONFIG, localPort.toString)
     .withStopTimeout(Duration.Zero)
-  // TODO enable these for smoother stream restarts once the CMP Kafka brokers are updated to version 2.3.0+,
-  //  also update the unit test to verify smoother restarts
-  //.withClientId(clientId)
-  //.withGroupInstanceId(clientId)
+
+  private lazy val consumerSettings = if (reuseConsumerId) {
+    consumerSettingsWithHost
+      .withClientId(clientId)
+      .withGroupInstanceId(clientId)
+  } else {
+    consumerSettingsWithHost
+  }
 
   private case class InternalState(control: AtomicReference[Consumer.Control], streamCompletion: Future[Done])
 

@@ -37,23 +37,8 @@ object KafkaPartitionShardRouterActor {
   }
 
   val askTimeout: Timeout = Timeout(TimeoutConfig.ShardRouter.askTimeout)
-  val pendingRetryExpirationThreshold: FiniteDuration = askTimeout.duration * 3
 
   case object GetPartitionRegionAssignments
-  case class ScheduleRetry(aggregateId: String, message: Any, initialAskTime: Instant, failedAt: Instant) {
-    def toPendingRetry(sender: ActorRef): PendingRetry = {
-      val expirationTime = failedAt.plusMillis(pendingRetryExpirationThreshold.toMillis)
-      PendingRetry(sender, aggregateId, message, initialAskTime, expirationTime)
-    }
-  }
-  case class PendingRetry(initialSender: ActorRef, aggregateId: String, message: Any, initialAskTime: Instant, expirationTime: Instant) {
-    def isExpired: Boolean = Instant.now.isAfter(expirationTime)
-
-    def toScheduleRetry: ScheduleRetry = {
-      val failedAt = expirationTime.minusMillis(pendingRetryExpirationThreshold.toMillis)
-      ScheduleRetry(aggregateId = aggregateId, message = message, initialAskTime = initialAskTime, failedAt = failedAt)
-    }
-  }
 }
 
 /**
@@ -100,11 +85,8 @@ class KafkaPartitionShardRouterActor(
 
   private implicit val actorAskTimeout: Timeout = askTimeout
 
-  private sealed trait InternalMessage
-  private case object ExpireOldPendingRetries extends InternalMessage
-
   private case class ActorState(partitionAssignments: PartitionAssignments, partitionRegions: Map[Int, PartitionRegion],
-      pendingRetries: Map[Int, List[PendingRetry]], enableDRStandby: Boolean = enableDRStandbyInitial) {
+      enableDRStandby: Boolean = enableDRStandbyInitial) {
     def partitionsToHosts: Map[Int, HostPort] = {
       partitionAssignments.topicPartitionsToHosts.map {
         case (tp, host) ⇒ tp.partition() -> host
@@ -118,27 +100,6 @@ class KafkaPartitionShardRouterActor(
       val newState = this.copy(partitionRegions = newRegionsMap)
 
       StatePlusRegion(newState, Some(partitionRegion))
-    }
-
-    def addPendingRetry(partition: Int, retry: PendingRetry): ActorState = {
-      val oldRetriesForPartition = pendingRetries.getOrElse(partition, List.empty)
-      val newRetriesForPartition = partition -> (oldRetriesForPartition :+ retry)
-      val newPendingRetries = pendingRetries + newRetriesForPartition
-
-      this.copy(pendingRetries = newPendingRetries)
-    }
-
-    def removeExpiredPendingRetries(): ActorState = {
-      val newPendingRetries = pendingRetries.mapValues { retries ⇒
-        retries.filterNot { retry ⇒
-          if (retry.isExpired) {
-            log.debug(
-              "Removing expired pending retry for aggregate {} which expired at {}", Seq(retry.aggregateId, retry.expirationTime): _*)
-          }
-          retry.isExpired
-        }
-      }
-      this.copy(pendingRetries = newPendingRetries)
     }
 
     def updatePartitionAssignments(partitionAssignments: PartitionAssignments): ActorState = {
@@ -179,7 +140,7 @@ class KafkaPartitionShardRouterActor(
 
       // If we're running in DR standby mode, don't automatically create new partition regions
       // Create them on demand when we need to send a message to them
-      val updatedState = if (enableDRStandby) {
+      if (enableDRStandby) {
         this
       } else {
         allTopicPartitions.foldLeft(this) {
@@ -187,18 +148,6 @@ class KafkaPartitionShardRouterActor(
             partitionRegionFor(stateAccum, topicPartition.partition).state
         }
       }
-
-      val updatedRetries = updatedState.partitionRegions.map {
-        case (partition, region) ⇒
-          val retriesForPartition = pendingRetries.getOrElse(partition, List.empty)
-          val retriesToAttempt = retriesForPartition.filter { retry ⇒
-            region.assignedSince.isAfter(retry.initialAskTime)
-          }
-          retriesToAttempt.foreach(retry ⇒ attemptRetry(updatedState, retry))
-          partition -> retriesForPartition.filterNot(retriesToAttempt.contains)
-      }
-
-      updatedState.copy(pendingRetries = updatedRetries)
     }
   }
 
@@ -223,8 +172,6 @@ class KafkaPartitionShardRouterActor(
   private def initialized(state: ActorState): Receive = healthCheckReceiver(state) orElse {
     case msg: PartitionAssignments               ⇒ handle(state, msg)
     case msg: Terminated                         ⇒ handle(state, msg)
-    case msg: ScheduleRetry                      ⇒ handle(state, msg)
-    case ExpireOldPendingRetries                 ⇒ handleExpireOldPendingRetries(state)
     case GetPartitionRegionAssignments           ⇒ sender() ! state.partitionRegions
     case msg if extractEntityId.isDefinedAt(msg) ⇒ deliverMessage(state, msg)
   }
@@ -257,15 +204,6 @@ class KafkaPartitionShardRouterActor(
             log.error(
               "Ask timed out to aggregate {} in partition region {}. If this was caused by a rebalance, these messages will be retried",
               aggregateId, responsiblePartitionRegion.partitionNumber)
-
-            // Estimate initial ask time as a couple seconds before it likely asked, that way we can catch
-            // a rebalance if it happens to happen quickly
-            val doubleAskTimeoutMillis = askTimeout.duration.toMillis * 2
-            val estimatedAskTime = Instant.now.minusMillis(doubleAskTimeoutMillis)
-              .minusSeconds(2)
-
-            val scheduleRetry = ScheduleRetry(aggregateId, msg, initialAskTime = estimatedAskTime, failedAt = Instant.now)
-            self.tell(scheduleRetry, initialSender)
           case e ⇒
             log.error(s"Unknown exception sending command envelope to aggregate $aggregateId", e)
         }
@@ -343,65 +281,6 @@ class KafkaPartitionShardRouterActor(
     context.become(initialized(state.copy(partitionRegions = newPartitionRegions)))
   }
 
-  private def attemptRetry(state: ActorState, pendingRetry: PendingRetry): Unit = {
-    partitionRegionFor(state, pendingRetry.aggregateId).foreach { responsiblePartitionRegion ⇒
-      log.debug(
-        "RouterActor attempting redelivery of command envelope for aggregate {} to region {}",
-        pendingRetry.aggregateId, responsiblePartitionRegion.partitionNumber)
-
-      // The remote actor could be a little behind in knowing where each partition lives,
-      // so if the command is supposed to be sent remotely, schedule it on the remote node
-      // rather than just sending the raw command and having to wait for that ask to time out
-      val msg = if (responsiblePartitionRegion.isLocal) {
-        pendingRetry.message
-      } else {
-        pendingRetry.toScheduleRetry
-      }
-      val timeout = Timeout(pendingRetryExpirationThreshold)
-      (responsiblePartitionRegion.regionManager ? msg)(timeout).map { resp ⇒
-        log.debug("RouterActor got back reply for aggregate {}", pendingRetry.aggregateId)
-        pendingRetry.initialSender ! resp
-      } recover {
-        case e ⇒
-          log.error(s"Exception trying to retry message for aggregate ${pendingRetry.aggregateId}", e)
-      }
-    }
-  }
-
-  private def handle(state: ActorState, scheduleRetry: ScheduleRetry): Unit = {
-    partitionForAggregateId(scheduleRetry.aggregateId) match {
-      case Some(partition) ⇒
-        val pendingRetry = scheduleRetry.toPendingRetry(sender())
-        state.partitionRegions.get(partition) match {
-          case Some(assignedRegion) if assignedRegion.assignedSince.isAfter(scheduleRetry.initialAskTime) ⇒
-            // This partition region was assigned after the message failed to deliver.  We can retry immediately
-            attemptRetry(state, pendingRetry)
-          case Some(assignedRegion) ⇒
-            log.debug(s"Scheduling future retry for ${scheduleRetry.aggregateId} . " +
-              s"Assigned partition is assigned since ${assignedRegion.assignedSince} but ask was at ${scheduleRetry.initialAskTime}")
-            // The partition region is either unassigned or possibly dead. Buffer the message and attempt
-            // to deliver later if the partition is reassigned
-            val checkInterval = pendingRetryExpirationThreshold.plus(1.second)
-            context.system.scheduler.scheduleOnce(checkInterval, self, ExpireOldPendingRetries)
-            context.become(initialized(state.addPendingRetry(partition, pendingRetry)))
-          case _ ⇒
-            log.debug(s"No assigned region for ${scheduleRetry.aggregateId}")
-            // The partition region is either unassigned or possibly dead. Buffer the message and attempt
-            // to deliver later if the partition is reassigned
-            context.system.scheduler.scheduleOnce(pendingRetryExpirationThreshold, self, ExpireOldPendingRetries)
-            context.become(initialized(state.addPendingRetry(partition, pendingRetry)))
-        }
-
-      case None ⇒
-        log.error(s"No partition could be calculated for ${scheduleRetry.aggregateId}. " +
-          s"This should not happen. Not scheduling a retry for the command envelope")
-    }
-  }
-
-  private def handleExpireOldPendingRetries(state: ActorState): Unit = {
-    context.become(initialized(state.removeExpiredPendingRetries()))
-  }
-
   private def handle(state: ActorState, partitionAssignments: PartitionAssignments): Unit = {
     log.info("RouterActor received new partition assignments")
     val newState = state
@@ -427,7 +306,7 @@ class KafkaPartitionShardRouterActor(
     unstashAll()
     log.debug(s"RouterActor initializing with partition assignments $partitionAssignments")
 
-    val emptyState = ActorState(PartitionAssignments.empty, Map.empty, Map.empty)
+    val emptyState = ActorState(PartitionAssignments.empty, Map.empty)
     handle(emptyState, partitionAssignments)
   }
 
