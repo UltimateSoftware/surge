@@ -109,6 +109,14 @@ class KafkaStreamManagerActor[Key, Value](subscription: Subscription, topicName:
   // Set this uniquely per manager actor so that restarts of the Kafka stream don't cause a rebalance of the consumer group
   private val clientId = s"surge-event-source-managed-consumer-${UUID.randomUUID()}"
 
+  private val committerMaxBatch = config.getLong("surge.kafka-event-source.committer.max-batch")
+  private val committerMaxInterval = config.getDuration("surge.kafka-event-source.committer.max-interval")
+  private val committerParallelism = config.getInt("surge.kafka-event-source.committer.parallelism")
+  private val committerSettings = CommitterSettings(context.system)
+    .withMaxBatch(committerMaxBatch)
+    .withMaxInterval(committerMaxInterval)
+    .withParallelism(committerParallelism)
+
   private lazy val consumerSettingsWithHost = baseConsumerSettings
     .withProperty(ConsumerConfig.PARTITION_ASSIGNMENT_STRATEGY_CONFIG, classOf[HostAwareRangeAssignor].getName)
     .withProperty(HostAwarenessConfig.HOST_CONFIG, localHostname)
@@ -148,7 +156,6 @@ class KafkaStreamManagerActor[Key, Value](subscription: Subscription, topicName:
 
   private def startConsumer(): Unit = {
     log.info("Starting consumer for topic {} with client id {}", Seq(topicName, clientId): _*)
-    val committerSettings = CommitterSettings(context.system)
     val control = new AtomicReference[Consumer.Control](Consumer.NoopControl)
 
     val result = RestartSource
