@@ -2,11 +2,12 @@
 
 package surge.core
 
+import akka.NotUsed
 import akka.actor.ActorSystem
+import akka.kafka.ConsumerMessage.CommittableOffset
 import akka.kafka.ConsumerSettings
 import akka.stream.FlowShape
 import akka.stream.scaladsl.{ Flow, GraphDSL, Merge, Partition }
-import akka.{ Done, NotUsed }
 import com.typesafe.config.{ Config, ConfigFactory }
 import org.apache.kafka.common.serialization.Deserializer
 import org.slf4j.LoggerFactory
@@ -53,38 +54,38 @@ object FlowConverter {
   def flowFor[T](
     businessLogic: T ⇒ Future[Any],
     partitionBy: T ⇒ String,
-    parallelism: Int)(implicit ec: ExecutionContext): Flow[T, Done, NotUsed] = {
+    parallelism: Int)(implicit ec: ExecutionContext): Flow[EventPlusOffset[T], CommittableOffset, NotUsed] = {
 
     Flow.fromGraph(
       GraphDSL.create() { implicit builder ⇒
         import GraphDSL.Implicits._
-        def toPartition: T ⇒ Int = { t ⇒ math.abs(MurmurHash3.stringHash(partitionBy(t)) % parallelism) }
-        val partition = builder.add(Partition[T](parallelism, toPartition))
-        val merge = builder.add(Merge[Done](parallelism))
-        val flow = Flow[T].mapAsync(1) { t ⇒
-          businessLogic(t).recover {
+        def toPartition: EventPlusOffset[T] ⇒ Int = { t ⇒ math.abs(MurmurHash3.stringHash(partitionBy(t.messageBody)) % parallelism) }
+        val partition = builder.add(Partition[EventPlusOffset[T]](parallelism, toPartition))
+        val merge = builder.add(Merge[CommittableOffset](parallelism))
+        val flow = Flow[EventPlusOffset[T]].mapAsync(1) { eventPlusOffset ⇒
+          businessLogic(eventPlusOffset.messageBody).recover {
             case e ⇒
               log.error(s"An exception was thrown by the event handler! The stream will restart and the message will be retried.", e)
               throw e
-          }.map(_ ⇒ Done)
+          }.map(_ ⇒ eventPlusOffset.committableOffset)
         }
 
-        for (_ ← 1 to parallelism) { partition ~> flow.async ~> merge }
+        for (_ ← 1 to parallelism) { partition ~> flow ~> merge }
 
-        FlowShape[T, Done](partition.in, merge.out)
+        FlowShape[EventPlusOffset[T], CommittableOffset](partition.in, merge.out)
       })
   }
 }
 
 trait DataHandler[Key, Value] {
-  def dataHandler: Flow[(Key, Value), Any, NotUsed]
+  def dataHandler: Flow[EventPlusOffset[(Key, Value)], CommittableOffset, NotUsed]
 }
 trait DataSink[Key, Value] extends DataHandler[Key, Value] {
   def parallelism: Int = 8
   def handle(key: Key, value: Value): Future[Any]
   def partitionBy(kv: (Key, Value)): String
 
-  override def dataHandler: Flow[(Key, Value), Any, NotUsed] = {
+  override def dataHandler: Flow[EventPlusOffset[(Key, Value)], CommittableOffset, NotUsed] = {
     val tupHandler: ((Key, Value)) ⇒ Future[Any] = { tup ⇒ handle(tup._1, tup._2) }
     FlowConverter.flowFor(tupHandler, partitionBy, parallelism)(ExecutionContext.global)
   }

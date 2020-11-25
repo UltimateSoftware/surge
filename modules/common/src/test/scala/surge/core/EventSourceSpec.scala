@@ -2,18 +2,22 @@
 
 package surge.core
 
+import java.time.Instant
+
 import akka.Done
 import akka.actor.ActorSystem
 import akka.kafka.ConsumerSettings
 import akka.testkit.{ TestKit, TestProbe }
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, NoOpMetricsProvider }
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
+import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.serialization.Serializer
 import org.scalatest.concurrent.Eventually
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Millis, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
+import org.slf4j.LoggerFactory
 import surge.akka.streams.kafka.KafkaConsumer
 import surge.kafka.streams.DefaultSerdes
 import surge.scala.core.kafka.KafkaTopic
@@ -22,6 +26,8 @@ import scala.concurrent.Future
 import scala.concurrent.duration._
 
 class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWordSpecLike with Matchers with EmbeddedKafka with Eventually {
+  private val log = LoggerFactory.getLogger(getClass)
+
   implicit override val patienceConfig: PatienceConfig =
     PatienceConfig(timeout = scaled(Span(10, Seconds)), interval = scaled(Span(10, Millis)))
 
@@ -40,10 +46,10 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
   private def testConsumerSettings(kafkaBrokers: String, groupId: String): ConsumerSettings[String, Array[Byte]] = {
     KafkaConsumer.defaultConsumerSettings(system, groupId)
       .withBootstrapServers(kafkaBrokers)
+      .withProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
   }
 
   private def testEventSink(probe: TestProbe): EventSink[String] = new EventSink[String] {
-    override def parallelism: Int = 16
     override def handleEvent(event: String): Future[Any] = {
       probe.ref ! event
       Future.successful(Done)
@@ -130,6 +136,43 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
         consumer1.to(consumerSettings)(testSink1)
 
         probe.expectMsgAllOf(10.seconds, record1, record2, record3)
+      }
+    }
+
+    "Quick load test" ignore {
+      val userDefinedConfig = EmbeddedKafkaConfig(kafkaPort = 0, zooKeeperPort = 0)
+      withRunningKafkaOnFoundPort(userDefinedConfig) { implicit actualConfig ⇒
+        val topic = KafkaTopic("loadTestTopic")
+        createCustomTopic(topic.name, partitions = 3)
+
+        val groupId = "quick-load-test"
+        val embeddedBroker = s"localhost:${actualConfig.kafkaPort}"
+        def createConsumer: EventSource[String] =
+          testEventSource(topic, kafkaBrokers = embeddedBroker, groupId = groupId)
+
+        (1 to 1000).foreach { num ⇒
+          publishToKafka(new ProducerRecord[String, String](topic.name, num % 3, s"record $num", s"record $num"))
+        }
+        val consumer1 = createConsumer
+        val consumerSettings = testConsumerSettings(embeddedBroker, groupId)
+        var count = 0
+        val countingEventSink = new EventSink[String] {
+          override def handleEvent(event: String): Future[Any] = {
+            count += 1
+            Future.successful(Done)
+          }
+          override def partitionBy(event: String): String = event
+        }
+
+        consumer1.to(consumerSettings)(countingEventSink)
+
+        val startTime = Instant.now
+        eventually {
+          count shouldEqual 1000
+        }
+        val endTime = Instant.now
+        log.info(s"Time taken is: ${endTime.toEpochMilli - startTime.toEpochMilli} ms")
+        succeed
       }
     }
   }

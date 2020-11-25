@@ -2,13 +2,14 @@
 
 package surge.core
 
+import akka.NotUsed
+import akka.kafka.ConsumerMessage.CommittableOffset
 import akka.kafka.ConsumerSettings
 import akka.stream.scaladsl.Flow
-import akka.{ Done, NotUsed }
 import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, NoOpMetricsProvider, Timer }
 import org.apache.kafka.common.serialization.{ ByteArrayDeserializer, Deserializer, StringDeserializer }
 import org.slf4j.LoggerFactory
-import surge.akka.streams.graph.{ OptionFlow, RecordTimeFlow }
+import surge.akka.streams.graph.EitherFlow
 
 import scala.util.{ Failure, Success, Try }
 
@@ -27,19 +28,20 @@ trait EventSourceDeserialization[Event] {
 
   protected def dataHandler(eventHandler: EventHandler[Event]): DataHandler[String, Array[Byte]] = {
     new DataHandler[String, Array[Byte]] {
-      override def dataHandler: Flow[(String, Array[Byte]), Any, NotUsed] = {
-        Flow[(String, Array[Byte])].map {
-          case (key, value) ⇒
-            Try(eventDeserializationTimer.time(formatting.readEvent(value))) match {
-              case Failure(exception) ⇒
-                onFailure(key, value, exception)
-                None
-              case Success(event) ⇒
-                Some(event)
-            }
-        }.via(OptionFlow(
-          someFlow = RecordTimeFlow(flow = eventHandler.eventHandler, timer = eventHandlingTimer),
-          noneFlow = Flow[None.type].map(_ ⇒ Done)))
+      override def dataHandler: Flow[EventPlusOffset[(String, Array[Byte])], CommittableOffset, NotUsed] = {
+        Flow[EventPlusOffset[(String, Array[Byte])]].map { eventPlusOffset ⇒
+          val key = eventPlusOffset.messageBody._1
+          val value = eventPlusOffset.messageBody._2
+          Try(eventDeserializationTimer.time(formatting.readEvent(value))) match {
+            case Failure(exception) ⇒
+              onFailure(key, value, exception)
+              Left(eventPlusOffset.committableOffset)
+            case Success(event) ⇒
+              Right(EventPlusOffset(event, eventPlusOffset.committableOffset))
+          }
+        }.via(EitherFlow(
+          rightFlow = eventHandler.eventHandler,
+          leftFlow = Flow[CommittableOffset].map(identity)))
       }
     }
   }

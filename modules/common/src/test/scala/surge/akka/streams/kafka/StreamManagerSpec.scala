@@ -2,11 +2,8 @@
 
 package surge.akka.streams.kafka
 
-import java.time.Instant
-
 import akka.Done
 import akka.actor.ActorSystem
-import akka.stream.scaladsl.{ Sink, Source }
 import akka.testkit.{ TestKit, TestProbe }
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.clients.producer.ProducerRecord
@@ -17,18 +14,18 @@ import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Millis, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
-import surge.kafka.streams.DefaultSerdes
 import surge.core.DataPipeline._
-import surge.core.{ DefaultEventReplaySettings, EventReplaySettings, EventReplayStrategy, FlowConverter, KafkaForeverReplayStrategy, NoOpEventReplayStrategy, _ }
+import surge.core._
+import surge.kafka.streams.DefaultSerdes
 import surge.scala.core.kafka.KafkaTopic
 
 import scala.concurrent.duration._
-import scala.concurrent.{ Await, ExecutionContext, Future }
+import scala.concurrent.{ ExecutionContext, Future }
 
 class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec"))
   with AnyWordSpecLike with Matchers with EmbeddedKafka with Eventually with BeforeAndAfterAll with ScalaFutures {
   implicit override val patienceConfig: PatienceConfig =
-    PatienceConfig(timeout = scaled(Span(10, Seconds)), interval = scaled(Span(10, Millis)))
+    PatienceConfig(timeout = scaled(Span(30, Seconds)), interval = scaled(Span(50, Millis)))
 
   private implicit val ex: ExecutionContext = ExecutionContext.global
   private implicit val stringSer: Serializer[String] = DefaultSerdes.stringSerde.serializer()
@@ -58,23 +55,6 @@ class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec"))
   }
 
   "StreamManager" should {
-
-    "Process a flow with parallelism > 1" in {
-      val businessLogic: (String, Array[Byte]) ⇒ Future[Unit] = { (s, _) ⇒
-        Future { Thread.sleep(5L) }
-      }
-      val parallelism = 16
-      val tupleFlow: ((String, Array[Byte])) ⇒ Future[_] = { tup ⇒ businessLogic(tup._1, tup._2) }
-      val toPartition: ((String, Array[Byte])) ⇒ String = _._1
-      val newFlow = FlowConverter.flowFor(tupleFlow, toPartition, parallelism)
-      //      val oldFlow = FlowConverter.oldFlowFor(tupleFlow, 1)
-      val testSource = Source((1 to 10000).map(num ⇒ s"record $num" -> s"record $num".getBytes))
-      val startTime = Instant.now
-      val materialized = testSource.via(newFlow).runWith(Sink.ignore)
-      Await.result(materialized, Duration.Inf)
-      val endTime = Instant.now
-      println(s"Time taken is: ${endTime.toEpochMilli - startTime.toEpochMilli} ms")
-    }
 
     "Subscribe to events from Kafka" in {
       withRunningKafkaOnFoundPort(EmbeddedKafkaConfig(kafkaPort = 0, zooKeeperPort = 0)) { implicit actualConfig ⇒
@@ -139,19 +119,20 @@ class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec"))
         createCustomTopic(topic.name, partitions = 3)
         val embeddedBroker = s"localhost:${actualConfig.kafkaPort}"
 
-        val probe = TestProbe()
         // TODO The group manager needs withGroupInstanceId enabled to support fast restarts without consumer group rebalance
         //  but the CMP Kafka brokers isn't a high enough version to support that yet.  Once it's updated set the expectedNumExceptions
         //  to 3 to verify we're restarting without rebalancing the consumer group as well.
         val expectedNumExceptions = 1
         var exceptionCount = 0
 
+        var receivedRecords: Seq[String] = Seq.empty
         def businessLogic(key: String, value: Array[Byte]): Future[Done] = {
           if (exceptionCount < expectedNumExceptions) {
             exceptionCount = exceptionCount + 1
             throw new RuntimeException("This is expected")
           }
-          probe.ref ! stringDeser.deserialize(topic.name, value)
+          val record = stringDeser.deserialize(topic.name, value)
+          receivedRecords = receivedRecords :+ record
           Future.successful(Done)
         }
 
@@ -169,7 +150,11 @@ class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec"))
 
         consumer1.start()
 
-        probe.expectMsgAllOf(20.seconds, record1, record2, record3)
+        eventually {
+          receivedRecords should contain(record1)
+          receivedRecords should contain(record2)
+          receivedRecords should contain(record3)
+        }
         consumer1.stop()
       }
     }

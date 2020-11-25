@@ -3,12 +3,14 @@
 package surge.rabbit
 
 import akka.NotUsed
+import akka.kafka.ConsumerMessage.CommittableOffset
 import akka.stream.alpakka.amqp._
 import akka.stream.alpakka.amqp.scaladsl.AmqpFlow
 import akka.stream.scaladsl.Flow
 import akka.util.ByteString
 import com.rabbitmq.client.AMQP.BasicProperties
-import surge.core.{ EventHandler, SurgeEventWriteFormatting }
+import org.slf4j.LoggerFactory
+import surge.core.{ EventHandler, EventPlusOffset, SurgeEventWriteFormatting }
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
@@ -27,6 +29,7 @@ trait RabbitEventSink[Event] extends EventHandler[Event] {
 
   private lazy val rabbitWriteFlow = AmqpFlow.withConfirm(writeSettings)
 
+  /*
   override def eventHandler: Flow[Event, Any, NotUsed] = {
     Flow[Event].map { event ⇒ writeFormatting.writeEvent(event) }
       .map { serialized ⇒
@@ -40,5 +43,11 @@ trait RabbitEventSink[Event] extends EventHandler[Event] {
         //.withRoutingKey(serialized.key) // TODO Do we want this?
       }
       .via(rabbitWriteFlow) // TODO Grab the write result and look for failures?
+  }
+  */
+  private val log = LoggerFactory.getLogger(getClass)
+  override def eventHandler: Flow[EventPlusOffset[Event], CommittableOffset, NotUsed] = Flow[EventPlusOffset[Event]].map { temp ⇒
+    log.error("Rabbit event sink is not yet supported for Surge 0.5.x")
+    temp.committableOffset
   }
 }

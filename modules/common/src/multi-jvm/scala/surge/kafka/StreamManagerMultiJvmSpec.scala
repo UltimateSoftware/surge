@@ -2,21 +2,22 @@
 
 package surge.kafka
 
+import akka.kafka.ConsumerMessage.CommittableOffset
 import akka.remote.testconductor.RoleName
-import akka.remote.testkit.{MultiNodeConfig, MultiNodeSpec, MultiNodeSpecCallbacks}
+import akka.remote.testkit.{ MultiNodeConfig, MultiNodeSpec, MultiNodeSpecCallbacks }
 import akka.stream.scaladsl.Flow
 import akka.testkit.TestProbe
-import akka.{Done, NotUsed}
-import com.typesafe.config.ConfigFactory
-import net.manub.embeddedkafka.{EmbeddedKafka, EmbeddedKafkaConfig}
+import akka.{ Done, NotUsed }
+import com.typesafe.config.{ Config, ConfigFactory }
+import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.serialization.Serializer
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
-import org.scalatest.{BeforeAndAfterAll, OptionValues}
-import surge.akka.streams.kafka.{KafkaConsumer, KafkaStreamManager}
-import surge.core.{DefaultEventReplaySettings, KafkaForeverReplaySettings, KafkaForeverReplayStrategy, NoOpEventReplayStrategy}
+import org.scalatest.{ BeforeAndAfterAll, OptionValues }
+import surge.akka.streams.kafka.{ KafkaConsumer, KafkaStreamManager }
+import surge.core.{ DefaultEventReplaySettings, EventPlusOffset, KafkaForeverReplaySettings, KafkaForeverReplayStrategy, NoOpEventReplayStrategy }
 import surge.kafka.streams.DefaultSerdes
 import surge.scala.core.kafka.KafkaTopic
 
@@ -37,7 +38,7 @@ trait StreamManagerMultiNodeSpec extends MultiNodeSpecCallbacks with AnyWordSpec
 object StreamManagerSpecConfig extends MultiNodeConfig {
   val node0: RoleName = role("node0")
   val node1: RoleName = role("node1")
-  val nodesConfig = ConfigFactory.parseString("""
+  val nodesConfig: Config = ConfigFactory.parseString("""
     akka.actor.allow-java-serialization=on
     akka.actor.warn-about-java-serializer-usage=off
     """)
@@ -63,12 +64,11 @@ class StreamManagerSpecBase extends MultiNodeSpec(StreamManagerSpecConfig) with 
       val topic = KafkaTopic(topicName)
       val record1 = "record 1"
       val record2 = "record 2"
-      def sendToTestProbe(testProbe: TestProbe): Flow[(String, Array[Byte]), Done, NotUsed] = {
-        Flow[(String, Array[Byte])].map {
-          case (key, value) =>
-            val msg = stringDeserializer.deserialize("", value)
-            testProbe.ref ! msg
-            Done
+      def sendToTestProbe(testProbe: TestProbe): Flow[EventPlusOffset[(String, Array[Byte])], CommittableOffset, NotUsed] = {
+        Flow[EventPlusOffset[(String, Array[Byte])]].map { eventPlusOffset =>
+          val msg = stringDeserializer.deserialize("", eventPlusOffset.messageBody._2)
+          testProbe.ref ! msg
+          eventPlusOffset.committableOffset
         }
       }
       val embeddedBroker = s"${node(node0).address.host.getOrElse("localhost")}:${config.kafkaPort}"

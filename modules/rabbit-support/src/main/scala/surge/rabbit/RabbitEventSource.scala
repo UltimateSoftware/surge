@@ -8,6 +8,7 @@ import akka.stream.alpakka.amqp.javadsl.{ AmqpSource, CommittableReadResult }
 import akka.stream.alpakka.amqp.{ AmqpConnectionProvider, AmqpUriConnectionProvider, NamedQueueSourceSettings, QueueDeclaration }
 import akka.stream.scaladsl.{ Flow, Keep, Sink }
 import akka.util.ByteString
+import org.slf4j.LoggerFactory
 import surge.akka.streams.graph.PassThroughFlow
 import surge.core._
 import surge.support.Logging
@@ -26,10 +27,12 @@ trait RabbitDataSource[Key, Value] extends DataSource {
   private val connectionProvider: AmqpConnectionProvider = AmqpUriConnectionProvider(rabbitMqUri)
   private val queueDeclaration = QueueDeclaration(queueName)
 
+  private val log = LoggerFactory.getLogger(getClass)
   private def businessFlow(sink: DataHandler[Key, Value]): Flow[CommittableReadResult, CommittableReadResult, NotUsed] = {
     val handleEventFlow = Flow[CommittableReadResult].map { crr ⇒
+      log.error("Rabbit event source not yet supported for Surge 0.5.x")
       readResultToKey(crr) -> readResultToValue(crr.message.bytes)
-    }.via(sink.dataHandler)
+    } //.via(sink.dataHandler)
 
     Flow[CommittableReadResult].via(PassThroughFlow(handleEventFlow, Keep.right))
   }

@@ -3,12 +3,15 @@
 package surge.core
 
 import akka.NotUsed
+import akka.kafka.ConsumerMessage.CommittableOffset
 import akka.stream.scaladsl.Flow
 
 import scala.concurrent.{ ExecutionContext, Future }
 
+case class EventPlusOffset[T](messageBody: T, committableOffset: CommittableOffset)
+
 trait EventHandler[Event] {
-  def eventHandler: Flow[Event, Any, NotUsed]
+  def eventHandler: Flow[EventPlusOffset[Event], CommittableOffset, NotUsed]
 }
 
 trait EventSink[Event] extends EventHandler[Event] {
@@ -16,7 +19,7 @@ trait EventSink[Event] extends EventHandler[Event] {
   def handleEvent(event: Event): Future[Any]
   def partitionBy(event: Event): String
 
-  override def eventHandler: Flow[Event, Any, NotUsed] = {
+  override def eventHandler: Flow[EventPlusOffset[Event], CommittableOffset, NotUsed] = {
     FlowConverter.flowFor(handleEvent, partitionBy, parallelism)(ExecutionContext.global)
   }
 }

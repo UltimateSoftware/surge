@@ -6,19 +6,20 @@ import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
 
 import akka.actor.{ Actor, ActorRef, ActorSystem, Address, Props, Stash }
+import akka.kafka.ConsumerMessage.CommittableOffset
 import akka.kafka._
 import akka.kafka.scaladsl.Consumer.DrainingControl
 import akka.kafka.scaladsl.{ Committer, Consumer }
 import akka.pattern._
-import akka.stream.scaladsl.{ Flow, Keep, RestartSource, Sink }
+import akka.stream.scaladsl.{ Flow, RestartSource, Sink }
 import akka.util.Timeout
 import akka.{ Done, NotUsed }
 import com.typesafe.config.ConfigFactory
 import org.apache.kafka.clients.consumer.ConsumerConfig
+import org.apache.kafka.common.{ Metric, MetricName }
 import surge.akka.cluster.{ ActorHostAwareness, ActorRegistry, ActorSystemHostAwareness }
-import surge.akka.streams.graph.PassThroughFlow
 import surge.core.DataPipeline.{ ReplayResult, _ }
-import surge.core.{ EventReplaySettings, EventReplayStrategy }
+import surge.core.{ EventPlusOffset, EventReplaySettings, EventReplayStrategy }
 import surge.scala.core.kafka.KafkaTopic
 import surge.support.Logging
 
@@ -31,18 +32,22 @@ object KafkaStreamManager {
   def apply[Key, Value](topic: KafkaTopic, consumerSettings: ConsumerSettings[Key, Value],
     replayStrategy: EventReplayStrategy,
     replaySettings: EventReplaySettings,
-    business: Flow[(Key, Value), Any, _])(implicit actorSystem: ActorSystem, ec: ExecutionContext): KafkaStreamManager[Key, Value] = {
+    business: Flow[EventPlusOffset[(Key, Value)], CommittableOffset, NotUsed])(implicit
+    actorSystem: ActorSystem,
+    ec: ExecutionContext): KafkaStreamManager[Key, Value] = {
     val subscription = Subscriptions.topics(topic.name)
-    val businessFlow = Flow[ConsumerMessage.CommittableMessage[Key, Value]].map(msg ⇒ msg.record.key() -> msg.record.value())
-      .via(business)
-      .map(_ ⇒ Done)
+    val businessFlow = Flow[ConsumerMessage.CommittableMessage[Key, Value]].map { msg ⇒
+      EventPlusOffset(msg.record.key -> msg.record.value, msg.committableOffset)
+    }.via(business)
     new KafkaStreamManager[Key, Value](subscription, topic.name, consumerSettings, replayStrategy, replaySettings, businessFlow)
   }
 }
 
 class KafkaStreamManager[Key, Value](
     subscription: Subscription, topicName: String, consumerSettings: ConsumerSettings[Key, Value],
-    replayStrategy: EventReplayStrategy, replaySettings: EventReplaySettings, businessFlow: Flow[ConsumerMessage.CommittableMessage[Key, Value], _, NotUsed])(implicit val actorSystem: ActorSystem)
+    replayStrategy: EventReplayStrategy,
+    replaySettings: EventReplaySettings,
+    businessFlow: Flow[ConsumerMessage.CommittableMessage[Key, Value], CommittableOffset, NotUsed])(implicit val actorSystem: ActorSystem)
   extends ActorSystemHostAwareness with Logging {
 
   private val consumerGroup = consumerSettings.getProperty(ConsumerConfig.GROUP_ID_CONFIG)
@@ -57,6 +62,11 @@ class KafkaStreamManager[Key, Value](
   def stop(): KafkaStreamManager[Key, Value] = {
     managerActor ! KafkaStreamManagerActor.StopConsuming
     this
+  }
+
+  def getMetrics: Future[Map[MetricName, Metric]] = {
+    implicit val timeout: Timeout = Timeout(15.seconds)
+    (managerActor ? KafkaStreamManagerActor.GetMetrics).mapTo[Map[MetricName, Metric]]
   }
 
   def replay(): Future[ReplayResult] = {
@@ -83,12 +93,13 @@ object KafkaStreamManagerActor {
   sealed trait KafkaStreamManagerActorCommand
   case object StartConsuming extends KafkaStreamManagerActorCommand
   case object StopConsuming extends KafkaStreamManagerActorCommand
+  case object GetMetrics extends KafkaStreamManagerActorCommand
   sealed trait KafkaStreamManagerActorEvent
   case class SuccessfullyStopped(address: Address, actor: ActorRef) extends KafkaStreamManagerActorEvent
   case object SuccessfullyStarted extends KafkaStreamManagerActorEvent
 }
 class KafkaStreamManagerActor[Key, Value](subscription: Subscription, topicName: String, baseConsumerSettings: ConsumerSettings[Key, Value],
-    businessFlow: Flow[ConsumerMessage.CommittableMessage[Key, Value], _, NotUsed]) extends Actor
+    businessFlow: Flow[ConsumerMessage.CommittableMessage[Key, Value], CommittableOffset, NotUsed]) extends Actor
   with ActorHostAwareness with Stash with ActorRegistry with Logging {
   import KafkaStreamManagerActor._
   import context.{ dispatcher, system }
@@ -119,11 +130,13 @@ class KafkaStreamManagerActor[Key, Value](subscription: Subscription, topicName:
   private def stopped: Receive = {
     case StartConsuming ⇒ startConsumer()
     case StopConsuming  ⇒ sender() ! SuccessfullyStopped(localAddress, self)
+    case GetMetrics     ⇒ sender() ! Map.empty
   }
 
   private def consuming(state: InternalState): Receive = {
     case SuccessfullyStarted ⇒ sender() ! SuccessfullyStarted
     case StopConsuming       ⇒ handleStopConsuming(state)
+    case GetMetrics          ⇒ handleGetMetrics(state)
   }
 
   private def stopping(state: InternalState): Receive = {
@@ -147,8 +160,7 @@ class KafkaStreamManagerActor[Key, Value](subscription: Subscription, topicName:
         Consumer
           .committableSource(consumerSettings, subscription)
           .mapMaterializedValue(c ⇒ control.set(c))
-          .via(PassThroughFlow(businessFlow, Keep.right))
-          .map(_.committableOffset)
+          .via(businessFlow)
           .via(Committer.flow(committerSettings))
       }.runWith(Sink.ignore)
 
@@ -169,6 +181,11 @@ class KafkaStreamManagerActor[Key, Value](subscription: Subscription, topicName:
     log.info("Consumer with client id {} for topic {} successfully stopped", Seq(clientId, topicName): _*)
     context.become(stopped)
     unstashAll()
+  }
+
+  private def handleGetMetrics(state: InternalState): Unit = {
+    val control = state.control.get()
+    control.metrics pipeTo sender()
   }
 
   override def preStart(): Unit = {
