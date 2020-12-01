@@ -4,7 +4,6 @@ package surge.core
 
 import akka.actor._
 import akka.pattern.ask
-import com.ultimatesoftware.scala.core.monitoring.metrics.MetricsProvider
 import org.apache.kafka.common.TopicPartition
 import org.slf4j.LoggerFactory
 import play.api.libs.json.JsValue
@@ -12,6 +11,7 @@ import surge.akka.cluster.{ EntityPropsProvider, PerShardLogicProvider, Shard }
 import surge.config.TimeoutConfig
 import surge.kafka.{ KafkaPartitionShardRouterActor, TopicPartitionRegionCreator }
 import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, HealthCheck, HealthCheckStatus, HealthyActor, HealthyComponent }
+import surge.metrics.MetricsProvider
 import surge.support.Logging
 
 import scala.concurrent.{ ExecutionContext, Future }

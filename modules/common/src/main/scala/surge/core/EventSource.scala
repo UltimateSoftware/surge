@@ -6,10 +6,10 @@ import akka.NotUsed
 import akka.kafka.ConsumerMessage.CommittableOffset
 import akka.kafka.ConsumerSettings
 import akka.stream.scaladsl.Flow
-import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, NoOpMetricsProvider, Timer }
 import org.apache.kafka.common.serialization.{ ByteArrayDeserializer, Deserializer, StringDeserializer }
 import org.slf4j.LoggerFactory
 import surge.akka.streams.graph.EitherFlow
+import surge.metrics.{ MetricsProvider, NoOpMetricsProvider, Timer }
 
 import scala.util.{ Failure, Success, Try }
 

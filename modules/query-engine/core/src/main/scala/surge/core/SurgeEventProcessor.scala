@@ -3,12 +3,12 @@
 package surge.core
 
 import com.typesafe.config.ConfigFactory
-import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, Timer }
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.streams.state.QueryableStoreTypes
-import org.apache.kafka.streams.{ KafkaStreams, StreamsConfig, Topology }
+import org.apache.kafka.streams.{ KafkaStreams, StoreQueryParameters, StreamsConfig, Topology }
 import org.slf4j.LoggerFactory
 import surge.kafka.streams.{ AggregateStreamsRocksDBConfig, KafkaByteStreamsConsumer, KafkaStreamsKeyValueStore }
+import surge.metrics.{ MetricsProvider, Timer }
 import surge.scala.core.kafka.{ KafkaTopic, UltiKafkaConsumerConfig }
 
 import scala.util.Try
@@ -84,7 +84,8 @@ class SurgeEventProcessor[Agg, Event](
 
   val aggregateKTableStoreName: String = aggProcessor.aggregateKTableStoreName
   lazy val aggregateQueryableStateStore: KafkaStreamsKeyValueStore[String, Array[Byte]] = {
-    val underlying = consumer.streams.store(aggregateKTableStoreName, QueryableStoreTypes.keyValueStore[String, Array[Byte]]())
+    val storeParams = StoreQueryParameters.fromNameAndType(aggregateKTableStoreName, QueryableStoreTypes.keyValueStore[String, Array[Byte]]())
+    val underlying = consumer.streams.store(storeParams)
     new KafkaStreamsKeyValueStore(underlying)
   }
 }

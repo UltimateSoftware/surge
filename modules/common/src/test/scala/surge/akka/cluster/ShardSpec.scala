@@ -197,7 +197,7 @@ class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with AnyWordSpecLike w
         probe.ref ! 'Terminated
         ()
       }
-      val shardActor = system.actorOf(Shard.props("testShard", new RegionLogicProvider(notifyProbe), TestActor.idExtractor))
+      val shardActor = system.actorOf(Shard.props("testShard", new RegionLogicProvider(() ⇒ notifyProbe()), TestActor.idExtractor))
       probe.expectNoMessage()
       probe.send(shardActor, PoisonPill)
       probe.expectMsg('Terminated)

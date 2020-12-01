@@ -52,9 +52,9 @@ class BackoffChildActorTerminationWatcherSpec
   with Eventually
   with PatienceConfiguration {
 
-  val system = ActorSystem("test")
+  private val system = ActorSystem("test")
 
-  override implicit val patienceConfig = PatienceConfig(
+  override implicit val patienceConfig: PatienceConfig = PatienceConfig(
     timeout = Span(3, Seconds), interval = Span(10, Millis)) // scalastyle:ignore magic.number
 
   override def afterAll(): Unit = {
@@ -79,7 +79,7 @@ class BackoffChildActorTerminationWatcherSpec
 
       val backoffSupervisor = system.actorOf(supervisorProps)
 
-      system.actorOf(BackoffChildActorTerminationWatcher.props(backoffSupervisor, notificationReceiver.onDie))
+      system.actorOf(BackoffChildActorTerminationWatcher.props(backoffSupervisor, () ⇒ notificationReceiver.onDie()))
 
       eventually {
         verify(notificationReceiver, times(1)).onDie()

@@ -9,12 +9,12 @@ import akka.pattern.pipe
 import com.typesafe.config.ConfigFactory
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.serialization.Serdes.ByteArraySerde
-import org.apache.kafka.streams.StreamsConfig
+import org.apache.kafka.streams.{ StoreQueryParameters, StreamsConfig }
 import org.apache.kafka.streams.errors.InvalidStateStoreException
 import org.apache.kafka.streams.kstream.Materialized
 import org.apache.kafka.streams.kstream.internals.{ KTableImpl, KTableImplExtensions }
 import org.apache.kafka.streams.state.QueryableStoreTypes
-import surge.kafka.streams.AggregateStateStoreKafkaStreamsImpl.{ AggregateStateStoreKafkaStreamsImplSettings, GetAggregateBytes, GetSubstatesForAggregate, GetTopology }
+import surge.kafka.streams.AggregateStateStoreKafkaStreamsImpl._
 import surge.kafka.streams.HealthyActor.GetHealth
 import surge.scala.core.kafka.{ KafkaTopic, UltiKafkaConsumerConfig }
 
@@ -83,7 +83,8 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
 
   override def createQueryableStore(consumer: KafkaByteStreamsConsumer): KafkaStreamsKeyValueStore[String, Array[Byte]] = {
     log.debug(s"Initializing state store ${settings.storeName}")
-    val underlying = consumer.streams.store(aggregateStateStoreName, QueryableStoreTypes.keyValueStore[String, Array[Byte]]())
+    val storeParams = StoreQueryParameters.fromNameAndType(aggregateStateStoreName, QueryableStoreTypes.keyValueStore[String, Array[Byte]]())
+    val underlying = consumer.streams.store(storeParams)
     new KafkaStreamsKeyValueStore(underlying)
   }
 
@@ -105,7 +106,7 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
     case GetTopology ⇒
       sender() ! consumer.topology
     case GetHealth ⇒
-      val status = if (consumer.streams.state().isRunning) HealthCheckStatus.UP else HealthCheckStatus.DOWN
+      val status = if (consumer.streams.state().isRunningOrRebalancing) HealthCheckStatus.UP else HealthCheckStatus.DOWN
       sender() ! getHealth(status)
   }
 

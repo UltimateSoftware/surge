@@ -115,7 +115,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
 
     val underlyingCreatedActor = system.actorOf(underlyingActorProps)
 
-    system.actorOf(BackoffChildActorTerminationWatcher.props(underlyingCreatedActor, onMaxRetries))
+    system.actorOf(BackoffChildActorTerminationWatcher.props(underlyingCreatedActor, () ⇒ onMaxRetries()))
 
     underlyingCreatedActor
   }

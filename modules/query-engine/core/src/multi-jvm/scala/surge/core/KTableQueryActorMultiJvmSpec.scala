@@ -4,13 +4,12 @@ package surge.core
 
 import akka.actor.Props
 import akka.remote.testconductor.RoleName
-import akka.remote.testkit.{MultiNodeConfig, MultiNodeSpec, MultiNodeSpecCallbacks}
-import akka.testkit.{ImplicitSender, TestProbe}
+import akka.remote.testkit.{ MultiNodeConfig, MultiNodeSpec, MultiNodeSpecCallbacks }
+import akka.testkit.{ ImplicitSender, TestProbe }
 import com.typesafe.config.ConfigFactory
-import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.serialization.StringSerializer
-import org.apache.kafka.streams.KafkaStreams
-import org.apache.kafka.streams.state.{HostInfo, StreamsMetadata}
+import org.apache.kafka.streams.state.HostInfo
+import org.apache.kafka.streams.{ KafkaStreams, KeyQueryMetadata }
 import org.mockito.ArgumentMatchers
 import org.mockito.Mockito._
 import org.mockito.invocation.InvocationOnMock
@@ -70,12 +69,12 @@ class KTableQueryActorSpecBase extends MultiNodeSpec(KTableQueryActorSpecConfig)
   private def setupTestContext(): TestContext = {
     import ArgumentMatchers._
     val mockStreams = mock[KafkaStreams]
-    when(mockStreams.metadataForKey(anyString, ArgumentMatchers.eq(node1Agg), any[StringSerializer]))
-      .thenReturn(new StreamsMetadata(node1HostInfo, Set.empty[String].asJava, Set.empty[TopicPartition].asJava))
-    when(mockStreams.metadataForKey(anyString, ArgumentMatchers.eq(node2Agg), any[StringSerializer]))
-      .thenReturn(new StreamsMetadata(node2HostInfo, Set.empty[String].asJava, Set.empty[TopicPartition].asJava))
-    when(mockStreams.metadataForKey(anyString, ArgumentMatchers.eq(missingAgg), any[StringSerializer]))
-      .thenReturn(new StreamsMetadata(node1HostInfo, Set.empty[String].asJava, Set.empty[TopicPartition].asJava))
+    when(mockStreams.queryMetadataForKey(anyString, ArgumentMatchers.eq(node1Agg), any[StringSerializer]))
+      .thenReturn(new KeyQueryMetadata(node1HostInfo, Set.empty[HostInfo].asJava, 0))
+    when(mockStreams.queryMetadataForKey(anyString, ArgumentMatchers.eq(node2Agg), any[StringSerializer]))
+      .thenReturn(new KeyQueryMetadata(node2HostInfo, Set.empty[HostInfo].asJava, 0))
+    when(mockStreams.queryMetadataForKey(anyString, ArgumentMatchers.eq(missingAgg), any[StringSerializer]))
+      .thenReturn(new KeyQueryMetadata(node1HostInfo, Set.empty[HostInfo].asJava, 0))
 
     val keyValueStoreMap = Map(node1Agg -> node1Agg, node2Agg -> node2Agg)
     val mockKeyValueStore = mock[KafkaStreamsKeyValueStore[String, String]]

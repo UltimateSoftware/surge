@@ -8,12 +8,12 @@ import akka.Done
 import akka.actor.{ Actor, NoSerializationVerificationNeeded, Props, ReceiveTimeout, Stash }
 import akka.pattern.pipe
 import com.fasterxml.jackson.annotation.JsonTypeInfo
-import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, Timer }
 import org.slf4j.LoggerFactory
 import play.api.libs.json.JsValue
 import surge.akka.cluster.{ JacksonSerializable, Passivate }
 import surge.config.{ RetryConfig, TimeoutConfig }
 import surge.kafka.streams.AggregateStateStoreKafkaStreams
+import surge.metrics.{ MetricsProvider, Timer }
 import surge.scala.core.validations.ValidationError
 
 import scala.concurrent.Future

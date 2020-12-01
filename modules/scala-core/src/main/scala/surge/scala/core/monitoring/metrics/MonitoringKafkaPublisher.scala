@@ -2,10 +2,10 @@
 
 package surge.scala.core.monitoring.metrics
 
-import com.ultimatesoftware.scala.core.monitoring.metrics.{ Metric, MetricsPublisher }
 import org.apache.kafka.clients.producer.{ KafkaProducer, ProducerRecord }
 import org.slf4j.{ Logger, LoggerFactory }
 import play.api.libs.json.Json
+import surge.metrics.{ Metric, MetricsPublisher }
 import surge.scala.core.kafka.KafkaStringProducer
 
 object MonitoringKafkaPublisher {

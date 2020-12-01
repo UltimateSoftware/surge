@@ -10,7 +10,6 @@ import akka.pattern._
 import akka.serialization.Serializers
 import akka.testkit.{ TestKit, TestProbe }
 import akka.util.Timeout
-import com.ultimatesoftware.scala.core.monitoring.metrics.NoOpMetricsProvider
 import org.mockito.ArgumentMatchers._
 import org.mockito.Mockito._
 import org.mockito.invocation.InvocationOnMock
@@ -22,6 +21,7 @@ import play.api.libs.json.{ JsValue, Json }
 import surge.core.GenericAggregateActor.Stop
 import surge.akka.cluster.Passivate
 import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, KafkaStreamsKeyValueStore }
+import surge.metrics.NoOpMetricsProvider
 
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }

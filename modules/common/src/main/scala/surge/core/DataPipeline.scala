@@ -1,4 +1,4 @@
-// Copyright © 2017-2019 Ultimate Software Group. <https://www.ultimatesoftware.com>
+// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
 
 package surge.core
 

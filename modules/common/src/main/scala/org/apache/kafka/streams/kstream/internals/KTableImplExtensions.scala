@@ -34,14 +34,14 @@ object KTableImplExtensions {
     def toStreamWithChanges: KStream[K, Change[V]] = {
       val name = ktableImpl.builder.newProcessorName("KTABLE-TOSTREAM-")
 
-      val kStreamMapValues = new KStreamMapValues[K, Change[V], Change[V]]((key, change) ⇒ change)
+      val kStreamMapValues = new KStreamMapValues[K, Change[V], Change[V]]((_, change) ⇒ change)
 
       val toStreamNode = new ProcessorGraphNode[K, Change[V]](name, new ProcessorParameters(kStreamMapValues, name))
 
       ktableImpl.builder.addGraphNode(ktableImpl.streamsGraphNode, toStreamNode)
 
       // we can inherit parent key and value serde
-      val impl = new KStreamImpl[K, Change[V]](name, ktableImpl.keySerde, serdeForChanged(ktableImpl.valSerde), ktableImpl.sourceNodes,
+      val impl = new KStreamImpl[K, Change[V]](name, ktableImpl.keySerde, serdeForChanged(ktableImpl.valSerde), ktableImpl.subTopologySourceNodes,
         false, toStreamNode, ktableImpl.builder)
 
       new KStream(impl)

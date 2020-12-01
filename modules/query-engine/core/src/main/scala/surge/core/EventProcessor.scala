@@ -2,10 +2,10 @@
 
 package surge.core
 
-import com.ultimatesoftware.scala.core.monitoring.metrics.MetricsProvider
 import org.apache.kafka.common.serialization.Serdes
 import org.apache.kafka.streams.processor.{ AbstractProcessor, Processor, ProcessorContext }
 import org.apache.kafka.streams.state.{ KeyValueStore, StoreBuilder, Stores }
+import surge.metrics.MetricsProvider
 
 class EventProcessor[Agg, Event](
     aggregateName: String,

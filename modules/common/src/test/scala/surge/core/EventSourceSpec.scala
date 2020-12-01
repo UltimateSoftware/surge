@@ -8,7 +8,6 @@ import akka.Done
 import akka.actor.ActorSystem
 import akka.kafka.ConsumerSettings
 import akka.testkit.{ TestKit, TestProbe }
-import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, NoOpMetricsProvider }
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.producer.ProducerRecord
@@ -20,6 +19,7 @@ import org.scalatest.wordspec.AnyWordSpecLike
 import org.slf4j.LoggerFactory
 import surge.akka.streams.kafka.KafkaConsumer
 import surge.kafka.streams.DefaultSerdes
+import surge.metrics.{ MetricsProvider, NoOpMetricsProvider }
 import surge.scala.core.kafka.KafkaTopic
 
 import scala.concurrent.Future

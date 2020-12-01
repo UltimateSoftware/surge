@@ -2,12 +2,12 @@
 
 package surge.core
 
-import com.ultimatesoftware.scala.core.monitoring.metrics.NoOpMetricsProvider
 import org.apache.kafka.common.serialization.StringSerializer
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import play.api.libs.json.{ Format, Json }
 import surge.kafka.streams.KafkaStreamsTestHelpers
+import surge.metrics.NoOpMetricsProvider
 import surge.scala.core.kafka.{ JsonSerdes, KafkaTopic }
 
 class SurgeEventProcessorSpec extends AnyWordSpec with Matchers with KafkaStreamsTestHelpers {

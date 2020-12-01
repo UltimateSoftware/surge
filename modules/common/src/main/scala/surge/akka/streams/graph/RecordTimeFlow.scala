@@ -6,7 +6,7 @@ import java.time.Instant
 
 import akka.NotUsed
 import akka.stream.scaladsl.Flow
-import com.ultimatesoftware.scala.core.monitoring.metrics.Timer
+import surge.metrics.Timer
 
 object RecordTimeFlow {
   def apply[T, Out, Mat](flow: Flow[T, Out, Mat], timer: Timer): Flow[T, Out, NotUsed] = Flow[T]

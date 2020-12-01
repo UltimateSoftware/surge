@@ -2,8 +2,8 @@
 
 package surge.core
 
-import com.ultimatesoftware.scala.core.monitoring.metrics.{ NoOpMetricsProvider, NoOpsMetricsPublisher }
 import play.api.libs.json._
+import surge.metrics.{ NoOpMetricsProvider, NoOpsMetricsPublisher }
 import surge.scala.core.kafka.KafkaTopic
 import surge.scala.core.validations.{ AsyncCommandValidator, AsyncValidationResult, ValidationError }
 import surge.scala.oss.domain.{ AggregateCommandModel, CommandProcessor }

@@ -4,6 +4,8 @@ import sbt.Keys._
 
 scalaVersion in ThisBuild := "2.12.8"
 
+ThisBuild / crossScalaVersions := Seq("2.13.4", "2.12.8")
+
 skip in publish := true
 
 lazy val unitTest = taskKey[Unit]("Runs only the unit tests")
@@ -31,11 +33,10 @@ lazy val `surge-scala-core` = (project in file("modules/scala-core"))
       Kafka.kafkaClients,
       PlayFramework.json,
       scalatest,
-      surgeMetricsInterface,
       typesafeConfig,
       mockitoCore
     )
-  )
+  ).dependsOn(`surge-metrics-interface`)
 
 lazy val `surge-common` = (project in file("modules/common"))
   .settings(
@@ -113,6 +114,15 @@ lazy val `surge-engine-query-core` = (project in file("modules/query-engine/core
    .enablePlugins(MultiJvmPlugin)
    .configs(MultiJvm)
 
+lazy val `surge-metrics-interface` = (project in file("modules/metrics-interface"))
+  .settings(
+    libraryDependencies ++= Seq(
+      PlayFramework.json,
+      slf4jApi,
+      typesafeConfig
+    )
+  )
+
 lazy val `surge` = project.in(file("."))
   .aggregate(
     `surge-common`,
@@ -120,6 +130,7 @@ lazy val `surge` = project.in(file("."))
     `surge-engine-command-javadsl`,
     `surge-engine-command-scaladsl`,
     `surge-engine-query-core`,
+    `surge-metrics-interface`,
     `surge-scala-core`,
     `surge-rabbitmq-support`
   )

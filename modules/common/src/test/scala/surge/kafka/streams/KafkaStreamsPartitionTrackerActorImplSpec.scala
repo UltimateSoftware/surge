@@ -36,8 +36,10 @@ class KafkaStreamsPartitionTrackerActorImplSpec extends TestKit(ActorSystem("Kaf
       val partitionAssignments = Map(hostPort1 -> assignedPartitions1, hostPort2 -> assignedPartitions2)
 
       val testStreamsMeta = List(
-        new StreamsMetadata(new HostInfo(hostPort1.host, hostPort1.port), Set("store1", "store2").asJava, assignedPartitions1.toSet.asJava),
-        new StreamsMetadata(new HostInfo(hostPort2.host, hostPort2.port), Set("store1").asJava, assignedPartitions2.toSet.asJava))
+        new StreamsMetadata(new HostInfo(hostPort1.host, hostPort1.port), Set("store1", "store2").asJava, assignedPartitions1.toSet.asJava,
+          Set.empty[String].asJava, Set.empty[TopicPartition].asJava),
+        new StreamsMetadata(new HostInfo(hostPort2.host, hostPort2.port), Set("store1").asJava, assignedPartitions2.toSet.asJava,
+          Set.empty[String].asJava, Set.empty[TopicPartition].asJava))
 
       val mockStreams = mock[KafkaStreams]
       when(mockStreams.allMetadata()).thenReturn(testStreamsMeta.asJava)

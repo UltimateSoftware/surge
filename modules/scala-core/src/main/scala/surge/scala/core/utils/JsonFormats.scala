@@ -10,8 +10,6 @@ import com.fasterxml.jackson.datatype.jdk8.Jdk8Module
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
-import org.joda.time.DateTime
-import org.joda.time.format.ISODateTimeFormat
 import play.api.libs.json._
 
 import scala.concurrent.duration.{ Duration, FiniteDuration }
@@ -58,15 +56,6 @@ object JsonFormats {
 
   implicit val durationWrites: Writes[FiniteDuration] = Writes { duration ⇒
     JsString(duration.toString)
-  }
-
-  implicit val jodaDateTimeReads: Reads[DateTime] = implicitly[Reads[String]]
-    .collect(JsonValidationError("Invalid ISO Date Time"))(Function.unlift { str ⇒
-      Try(DateTime.parse(str, ISODateTimeFormat.dateTime())).toOption
-    })
-
-  implicit val jodaDateTimeWrites: Writes[DateTime] = Writes { dateTime ⇒
-    JsString(dateTime.toString(ISODateTimeFormat.dateTime()))
   }
 
   def genericJacksonMapper: ObjectMapper = {

@@ -123,13 +123,13 @@ trait KafkaStreamLifeCycleManagement[K, V, T <: KafkaStreamsConsumer[K, V], SV] 
     case Restart ⇒
       restart()
     case GetHealth ⇒
-      val status = if (consumer.streams.state().isRunning) HealthCheckStatus.UP else HealthCheckStatus.DOWN
+      val status = if (consumer.streams.state().isRunningOrRebalancing) HealthCheckStatus.UP else HealthCheckStatus.DOWN
       sender() ! getHealth(status)
   } orElse errorHandler orElse logUnhandled("created")
 
   final def streamRunning(consumer: T, queryableStore: KafkaStreamsKeyValueStore[K, SV]): Receive = running(consumer, queryableStore) orElse inlineReceive {
     case GetHealth ⇒
-      val status = if (consumer.streams.state().isRunning) HealthCheckStatus.UP else HealthCheckStatus.DOWN
+      val status = if (consumer.streams.state().isRunningOrRebalancing) HealthCheckStatus.UP else HealthCheckStatus.DOWN
       sender() ! getHealth(status)
     case Stop ⇒
       stop(consumer)
@@ -189,18 +189,18 @@ trait KafkaStreamLifeCycleManagement[K, V, T <: KafkaStreamsConsumer[K, V], SV] 
    * Actor lifecycle hook, make sure you call super.preRestart if you override this method
    */
   override def preRestart(reason: Throwable, message: Option[Any]): Unit = {
-    lastConsumerSeen.map(stop)
+    lastConsumerSeen.foreach(stop)
     super.preRestart(reason, message)
   }
 
   override def postStop(): Unit = {
-    lastConsumerSeen.map(stop)
+    lastConsumerSeen.foreach(stop)
     super.postStop()
   }
 
 }
 
-final private[streams] object KafkaStreamLifeCycleManagement {
+private[streams] object KafkaStreamLifeCycleManagement {
   sealed private[streams] trait KafkaStreamLifeCycleCommand
 
   case object Start extends KafkaStreamLifeCycleCommand

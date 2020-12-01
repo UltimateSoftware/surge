@@ -9,7 +9,6 @@ import akka.actor.{ ActorRef, ActorSystem, Props }
 import akka.pattern.ask
 import akka.testkit.{ TestKit, TestProbe }
 import akka.util.Timeout
-import com.ultimatesoftware.scala.core.monitoring.metrics.NoOpMetricsProvider
 import org.apache.kafka.clients.producer.{ ProducerRecord, RecordMetadata }
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.{ AuthorizationException, ProducerFencedException }
@@ -25,6 +24,7 @@ import org.scalatestplus.mockito.MockitoSugar
 import surge.core.KafkaProducerActorImpl.AggregateStateRates
 import surge.kafka.streams.KafkaPartitionMetadata
 import surge.kafka.streams.KafkaPartitionMetadataHandlerImpl.KafkaPartitionMetadataUpdated
+import surge.metrics.NoOpMetricsProvider
 import surge.scala.core.kafka.{ KafkaBytesProducer, KafkaRecordMetadata }
 
 import scala.collection.JavaConverters._

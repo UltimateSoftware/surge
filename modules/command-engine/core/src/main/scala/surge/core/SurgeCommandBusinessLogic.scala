@@ -2,7 +2,7 @@
 
 package surge.core
 
-import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, MetricsPublisher }
+import surge.metrics.{ MetricsProvider, MetricsPublisher }
 import surge.scala.core.kafka.{ KafkaPartitioner, KafkaTopic, PartitionStringUpToColon }
 import surge.scala.core.validations.AsyncCommandValidator
 import surge.scala.oss.domain.AggregateCommandModel

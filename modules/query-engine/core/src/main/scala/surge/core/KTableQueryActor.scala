@@ -33,7 +33,7 @@ class KTableQueryActor[A](streams: KafkaStreams, storeName: String, keyValueStor
   }
 
   private def handleGetState(aggregateId: String): Unit = {
-    val aggregateOwnerHostInfo = streams.metadataForKey(storeName, aggregateId, new StringSerializer()).hostInfo()
+    val aggregateOwnerHostInfo = streams.queryMetadataForKey(storeName, aggregateId, new StringSerializer()).getActiveHost
 
     val fetchedStateFuture = if (isHostInfoThisNode(aggregateOwnerHostInfo)) {
       // State for key is local, just query state store

@@ -5,8 +5,8 @@ package surge.javadsl
 import java.util.Optional
 
 import com.typesafe.config.ConfigFactory
-import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, MetricsPublisher, NoOpMetricsProvider, NoOpsMetricsPublisher }
 import surge.core.{ SurgeAggregateReadFormatting, SurgeCommandKafkaConfig, SurgeWriteFormatting }
+import surge.metrics.{ MetricsProvider, MetricsPublisher, NoOpMetricsProvider, NoOpsMetricsPublisher }
 import surge.scala.core.kafka.KafkaTopic
 import surge.scala.core.validations.AsyncCommandValidator
 import surge.scala.oss.domain.AggregateCommandModel

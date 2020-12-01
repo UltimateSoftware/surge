@@ -10,7 +10,6 @@ import akka.actor.{ Actor, ActorRef, ActorSystem, NoSerializationVerificationNee
 import akka.pattern._
 import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
-import com.ultimatesoftware.scala.core.monitoring.metrics.{ MetricsProvider, Rate, Timer }
 import org.apache.kafka.clients.producer.{ ProducerConfig, ProducerRecord }
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.ProducerFencedException
@@ -21,6 +20,7 @@ import surge.config.TimeoutConfig
 import surge.kafka.streams.HealthyActor.GetHealth
 import surge.kafka.streams.KafkaPartitionMetadataHandlerImpl.KafkaPartitionMetadataUpdated
 import surge.kafka.streams.{ HealthCheck, HealthCheckStatus, HealthyActor, HealthyComponent, KafkaPartitionMetadata }
+import surge.metrics.{ MetricsProvider, Rate, Timer }
 import surge.scala.core.kafka.{ KafkaBytesProducer, KafkaRecordMetadata }
 
 import scala.collection.JavaConverters._

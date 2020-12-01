@@ -24,7 +24,7 @@ object Dependencies extends AutoPlugin {
     }
 
     object Kafka {
-      val kafkaVersion = "2.4.1"
+      val kafkaVersion = "2.6.0"
 
       val kafkaClients = "org.apache.kafka" % "kafka-clients" % kafkaVersion
       val kafkaStreams = "org.apache.kafka" % "kafka-streams" % kafkaVersion
@@ -33,23 +33,20 @@ object Dependencies extends AutoPlugin {
     }
 
     object PlayFramework {
-      val jsonVersion = "2.7.2"
-      val json = "com.typesafe.play" %% "play-json" % jsonVersion
+      val json = "com.typesafe.play" %% "play-json" % "2.9.1"
     }
-
-    // TODO this is the last component to move from ulti-scala-core
-    val surgeMetricsInterface = "com.ultimatesoftware" %% "ulti-metrics-interface" % "0.3.20"
 
     val jacksonKotlin = "com.fasterxml.jackson.module" % "jackson-module-kotlin" % "2.10.3"
     val jacksonScala = "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.10.3"
     val java8Compat = "org.scala-lang.modules" %% "scala-java8-compat" % "0.9.1"
-    val embeddedKafka = "io.github.embeddedkafka" %% "embedded-kafka" % "2.4.1" % Test
-    val junit = "junit" % "junit" % "4.13" % Test
+    val embeddedKafka = "io.github.embeddedkafka" %% "embedded-kafka" % Kafka.kafkaVersion % Test
+    val junit = "junit" % "junit" % "4.13.1" % Test
     val logback =  "ch.qos.logback" % "logback-classic" % "1.2.3" % Test
-    val mockitoCore = "org.mockito" % "mockito-core" % "3.3.3" % Test
+    val mockitoCore = "org.mockito" % "mockito-core" % "3.6.28" % Test
     val scalatest = "org.scalatest" %% "scalatest" % "3.1.1" % Test
     val scalatestPlusMockito =  "org.scalatestplus" %% "mockito-3-2" % "3.1.1.0" % Test
-    val typesafeConfig = "com.typesafe" % "config" % "1.4.0"
+    val slf4jApi = "org.slf4j" % "slf4j-api" % "1.7.30"
+    val typesafeConfig = "com.typesafe" % "config" % "1.4.1"
   }
   val dependenciesOverride = Seq(
     Dependencies.autoImport.Akka.akkaStreamTestKit

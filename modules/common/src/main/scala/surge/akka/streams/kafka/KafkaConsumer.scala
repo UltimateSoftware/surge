@@ -8,7 +8,7 @@ import akka.actor.ActorSystem
 import akka.kafka.ConsumerSettings
 import com.typesafe.config.{ Config, ConfigFactory }
 import org.apache.kafka.clients.consumer.{ ConsumerConfig, ConsumerConfigExtension }
-import org.apache.kafka.common.requests.IsolationLevel
+import org.apache.kafka.common.IsolationLevel
 import org.apache.kafka.common.serialization.{ ByteArrayDeserializer, Deserializer, StringDeserializer }
 import surge.config.TimeoutConfig
 import surge.scala.core.kafka.KafkaSecurityConfiguration
