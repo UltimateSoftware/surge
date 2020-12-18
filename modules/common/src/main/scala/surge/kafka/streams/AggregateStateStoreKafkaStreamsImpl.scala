@@ -65,8 +65,14 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
   }
 
   override def initialize(consumer: KafkaByteStreamsConsumer): Unit = {
-    val aggregateStoreMaterialized = Materialized.as[String, Array[Byte]](persistencePlugin.createSupplier(aggregateStateStoreName))
+    val aggregateStoreMaterializedBase = Materialized.as[String, Array[Byte]](persistencePlugin.createSupplier(aggregateStateStoreName))
       .withValueSerde(new ByteArraySerde())
+
+    val aggregateStoreMaterialized = if (!persistencePlugin.enableLogging) {
+      aggregateStoreMaterializedBase.withLoggingDisabled()
+    } else {
+      aggregateStoreMaterializedBase
+    }
 
     // Build the KTable directly from Kafka
     val aggKTable = consumer.builder.table(stateTopic.name, aggregateStoreMaterialized)
@@ -89,9 +95,16 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
     new KafkaStreamsKeyValueStore(underlying)
   }
 
-  override def createConsumer(): KafkaByteStreamsConsumer =
+  override def createConsumer(): KafkaByteStreamsConsumer = {
+    val maybeOptimizeTopology = if (persistencePlugin.enableLogging) {
+      Some(topologyProps)
+    } else {
+      None
+    }
+
     KafkaByteStreamsConsumer(brokers = settings.brokers, applicationId = settings.applicationId, consumerConfig = settings.consumerConfig,
-      kafkaConfig = streamsConfig, applicationServerConfig = applicationHostPort, topologyProps = Some(topologyProps))
+      kafkaConfig = streamsConfig, applicationServerConfig = applicationHostPort, topologyProps = maybeOptimizeTopology)
+  }
 
   override def uninitialized: Receive = stashIt
 

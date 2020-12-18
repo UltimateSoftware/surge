@@ -11,12 +11,14 @@ import scala.util.{ Failure, Success, Try }
 
 trait SurgeKafkaStreamsPersistencePlugin {
   def createSupplier(storeName: String): KeyValueBytesStoreSupplier
+  def enableLogging: Boolean
 }
 
 class RocksDBPersistencePlugin extends SurgeKafkaStreamsPersistencePlugin {
   override def createSupplier(storeName: String): KeyValueBytesStoreSupplier = {
     new RocksDbKeyValueBytesStoreSupplier(storeName, true)
   }
+  override def enableLogging: Boolean = true
 }
 
 object SurgeKafkaStreamsPersistencePluginLoader {
