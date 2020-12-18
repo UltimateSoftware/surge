@@ -6,14 +6,13 @@ import java.time.Instant
 
 import akka.actor._
 import akka.pattern._
-import akka.util.Timeout
 import com.typesafe.config.{ Config, ConfigFactory }
 import org.apache.kafka.common.TopicPartition
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.akka.cluster.ActorHostAwareness
 import surge.config.TimeoutConfig
-import surge.kafka.streams.{ HealthCheck, HealthCheckStatus, HealthyActor }
 import surge.kafka.streams.HealthyActor.GetHealth
+import surge.kafka.streams.{ HealthCheck, HealthCheckStatus, HealthyActor }
 import surge.scala.core.kafka._
 
 import scala.concurrent.Future
@@ -35,9 +34,6 @@ object KafkaPartitionShardRouterActor {
     val producer = KafkaBytesProducer(brokers, trackedTopic, partitioner)
     Props(new KafkaPartitionShardRouterActor(partitionTracker, producer, regionCreator, extractEntityId))
   }
-
-  val askTimeout: Timeout = Timeout(TimeoutConfig.ShardRouter.askTimeout)
-
   case object GetPartitionRegionAssignments
 }
 
@@ -82,8 +78,6 @@ class KafkaPartitionShardRouterActor(
   private val enableDRStandbyInitial = config.getBoolean("ulti.dr-standby-enabled")
 
   private val log: Logger = LoggerFactory.getLogger(getClass)
-
-  private implicit val actorAskTimeout: Timeout = askTimeout
 
   private case class ActorState(partitionAssignments: PartitionAssignments, partitionRegions: Map[Int, PartitionRegion],
       enableDRStandby: Boolean = enableDRStandbyInitial) {

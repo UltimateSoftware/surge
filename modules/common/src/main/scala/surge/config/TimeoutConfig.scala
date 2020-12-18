@@ -45,10 +45,6 @@ object TimeoutConfig {
     }
   }
 
-  object ShardRouter {
-    val askTimeout: FiniteDuration = 7.seconds * timeoutScaleFactor
-  }
-
   object PartitionTracker {
     val updateTimeout: FiniteDuration = 20.seconds * timeoutScaleFactor
   }

@@ -109,6 +109,10 @@ class KafkaStreamManagerActor[Key, Value](subscription: Subscription, topicName:
   // Set this uniquely per manager actor so that restarts of the Kafka stream don't cause a rebalance of the consumer group
   private val clientId = s"surge-event-source-managed-consumer-${UUID.randomUUID()}"
 
+  private val backoffMin = config.getDuration("surge.kafka-event-source.backoff.min").toMillis.millis
+  private val backoffMax = config.getDuration("surge.kafka-event-source.backoff.max").toMillis.millis
+  private val randomFactor = config.getDouble("surge.kafka-event-source.backoff.random-factor")
+
   private val committerMaxBatch = config.getLong("surge.kafka-event-source.committer.max-batch")
   private val committerMaxInterval = config.getDuration("surge.kafka-event-source.committer.max-interval")
   private val committerParallelism = config.getInt("surge.kafka-event-source.committer.parallelism")
@@ -160,9 +164,9 @@ class KafkaStreamManagerActor[Key, Value](subscription: Subscription, topicName:
 
     val result = RestartSource
       .onFailuresWithBackoff(
-        minBackoff = 1.second,
-        maxBackoff = 15.seconds,
-        randomFactor = 0.1) { () ⇒
+        minBackoff = backoffMin,
+        maxBackoff = backoffMax,
+        randomFactor = randomFactor) { () ⇒
         log.debug("Creating Kafka source for topic {} with client id {}", Seq(topicName, clientId): _*)
         Consumer
           .committableSource(consumerSettings, subscription)

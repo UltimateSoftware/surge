@@ -13,17 +13,15 @@ import com.typesafe.config.ConfigFactory
 import org.apache.kafka.clients.producer.{ ProducerConfig, ProducerRecord }
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.ProducerFencedException
-import org.apache.kafka.common.header.Header
-import org.apache.kafka.common.header.internals.RecordHeader
+import org.apache.kafka.common.header.{ Header, Headers }
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.config.TimeoutConfig
 import surge.kafka.streams.HealthyActor.GetHealth
 import surge.kafka.streams.KafkaPartitionMetadataHandlerImpl.KafkaPartitionMetadataUpdated
-import surge.kafka.streams.{ HealthCheck, HealthCheckStatus, HealthyActor, HealthyComponent, KafkaPartitionMetadata }
+import surge.kafka.streams._
 import surge.metrics.{ MetricsProvider, Rate, Timer }
 import surge.scala.core.kafka.{ KafkaBytesProducer, KafkaRecordMetadata }
 
-import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.{ Failure, Success, Try }
@@ -76,36 +74,13 @@ class KafkaProducerActor[Agg, Event](
     Props(new KafkaProducerActorImpl(
       assignedPartition, metricsProvider, businessLogic)).withDispatcher("kafka-publisher-actor-dispatcher"))
 
-  private val publishEventsTimer: Timer = metricsProvider.createTimer(s"${aggregateName}PublishEventsTimer")
-  private val serializeStateTimer: Timer = metricsProvider.createTimer(s"${aggregateName}AggregateStateSerializationTimer")
-  private val serializeEventTimer: Timer = metricsProvider.createTimer(s"${aggregateName}EventSerializationTimer")
-
-  def publish(aggregateId: String, state: (String, Option[Agg]), events: Seq[Event]): Future[Done] = {
-
-    val eventKeyValuePairs = events.map { event ⇒
-      val serializedMessage = serializeEventTimer.time(businessLogic.writeFormatting.writeEvent(event))
-      log.trace(s"Publishing event for {} {}", Seq(aggregateName, serializedMessage.key): _*)
-      KafkaProducerActorImpl.MessageToPublish(
-        key = serializedMessage.key,
-        value = serializedMessage.value,
-        headers = serializedMessage.headers.map(kv ⇒ new RecordHeader(kv._1, kv._2.getBytes())).toSeq)
-    }
-
-    val (stateKey, stateValueOpt) = state
-    val serializedStateOpt = stateValueOpt.map { value ⇒
-      serializeStateTimer.time(businessLogic.writeFormatting.writeState(value))
-    }
-    val stateToPublish = KafkaProducerActorImpl.MessageToPublish(
-      key = stateKey,
-      value = serializedStateOpt.map(_.value).orNull,
-      headers = serializedStateOpt.map(_.headers.map(kv ⇒ new RecordHeader(kv._1, kv._2.getBytes())).toSeq).getOrElse(Seq.empty))
-    log.trace(s"Publishing state for {} {}", Seq(aggregateName, stateKey): _*)
-
-    publishEventsTimer.time {
-      implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PublisherActor.publishTimeout)
-      (publisherActor ? KafkaProducerActorImpl.Publish(eventKeyValuePairs = eventKeyValuePairs, stateKeyValuePair = stateToPublish))
-        .map(_ ⇒ Done)(ExecutionContext.global)
-    }
+  def publish(aggregateId: String, state: KafkaProducerActor.MessageToPublish,
+    events: Seq[KafkaProducerActor.MessageToPublish]): Future[KafkaProducerActor.PublishResult] = {
+    log.trace(s"Publishing state for {} {}", Seq(aggregateName, state.key): _*)
+    implicit val ec: ExecutionContext = ExecutionContext.global
+    implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PublisherActor.publishTimeout)
+    (publisherActor ? KafkaProducerActorImpl.Publish(eventsToPublish = events, state = state))
+      .mapTo[KafkaProducerActor.PublishResult]
   }
 
   def terminate(): Unit = {
@@ -135,18 +110,24 @@ class KafkaProducerActor[Agg, Event](
   }
 }
 
+object KafkaProducerActor {
+  sealed trait PublishResult
+  case object PublishSuccess extends PublishResult
+  case class PublishFailure(t: Throwable) extends PublishResult
+  case class MessageToPublish(key: String, value: Array[Byte], headers: Headers)
+}
+
 private object KafkaProducerActorImpl {
-  case class MessageToPublish(key: String, value: Array[Byte], headers: Seq[Header])
   sealed trait KafkaProducerActorMessage extends NoSerializationVerificationNeeded
-  case class Publish(stateKeyValuePair: MessageToPublish, eventKeyValuePairs: Seq[MessageToPublish]) extends KafkaProducerActorMessage
+  case class Publish(state: KafkaProducerActor.MessageToPublish, eventsToPublish: Seq[KafkaProducerActor.MessageToPublish]) extends KafkaProducerActorMessage
   case class StateProcessed(stateMeta: KafkaPartitionMetadata) extends KafkaProducerActorMessage
   case class IsAggregateStateCurrent(aggregateId: String, expirationTime: Instant) extends KafkaProducerActorMessage
-  case class AggregateStateRates(current: Rate, notCurrent: Rate) extends KafkaProducerActorMessage
+  case class AggregateStateRates(current: Rate, notCurrent: Rate)
 
   sealed trait InternalMessage extends NoSerializationVerificationNeeded
   case class EventsPublished(originalSenders: Seq[ActorRef], recordMetadata: Seq[KafkaRecordMetadata[String]]) extends InternalMessage
-  case object EventsFailedToPublish extends InternalMessage
-  case class AbortTransactionFailed(underlyingException: Throwable) extends InternalMessage
+  case class EventsFailedToPublish(originalSenders: Seq[ActorRef], reason: Throwable) extends InternalMessage
+  case class AbortTransactionFailed(originalSenders: Seq[ActorRef], abortTransactionException: Throwable, originalException: Throwable) extends InternalMessage
   case object InitTransactions extends InternalMessage
   case object FailedToInitTransactions extends InternalMessage
   case class Initialize(endOffset: Long) extends InternalMessage
@@ -185,7 +166,7 @@ private class KafkaProducerActorImpl[Agg, Event](
 
   private val nonTransactionalStatePublisher = kafkaProducerOverride.getOrElse(KafkaBytesProducer(brokers, stateTopic, partitioner = partitioner))
 
-  private val kafkaPublisherTimer: Timer = metrics.createTimer(s"${aggregateName}AggregateStateKafkaPublisherTimer")
+  private val kafkaPublisherTimer: Timer = metrics.createTimer(s"${aggregateName}KafkaWriteTimer")
   private implicit val rates: AggregateStateRates = AggregateStateRates(
     current = metrics.createRate(s"${aggregateName}AggregateStateCurrentRate"),
     notCurrent = metrics.createRate(s"${aggregateName}AggregateStateNotCurrentRate"))
@@ -246,7 +227,7 @@ private class KafkaProducerActorImpl[Agg, Event](
     case msg: KafkaPartitionMetadataUpdated ⇒ handle(msg)
     case msg: Publish                       ⇒ handle(state, msg)
     case msg: EventsPublished               ⇒ handle(state, msg)
-    case EventsFailedToPublish              ⇒ handleFailedToPublish(state)
+    case msg: EventsFailedToPublish         ⇒ handleFailedToPublish(state, msg)
     case msg: StateProcessed                ⇒ handle(state, msg)
     case msg: IsAggregateStateCurrent       ⇒ handle(state, msg)
     case GetHealth                          ⇒ getHealthCheck(state)
@@ -332,12 +313,13 @@ private class KafkaProducerActorImpl[Agg, Event](
   private def handle(state: KafkaProducerActorState, eventsPublished: EventsPublished): Unit = {
     val newState = state.addInFlight(eventsPublished.recordMetadata).completeTransaction()
     context.become(processing(newState))
-    eventsPublished.originalSenders.foreach(_ ! Done)
+    eventsPublished.originalSenders.foreach(_ ! KafkaProducerActor.PublishSuccess)
   }
 
-  private def handleFailedToPublish(state: KafkaProducerActorState): Unit = {
+  private def handleFailedToPublish(state: KafkaProducerActorState, msg: EventsFailedToPublish): Unit = {
     val newState = state.completeTransaction()
     context.become(processing(newState))
+    msg.originalSenders.foreach(_ ! KafkaProducerActor.PublishFailure(msg.reason))
   }
 
   private var lastTransactionInProgressWarningTime: Instant = Instant.ofEpochMilli(0L)
@@ -354,15 +336,15 @@ private class KafkaProducerActorImpl[Agg, Event](
           s"that typically indicates slowness in the Kafka brokers.", assignedPartition, state.currentTransactionTimeMillis)
       }
     } else if (state.pendingWrites.nonEmpty) {
-      val eventMessages = state.pendingWrites.flatMap(_.publish.eventKeyValuePairs)
-      val stateMessages = state.pendingWrites.map(_.publish.stateKeyValuePair)
+      val eventMessages = state.pendingWrites.flatMap(_.publish.eventsToPublish)
+      val stateMessages = state.pendingWrites.map(_.publish.state)
 
       val eventRecords = eventMessages.map { eventToPublish ⇒
         // Using null here since we need to add the headers but we don't want to explicitly assign the partition
-        new ProducerRecord(eventsTopic.name, null, eventToPublish.key, eventToPublish.value, eventToPublish.headers.asJava) // scalastyle:ignore null
+        new ProducerRecord(eventsTopic.name, null, eventToPublish.key, eventToPublish.value, eventToPublish.headers) // scalastyle:ignore null
       }
-      val stateRecords = stateMessages.map { stateToPublish ⇒
-        new ProducerRecord(stateTopic.name, assignedPartition.partition(), stateToPublish.key, stateToPublish.value, stateToPublish.headers.asJava)
+      val stateRecords = stateMessages.map { state ⇒
+        new ProducerRecord(stateTopic.name, assignedPartition.partition(), state.key, state.value, state.headers)
       }
       val records = eventRecords ++ stateRecords
 
@@ -377,12 +359,12 @@ private class KafkaProducerActorImpl[Agg, Event](
     val senders = state.pendingWrites.map(_.sender)
     val futureMsg = kafkaPublisherTimer.time {
       Try(kafkaPublisher.beginTransaction()) match {
-        case Failure(_: ProducerFencedException) ⇒
+        case Failure(f: ProducerFencedException) ⇒
           producerFenced()
-          Future.successful(EventsFailedToPublish) // Only used for the return type, the actor is stopped in the producerFenced() method
+          Future.successful(EventsFailedToPublish(senders, f)) // Only used for the return type, the actor is stopped in the producerFenced() method
         case Failure(err) ⇒
           log.error(s"KafkaPublisherActor partition $assignedPartition there was an error beginning transaction", err)
-          Future.successful(EventsFailedToPublish)
+          Future.successful(EventsFailedToPublish(senders, err))
         case _ ⇒
           Future.sequence(kafkaPublisher.putRecords(records)).map { recordMeta ⇒
             log.debug(s"KafkaPublisherActor partition {} committing transaction", assignedPartition)
@@ -395,9 +377,9 @@ private class KafkaProducerActorImpl[Agg, Event](
               log.error(s"KafkaPublisherActor partition $assignedPartition got error while trying to publish to Kafka", e)
               Try(kafkaPublisher.abortTransaction()) match {
                 case Success(_) ⇒
-                  EventsFailedToPublish
+                  EventsFailedToPublish(senders, e)
                 case Failure(exception) ⇒
-                  AbortTransactionFailed(exception)
+                  AbortTransactionFailed(senders, abortTransactionException = exception, originalException = e)
               }
           }
       }
@@ -409,7 +391,8 @@ private class KafkaProducerActorImpl[Agg, Event](
   private def handle(abortTransactionFailed: AbortTransactionFailed): Unit = {
     log.error(
       s"KafkaPublisherActor partition $assignedPartition saw an error aborting transaction, will recreate the producer.",
-      abortTransactionFailed.underlyingException)
+      abortTransactionFailed.abortTransactionException)
+    abortTransactionFailed.originalSenders.foreach(_ ! KafkaProducerActor.PublishFailure(abortTransactionFailed.originalException))
     closeAndRecreatePublisher()
     context.system.scheduler.scheduleOnce(10.milliseconds, self, InitTransactions)
     context.become(uninitialized)

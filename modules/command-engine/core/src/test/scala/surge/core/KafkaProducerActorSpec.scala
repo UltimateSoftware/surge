@@ -4,7 +4,6 @@ package surge.core
 
 import java.time.Instant
 
-import akka.Done
 import akka.actor.{ ActorRef, ActorSystem, Props }
 import akka.pattern.ask
 import akka.testkit.{ TestKit, TestProbe }
@@ -12,7 +11,7 @@ import akka.util.Timeout
 import org.apache.kafka.clients.producer.{ ProducerRecord, RecordMetadata }
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.{ AuthorizationException, ProducerFencedException }
-import org.apache.kafka.common.header.internals.RecordHeader
+import org.apache.kafka.common.header.internals.{ RecordHeader, RecordHeaders }
 import org.mockito.ArgumentMatchers._
 import org.mockito.Mockito._
 import org.scalatest.BeforeAndAfterAll
@@ -21,13 +20,13 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Millis, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
+import surge.core.KafkaProducerActor.{ PublishFailure, PublishSuccess }
 import surge.core.KafkaProducerActorImpl.AggregateStateRates
 import surge.kafka.streams.KafkaPartitionMetadata
 import surge.kafka.streams.KafkaPartitionMetadataHandlerImpl.KafkaPartitionMetadataUpdated
 import surge.metrics.NoOpMetricsProvider
 import surge.scala.core.kafka.{ KafkaBytesProducer, KafkaRecordMetadata }
 
-import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{ Await, ExecutionContext, Future }
@@ -66,17 +65,17 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
     new KafkaRecordMetadata[String](None, recordMeta)
   }
 
-  private def testObjects(strings: Seq[String]): Seq[KafkaProducerActorImpl.MessageToPublish] = {
+  private def testObjects(strings: Seq[String]): Seq[KafkaProducerActor.MessageToPublish] = {
     strings.map { str ⇒
-      KafkaProducerActorImpl.MessageToPublish(str, str.getBytes(), Seq(new RecordHeader("object_name", str.getBytes())))
+      KafkaProducerActor.MessageToPublish(str, str.getBytes(), new RecordHeaders().add(new RecordHeader("object_name", str.getBytes())))
     }
   }
-  private def records(assignedPartition: TopicPartition, events: Seq[KafkaProducerActorImpl.MessageToPublish],
-    state: KafkaProducerActorImpl.MessageToPublish): Seq[ProducerRecord[String, Array[Byte]]] = {
+  private def records(assignedPartition: TopicPartition, events: Seq[KafkaProducerActor.MessageToPublish],
+    state: KafkaProducerActor.MessageToPublish): Seq[ProducerRecord[String, Array[Byte]]] = {
     val eventRecords = events.map { event ⇒
-      new ProducerRecord(businessLogic.kafka.eventsTopic.name, null, event.key, event.value, event.headers.asJava) // scalastyle:ignore null
+      new ProducerRecord(businessLogic.kafka.eventsTopic.name, null, event.key, event.value, event.headers) // scalastyle:ignore null
     }
-    val stateRecord = new ProducerRecord(businessLogic.kafka.stateTopic.name, assignedPartition.partition(), state.key, state.value, state.headers.asJava)
+    val stateRecord = new ProducerRecord(businessLogic.kafka.stateTopic.name, assignedPartition.partition(), state.key, state.value, state.headers)
 
     eventRecords :+ stateRecord
   }
@@ -90,9 +89,9 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
 
   "KafkaProducerActor" should {
     val testEvents1 = testObjects(Seq("event1", "event2", "event3"))
-    val testAggs1 = KafkaProducerActorImpl.MessageToPublish("agg1", "agg1".getBytes(), Seq.empty)
+    val testAggs1 = KafkaProducerActor.MessageToPublish("agg1", "agg1".getBytes(), new RecordHeaders())
     val testEvents2 = testObjects(Seq("event3", "event4"))
-    val testAggs2 = KafkaProducerActorImpl.MessageToPublish("agg3", "agg3".getBytes(), Seq.empty)
+    val testAggs2 = KafkaProducerActor.MessageToPublish("agg3", "agg3".getBytes(), new RecordHeaders())
 
     "Recovers from beginTransaction failure" in {
       val probe = TestProbe()
@@ -202,7 +201,7 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
 
       probe.send(failingFlush, KafkaProducerActorImpl.Publish(testAggs2, testEvents2))
       probe.send(failingFlush, KafkaProducerActorImpl.FlushMessages)
-      probe.expectMsg(6.seconds, Done) // Need to wait a little extra since failing to write the flush record will wait 3 seconds before retrying
+      probe.expectMsg(6.seconds, PublishSuccess) // Need to wait a little extra since failing to write the flush record will wait 3 seconds before retrying
 
       verify(mockProducerFailsPutRecord, times(2)).putRecord(any[ProducerRecord[String, Array[Byte]]])
       verify(mockProducerFailsPutRecord).putRecords(records(assignedPartition, testEvents2, testAggs2))
@@ -295,14 +294,14 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
 
       probe.send(failingPut, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
       probe.send(failingPut, KafkaProducerActorImpl.FlushMessages)
-      probe.expectNoMessage()
+      probe.expectMsgType[PublishFailure]
       verify(mockProducerFailsPutRecords).beginTransaction()
       verify(mockProducerFailsPutRecords).putRecords(records(assignedPartition, testEvents1, testAggs1))
       verify(mockProducerFailsPutRecords).abortTransaction()
 
       probe.send(failingPut, KafkaProducerActorImpl.Publish(testAggs2, testEvents2))
       probe.send(failingPut, KafkaProducerActorImpl.FlushMessages)
-      probe.expectMsg(Done)
+      probe.expectMsg(PublishSuccess)
       verify(mockProducerFailsPutRecords).putRecords(records(assignedPartition, testEvents2, testAggs2))
       verify(mockProducerFailsPutRecords).commitTransaction()
     }
@@ -327,7 +326,7 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
 
       probe.send(failingCommit, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
       probe.send(failingCommit, KafkaProducerActorImpl.FlushMessages)
-      probe.expectNoMessage()
+      probe.expectMsgType[PublishFailure]
       verify(mockProducerFailsCommit).beginTransaction()
       verify(mockProducerFailsCommit).putRecords(records(assignedPartition, testEvents1, testAggs1))
       verify(mockProducerFailsCommit).commitTransaction()
@@ -336,7 +335,7 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
       // Since we can't stub the void method to throw an exception and then succeed, we just care that the actor attempts to send the next set of records
       probe.send(failingCommit, KafkaProducerActorImpl.Publish(testAggs2, testEvents2))
       probe.send(failingCommit, KafkaProducerActorImpl.FlushMessages)
-      probe.expectNoMessage()
+      probe.expectMsgType[PublishFailure]
       verify(mockProducerFailsCommit).putRecords(records(assignedPartition, testEvents2, testAggs2))
     }
 
@@ -420,8 +419,8 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
       val empty = KafkaProducerActorState.empty
 
       val sender = TestProbe().ref
-      val dummyState = KafkaProducerActorImpl.MessageToPublish("foo", "foo".getBytes(), Seq.empty)
-      val publishMsg = KafkaProducerActorImpl.Publish(dummyState, Seq(KafkaProducerActorImpl.MessageToPublish("foo", "foo".getBytes(), Seq.empty)))
+      val dummyState = KafkaProducerActor.MessageToPublish("foo", "foo".getBytes(), new RecordHeaders())
+      val publishMsg = KafkaProducerActorImpl.Publish(dummyState, Seq(KafkaProducerActor.MessageToPublish("foo", "foo".getBytes(), new RecordHeaders())))
 
       val newState = empty.addPendingWrites(sender, publishMsg)
       newState.pendingWrites should contain only KafkaProducerActorImpl.PublishWithSender(sender, publishMsg)
