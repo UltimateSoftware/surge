@@ -30,9 +30,10 @@ trait RabbitDataSource[Key, Value] extends DataSource {
   private val log = LoggerFactory.getLogger(getClass)
   private def businessFlow(sink: DataHandler[Key, Value]): Flow[CommittableReadResult, CommittableReadResult, NotUsed] = {
     val handleEventFlow = Flow[CommittableReadResult].map { crr ⇒
-      log.error("Rabbit event source not yet supported for Surge 0.5.x")
-      readResultToKey(crr) -> readResultToValue(crr.message.bytes)
-    } //.via(sink.dataHandler)
+      val keyValue = readResultToKey(crr) -> readResultToValue(crr.message.bytes)
+      val eventPlusMeta = EventPlusStreamMeta(keyValue, streamMeta = None)
+      eventPlusMeta
+    }.via(sink.dataHandler)
 
     Flow[CommittableReadResult].via(PassThroughFlow(handleEventFlow, Keep.right))
   }

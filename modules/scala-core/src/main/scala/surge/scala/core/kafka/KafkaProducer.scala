@@ -138,11 +138,11 @@ case class KafkaStringProducer(
     kafkaConfig: Map[String, String] = Map.empty) extends KafkaProducerTrait[String, String] {
   val props: Properties = {
     val p = new Properties()
-    kafkaConfig.foreach(propPair ⇒ p.put(propPair._1, propPair._2))
     p.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, brokers.mkString(","))
     p.put(ProducerConfig.ACKS_CONFIG, "all")
     p.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, classOf[StringSerializer].getName)
     p.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, classOf[StringSerializer].getName)
+    kafkaConfig.foreach(propPair ⇒ p.put(propPair._1, propPair._2))
     configureSecurityProperties(p)
     p
   }
@@ -157,11 +157,11 @@ case class KafkaBytesProducer(
 
   val props: Properties = {
     val p = new Properties()
-    kafkaConfig.foreach(propPair ⇒ p.put(propPair._1, propPair._2))
     p.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, brokers.mkString(","))
     p.put(ProducerConfig.ACKS_CONFIG, "all")
     p.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, classOf[StringSerializer].getName)
     p.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, classOf[ByteArraySerializer].getName)
+    kafkaConfig.foreach(propPair ⇒ p.put(propPair._1, propPair._2))
     configureSecurityProperties(p)
     p
   }

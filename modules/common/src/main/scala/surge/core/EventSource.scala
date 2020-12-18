@@ -3,7 +3,6 @@
 package surge.core
 
 import akka.NotUsed
-import akka.kafka.ConsumerMessage.CommittableOffset
 import akka.kafka.ConsumerSettings
 import akka.stream.scaladsl.Flow
 import org.apache.kafka.common.serialization.{ ByteArrayDeserializer, Deserializer, StringDeserializer }
@@ -28,20 +27,20 @@ trait EventSourceDeserialization[Event] {
 
   protected def dataHandler(eventHandler: EventHandler[Event]): DataHandler[String, Array[Byte]] = {
     new DataHandler[String, Array[Byte]] {
-      override def dataHandler: Flow[EventPlusOffset[(String, Array[Byte])], CommittableOffset, NotUsed] = {
-        Flow[EventPlusOffset[(String, Array[Byte])]].map { eventPlusOffset ⇒
+      override def dataHandler[Meta]: Flow[EventPlusStreamMeta[(String, Array[Byte]), Meta], Meta, NotUsed] = {
+        Flow[EventPlusStreamMeta[(String, Array[Byte]), Meta]].map { eventPlusOffset ⇒
           val key = eventPlusOffset.messageBody._1
           val value = eventPlusOffset.messageBody._2
           Try(eventDeserializationTimer.time(formatting.readEvent(value))) match {
             case Failure(exception) ⇒
               onFailure(key, value, exception)
-              Left(eventPlusOffset.committableOffset)
+              Left(eventPlusOffset.streamMeta)
             case Success(event) ⇒
-              Right(EventPlusOffset(event, eventPlusOffset.committableOffset))
+              Right(EventPlusStreamMeta(event, eventPlusOffset.streamMeta))
           }
         }.via(EitherFlow(
           rightFlow = eventHandler.eventHandler,
-          leftFlow = Flow[CommittableOffset].map(identity)))
+          leftFlow = Flow[Meta].map(identity)))
       }
     }
   }

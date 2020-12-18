@@ -196,17 +196,7 @@ class KafkaPartitionShardRouterActor(
         log.trace(
           s"RouterActor forwarding command envelope for aggregate $aggregateId to region ${responsiblePartitionRegion.regionManager.pathString}. Msg $msg")
 
-        val initialSender = sender()
-        (responsiblePartitionRegion.regionManager ? msg).map { resp ⇒
-          initialSender ! resp
-        } recover {
-          case _: AskTimeoutException ⇒
-            log.error(
-              "Ask timed out to aggregate {} in partition region {}. If this was caused by a rebalance, these messages will be retried",
-              aggregateId, responsiblePartitionRegion.partitionNumber)
-          case e ⇒
-            log.error(s"Unknown exception sending command envelope to aggregate $aggregateId", e)
-        }
+        responsiblePartitionRegion.regionManager.forward(msg)
       case None ⇒
         log.error(s"RouterActor could not find a responsible partition region for $aggregateId.")
     }

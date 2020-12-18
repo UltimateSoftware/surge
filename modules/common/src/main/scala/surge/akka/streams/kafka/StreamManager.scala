@@ -19,7 +19,7 @@ import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.{ Metric, MetricName }
 import surge.akka.cluster.{ ActorHostAwareness, ActorRegistry, ActorSystemHostAwareness }
 import surge.core.DataPipeline.{ ReplayResult, _ }
-import surge.core.{ EventPlusOffset, EventReplaySettings, EventReplayStrategy }
+import surge.core.{ EventPlusStreamMeta, EventReplaySettings, EventReplayStrategy }
 import surge.scala.core.kafka.KafkaTopic
 import surge.support.Logging
 
@@ -32,12 +32,12 @@ object KafkaStreamManager {
   def apply[Key, Value](topic: KafkaTopic, consumerSettings: ConsumerSettings[Key, Value],
     replayStrategy: EventReplayStrategy,
     replaySettings: EventReplaySettings,
-    business: Flow[EventPlusOffset[(Key, Value)], CommittableOffset, NotUsed])(implicit
+    business: Flow[EventPlusStreamMeta[(Key, Value), CommittableOffset], CommittableOffset, NotUsed])(implicit
     actorSystem: ActorSystem,
     ec: ExecutionContext): KafkaStreamManager[Key, Value] = {
     val subscription = Subscriptions.topics(topic.name)
     val businessFlow = Flow[ConsumerMessage.CommittableMessage[Key, Value]].map { msg ⇒
-      EventPlusOffset(msg.record.key -> msg.record.value, msg.committableOffset)
+      EventPlusStreamMeta(msg.record.key -> msg.record.value, msg.committableOffset)
     }.via(business)
     new KafkaStreamManager[Key, Value](subscription, topic.name, consumerSettings, replayStrategy, replaySettings, businessFlow)
   }

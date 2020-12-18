@@ -5,7 +5,7 @@ package surge.scala.core.kafka
 import java.time.Instant
 import java.util.concurrent.CompletableFuture
 
-import org.apache.kafka.clients.producer.{ Callback, KafkaProducer, ProducerRecord, RecordMetadata }
+import org.apache.kafka.clients.producer.{ Callback, KafkaProducer, ProducerConfig, ProducerRecord, RecordMetadata }
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.header.internals.{ RecordHeader, RecordHeaders }
 import org.mockito.ArgumentMatchers
@@ -25,6 +25,14 @@ class KafkaProducerSpec extends AnyWordSpec with Matchers {
       0L, 0, 0)
   }
   "KafkaProducer" should {
+    "Configure correctly" in {
+      val acksConfigOverride = Map(ProducerConfig.ACKS_CONFIG -> "1")
+      val producer = KafkaBytesProducer(Seq("localhost:9092"), KafkaTopic("test"), kafkaConfig = acksConfigOverride)
+
+      val props = producer.props
+      props.getProperty(ProducerConfig.ACKS_CONFIG) shouldEqual "1"
+    }
+
     "Maintain the headers for a message when explicitly partitioning a message" in {
       val mockProducer = mock(classOf[KafkaProducer[String, String]])
       val mockRecordMetadata = createRecordMeta("topic", 1, 0)

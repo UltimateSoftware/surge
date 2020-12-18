@@ -2,12 +2,12 @@
 
 package surge.kafka
 
+import akka.NotUsed
 import akka.kafka.ConsumerMessage.CommittableOffset
 import akka.remote.testconductor.RoleName
 import akka.remote.testkit.{ MultiNodeConfig, MultiNodeSpec, MultiNodeSpecCallbacks }
 import akka.stream.scaladsl.Flow
 import akka.testkit.TestProbe
-import akka.{ Done, NotUsed }
 import com.typesafe.config.{ Config, ConfigFactory }
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.clients.producer.ProducerRecord
@@ -17,7 +17,7 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatest.{ BeforeAndAfterAll, OptionValues }
 import surge.akka.streams.kafka.{ KafkaConsumer, KafkaStreamManager }
-import surge.core.{ DefaultEventReplaySettings, EventPlusOffset, KafkaForeverReplaySettings, KafkaForeverReplayStrategy, NoOpEventReplayStrategy }
+import surge.core._
 import surge.kafka.streams.DefaultSerdes
 import surge.scala.core.kafka.KafkaTopic
 
@@ -64,11 +64,11 @@ class StreamManagerSpecBase extends MultiNodeSpec(StreamManagerSpecConfig) with 
       val topic = KafkaTopic(topicName)
       val record1 = "record 1"
       val record2 = "record 2"
-      def sendToTestProbe(testProbe: TestProbe): Flow[EventPlusOffset[(String, Array[Byte])], CommittableOffset, NotUsed] = {
-        Flow[EventPlusOffset[(String, Array[Byte])]].map { eventPlusOffset =>
+      def sendToTestProbe(testProbe: TestProbe): Flow[EventPlusStreamMeta[(String, Array[Byte]), CommittableOffset], CommittableOffset, NotUsed] = {
+        Flow[EventPlusStreamMeta[(String, Array[Byte]), CommittableOffset]].map { eventPlusOffset =>
           val msg = stringDeserializer.deserialize("", eventPlusOffset.messageBody._2)
           testProbe.ref ! msg
-          eventPlusOffset.committableOffset
+          eventPlusOffset.streamMeta
         }
       }
       val embeddedBroker = s"${node(node0).address.host.getOrElse("localhost")}:${config.kafkaPort}"

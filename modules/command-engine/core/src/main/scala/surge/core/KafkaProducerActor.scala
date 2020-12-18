@@ -170,6 +170,11 @@ private class KafkaProducerActorImpl[Agg, Event](
   private val config = ConfigFactory.load()
   private val assignedTopicPartitionKey = s"${assignedPartition.topic}:${assignedPartition.partition}"
   private val flushInterval = config.getDuration("kafka.publisher.flush-interval", TimeUnit.MILLISECONDS).milliseconds
+  private val publisherBatchSize = config.getInt("kafka.publisher.batch-size")
+  private val publisherLingerMs = config.getInt("kafka.publisher.linger-ms")
+  private val publisherCompression = config.getString("kafka.publisher.compression-type")
+  private val publisherAcks = config.getString("kafka.publisher.acks")
+  private val publisherTransactionTimeoutMs = config.getString("kafka.publisher.transaction-timeout-ms")
   private val brokers = config.getString("kafka.brokers").split(",")
 
   private val transactionalIdPrefix = businessLogic.transactionalIdPrefix
@@ -196,9 +201,15 @@ private class KafkaProducerActorImpl[Agg, Event](
 
   private def newPublisher(): KafkaBytesProducer = {
     val kafkaConfig = Map[String, String](
-      // ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG -> true, // For exactly once writes. How does this impact performance?
+      ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG -> true.toString,
+      ProducerConfig.BATCH_SIZE_CONFIG -> publisherBatchSize.toString,
+      ProducerConfig.LINGER_MS_CONFIG -> publisherLingerMs.toString,
+      ProducerConfig.COMPRESSION_TYPE_CONFIG -> publisherCompression,
+      ProducerConfig.ACKS_CONFIG -> publisherAcks,
+      ProducerConfig.TRANSACTION_TIMEOUT_CONFIG -> publisherTransactionTimeoutMs.toString,
       ProducerConfig.TRANSACTIONAL_ID_CONFIG → transactionalId)
 
+    // TODO Expose Kafka Producer Metrics
     // Set up the producer on the events topic so the partitioner can partition automatically on the events topic since we manually set the partition for the
     // aggregate state topic record and the events topic could have a different number of partitions
     KafkaBytesProducer(brokers, eventsTopic, partitioner, kafkaConfig)
