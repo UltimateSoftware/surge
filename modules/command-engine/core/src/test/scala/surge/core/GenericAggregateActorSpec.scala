@@ -170,6 +170,25 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
       probe.expectMsg(GenericAggregateActor.StateResponse(Some(baseState)))
     }
 
+    "Retry initialization if up to date check fails" in {
+      val probe = TestProbe()
+
+      val testAggregateId = UUID.randomUUID().toString
+      val baseState = State(testAggregateId, 3, 3)
+
+      val mockProducer = mock[KafkaProducerActor[State, BaseTestEvent]]
+      when(mockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.failed(new RuntimeException("This is expected")), Future.successful(true))
+      when(mockProducer.publish(anyString, any[KafkaProducerActor.MessageToPublish],
+        any[Seq[KafkaProducerActor.MessageToPublish]])).thenReturn(Future.successful(KafkaProducerActor.PublishSuccess))
+
+      val mockStreams = mockKafkaStreams(baseState)
+
+      val actor = testActor(testAggregateId, mockProducer, mockStreams)
+
+      probe.send(actor, GenericAggregateActor.GetState(testAggregateId))
+      probe.expectMsg(6.seconds, GenericAggregateActor.StateResponse(Some(baseState)))
+    }
+
     "Retry initialization on a failure to read from the KTable" in {
       val probe = TestProbe()
 

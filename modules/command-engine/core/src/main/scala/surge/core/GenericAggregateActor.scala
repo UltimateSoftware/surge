@@ -319,6 +319,11 @@ private[surge] class GenericAggregateActor[Agg, Command, Event](
           log.warn("State for {} is not up to date in Kafka streams, retrying initialization in {}", Seq(aggregateId, retryIn): _*)
           context.system.scheduler.scheduleOnce(retryIn)(initializeState(initializationAttempts + 1))
         }
+      }.recover {
+        case exception ⇒
+          val retryIn = RetryConfig.AggregateActor.fetchStateRetryInterval
+          log.error(s"Failed to check if ${businessLogic.aggregateName} aggregate was up to date for id $aggregateId, retrying in $retryIn", exception)
+          context.system.scheduler.scheduleOnce(retryIn)(initializeState(initializationAttempts + 1))
       }
     }
   }
