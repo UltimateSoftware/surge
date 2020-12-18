@@ -50,6 +50,7 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
     StreamsConfig.COMMIT_INTERVAL_MS_CONFIG -> settings.commitInterval.toString,
     StreamsConfig.NUM_STANDBY_REPLICAS_CONFIG -> settings.standByReplicas.toString,
     StreamsConfig.TOPOLOGY_OPTIMIZATION -> StreamsConfig.OPTIMIZE,
+    StreamsConfig.STATE_DIR_CONFIG -> settings.stateDirectory,
     StreamsConfig.ROCKSDB_CONFIG_SETTER_CLASS_CONFIG -> classOf[AggregateStreamsRocksDBConfig].getName)
 
   val validationProcessor = new ValidationProcessor[Array[Byte]](aggregateName, aggregateValidator)
@@ -186,6 +187,7 @@ private[streams] object AggregateStateStoreKafkaStreamsImpl {
       cacheMemory: Long,
       standByReplicas: Int,
       commitInterval: Int,
+      stateDirectory: String,
       clearStateOnStartup: Boolean) extends KafkaStreamSettings
 
   object AggregateStateStoreKafkaStreamsImplSettings {
@@ -206,17 +208,19 @@ private[streams] object AggregateStateStoreKafkaStreamsImpl {
       val cacheMemory = (totalMemory * cacheHeapPercentage).longValue
       val standbyReplicas = config.getInt("kafka.streams.num-standby-replicas")
       val commitInterval = config.getInt("kafka.streams.commit-interval-ms")
+      val stateDirectory = config.getString("kafka.streams.state-dir")
       val clearStateOnStartup = config.getBoolean("kafka.streams.wipe-state-on-start")
 
       new AggregateStateStoreKafkaStreamsImplSettings(
-        aggregateStateStoreName,
-        brokers,
-        consumerConfig,
-        applicationId,
-        cacheMemory,
-        standbyReplicas,
-        commitInterval,
-        clearStateOnStartup)
+        storeName = aggregateStateStoreName,
+        brokers = brokers,
+        consumerConfig = consumerConfig,
+        applicationId = applicationId,
+        cacheMemory = cacheMemory,
+        standByReplicas = standbyReplicas,
+        commitInterval = commitInterval,
+        stateDirectory = stateDirectory,
+        clearStateOnStartup = clearStateOnStartup)
     }
   }
 }
