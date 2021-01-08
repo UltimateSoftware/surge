@@ -66,13 +66,13 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
   }
 
   private def testObjects(strings: Seq[String]): Seq[KafkaProducerActor.MessageToPublish] = {
-    strings.map { str ⇒
+    strings.map { str =>
       KafkaProducerActor.MessageToPublish(str, str.getBytes(), new RecordHeaders().add(new RecordHeader("object_name", str.getBytes())))
     }
   }
   private def records(assignedPartition: TopicPartition, events: Seq[KafkaProducerActor.MessageToPublish],
     state: KafkaProducerActor.MessageToPublish): Seq[ProducerRecord[String, Array[Byte]]] = {
-    val eventRecords = events.map { event ⇒
+    val eventRecords = events.map { event =>
       new ProducerRecord(businessLogic.kafka.eventsTopic.name, null, event.key, event.value, event.headers) // scalastyle:ignore null
     }
     val stateRecord = new ProducerRecord(businessLogic.kafka.stateTopic.name, assignedPartition.partition(), state.key, state.value, state.headers)
@@ -226,7 +226,7 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
       probe.send(actor, isAggregateStateCurrent)
       // Verify that we haven't initialized transactions yet so we are in the uninitialized state and messages were stashed
       verify(mockProducer, times(0)).initTransactions()(any[ExecutionContext])
-      val response = actor.ask(isAggregateStateCurrent)(10.seconds).map(Some(_)).recoverWith { case _ ⇒ Future.successful(None) }
+      val response = actor.ask(isAggregateStateCurrent)(10.seconds).map(Some(_)).recoverWith { case _ => Future.successful(None) }
       assert(Await.result(response, 10.seconds).isDefined)
     }
 
@@ -251,7 +251,7 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
       val barRecord1 = KafkaRecordMetadata(Some("bar"), createRecordMeta("testTopic", 0, 0))
       probe.send(actor, KafkaProducerActorImpl.EventsPublished(Seq(probe.ref), Seq(barRecord1)))
       val isAggregateStateCurrent = KafkaProducerActorImpl.IsAggregateStateCurrent("bar", Instant.now.plusSeconds(10L))
-      val response = actor.ask(isAggregateStateCurrent)(10.seconds).map(Some(_)).recoverWith { case _ ⇒ Future.successful(None) }
+      val response = actor.ask(isAggregateStateCurrent)(10.seconds).map(Some(_)).recoverWith { case _ => Future.successful(None) }
       sendMetadataUpdated(probe, actor, assignedPartition)
       assert(Await.result(response, 3.second).isDefined)
     }

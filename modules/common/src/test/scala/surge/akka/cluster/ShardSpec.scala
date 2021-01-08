@@ -26,11 +26,11 @@ object TestActor {
   case class Crash(actorIdentifier: String, exception: Exception) extends Message
 
   def idExtractor: PartialFunction[Any, String] = {
-    case m: Message ⇒ m.actorIdentifier
+    case m: Message => m.actorIdentifier
   }
 
-  class RegionLogicProvider(onShardTerminatedCallback: () ⇒ Unit = () ⇒ {}) extends PerShardLogicProvider[String] {
-    override def actorProvider(context: ActorContext): EntityPropsProvider[String] = (actorId: String) ⇒ props(actorId)
+  class RegionLogicProvider(onShardTerminatedCallback: () => Unit = () => {}) extends PerShardLogicProvider[String] {
+    override def actorProvider(context: ActorContext): EntityPropsProvider[String] = (actorId: String) => props(actorId)
 
     override def healthCheck(): Future[HealthCheck] = Future {
       HealthCheck("producer-actor", "producer-actor-test", HealthCheckStatus.UP)
@@ -46,13 +46,13 @@ class TestActor(id: String) extends Actor {
   override def receive: Receive = onMessage(0)
 
   private def onMessage(value: Int): Receive = {
-    case Update(_, newVal) ⇒ context.become(onMessage(newVal))
-    case Delete(_)         ⇒ context.become(onMessage(0))
-    case Get(_)            ⇒ sender() ! value
-    case DoPassivate(_)    ⇒ context.parent ! Passivate(StopActor(sender()))
-    case StopActor(originalSender) ⇒
+    case Update(_, newVal) => context.become(onMessage(newVal))
+    case Delete(_)         => context.become(onMessage(0))
+    case Get(_)            => sender() ! value
+    case DoPassivate(_)    => context.parent ! Passivate(StopActor(sender()))
+    case StopActor(originalSender) =>
       originalSender ! self // Send back a reference to this actor so we can manipulate it directly without having to go through the shard
-    case Crash(_, ex) ⇒ throw ex
+    case Crash(_, ex) => throw ex
   }
 
 }
@@ -180,7 +180,7 @@ class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with AnyWordSpecLike w
 
       passivateActor(shard, childId)
       // Fill buffer (default size 1000 messages)
-      (1 to 1000).foreach(num ⇒ probe.send(shard, Update(childId, num)))
+      (1 to 1000).foreach(num => probe.send(shard, Update(childId, num)))
 
       val droppedMessage = Delete(childId)
       probe.send(shard, droppedMessage)
@@ -197,7 +197,7 @@ class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with AnyWordSpecLike w
         probe.ref ! 'Terminated
         ()
       }
-      val shardActor = system.actorOf(Shard.props("testShard", new RegionLogicProvider(() ⇒ notifyProbe()), TestActor.idExtractor))
+      val shardActor = system.actorOf(Shard.props("testShard", new RegionLogicProvider(() => notifyProbe()), TestActor.idExtractor))
       probe.expectNoMessage()
       probe.send(shardActor, PoisonPill)
       probe.expectMsg('Terminated)

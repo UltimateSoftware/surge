@@ -30,17 +30,17 @@ object SurgeKafkaStreamsPersistencePluginLoader {
 
   def load(): SurgeKafkaStreamsPersistencePlugin = {
     Try(config.getString(s"$persistencePluginName.plugin-class")) match {
-      case Failure(_) ⇒
+      case Failure(_) =>
         log.error(s"Unable to find a config setting for $persistencePluginName.plugin-class. " +
           s"This means you've configured a Kafka Streams persistence plugin that does not exist or is not configured correctly. " +
           s"Falling back to the default setting of $defaultPersistencePluginName")
         defaultPersistencePlugin
-      case Success(pluginClass) ⇒
+      case Success(pluginClass) =>
         Try(Class.forName(pluginClass).newInstance()) match {
-          case Success(value: SurgeKafkaStreamsPersistencePlugin) ⇒
+          case Success(value: SurgeKafkaStreamsPersistencePlugin) =>
             log.debug("Successfully loaded persistence plugin named [{}]", persistencePluginName)
             value
-          case _ ⇒
+          case _ =>
             log.warn(s"Unable to find and instantiate a class named [$pluginClass] for plugin [$persistencePluginName]")
             defaultPersistencePlugin
         }

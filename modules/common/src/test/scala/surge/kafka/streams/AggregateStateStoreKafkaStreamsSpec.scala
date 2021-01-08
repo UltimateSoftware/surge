@@ -91,7 +91,7 @@ class AggregateStateStoreKafkaStreamsSpec
     }
 
     "Store key value pairs from Kafka in a KTable" in {
-      withRunningKafkaOnFoundPort(config) { implicit actualConfig ⇒
+      withRunningKafkaOnFoundPort(config) { implicit actualConfig =>
         val topicName = "testStateTopic"
         createCustomTopic(topicName)
         val stateTopic: KafkaTopic = KafkaTopic(topicName)
@@ -113,13 +113,13 @@ class AggregateStateStoreKafkaStreamsSpec
 
         val topology = aggStoreKafkaStreams.getTopology().futureValue
 
-        withTopologyTestDriver(topology) { testDriver ⇒
+        withTopologyTestDriver(topology) { testDriver =>
           assertStoreKeyValue(testDriver, stateTopic, aggStoreKafkaStreams)
         }
       }
     }
     "Restart the stream on any errors" in {
-      withRunningKafkaOnFoundPort(config) { implicit actualConfig ⇒
+      withRunningKafkaOnFoundPort(config) { implicit actualConfig =>
         val topicName = "testStateTopic"
         createCustomTopic(topicName)
         val stateTopic: KafkaTopic = KafkaTopic(topicName)
@@ -145,7 +145,7 @@ class AggregateStateStoreKafkaStreamsSpec
 
         val topology = aggStoreKafkaStreams.getTopology().futureValue
 
-        withTopologyTestDriver(topology) { testDriver ⇒
+        withTopologyTestDriver(topology) { testDriver =>
           // if we make it to use the stream it means it restarted correctly after the crash
           assertStoreKeyValue(testDriver, stateTopic, aggStoreKafkaStreams)
         }

@@ -9,10 +9,10 @@ import scala.util.{ Failure, Success, Try }
 
 trait StringValidators {
   def MatchRegex(regex: Regex, optErrMsg: Option[ValidationMessage] = None): Validator[String] =
-    ValidateWith[String](str ⇒ regex.findFirstMatchIn(str).isDefined, optErrMsg orElse Some("The string must match the regular expression"))
+    ValidateWith[String](str => regex.findFirstMatchIn(str).isDefined, optErrMsg orElse Some("The string must match the regular expression"))
 
   def MatchRegexString(regexString: String, optErrMsg: Option[ValidationMessage] = None): Validator[String] =
-    ValidateWith[String](str ⇒ regexString.r.findFirstMatchIn(str).isDefined, optErrMsg orElse Some("The string must match the regular expression"))
+    ValidateWith[String](str => regexString.r.findFirstMatchIn(str).isDefined, optErrMsg orElse Some("The string must match the regular expression"))
 
   val NonEmptyString: Validator[String] =
     ValidateWith[String](_.nonEmpty, Some("The string must be non empty"))
@@ -21,10 +21,10 @@ trait StringValidators {
     ValidateWith[Option[String]](_.getOrElse("").length > 0, Some("The option must hold a non empty string"))
 
   val ValidUUID: Validator[String] =
-    ValidateWith[String]({ str ⇒
+    ValidateWith[String]({ str =>
       Try(UUID.fromString(str)) match {
-        case Success(_) ⇒ true
-        case Failure(_) ⇒ false
+        case Success(_) => true
+        case Failure(_) => false
       }
     }, Some("The string must be a valid UUID"))
 

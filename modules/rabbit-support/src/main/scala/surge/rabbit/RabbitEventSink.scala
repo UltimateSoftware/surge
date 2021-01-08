@@ -29,7 +29,7 @@ trait RabbitEventSink[Event] extends EventHandler[Event] {
   private lazy val rabbitWriteFlow = AmqpFlow.withConfirm(writeSettings)
 
   override def eventHandler[Meta]: Flow[EventPlusStreamMeta[Event, Meta], Meta, NotUsed] = {
-    Flow[EventPlusStreamMeta[Event, Meta]].map { evtPlusOffset ⇒
+    Flow[EventPlusStreamMeta[Event, Meta]].map { evtPlusOffset =>
       val serialized = writeFormatting.writeEvent(evtPlusOffset.messageBody)
       val headers: Map[String, AnyRef] = serialized.headers
       val props = new BasicProperties.Builder()

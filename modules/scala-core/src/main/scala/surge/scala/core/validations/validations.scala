@@ -20,15 +20,15 @@ package object validations {
   type ValidatorInput[A] = (A, Option[ValidationMessage])
   final case class ValidationError(message: ValidationMessage)
 
-  type ValidationPredicate[A] = A ⇒ Boolean
-  type Validator[A] = ValidatorInput[A] ⇒ ValidationResult[A]
+  type ValidationPredicate[A] = A => Boolean
+  type Validator[A] = ValidatorInput[A] => ValidationResult[A]
   type ValidationResult[A] = Either[Seq[ValidationError], A]
-  type FieldValidator[A] = A ⇒ Seq[ValidationResult[_]]
+  type FieldValidator[A] = A => Seq[ValidationResult[_]]
 
-  type AsyncValidationPredicate[A] = A ⇒ Future[Boolean]
-  type AsyncValidator[A] = ValidatorInput[A] ⇒ AsyncValidationResult[A]
+  type AsyncValidationPredicate[A] = A => Future[Boolean]
+  type AsyncValidator[A] = ValidatorInput[A] => AsyncValidationResult[A]
   type AsyncValidationResult[A] = Future[ValidationResult[A]]
-  type AsyncFieldValidator[A] = A ⇒ Seq[AsyncValidationResult[_]]
+  type AsyncFieldValidator[A] = A => Seq[AsyncValidationResult[_]]
 
   implicit class ValidationResultExtensions[A](validationResult: ValidationResult[A]) {
     def toAsync: AsyncValidationResult[A] = Future.successful(validationResult)
@@ -41,7 +41,7 @@ package object validations {
   /**
    * ValidateWith is a basic synchronous validator that can be used directly as so:
    *
-   * val validationResult = ValidateWith[String](s ⇒ s.length > 0)("String to Test", Some("String can not be empty"))
+   * val validationResult = ValidateWith[String](s => s.length > 0)("String to Test", Some("String can not be empty"))
    *
    * or use it as a factory to create other validations as so:
    *
@@ -57,14 +57,14 @@ package object validations {
    */
 
   def ValidateWith[A](predicate: ValidationPredicate[A], optErrMsg: Option[ValidationMessage] = None): Validator[A] = {
-    case (value, _) if predicate(value) ⇒ Right(value)
-    case (value, oem)                   ⇒ Left(Seq(ValidationError(oem orElse optErrMsg getOrElse s"${value.getClass.getSimpleName} not valid")))
+    case (value, _) if predicate(value) => Right(value)
+    case (value, oem)                   => Left(Seq(ValidationError(oem orElse optErrMsg getOrElse s"${value.getClass.getSimpleName} not valid")))
   }
 
   /**
    * ValidateWith is a basic synchronous validator that can be used directly as so:
    *
-   * val asyncValidationResult = AsyncValidateWith[String](s ⇒ Future(s.length > 0))("String to Test", Some("String can not be empty"))
+   * val asyncValidationResult = AsyncValidateWith[String](s => Future(s.length > 0))("String to Test", Some("String can not be empty"))
    *
    * or use it as a factory to create other validations as so:
    *
@@ -79,11 +79,11 @@ package object validations {
    * @return A ValidationResult, either a Right(A) or a Left(Seq[ValidationError])
    */
   def AsyncValidateWith[A](predicate: AsyncValidationPredicate[A], optErrMsg: Option[ValidationMessage] = None)(implicit ec: ExecutionContext): AsyncValidator[A] = {
-    case (value, oem) ⇒
-      predicate(value).recover({ case ex ⇒ (false, ex) }).map {
-        case true                   ⇒ Right(value)
-        case false                  ⇒ Left(Seq(ValidationError(oem orElse optErrMsg getOrElse DEFAULT_VALIDATION_MESSAGE)))
-        case (false, ex: Throwable) ⇒ Left(Seq(ValidationError(ex.getMessage)))
+    case (value, oem) =>
+      predicate(value).recover({ case ex => (false, ex) }).map {
+        case true                   => Right(value)
+        case false                  => Left(Seq(ValidationError(oem orElse optErrMsg getOrElse DEFAULT_VALIDATION_MESSAGE)))
+        case (false, ex: Throwable) => Left(Seq(ValidationError(ex.getMessage)))
       }
   }
 

@@ -24,7 +24,7 @@ object PartitionAssignmentChanges {
     startingAssignments: Map[HostPort, List[TopicPartition]],
     endingAssignments: Map[HostPort, List[TopicPartition]]): Map[HostPort, List[TopicPartition]] = {
     startingAssignments.map {
-      case (hostPort, topicPartitions) ⇒
+      case (hostPort, topicPartitions) =>
         val newTopicPartitionsForHost = endingAssignments.getOrElse(hostPort, List.empty)
         val removedTopicPartitionsForHost = topicPartitions.diff(newTopicPartitionsForHost)
         hostPort -> removedTopicPartitionsForHost
@@ -51,8 +51,8 @@ object PartitionAssignments {
 final case class PartitionAssignments(partitionAssignments: Map[HostPort, List[TopicPartition]]) {
   def topicPartitionsToHosts: Map[TopicPartition, HostPort] = {
     partitionAssignments.flatMap {
-      case (hostPort, topicPartitions) ⇒
-        topicPartitions.map(tp ⇒ tp -> hostPort)
+      case (hostPort, topicPartitions) =>
+        topicPartitions.map(tp => tp -> hostPort)
     }
   }
 

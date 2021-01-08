@@ -19,8 +19,8 @@ class SurgeEventProcessor[Agg, Event](
     writeFormatting: SurgeAggregateWriteFormatting[Agg],
     eventsTopic: KafkaTopic,
     applicationHostPort: Option[String],
-    extractAggregateId: Event ⇒ Option[String],
-    processEvent: (Option[Agg], Event) ⇒ Option[Agg],
+    extractAggregateId: Event => Option[String],
+    processEvent: (Option[Agg], Event) => Option[Agg],
     metricsProvider: MetricsProvider) {
 
   private val log = LoggerFactory.getLogger(getClass)
@@ -30,9 +30,9 @@ class SurgeEventProcessor[Agg, Event](
   private val consumerConfig = UltiKafkaConsumerConfig(s"$aggregateName-query")
   private val environment = config.getString("app.environment")
   private val applicationId = consumerConfig.consumerGroup match {
-    case name: String if name.contains(s"-$environment") ⇒
+    case name: String if name.contains(s"-$environment") =>
       s"${consumerConfig.consumerGroup}-$aggregateName"
-    case _ ⇒
+    case _ =>
       s"${consumerConfig.consumerGroup}-$aggregateName-$environment"
   }
 
@@ -59,7 +59,7 @@ class SurgeEventProcessor[Agg, Event](
 
   private def initStreams(): Unit = {
     consumer.builder.addStateStore(aggProcessor.aggregateKTableStoreBuilder)
-    val events = consumer.stream(eventsTopic).flatMapValues { value ⇒
+    val events = consumer.stream(eventsTopic).flatMapValues { value =>
       eventDeserializationTimer.time(Try(readFormatting.readEvent(value)).toOption)
     }
     events.process(aggProcessor.supplier, aggProcessor.aggregateKTableStoreName)

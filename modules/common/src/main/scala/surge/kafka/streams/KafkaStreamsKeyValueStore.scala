@@ -26,7 +26,7 @@ class KafkaStreamsKeyValueStore[Key, Value](underlying: ReadOnlyKeyValueStore[Ke
   def all(): Future[List[(Key, Value)]] = Future {
     val iterator = underlying.all()
 
-    val result = iterator.asScala.map(kv ⇒ kv.key -> kv.value).toList
+    val result = iterator.asScala.map(kv => kv.key -> kv.value).toList
 
     // Wrap this close() call in a future, even though we're already in a future, because it slows things down otherwise
     Future {
@@ -38,7 +38,7 @@ class KafkaStreamsKeyValueStore[Key, Value](underlying: ReadOnlyKeyValueStore[Ke
 
   def range(from: Key, to: Key): Future[List[(Key, Value)]] = Future {
     val iterator = underlying.range(from, to)
-    val result = iterator.asScala.map(kv ⇒ kv.key -> kv.value).toList
+    val result = iterator.asScala.map(kv => kv.key -> kv.value).toList
 
     // Wrap this close() call in a future, even though we're already in a future, because it slows things down otherwise
     Future {

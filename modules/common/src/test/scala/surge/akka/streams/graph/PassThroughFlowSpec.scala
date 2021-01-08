@@ -26,7 +26,7 @@ class PassThroughFlowSpec extends TestKit(ActorSystem("PassThroughFlowSpec")) wi
     "Fail the stream if the pass through flow throws an exception" in {
       val testSink = TestSink.probe[String]
       val expectedException = new RuntimeException("This is expected")
-      val exceptionalFlow = Flow[String].map(_ ⇒ throw expectedException)
+      val exceptionalFlow = Flow[String].map(_ => throw expectedException)
       val testFlow = testSource.via(PassThroughFlow(exceptionalFlow, Keep.right)).runWith(testSink)
 
       val error = testFlow.request(1)

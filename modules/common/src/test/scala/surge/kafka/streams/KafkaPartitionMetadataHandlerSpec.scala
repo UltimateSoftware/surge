@@ -38,11 +38,11 @@ class KafkaPartitionMetadataHandlerSpec
     super.afterAll()
   }
 
-  class SubscribedActor(notifyTo: KafkaPartitionMetadataUpdated ⇒ Unit) extends Actor with Logging {
+  class SubscribedActor(notifyTo: KafkaPartitionMetadataUpdated => Unit) extends Actor with Logging {
     override def receive: Receive = {
-      case value: KafkaPartitionMetadataUpdated ⇒
+      case value: KafkaPartitionMetadataUpdated =>
         notifyTo(value)
-      case _ ⇒
+      case _ =>
     }
 
     override def preStart(): Unit = {
@@ -71,7 +71,7 @@ class KafkaPartitionMetadataHandlerSpec
       handler.processPartitionMetadata(stream)
       val topology = builder.build()
 
-      withTopologyTestDriver(topology) { testDriver ⇒
+      withTopologyTestDriver(topology) { testDriver =>
         val inputTopic = testDriver.createInputTopic(testTopicName, Serdes.String().serializer(), JsonSerdes.serdeFor[KafkaPartitionMetadata].serializer())
         val meta = KafkaPartitionMetadata(testTopicName, 0, 10L, "foo")
         inputTopic.pipeInput(meta.topicPartition, meta)

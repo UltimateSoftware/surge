@@ -15,8 +15,8 @@ trait ActorSystemHostAwareness {
   protected lazy val akkaProtocol: String = localAddress.protocol
 
   protected lazy val applicationHostPort: Option[String] = for {
-    akkaHost ← localAddress.host
-    akkaPort ← localAddress.port
+    akkaHost <- localAddress.host
+    akkaPort <- localAddress.port
   } yield {
     s"$akkaHost:$akkaPort"
   }

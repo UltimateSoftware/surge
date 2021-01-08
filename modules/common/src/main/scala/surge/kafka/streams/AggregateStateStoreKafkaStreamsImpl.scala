@@ -25,7 +25,7 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
     stateTopic: KafkaTopic,
     partitionTrackerProvider: KafkaStreamsPartitionTrackerProvider,
     kafkaStateMetadataHandler: KafkaPartitionMetadataHandler,
-    aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) ⇒ Boolean,
+    aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) => Boolean,
     applicationHostPort: Option[String],
     override val settings: AggregateStateStoreKafkaStreamsImplSettings)
   extends KafkaStreamLifeCycleManagement[String, Array[Byte], KafkaByteStreamsConsumer, Array[Byte]] {
@@ -113,19 +113,19 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
   override def running(
     consumer: KafkaByteStreamsConsumer,
     aggregateQueryableStateStore: KafkaStreamsKeyValueStore[String, Array[Byte]]): Receive = {
-    case GetSubstatesForAggregate(aggregateId) ⇒
+    case GetSubstatesForAggregate(aggregateId) =>
       getSubstatesForAggregate(aggregateQueryableStateStore, aggregateId).pipeTo(sender())
-    case GetAggregateBytes(aggregateId) ⇒
+    case GetAggregateBytes(aggregateId) =>
       getAggregateBytes(aggregateQueryableStateStore, aggregateId).pipeTo(sender())
-    case GetTopology ⇒
+    case GetTopology =>
       sender() ! consumer.topology
-    case GetHealth ⇒
+    case GetHealth =>
       val status = if (consumer.streams.state().isRunningOrRebalancing) HealthCheckStatus.UP else HealthCheckStatus.DOWN
       sender() ! getHealth(status)
   }
 
   def stashIt: Receive = {
-    case _: GetAggregateBytes | _: GetSubstatesForAggregate | GetTopology ⇒
+    case _: GetAggregateBytes | _: GetSubstatesForAggregate | GetTopology =>
       stash()
   }
 
@@ -134,16 +134,16 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
     aggregateId: String): Future[List[(String, Array[Byte])]] = {
     aggregateQueryableStateStore
       .range(aggregateId, s"$aggregateId:~")
-      .map { result ⇒
+      .map { result =>
         result.filter {
-          case (key, _) ⇒
+          case (key, _) =>
             val keyBeforeColon = key.takeWhile(_ != ':')
             keyBeforeColon == aggregateId
         }
       }.recoverWith {
-        case err: InvalidStateStoreException ⇒
+        case err: InvalidStateStoreException =>
           handleInvalidStateStore(err)
-        case err: Throwable ⇒
+        case err: Throwable =>
           log.error(s"State store ${settings.storeName} threw an unexpected error", err)
           Future.failed(err)
       }
@@ -151,9 +151,9 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
 
   def getAggregateBytes(aggregateQueryableStateStore: KafkaStreamsKeyValueStore[String, Array[Byte]], aggregateId: String): Future[Option[Array[Byte]]] = {
     aggregateQueryableStateStore.get(aggregateId).recoverWith {
-      case err: InvalidStateStoreException ⇒
+      case err: InvalidStateStoreException =>
         handleInvalidStateStore(err)
-      case err: Throwable ⇒
+      case err: Throwable =>
         log.error(s"State store ${settings.storeName} threw an unexpected error", err)
         Future.failed(err)
     }
@@ -178,7 +178,7 @@ private[streams] object AggregateStateStoreKafkaStreamsImpl {
     stateTopic: KafkaTopic,
     partitionTrackerProvider: KafkaStreamsPartitionTrackerProvider,
     kafkaStateMetadataHandler: KafkaPartitionMetadataHandler,
-    aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) ⇒ Boolean,
+    aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) => Boolean,
     applicationHostPort: Option[String],
     settings: AggregateStateStoreKafkaStreamsImplSettings): Props = {
     Props(
@@ -211,9 +211,9 @@ private[streams] object AggregateStateStoreKafkaStreamsImpl {
       val consumerConfig = UltiKafkaConsumerConfig(consumerGroupName)
       val environment = config.getString("app.environment")
       val applicationId = consumerConfig.consumerGroup match {
-        case name: String if name.contains(s"-$environment") ⇒
+        case name: String if name.contains(s"-$environment") =>
           s"${consumerConfig.consumerGroup}-$aggregateName"
-        case _ ⇒
+        case _ =>
           s"${consumerConfig.consumerGroup}-$aggregateName-$environment"
       }
       val cacheHeapPercentage = config.getDouble("kafka.streams.cache-heap-percentage")

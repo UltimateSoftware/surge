@@ -52,7 +52,7 @@ class SurgeEventProcessorSpec extends AnyWordSpec with Matchers with KafkaStream
   }
 
   "KafkaStreamsEventProcessor" should {
-    "Store key value pairs from Kafka in a KTable" in withTopologyTestDriver(eventProcessor.createTopology()) { testDriver ⇒
+    "Store key value pairs from Kafka in a KTable" in withTopologyTestDriver(eventProcessor.createTopology()) { testDriver =>
       val store = testDriver.getKeyValueStore[String, Array[Byte]](eventProcessor.aggregateKTableStoreName)
       val inputTopic = testDriver.createInputTopic(eventTopic.name, new StringSerializer, JsonSerdes.serdeFor[ExampleEvent].serializer())
 

@@ -9,7 +9,7 @@ import scala.collection.JavaConverters._
 
 object HeadersHelper {
   def createHeaders(headerMap: Map[String, String]): Headers = {
-    val headers: Seq[Header] = headerMap.map(kv ⇒ new RecordHeader(kv._1, kv._2.getBytes())).toSeq
+    val headers: Seq[Header] = headerMap.map(kv => new RecordHeader(kv._1, kv._2.getBytes())).toSeq
 
     new RecordHeaders(headers.asJava)
   }

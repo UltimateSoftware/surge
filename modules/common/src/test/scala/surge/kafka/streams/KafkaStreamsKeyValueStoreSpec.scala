@@ -36,15 +36,15 @@ class KafkaStreamsKeyValueStoreSpec extends AsyncWordSpec with BeforeAndAfterAll
     keyValueStore.init(context, keyValueStore)
     context.register(keyValueStore, mock[StateRestoreCallback])
 
-    dataMap.foreach(kv ⇒ keyValueStore.put(kv._1, kv._2))
+    dataMap.foreach(kv => keyValueStore.put(kv._1, kv._2))
   }
 
   "KafkaStreamsKeyValueStore" should {
     "Properly wrap get single" in {
       val store = new KafkaStreamsKeyValueStore(keyValueStore)
       for {
-        maybePam ← store.get("Pam")
-        maybeOscar ← store.get("Oscar")
+        maybePam <- store.get("Pam")
+        maybeOscar <- store.get("Oscar")
       } yield {
         maybePam shouldEqual Some("Pam")
         maybeOscar shouldEqual None
@@ -54,7 +54,7 @@ class KafkaStreamsKeyValueStoreSpec extends AsyncWordSpec with BeforeAndAfterAll
     "Properly wrap get all" in {
       val store = new KafkaStreamsKeyValueStore(keyValueStore)
       for {
-        all ← store.all()
+        all <- store.all()
       } yield {
         all should have size 5
         all should contain("Dwight" -> "Dwight")
@@ -68,7 +68,7 @@ class KafkaStreamsKeyValueStoreSpec extends AsyncWordSpec with BeforeAndAfterAll
     "Properly wrap get all values" in {
       val store = new KafkaStreamsKeyValueStore(keyValueStore)
       for {
-        values ← store.allValues()
+        values <- store.allValues()
       } yield {
         values should have size 5
         values should contain("Dwight")
@@ -82,7 +82,7 @@ class KafkaStreamsKeyValueStoreSpec extends AsyncWordSpec with BeforeAndAfterAll
     "Properly wrap range query" in {
       val store = new KafkaStreamsKeyValueStore(keyValueStore)
       for {
-        rangeResult ← store.range("J", "M")
+        rangeResult <- store.range("J", "M")
       } yield {
         rangeResult should have size 2
         rangeResult should contain("Jim" -> "Jim")

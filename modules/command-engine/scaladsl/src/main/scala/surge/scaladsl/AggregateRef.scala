@@ -21,9 +21,9 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event](
   def ask(command: Cmd)(implicit ec: ExecutionContext): Future[CommandResult[Agg]] = {
     val envelope = GenericAggregateActor.CommandEnvelope[Cmd](aggregateId.toString, command)
     askWithRetries(envelope).map {
-      case Left(error) ⇒
+      case Left(error) =>
         CommandFailure(error)
-      case Right(aggOpt) ⇒
+      case Right(aggOpt) =>
         CommandSuccess(aggOpt)
     }
   }
@@ -33,9 +33,9 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event](
   def applyEvent(event: Event)(implicit ec: ExecutionContext): Future[ApplyEventResult[Agg]] = {
     val envelope = GenericAggregateActor.ApplyEventEnvelope[Event](aggregateId.toString, event)
     applyEventsWithRetries(envelope)
-      .map(aggOpt ⇒ ApplyEventsSuccess[Agg](aggOpt))
+      .map(aggOpt => ApplyEventsSuccess[Agg](aggOpt))
       .recover {
-        case e ⇒
+        case e =>
           ApplyEventsFailure[Agg](e)
       }
   }

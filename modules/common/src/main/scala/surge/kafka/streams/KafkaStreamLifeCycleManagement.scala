@@ -71,9 +71,9 @@ trait KafkaStreamLifeCycleManagement[K, V, T <: KafkaStreamsConsumer[K, V], SV] 
 
   final def stop(consumer: T): Unit = {
     Try(consumer.streams.close()) match {
-      case Success(_) ⇒
+      case Success(_) =>
         log.debug(s"Kafka streams ${settings.storeName} stopped")
-      case Failure(error) ⇒
+      case Failure(error) =>
         log.error(s"Kafka streams ${settings.storeName} failed to stop, shutting down the JVM", error)
         // Let the app crash, dead locks risk if the stream fails to kill itself, its not safe to restart
         SystemExit.exit(1)
@@ -104,41 +104,41 @@ trait KafkaStreamLifeCycleManagement[K, V, T <: KafkaStreamsConsumer[K, V], SV] 
   final override def receive: Receive = streamUninitialized
 
   final def streamUninitialized: Receive = uninitialized orElse inlineReceive {
-    case Start ⇒
+    case Start =>
       start()
-    case GetHealth ⇒
+    case GetHealth =>
       sender() ! getHealth(HealthCheckStatus.DOWN)
-    case Stop | Restart ⇒
+    case Stop | Restart =>
     // drop, can't restart or stop if is not running
   } orElse errorHandler orElse logUnhandled("uninitialized")
 
   final def streamCreated(consumer: T): Receive = created(consumer) orElse inlineReceive {
-    case Run ⇒
+    case Run =>
       val queryableStore: KafkaStreamsKeyValueStore[K, SV] = createQueryableStore(consumer)
       unstashAll()
       log.info(s"Kafka streams ${settings.storeName} is running")
       context.become(streamRunning(consumer, queryableStore))
-    case Stop ⇒
+    case Stop =>
       stop(consumer)
-    case Restart ⇒
+    case Restart =>
       restart()
-    case GetHealth ⇒
+    case GetHealth =>
       val status = if (consumer.streams.state().isRunningOrRebalancing) HealthCheckStatus.UP else HealthCheckStatus.DOWN
       sender() ! getHealth(status)
   } orElse errorHandler orElse logUnhandled("created")
 
   final def streamRunning(consumer: T, queryableStore: KafkaStreamsKeyValueStore[K, SV]): Receive = running(consumer, queryableStore) orElse inlineReceive {
-    case GetHealth ⇒
+    case GetHealth =>
       val status = if (consumer.streams.state().isRunningOrRebalancing) HealthCheckStatus.UP else HealthCheckStatus.DOWN
       sender() ! getHealth(status)
-    case Stop ⇒
+    case Stop =>
       stop(consumer)
-    case Restart ⇒
+    case Restart =>
       restart()
   } orElse errorHandler orElse logUnhandled("running")
 
   final def logUnhandled(stateName: String): Receive = {
-    case unhandledMessage ⇒
+    case unhandledMessage =>
       log.debug(s"${settings.storeName} Dropping unhandled message on $stateName state {}", unhandledMessage)
   }
 
@@ -151,17 +151,17 @@ trait KafkaStreamLifeCycleManagement[K, V, T <: KafkaStreamsConsumer[K, V], SV] 
   final def receiveKafkaStreamStateChange(change: KafkaStateChange): Unit = {
     onStateChange(change)
     change match {
-      case KafkaStateChange(_, newState) if newState == KafkaStreams.State.RUNNING ⇒
+      case KafkaStateChange(_, newState) if newState == KafkaStreams.State.RUNNING =>
         self ! Run
-      case KafkaStateChange(_, newState) if newState == KafkaStreams.State.ERROR ⇒
+      case KafkaStateChange(_, newState) if newState == KafkaStreams.State.ERROR =>
         restartOnError(new RuntimeException(s"Kafka stream ${settings.storeName} transitioned to ERROR state, crashing this actor to let it restart"))
-      case _ ⇒
+      case _ =>
       // Ignore
     }
   }
 
   final private[streams] def errorHandler: Receive = {
-    case err: Throwable ⇒
+    case err: Throwable =>
       log.error("Restarting actor with error", err)
       throw err
   }

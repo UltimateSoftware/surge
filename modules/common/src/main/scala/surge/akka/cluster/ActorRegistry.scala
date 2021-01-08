@@ -26,26 +26,26 @@ class Receptionist(systemAddress: Address) extends Actor {
   override def receive: Receive = registry(Map())
 
   def registry(inventory: Map[String, List[Record]]): Receive = {
-    case RegisterService(key, actor, tags) ⇒
+    case RegisterService(key, actor, tags) =>
       context.watch(actor)
       val record = Record(actor.path.toString, tags)
       val newInventory = inventory ++ Map(key -> List(record))
       context.become(registry(newInventory))
       sender() ! ServiceRegistered
-    case GetServicesById(key) ⇒
+    case GetServicesById(key) =>
       sender() ! ServicesList(systemAddress, inventory.getOrElse(key, List()))
-    case Terminated(ref) ⇒
+    case Terminated(ref) =>
       val newInventory = removeFromInventory(inventory, ref)
       context.become(registry(newInventory))
   }
 
   def removeFromInventory(inventory: Map[String, List[Record]], actorToRemove: ActorRef): Map[String, List[Record]] = {
     inventory.map {
-      case (key, list) ⇒
-        val newList = list.filterNot(record ⇒ record.actorPath.equals(actorToRemove.path.toString))
+      case (key, list) =>
+        val newList = list.filterNot(record => record.actorPath.equals(actorToRemove.path.toString))
         key -> newList
     }
-      .filter { case (_, list) ⇒ list.nonEmpty }
+      .filter { case (_, list) => list.nonEmpty }
   }
 }
 
@@ -60,60 +60,60 @@ trait ActorRegistry extends Logging with ActorSystemHostAwareness {
 
   private[cluster] def findReceptionist(path: String = receptionistLocalPath)(implicit executionContext: ExecutionContext): Future[Option[ActorRef]] = {
     actorSystem.actorSelection(path).resolveOne(TimeoutConfig.ActorRegistry.resolveActorTimeout).map(Some(_)).recoverWith {
-      case _ if path equals receptionistLocalPath ⇒
+      case _ if path equals receptionistLocalPath =>
         ActorPath.fromString(path)
         log.debug(s"Receptionist not found for path $path, initializing local ActorRegistry")
         val receptionistActor: ActorRef = actorSystem.actorOf(Props(new Receptionist(localAddress)), receptionistActorName)
         Future.successful(Some(receptionistActor))
-      case _ ⇒
+      case _ =>
         Future.successful(None) // no remote receptionist found
     }
   }
 
   def registerService(key: String, actor: ActorRef, tags: List[String] = List())(implicit executionContext: ExecutionContext): Future[Done] = {
     findReceptionist(receptionistLocalPath).flatMap {
-      case Some(receptionist) ⇒
+      case Some(receptionist) =>
         receptionist.ask(Receptionist.RegisterService(key, actor, tags)).mapTo[Done]
-      case _ ⇒
+      case _ =>
         log.error("Actor Registry is not available for local services")
         Future.successful(Done)
     }
   }
 
   private[cluster] def discoverRecords(key: String, queryActorSystems: List[HostPort])(implicit executionContext: ExecutionContext): Future[List[Record]] = {
-    findAllReceptionists(queryActorSystems).flatMap { receptionists ⇒
+    findAllReceptionists(queryActorSystems).flatMap { receptionists =>
       Future.sequence(
-        receptionists.map { actorRef ⇒
+        receptionists.map { actorRef =>
           actorRef.ask(Receptionist.GetServicesById(key))
             .mapTo[Receptionist.ServicesList]
-            .map { servicesList ⇒
-              servicesList.records.map { record ⇒
+            .map { servicesList =>
+              servicesList.records.map { record =>
                 record.copy(actorPath = remotePath(record.actorPath, servicesList.address))
               }
             }
-        }).map(listOfLists ⇒ listOfLists.flatten)
+        }).map(listOfLists => listOfLists.flatten)
     }
   }
 
   def discoverActors(key: String, queryActorSystems: List[HostPort])(implicit executionContext: ExecutionContext): Future[List[String]] = {
-    discoverRecords(key, queryActorSystems).map(records ⇒ records.map(_.actorPath))
+    discoverRecords(key, queryActorSystems).map(records => records.map(_.actorPath))
   }
 
   def discoverActors(
     key: String,
     queryActorSystems: List[HostPort],
     tags: List[String])(implicit executionContext: ExecutionContext): Future[List[String]] = {
-    discoverRecords(key, queryActorSystems).map { records ⇒
+    discoverRecords(key, queryActorSystems).map { records =>
       records.filter(_.tags.intersect(tags).nonEmpty)
-    }.map(records ⇒ records.map(_.actorPath))
+    }.map(records => records.map(_.actorPath))
   }
 
   private[cluster] def findAllReceptionists(
     queryActorSystems: List[HostPort])(implicit executionContext: ExecutionContext): Future[List[ActorRef]] = Future.sequence {
     queryActorSystems.map {
-      case hostPort if isHostPortThisNode(hostPort) ⇒
+      case hostPort if isHostPortThisNode(hostPort) =>
         findReceptionist()
-      case hostPort ⇒
+      case hostPort =>
         val path = remotePath(receptionistLocalPath, hostPort)
         findReceptionist(path)
     }

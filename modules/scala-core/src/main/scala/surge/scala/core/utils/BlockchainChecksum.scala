@@ -8,7 +8,7 @@ import scala.util.hashing.MurmurHash3
 
 object BlockchainChecksum {
   def calculateChecksum[A](obj: Option[A], previousChecksumOpt: Option[String])(implicit format: Format[A]): String = {
-    previousChecksumOpt.map { checksum ⇒
+    previousChecksumOpt.map { checksum =>
       calculateChecksum(obj, checksum)
     }.getOrElse(calculateNewChecksum(obj))
   }

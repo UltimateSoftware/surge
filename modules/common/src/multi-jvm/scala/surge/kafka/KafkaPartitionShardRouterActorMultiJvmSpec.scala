@@ -48,7 +48,7 @@ object KafkaPartitionShardRouterActorSpecBase {
 
   class ProbeInterceptorActor(topicPartition: TopicPartition, probe: TestProbe) extends Actor {
     override def receive: Receive = {
-      case cmd: Command ⇒ probe.ref.forward(WrappedCmd(topicPartition, cmd))
+      case cmd: Command => probe.ref.forward(WrappedCmd(topicPartition, cmd))
     }
   }
 
@@ -89,13 +89,13 @@ class KafkaPartitionShardRouterActorSpecBase extends MultiNodeSpec(KafkaPartitio
 
     val producer = mock[KafkaProducerTrait[String, Array[Byte]]]
     when(producer.topic).thenReturn(trackedTopic)
-    when(producer.partitionFor(anyString)).thenAnswer((invocation: InvocationOnMock) ⇒ {
+    when(producer.partitionFor(anyString)).thenAnswer((invocation: InvocationOnMock) => {
       val key = invocation.getArgument[String](0)
       partitionMappings.get(key)
     })
 
     val extractEntityId: PartialFunction[Any, String] = {
-      case cmd: Command ⇒ cmd.id
+      case cmd: Command => cmd.id
       case ThrowExceptionInExtractEntityId => throw new RuntimeException("Received ThrowExceptionInExtractEntityId in extractEntityId function")
     }
     val shardRouterProps = Props(new KafkaPartitionShardRouterActor(

@@ -23,7 +23,6 @@ object Settings extends AutoPlugin {
     scalariformPreferences := scalariformPreferences.value
       .setPreference(AlignSingleLineCaseStatements, true)
       .setPreference(DoubleIndentConstructorArguments, true)
-      .setPreference(RewriteArrowSymbols, true)
   )
 
   val gearsToolsMavenRelease = "gears-tools-maven-release" at "https://artifactory.mia.ulti.io/artifactory/gt-maven-libs-release/"

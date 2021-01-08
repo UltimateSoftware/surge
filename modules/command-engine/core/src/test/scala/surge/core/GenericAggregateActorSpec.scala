@@ -29,7 +29,7 @@ import scala.concurrent.{ ExecutionContext, Future }
 
 class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateActorSpec")) with AnyWordSpecLike with Matchers
   with BeforeAndAfterAll with MockitoSugar with TestBoundedContext with PartialFunctionValues {
-  import ArgumentMatchers.{ any, anyString, eq ⇒ argEquals }
+  import ArgumentMatchers.{ any, anyString, eq => argEquals }
   import TestBoundedContext._
 
   private implicit val timeout: Timeout = Timeout(10.seconds)
@@ -79,9 +79,9 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
     val mockProducer = mock[KafkaProducerActor[State, BaseTestEvent]]
     when(mockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.successful(true))
     when(mockProducer.publish(anyString, any[KafkaProducerActor.MessageToPublish], any[Seq[KafkaProducerActor.MessageToPublish]]))
-      .thenAnswer((invocation: InvocationOnMock) ⇒ {
+      .thenAnswer((invocation: InvocationOnMock) => {
         val aggregateId = invocation.getArgument[String](0)
-        (probe.ref ? Publish(aggregateId)).map(_ ⇒ KafkaProducerActor.PublishSuccess)(ExecutionContext.global)
+        (probe.ref ? Publish(aggregateId)).map(_ => KafkaProducerActor.PublishSuccess)(ExecutionContext.global)
       })
 
     mockProducer

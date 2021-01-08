@@ -100,7 +100,7 @@ class KafkaProducerActor[Agg, Event](
     publisherActor.ask(HealthyActor.GetHealth)(TimeoutConfig.HealthCheck.actorAskTimeout)
       .mapTo[HealthCheck]
       .recoverWith {
-        case err: Throwable ⇒
+        case err: Throwable =>
           log.error(s"Failed to get publisher-actor health check", err)
           Future.successful(HealthCheck(
             name = "publisher-actor",
@@ -188,7 +188,7 @@ private class KafkaProducerActorImpl[Agg, Event](
       ProducerConfig.COMPRESSION_TYPE_CONFIG -> publisherCompression,
       ProducerConfig.ACKS_CONFIG -> publisherAcks,
       ProducerConfig.TRANSACTION_TIMEOUT_CONFIG -> publisherTransactionTimeoutMs.toString,
-      ProducerConfig.TRANSACTIONAL_ID_CONFIG → transactionalId)
+      ProducerConfig.TRANSACTIONAL_ID_CONFIG -> transactionalId)
 
     // TODO Expose Kafka Producer Metrics
     // Set up the producer on the events topic so the partitioner can partition automatically on the events topic since we manually set the partition for the
@@ -200,65 +200,65 @@ private class KafkaProducerActorImpl[Agg, Event](
 
   // scalastyle:off cyclomatic.complexity
   private def uninitialized: Receive = {
-    case InitTransactions                 ⇒ initializeTransactions()
-    case msg: Initialize                  ⇒ handle(msg)
-    case FailedToInitialize               ⇒ context.system.scheduler.scheduleOnce(3.seconds)(initializeState())
-    case FlushMessages                    ⇒ // Ignore from this state
-    case GetHealth                        ⇒ getHealthCheck()
-    case _: KafkaPartitionMetadataUpdated ⇒ stash() // process only AFTER flush message is sent
-    case _: Publish                       ⇒ stash()
-    case _: StateProcessed                ⇒ stash()
-    case _: IsAggregateStateCurrent       ⇒ stash()
-    case unknown                          ⇒ log.warn("Receiving unhandled message {} on uninitialized state", unknown.getClass.getName)
+    case InitTransactions                 => initializeTransactions()
+    case msg: Initialize                  => handle(msg)
+    case FailedToInitialize               => context.system.scheduler.scheduleOnce(3.seconds)(initializeState())
+    case FlushMessages                    => // Ignore from this state
+    case GetHealth                        => getHealthCheck()
+    case _: KafkaPartitionMetadataUpdated => stash() // process only AFTER flush message is sent
+    case _: Publish                       => stash()
+    case _: StateProcessed                => stash()
+    case _: IsAggregateStateCurrent       => stash()
+    case unknown                          => log.warn("Receiving unhandled message {} on uninitialized state", unknown.getClass.getName)
   }
   // scalastyle:on
 
   private def recoveringBacklog(endOffset: Long): Receive = {
-    case msg: KafkaPartitionMetadataUpdated ⇒ handle(msg)
-    case msg: StateProcessed                ⇒ handleFromRecoveringState(endOffset, msg)
-    case FlushMessages                      ⇒ // Ignore from this state
-    case GetHealth                          ⇒ getHealthCheck()
-    case _: Publish                         ⇒ stash()
-    case _: IsAggregateStateCurrent         ⇒ stash()
-    case unknown                            ⇒ log.warn("Receiving unhandled message {} on recoveringBacklog state", unknown.getClass.getName)
+    case msg: KafkaPartitionMetadataUpdated => handle(msg)
+    case msg: StateProcessed                => handleFromRecoveringState(endOffset, msg)
+    case FlushMessages                      => // Ignore from this state
+    case GetHealth                          => getHealthCheck()
+    case _: Publish                         => stash()
+    case _: IsAggregateStateCurrent         => stash()
+    case unknown                            => log.warn("Receiving unhandled message {} on recoveringBacklog state", unknown.getClass.getName)
   }
 
   private def processing(state: KafkaProducerActorState): Receive = {
-    case msg: KafkaPartitionMetadataUpdated ⇒ handle(msg)
-    case msg: Publish                       ⇒ handle(state, msg)
-    case msg: EventsPublished               ⇒ handle(state, msg)
-    case msg: EventsFailedToPublish         ⇒ handleFailedToPublish(state, msg)
-    case msg: StateProcessed                ⇒ handle(state, msg)
-    case msg: IsAggregateStateCurrent       ⇒ handle(state, msg)
-    case GetHealth                          ⇒ getHealthCheck(state)
-    case FlushMessages                      ⇒ handleFlushMessages(state)
-    case Done                               ⇒ // Ignore to prevent these messages to become dead letters
-    case msg: AbortTransactionFailed        ⇒ handle(msg)
-    case Status.Failure(e) ⇒
+    case msg: KafkaPartitionMetadataUpdated => handle(msg)
+    case msg: Publish                       => handle(state, msg)
+    case msg: EventsPublished               => handle(state, msg)
+    case msg: EventsFailedToPublish         => handleFailedToPublish(state, msg)
+    case msg: StateProcessed                => handle(state, msg)
+    case msg: IsAggregateStateCurrent       => handle(state, msg)
+    case GetHealth                          => getHealthCheck(state)
+    case FlushMessages                      => handleFlushMessages(state)
+    case Done                               => // Ignore to prevent these messages to become dead letters
+    case msg: AbortTransactionFailed        => handle(msg)
+    case Status.Failure(e) =>
       log.error(s"Saw unhandled exception in producer for $assignedPartition", e)
   }
 
   private def sendFlushRecord: Future[InternalMessage] = {
     val flushRecord = new ProducerRecord[String, Array[Byte]](assignedPartition.topic(), assignedPartition.partition(), "", "".getBytes)
 
-    nonTransactionalStatePublisher.putRecord(flushRecord).map { flushRecordMeta ⇒
+    nonTransactionalStatePublisher.putRecord(flushRecord).map { flushRecordMeta =>
       val flushRecordOffset = flushRecordMeta.wrapped.offset()
       log.debug("Flush Record for partition {} is at offset {}", assignedPartition, flushRecordOffset)
 
       Initialize(flushRecordOffset)
     } recover {
-      case e ⇒
+      case e =>
         log.error("Failed to initialize kafka producer actor state", e)
         FailedToInitialize
     }
   }
 
   private def initializeTransactions(): Unit = {
-    kafkaPublisher.initTransactions().map { _ ⇒
+    kafkaPublisher.initTransactions().map { _ =>
       log.debug(s"KafkaPublisherActor transactions successfully initialized: $assignedPartition")
       initializeState()
     }.recover {
-      case err: Throwable ⇒
+      case err: Throwable =>
         log.error(s"KafkaPublisherActor failed to initialize kafka transactions, retrying in 3 seconds: $assignedPartition", err)
         closeAndRecreatePublisher()
         context.system.scheduler.scheduleOnce(3.seconds, self, InitTransactions)
@@ -339,11 +339,11 @@ private class KafkaProducerActorImpl[Agg, Event](
       val eventMessages = state.pendingWrites.flatMap(_.publish.eventsToPublish)
       val stateMessages = state.pendingWrites.map(_.publish.state)
 
-      val eventRecords = eventMessages.map { eventToPublish ⇒
+      val eventRecords = eventMessages.map { eventToPublish =>
         // Using null here since we need to add the headers but we don't want to explicitly assign the partition
         new ProducerRecord(eventsTopic.name, null, eventToPublish.key, eventToPublish.value, eventToPublish.headers) // scalastyle:ignore null
       }
-      val stateRecords = stateMessages.map { state ⇒
+      val stateRecords = stateMessages.map { state =>
         new ProducerRecord(stateTopic.name, assignedPartition.partition(), state.key, state.value, state.headers)
       }
       val records = eventRecords ++ stateRecords
@@ -359,26 +359,26 @@ private class KafkaProducerActorImpl[Agg, Event](
     val senders = state.pendingWrites.map(_.sender)
     val futureMsg = kafkaPublisherTimer.time {
       Try(kafkaPublisher.beginTransaction()) match {
-        case Failure(f: ProducerFencedException) ⇒
+        case Failure(f: ProducerFencedException) =>
           producerFenced()
           Future.successful(EventsFailedToPublish(senders, f)) // Only used for the return type, the actor is stopped in the producerFenced() method
-        case Failure(err) ⇒
+        case Failure(err) =>
           log.error(s"KafkaPublisherActor partition $assignedPartition there was an error beginning transaction", err)
           Future.successful(EventsFailedToPublish(senders, err))
-        case _ ⇒
-          Future.sequence(kafkaPublisher.putRecords(records)).map { recordMeta ⇒
+        case _ =>
+          Future.sequence(kafkaPublisher.putRecords(records)).map { recordMeta =>
             log.debug(s"KafkaPublisherActor partition {} committing transaction", assignedPartition)
             kafkaPublisher.commitTransaction()
             EventsPublished(senders, recordMeta.filter(_.wrapped.topic() == stateTopic.name))
           } recover {
-            case _: ProducerFencedException ⇒
+            case _: ProducerFencedException =>
               producerFenced()
-            case e ⇒
+            case e =>
               log.error(s"KafkaPublisherActor partition $assignedPartition got error while trying to publish to Kafka", e)
               Try(kafkaPublisher.abortTransaction()) match {
-                case Success(_) ⇒
+                case Success(_) =>
                   EventsFailedToPublish(senders, e)
-                case Failure(exception) ⇒
+                case Failure(exception) =>
                   AbortTransactionFailed(senders, abortTransactionException = exception, originalException = e)
               }
           }
@@ -441,10 +441,10 @@ private class KafkaProducerActorImpl[Agg, Event](
       id = assignedTopicPartitionKey,
       status = healthStatus,
       details = Some(Map(
-        "inFlight" → state.inFlight.size.toString,
-        "pendingInitializations" → state.pendingInitializations.size.toString,
-        "pendingWrites" → state.pendingWrites.size.toString,
-        "currentTransactionTimeMillis" → state.currentTransactionTimeMillis.toString)))
+        "inFlight" -> state.inFlight.size.toString,
+        "pendingInitializations" -> state.pendingInitializations.size.toString,
+        "pendingWrites" -> state.pendingWrites.size.toString,
+        "currentTransactionTimeMillis" -> state.currentTransactionTimeMillis.toString)))
     sender() ! healthCheck
   }
 }
@@ -514,7 +514,7 @@ private[core] case class KafkaProducerActorState(
   }
 
   def processedUpTo(stateMeta: KafkaPartitionMetadata): KafkaProducerActorState = {
-    val processedRecordsFromPartition = inFlight.filter(record ⇒ record.wrapped.offset() <= stateMeta.offset)
+    val processedRecordsFromPartition = inFlight.filter(record => record.wrapped.offset() <= stateMeta.offset)
 
     if (processedRecordsFromPartition.nonEmpty) {
       val processedOffsets = processedRecordsFromPartition.map(_.wrapped.offset())
@@ -524,28 +524,28 @@ private[core] case class KafkaProducerActorState(
     val newInFlight = inFlight.filterNot(processedRecordsFromPartition.contains)
 
     val newPendingAggregates = {
-      val processedAggregates = pendingInitializations.filter { pending ⇒
+      val processedAggregates = pendingInitializations.filter { pending =>
         !newInFlight.exists(_.key.contains(pending.key))
       }
       if (processedAggregates.nonEmpty) {
-        processedAggregates.foreach { pending ⇒
+        processedAggregates.foreach { pending =>
           pending.actor ! true
         }
         rates.current.mark(processedAggregates.length)
       }
 
       val expiredAggregates = pendingInitializations
-        .filter(pending ⇒ Instant.now().isAfter(pending.expiration))
+        .filter(pending => Instant.now().isAfter(pending.expiration))
         .filterNot(processedAggregates.contains)
 
       if (expiredAggregates.nonEmpty) {
-        expiredAggregates.foreach { pending ⇒
+        expiredAggregates.foreach { pending =>
           log.debug(s"Aggregate ${pending.key} expiring since it is past ${pending.expiration}")
           pending.actor ! false
         }
         rates.notCurrent.mark(expiredAggregates.length)
       }
-      pendingInitializations.filterNot(agg ⇒ processedAggregates.contains(agg) || expiredAggregates.contains(agg))
+      pendingInitializations.filterNot(agg => processedAggregates.contains(agg) || expiredAggregates.contains(agg))
     }
 
     copy(inFlight = newInFlight, pendingInitializations = newPendingAggregates)

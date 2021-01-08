@@ -20,7 +20,7 @@ class KafkaStreamsPartitionTrackerActorImpl(kafkaStreams: KafkaStreams, currentM
     val metaByInstance = metadataByInstance()
 
     implicit val timeout: Timeout = Timeout(TimeoutConfig.PartitionTracker.updateTimeout)
-    (currentManagementActor ? KafkaConsumerStateTrackingActor.StateUpdated(metaByInstance)).map { _ ⇒
+    (currentManagementActor ? KafkaConsumerStateTrackingActor.StateUpdated(metaByInstance)).map { _ =>
       log.debug(s"Cluster state successfully updated to {}", metaByInstance)
     }(scala.concurrent.ExecutionContext.global)
   }

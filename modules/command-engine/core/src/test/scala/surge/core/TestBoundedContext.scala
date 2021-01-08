@@ -55,8 +55,8 @@ trait TestBoundedContext {
 
     override def writes(o: BaseTestEvent): JsValue = {
       o match {
-        case inc: CountIncremented ⇒ Json.toJson(inc)
-        case dec: CountDecremented ⇒ Json.toJson(dec)
+        case inc: CountIncremented => Json.toJson(inc)
+        case dec: CountDecremented => Json.toJson(dec)
       }
     }
   }
@@ -77,35 +77,35 @@ trait TestBoundedContext {
 
   trait BusinessLogicTrait extends AggregateCommandModel[State, BaseTestCommand, BaseTestEvent] {
 
-    override def handleEvent: (Option[State], BaseTestEvent) ⇒ Option[State] = { (agg, evt) ⇒
+    override def handleEvent: (Option[State], BaseTestEvent) => Option[State] = { (agg, evt) =>
       val current = agg.getOrElse(State(evt.aggregateId, 0, 0))
 
       val newState = evt match {
-        case CountIncremented(_, incrementBy, sequenceNumber) ⇒
+        case CountIncremented(_, incrementBy, sequenceNumber) =>
           current.copy(count = current.count + incrementBy, version = sequenceNumber)
-        case CountDecremented(_, decrementBy, sequenceNumber) ⇒
+        case CountDecremented(_, decrementBy, sequenceNumber) =>
           current.copy(count = current.count - decrementBy, version = sequenceNumber)
       }
       Some(newState)
     }
 
-    override def processCommand: CommandProcessor[State, BaseTestCommand, BaseTestEvent] = { (agg, cmd) ⇒
+    override def processCommand: CommandProcessor[State, BaseTestCommand, BaseTestEvent] = { (agg, cmd) =>
       val newSequenceNumber = agg.map(_.version).getOrElse(0) + 1
 
       cmd match {
-        case Increment(aggregateId) ⇒ Success(Seq(CountIncremented(aggregateId, incrementBy = 1,
+        case Increment(aggregateId) => Success(Seq(CountIncremented(aggregateId, incrementBy = 1,
           sequenceNumber = newSequenceNumber)))
-        case Decrement(aggregateId) ⇒ Success(Seq(CountDecremented(aggregateId, decrementBy = 1,
+        case Decrement(aggregateId) => Success(Seq(CountDecremented(aggregateId, decrementBy = 1,
           sequenceNumber = newSequenceNumber)))
-        case _: DoNothing ⇒ Success(Seq.empty)
-        case fail: FailCommandProcessing ⇒
+        case _: DoNothing => Success(Seq.empty)
+        case fail: FailCommandProcessing =>
           Failure(fail.withError)
-        case _ ⇒
+        case _ =>
           throw new RuntimeException("Received unexpected message in command handler! This should not happen and indicates a bad test")
       }
     }
 
-    val commandValidator: AsyncCommandValidator[BaseTestCommand, State] = AsyncCommandValidator[BaseTestCommand, State] { cmd ⇒
+    val commandValidator: AsyncCommandValidator[BaseTestCommand, State] = AsyncCommandValidator[BaseTestCommand, State] { cmd =>
       cmd.msg.validate
     }
   }
@@ -143,7 +143,7 @@ trait TestBoundedContext {
       readFormatting = readFormats,
       writeFormatting = writeFormats,
       commandValidator = BusinessLogic.commandValidator,
-      aggregateValidator = { (_, _, _) ⇒ true },
+      aggregateValidator = { (_, _, _) => true },
       metricsProvider = NoOpMetricsProvider,
       metricsPublisher = NoOpsMetricsPublisher,
       metricsInterval = 100.seconds,

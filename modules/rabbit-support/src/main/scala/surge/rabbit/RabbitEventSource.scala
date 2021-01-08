@@ -20,16 +20,16 @@ trait RabbitDataSource[Key, Value] extends DataSource {
 
   def queueName: String
 
-  def readResultToKey: CommittableReadResult ⇒ Key
+  def readResultToKey: CommittableReadResult => Key
 
-  def readResultToValue: ByteString ⇒ Value
+  def readResultToValue: ByteString => Value
 
   private val connectionProvider: AmqpConnectionProvider = AmqpUriConnectionProvider(rabbitMqUri)
   private val queueDeclaration = QueueDeclaration(queueName)
 
   private val log = LoggerFactory.getLogger(getClass)
   private def businessFlow(sink: DataHandler[Key, Value]): Flow[CommittableReadResult, CommittableReadResult, NotUsed] = {
-    val handleEventFlow = Flow[CommittableReadResult].map { crr ⇒
+    val handleEventFlow = Flow[CommittableReadResult].map { crr =>
       val keyValue = readResultToKey(crr) -> readResultToValue(crr.message.bytes)
       val eventPlusMeta = EventPlusStreamMeta(keyValue, streamMeta = None)
       eventPlusMeta
@@ -43,7 +43,7 @@ trait RabbitDataSource[Key, Value] extends DataSource {
       NamedQueueSourceSettings(connectionProvider, queueName)
         .withDeclaration(queueDeclaration), bufferSize = 10)
       .via(businessFlow(sink))
-      .mapAsync(1, cm ⇒ cm.ack)
+      .mapAsync(1, cm => cm.ack)
       .runWith(Sink.ignore, actorSystem)
 
     new RabbitDataPipeline()
@@ -54,8 +54,8 @@ trait RabbitEventSource[Event] extends RabbitDataSource[String, Array[Byte]]
   with EventSourceDeserialization[Event]
   with Logging {
 
-  override def readResultToKey: CommittableReadResult ⇒ String = { readResult ⇒ readResult.message.envelope.getRoutingKey }
-  override def readResultToValue: ByteString ⇒ Array[Byte] = { byteString ⇒ byteString.toArray }
+  override def readResultToKey: CommittableReadResult => String = { readResult => readResult.message.envelope.getRoutingKey }
+  override def readResultToValue: ByteString => Array[Byte] = { byteString => byteString.toArray }
 
   def to(sink: EventHandler[Event]): DataPipeline = {
     super.to(dataHandler(sink))

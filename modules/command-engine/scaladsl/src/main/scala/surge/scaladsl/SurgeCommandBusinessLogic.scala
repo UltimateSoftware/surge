@@ -29,7 +29,7 @@ trait SurgeCommandBusinessLogic[AggId, Agg, Command, Event] {
 
   def commandValidator: AsyncCommandValidator[Command, Agg]
 
-  def aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) ⇒ Boolean = { (_, _, _) ⇒ true }
+  def aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) => Boolean = { (_, _, _) => true }
 
   // Defaults to noops publishing (for now) and 30 second interval on metrics snapshots
   // These can be overridden in the derived applications
@@ -39,7 +39,7 @@ trait SurgeCommandBusinessLogic[AggId, Agg, Command, Event] {
 
   def metricsProvider: MetricsProvider = NoOpMetricsProvider
 
-  def aggregateIdToString: AggId ⇒ String
+  def aggregateIdToString: AggId => String
 
   def consumerGroupBase: String = {
     val environment = config.getString("app.environment")

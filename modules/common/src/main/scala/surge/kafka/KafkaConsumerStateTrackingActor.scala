@@ -35,10 +35,10 @@ class KafkaConsumerStateTrackingActor extends Actor {
   override def receive: Receive = statefulReceive(ActorState(Map.empty, Set.empty))
 
   private def statefulReceive(actorState: ActorState): Receive = {
-    case msg: StateUpdated       ⇒ handle(actorState, msg)
-    case msg: Register           ⇒ registerActor(actorState, msg.actor)
-    case GetPartitionAssignments ⇒ handleGetPartitionAssignments(actorState)
-    case HealthyActor.GetHealth  ⇒ getHealthCheck(actorState)
+    case msg: StateUpdated       => handle(actorState, msg)
+    case msg: Register           => registerActor(actorState, msg.actor)
+    case GetPartitionAssignments => handleGetPartitionAssignments(actorState)
+    case HealthyActor.GetHealth  => getHealthCheck(actorState)
   }
 
   private def handle(actorState: ActorState, stateUpdated: StateUpdated): Unit = {
@@ -68,15 +68,15 @@ class KafkaConsumerStateTrackingActor extends Actor {
   }
 
   private def updateListeners(state: ActorState): Unit = {
-    state.registeredListeners.foreach { listener ⇒
+    state.registeredListeners.foreach { listener =>
       sendPartitionAssignments(listener, state.clusterState)
     }
   }
 
   private def stringifyClusterState(clusterState: Map[HostPort, List[TopicPartition]]): String = {
     clusterState.map {
-      case (hostPort, listTopicPartition) ⇒
-        val topicsInOneLine = listTopicPartition.map(topic ⇒ topic.toString).mkString("", ", ", "")
+      case (hostPort, listTopicPartition) =>
+        val topicsInOneLine = listTopicPartition.map(topic => topic.toString).mkString("", ", ", "")
         s"${hostPort.toString()} - $topicsInOneLine"
     }.mkString("", "; ", "")
   }

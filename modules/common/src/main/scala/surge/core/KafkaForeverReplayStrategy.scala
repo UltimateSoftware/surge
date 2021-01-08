@@ -23,16 +23,16 @@ import scala.concurrent.{ ExecutionContext, Future }
 class KafkaForeverReplayStrategy(
     actorSystem: ActorSystem,
     settings: KafkaForeverReplaySettings,
-    override val preReplay: () ⇒ Future[Any] = { () ⇒ Future.successful(true) },
-    override val postReplay: () ⇒ Unit = { () ⇒ () })(implicit executionContext: ExecutionContext) extends EventReplayStrategy with Logging {
+    override val preReplay: () => Future[Any] = { () => Future.successful(true) },
+    override val postReplay: () => Unit = { () => () })(implicit executionContext: ExecutionContext) extends EventReplayStrategy with Logging {
 
   val underlyingActor = actorSystem.actorOf(Props(new TopicResetActor(settings.brokers, settings.topic)))
 
   implicit val timeout: Timeout = Timeout(settings.resetTopicTimeout)
   override def replay(consumerGroup: String, partitions: Iterable[Int]): Future[Done] = {
     underlyingActor.ask(TopicResetActor.ResetTopic(consumerGroup, partitions.toList)).mapTo[ResetTopicResult].map {
-      case TopicResetSucceed     ⇒ Done
-      case TopicResetFailed(err) ⇒ throw err
+      case TopicResetSucceed     => Done
+      case TopicResetFailed(err) => throw err
     }
   }
 }
@@ -65,8 +65,8 @@ object KafkaForeverReplayStrategy {
   def create(
     actorSystem: ActorSystem,
     settings: KafkaForeverReplaySettings,
-    preReplay: () ⇒ Future[Any] = { () ⇒ Future.successful(true) },
-    postReplay: () ⇒ Unit = { () ⇒ () }): EventReplayStrategy = {
+    preReplay: () => Future[Any] = { () => Future.successful(true) },
+    postReplay: () => Unit = { () => () }): EventReplayStrategy = {
     new KafkaForeverReplayStrategy(
       actorSystem, settings, preReplay, postReplay)(ExecutionContext.global)
   }
@@ -76,17 +76,17 @@ object KafkaForeverReplayStrategy {
 class TopicResetActor(brokers: List[String], kafkaTopic: String) extends Actor with Stash with Logging {
 
   def ready: Receive = {
-    case ResetTopic(consumerGroup, partitions) ⇒
+    case ResetTopic(consumerGroup, partitions) =>
       try {
         initialize(consumerGroup, partitions)
       } catch {
-        case err: Throwable ⇒
+        case err: Throwable =>
           handleError(err, sender())
       }
   }
 
   def initializing(replyTo: ActorRef, consumer: KafkaConsumer[String, Array[Byte]], kafkaTopic: String, topicPartitions: List[TopicPartition]): Receive = {
-    case PartitionsAssigned ⇒
+    case PartitionsAssigned =>
       try {
         val commits = buildEarliestCommits(consumer, topicPartitions).asJava
         consumer.commitSync(commits)
@@ -94,13 +94,13 @@ class TopicResetActor(brokers: List[String], kafkaTopic: String) extends Actor w
         context.become(ready)
         unstashAll()
       } catch {
-        case err: Throwable ⇒
+        case err: Throwable =>
           handleError(err, replyTo)
       } finally {
         consumer.close()
       }
       log.debug(s"Replay Finished for $kafkaTopic")
-    case _: ResetTopic ⇒
+    case _: ResetTopic =>
       stash()
   }
 
@@ -113,7 +113,7 @@ class TopicResetActor(brokers: List[String], kafkaTopic: String) extends Actor w
 
   def initialize(consumerGroup: String, partitions: List[Int]): Unit = {
     log.debug(s"Replay started for $kafkaTopic")
-    val topicPartitions = partitions.map { partition ⇒ new TopicPartition(kafkaTopic, partition) }
+    val topicPartitions = partitions.map { partition => new TopicPartition(kafkaTopic, partition) }
     val consumer = KafkaBytesConsumer(
       brokers,
       UltiKafkaConsumerConfig(consumerGroup),
@@ -135,10 +135,10 @@ class TopicResetActor(brokers: List[String], kafkaTopic: String) extends Actor w
 
   def buildEarliestCommits(consumer: KafkaConsumer[String, Array[Byte]], topicPartitions: List[TopicPartition]): Map[TopicPartition, OffsetAndMetadata] = {
     val beginningOffsets = consumer.beginningOffsets(topicPartitions.asJava)
-    topicPartitions.map { tp ⇒
+    topicPartitions.map { tp =>
       val firstOffset = beginningOffsets.getOrDefault(tp, 0L)
       val offset = new OffsetAndMetadata(firstOffset)
-      tp → offset
+      tp -> offset
     }.toMap
   }
 

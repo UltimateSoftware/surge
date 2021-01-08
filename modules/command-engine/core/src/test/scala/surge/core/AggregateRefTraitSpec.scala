@@ -44,8 +44,8 @@ class AggregateRefTraitSpec extends TestKit(ActorSystem("AggregateRefTraitSpec")
       testProbe2.reply(GenericAggregateActor.StateResponse(None))
 
       for {
-        testPerson1State ← testPerson1StateFut
-        testPerson2State ← testPerson2StateFut
+        testPerson1State <- testPerson1StateFut
+        testPerson2State <- testPerson2StateFut
       } yield {
         testPerson1State shouldEqual Some(testPerson1)
         testPerson2State shouldEqual None
@@ -84,11 +84,11 @@ class AggregateRefTraitSpec extends TestKit(ActorSystem("AggregateRefTraitSpec")
       garbageProbe.reply("Not a person object")
 
       for {
-        testPerson1State ← testPerson1StateFut
-        testPerson2State ← testPerson2StateFut
-        testFailureResponse ← testFailureResponseFut
-        testErrorResponse ← testErrorResponseFut
-        testGarbageResponse ← testGarbageResponseFut
+        testPerson1State <- testPerson1StateFut
+        testPerson2State <- testPerson2StateFut
+        testFailureResponse <- testFailureResponseFut
+        testErrorResponse <- testErrorResponseFut
+        testGarbageResponse <- testGarbageResponseFut
       } yield {
         testPerson1State shouldEqual Right(Some(testPerson1))
         testPerson2State shouldEqual Right(None)

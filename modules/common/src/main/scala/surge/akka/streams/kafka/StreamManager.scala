@@ -36,7 +36,7 @@ object KafkaStreamManager {
     actorSystem: ActorSystem,
     ec: ExecutionContext): KafkaStreamManager[Key, Value] = {
     val subscription = Subscriptions.topics(topic.name)
-    val businessFlow = Flow[ConsumerMessage.CommittableMessage[Key, Value]].map { msg ⇒
+    val businessFlow = Flow[ConsumerMessage.CommittableMessage[Key, Value]].map { msg =>
       EventPlusStreamMeta(msg.record.key -> msg.record.value, msg.committableOffset)
     }.via(business)
     new KafkaStreamManager[Key, Value](subscription, topic.name, consumerSettings, replayStrategy, replaySettings, businessFlow)
@@ -73,12 +73,12 @@ class KafkaStreamManager[Key, Value](
     implicit val entireProcessTimeout: Timeout = Timeout(replaySettings.entireReplayTimeout)
     implicit val executionContext: ExecutionContext = ExecutionContext.global
     (replayCoordinator ? ReplayCoordinator.StartReplay).map {
-      case ReplayCoordinator.ReplayCompleted ⇒
+      case ReplayCoordinator.ReplayCompleted =>
         ReplaySuccessfullyStarted()
-      case ReplayCoordinator.ReplayFailed(err) ⇒
+      case ReplayCoordinator.ReplayFailed(err) =>
         ReplayFailed(err)
     }.recoverWith {
-      case err: Throwable ⇒
+      case err: Throwable =>
         log.error(s"An unexpected error happened replaying $consumerGroup, " +
           s"please try again, if the problem persists, reach out the Surge team for support", err)
         replayCoordinator ! ReplayCoordinator.StopReplay
@@ -88,7 +88,7 @@ class KafkaStreamManager[Key, Value](
 }
 
 object KafkaStreamManagerActor {
-  type OnReplayComplete = (String, Long) ⇒ Unit
+  type OnReplayComplete = (String, Long) => Unit
 
   sealed trait KafkaStreamManagerActorCommand
   case object StartConsuming extends KafkaStreamManagerActorCommand
@@ -140,22 +140,22 @@ class KafkaStreamManagerActor[Key, Value](subscription: Subscription, topicName:
   override def receive: Receive = stopped
 
   private def stopped: Receive = {
-    case StartConsuming ⇒ startConsumer()
-    case StopConsuming  ⇒ sender() ! SuccessfullyStopped(localAddress, self)
-    case GetMetrics     ⇒ sender() ! Map.empty
+    case StartConsuming => startConsumer()
+    case StopConsuming  => sender() ! SuccessfullyStopped(localAddress, self)
+    case GetMetrics     => sender() ! Map.empty
   }
 
   private def consuming(state: InternalState): Receive = {
-    case SuccessfullyStarted ⇒ sender() ! SuccessfullyStarted
-    case StopConsuming       ⇒ handleStopConsuming(state)
-    case GetMetrics          ⇒ handleGetMetrics(state)
+    case SuccessfullyStarted => sender() ! SuccessfullyStarted
+    case StopConsuming       => handleStopConsuming(state)
+    case GetMetrics          => handleGetMetrics(state)
   }
 
   private def stopping(state: InternalState): Receive = {
-    case msg: SuccessfullyStopped ⇒
+    case msg: SuccessfullyStopped =>
       handleSuccessfullyStopped()
       sender() ! msg
-    case _ ⇒ stash()
+    case _ => stash()
   }
 
   private def startConsumer(): Unit = {
@@ -166,18 +166,18 @@ class KafkaStreamManagerActor[Key, Value](subscription: Subscription, topicName:
       .onFailuresWithBackoff(
         minBackoff = backoffMin,
         maxBackoff = backoffMax,
-        randomFactor = randomFactor) { () ⇒
+        randomFactor = randomFactor) { () =>
         log.debug("Creating Kafka source for topic {} with client id {}", Seq(topicName, clientId): _*)
         Consumer
           .committableSource(consumerSettings, subscription)
-          .mapMaterializedValue(c ⇒ control.set(c))
+          .mapMaterializedValue(c => control.set(c))
           .via(businessFlow)
           .via(Committer.flow(committerSettings))
       }.runWith(Sink.ignore)
 
     val state = InternalState(control, result)
     context.become(consuming(state))
-    result.map(_ ⇒ SuccessfullyStarted).pipeTo(self)(sender())
+    result.map(_ => SuccessfullyStarted).pipeTo(self)(sender())
   }
 
   private def handleStopConsuming(state: InternalState): Unit = {
@@ -185,7 +185,7 @@ class KafkaStreamManagerActor[Key, Value](subscription: Subscription, topicName:
     val drainingControl = DrainingControl(control -> state.streamCompletion)
     log.info("Stopping consumer with client id {} for topic {}", Seq(clientId, topicName): _*)
     context.become(stopping(state))
-    drainingControl.drainAndShutdown().map(_ ⇒ SuccessfullyStopped(localAddress, self)).pipeTo(self)(sender())
+    drainingControl.drainAndShutdown().map(_ => SuccessfullyStopped(localAddress, self)).pipeTo(self)(sender())
   }
 
   private def handleSuccessfullyStopped(): Unit = {

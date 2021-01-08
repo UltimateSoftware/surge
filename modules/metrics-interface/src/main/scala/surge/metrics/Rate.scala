@@ -26,15 +26,15 @@ trait Rate extends MetricContainerTrait[Rate] {
 
   override def value(implicit ec: ExecutionContext): Future[Double] = rateHistogram.map(oneMinuteRatePerSecond)
   protected def clearExpired(): Unit = {
-    rateHistogram.map { hist ⇒
+    rateHistogram.map { hist =>
       val expirationEpochSecond = Instant.now().getEpochSecond - keepSeconds
       val expiredRates = hist.keys.filter(_ < expirationEpochSecond)
-      expiredRates.foreach(epochSecond ⇒ removeRateFromHistogram(epochSecond))
+      expiredRates.foreach(epochSecond => removeRateFromHistogram(epochSecond))
     }(ExecutionContext.global)
   }
 
   private def oneSecondRateForRange(hist: TimeBucketHistogram, startEpochSecond: Long, endEpochSecond: Long): Double = {
-    val inRangeValues = hist.filterKeys(epochSecond ⇒ epochSecond > startEpochSecond && epochSecond < endEpochSecond)
+    val inRangeValues = hist.filterKeys(epochSecond => epochSecond > startEpochSecond && epochSecond < endEpochSecond)
     val numberSecondsInRange = endEpochSecond - startEpochSecond
 
     val res = inRangeValues.values.sum.toDouble / numberSecondsInRange.toDouble
@@ -60,7 +60,7 @@ trait Rate extends MetricContainerTrait[Rate] {
   }
 
   def toMetrics(implicit ec: ExecutionContext): Future[Seq[Metric]] = {
-    rateHistogram.map { hist ⇒
+    rateHistogram.map { hist =>
       val oneMinute = Metric(name = s"$name.oneMinuteRatePerSecond", value = oneMinuteRatePerSecond(hist), tenantId = tenantId)
       val fiveMinute = Metric(name = s"$name.fiveMinuteRatePerSecond", value = fiveMinuteRatePerSecond(hist), tenantId = tenantId)
       val fifteenMinute = Metric(name = s"$name.fifteenMinuteRatePerSecond", value = fifteenMinuteRatePerSecond(hist), tenantId = tenantId)

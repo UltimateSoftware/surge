@@ -35,10 +35,10 @@ object ValidationDSL {
 
     def and[B](otherIntermediateValidations: IntermediateValidation[B]): IntermediateValidation[A] = {
       (invoke, otherIntermediateValidations.invoke) match {
-        case (Right(value), Right(_)) ⇒ IntermediateValidation(_ ⇒ Right(value), validatable.value)
-        case (Right(_), Left(lvm))    ⇒ IntermediateValidation(_ ⇒ Left(lvm), validatable.value)
-        case (Left(lvm), Right(_))    ⇒ IntermediateValidation(_ ⇒ Left(lvm), validatable.value)
-        case (Left(lvm), Left(olvm))  ⇒ IntermediateValidation(_ ⇒ Left(lvm ++ olvm), validatable.value)
+        case (Right(value), Right(_)) => IntermediateValidation(_ => Right(value), validatable.value)
+        case (Right(_), Left(lvm))    => IntermediateValidation(_ => Left(lvm), validatable.value)
+        case (Left(lvm), Right(_))    => IntermediateValidation(_ => Left(lvm), validatable.value)
+        case (Left(lvm), Left(olvm))  => IntermediateValidation(_ => Left(lvm ++ olvm), validatable.value)
       }
     }
 

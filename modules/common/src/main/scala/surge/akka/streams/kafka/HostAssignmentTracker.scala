@@ -20,7 +20,7 @@ object HostAssignmentTracker {
   private implicit val actorAskTimeout: Timeout = Timeout(TimeoutConfig.PartitionTracker.updateTimeout)
 
   def updateState(stateMap: Map[TopicPartition, HostPort]): Unit = {
-    stateMap.foreach(tup ⇒ updateState(tup._1, tup._2))
+    stateMap.foreach(tup => updateState(tup._1, tup._2))
   }
   def updateState(partition: TopicPartition, hostPort: HostPort): Unit = {
     underlyingActor ! UpdateState(partition, hostPort)
@@ -43,9 +43,9 @@ object HostAssignmentTracker {
     override def receive: Receive = receiveWithState(ClusterState(Map.empty))
 
     private def receiveWithState(state: ClusterState): Receive = {
-      case msg: UpdateState   ⇒ handleUpdateState(state, msg)
-      case GetState           ⇒ sender() ! state
-      case msg: GetAssignment ⇒ sender() ! state.state.get(msg.topicPartition)
+      case msg: UpdateState   => handleUpdateState(state, msg)
+      case GetState           => sender() ! state
+      case msg: GetAssignment => sender() ! state.state.get(msg.topicPartition)
     }
 
     private def handleUpdateState(clusterState: ClusterState, update: UpdateState): Unit = {

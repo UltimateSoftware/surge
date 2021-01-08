@@ -12,16 +12,16 @@ import akka.pattern.BackoffSupervisor
  * @param subject The BackoffSupervisor actor
  * @param onChildTermination The function to call when the actor inside `subject` gets terminated
  */
-class BackoffChildActorTerminationWatcher(subject: ActorRef, onChildTermination: () ⇒ Unit) extends Actor with Logging {
+class BackoffChildActorTerminationWatcher(subject: ActorRef, onChildTermination: () => Unit) extends Actor with Logging {
 
   override def receive: Receive = {
-    case BackoffSupervisor.CurrentChild(Some(ref)) ⇒
+    case BackoffSupervisor.CurrentChild(Some(ref)) =>
       context.watch(ref)
       log.info(s"Actor $ref termination watcher started for ${subject.path}")
-    case Terminated(ref) ⇒
+    case Terminated(ref) =>
       log.debug(s"Actor $ref is terminated")
       onChildTermination()
-    case _ ⇒
+    case _ =>
     // ignore
   }
 
@@ -33,6 +33,6 @@ class BackoffChildActorTerminationWatcher(subject: ActorRef, onChildTermination:
 }
 
 object BackoffChildActorTerminationWatcher {
-  def props(subject: ActorRef, f: () ⇒ Unit): Props =
+  def props(subject: ActorRef, f: () => Unit): Props =
     Props(new BackoffChildActorTerminationWatcher(subject, f))
 }

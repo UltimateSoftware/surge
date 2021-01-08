@@ -78,7 +78,7 @@ class KTableQueryActorSpecBase extends MultiNodeSpec(KTableQueryActorSpecConfig)
 
     val keyValueStoreMap = Map(node1Agg -> node1Agg, node2Agg -> node2Agg)
     val mockKeyValueStore = mock[KafkaStreamsKeyValueStore[String, String]]
-    when(mockKeyValueStore.get(anyString)).thenAnswer((invocation: InvocationOnMock) ⇒ {
+    when(mockKeyValueStore.get(anyString)).thenAnswer((invocation: InvocationOnMock) => {
       val id = invocation.getArgument[String](0)
       Future.successful(keyValueStoreMap.get(id))
     })

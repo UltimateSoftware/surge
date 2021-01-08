@@ -32,7 +32,7 @@ object SurgeCommand {
 private[javadsl] class SurgeCommandImpl[AggId, Agg, Command, Event](
     val actorSystem: ActorSystem,
     override val businessLogic: core.SurgeCommandBusinessLogic[Agg, Command, Event],
-    aggIdToString: AggId ⇒ String)
+    aggIdToString: AggId => String)
   extends core.SurgeCommandImpl[Agg, Command, Event](actorSystem, businessLogic)
   with SurgeCommand[AggId, Agg, Command, Event] {
 

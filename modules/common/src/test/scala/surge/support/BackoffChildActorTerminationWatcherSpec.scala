@@ -22,9 +22,9 @@ class DoomedToCrash(crashIn: FiniteDuration)(implicit executionContext: Executio
   context.system.scheduler.scheduleOnce(crashIn, self, Crash)
 
   override def receive: Receive = {
-    case Crash ⇒
+    case Crash =>
       crash()
-    case _ ⇒
+    case _ =>
     //
   }
 
@@ -79,7 +79,7 @@ class BackoffChildActorTerminationWatcherSpec
 
       val backoffSupervisor = system.actorOf(supervisorProps)
 
-      system.actorOf(BackoffChildActorTerminationWatcher.props(backoffSupervisor, () ⇒ notificationReceiver.onDie()))
+      system.actorOf(BackoffChildActorTerminationWatcher.props(backoffSupervisor, () => notificationReceiver.onDie()))
 
       eventually {
         verify(notificationReceiver, times(1)).onDie()

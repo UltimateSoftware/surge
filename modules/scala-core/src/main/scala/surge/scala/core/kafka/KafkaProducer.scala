@@ -26,9 +26,9 @@ trait KafkaProducerHelperCommon[K, V] {
   lazy val numberPartitions: Int = producer.partitionsFor(topic.name).size
 
   protected def getPartitionFor(key: K): Option[Int] = {
-    partitioner.optionalPartitionBy.flatMap(partitionFun ⇒ getPartitionFor(key, numberPartitions, partitionFun))
+    partitioner.optionalPartitionBy.flatMap(partitionFun => getPartitionFor(key, numberPartitions, partitionFun))
   }
-  protected def getPartitionFor(key: K, numPartitions: Int, keyToPartitionString: K ⇒ String): Option[Int] = {
+  protected def getPartitionFor(key: K, numPartitions: Int, keyToPartitionString: K => String): Option[Int] = {
     val partitionByString = keyToPartitionString(key)
     if (partitionByString.isEmpty) {
       None
@@ -41,19 +41,19 @@ trait KafkaProducerHelperCommon[K, V] {
   private def recordWithPartition(record: ProducerRecord[K, V]): ProducerRecord[K, V] = {
     // If the record is already partitioned, don't change the partitioning
     val partitionOpt = Option(record.partition()).map(_.intValue()) orElse getPartitionFor(record.key())
-    partitionOpt.map { partitionNum ⇒
+    partitionOpt.map { partitionNum =>
       new ProducerRecord(record.topic, partitionNum, record.timestamp, record.key, record.value, record.headers)
     }.getOrElse(record)
   }
 
   private def producerCallback(record: ProducerRecord[K, V], promise: Promise[KafkaRecordMetadata[K]]): Callback = {
-    producerCallback(record, result ⇒ promise.complete(result))
+    producerCallback(record, result => promise.complete(result))
   }
-  private def producerCallback(record: ProducerRecord[K, V], callback: Try[KafkaRecordMetadata[K]] ⇒ Unit): Callback =
-    (metadata: RecordMetadata, exception: Exception) ⇒ {
+  private def producerCallback(record: ProducerRecord[K, V], callback: Try[KafkaRecordMetadata[K]] => Unit): Callback =
+    (metadata: RecordMetadata, exception: Exception) => {
       Option(exception) match {
-        case Some(e) ⇒ callback(Failure(e))
-        case _ ⇒
+        case Some(e) => callback(Failure(e))
+        case _ =>
           val kafkaMeta = KafkaRecordMetadata[K](Option(record.key()), metadata)
           callback(Success(kafkaMeta))
       }
@@ -67,7 +67,7 @@ trait KafkaProducerHelperCommon[K, V] {
       val partitionedRecord = recordWithPartition(record)
       producer.send(partitionedRecord, producerCallback(partitionedRecord, promise))
     } catch {
-      case NonFatal(e) ⇒ promise.failure(e)
+      case NonFatal(e) => promise.failure(e)
     }
 
     promise.future
@@ -142,7 +142,7 @@ case class KafkaStringProducer(
     p.put(ProducerConfig.ACKS_CONFIG, "all")
     p.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, classOf[StringSerializer].getName)
     p.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, classOf[StringSerializer].getName)
-    kafkaConfig.foreach(propPair ⇒ p.put(propPair._1, propPair._2))
+    kafkaConfig.foreach(propPair => p.put(propPair._1, propPair._2))
     configureSecurityProperties(p)
     p
   }
@@ -161,7 +161,7 @@ case class KafkaBytesProducer(
     p.put(ProducerConfig.ACKS_CONFIG, "all")
     p.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, classOf[StringSerializer].getName)
     p.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, classOf[ByteArraySerializer].getName)
-    kafkaConfig.foreach(propPair ⇒ p.put(propPair._1, propPair._2))
+    kafkaConfig.foreach(propPair => p.put(propPair._1, propPair._2))
     configureSecurityProperties(p)
     p
   }

@@ -44,13 +44,13 @@ class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec"))
   }
 
   private def testStreamManager(topic: KafkaTopic, kafkaBrokers: String, groupId: String,
-    businessLogic: (String, Array[Byte]) ⇒ Future[_], replayStrategy: EventReplayStrategy = NoOpEventReplayStrategy, replaySettings: EventReplaySettings = DefaultEventReplaySettings): KafkaStreamManager[String, Array[Byte]] = {
+    businessLogic: (String, Array[Byte]) => Future[_], replayStrategy: EventReplayStrategy = NoOpEventReplayStrategy, replaySettings: EventReplaySettings = DefaultEventReplaySettings): KafkaStreamManager[String, Array[Byte]] = {
     val consumerSettings = KafkaConsumer.defaultConsumerSettings(system, groupId)
       .withBootstrapServers(kafkaBrokers)
 
     val parallelism = 16
-    val tupleFlow: ((String, Array[Byte])) ⇒ Future[_] = { tup ⇒ businessLogic(tup._1, tup._2) }
-    val partitionBy: ((String, Array[Byte])) ⇒ String = _._1
+    val tupleFlow: ((String, Array[Byte])) => Future[_] = { tup => businessLogic(tup._1, tup._2) }
+    val partitionBy: ((String, Array[Byte])) => String = _._1
     val businessFlow = FlowConverter.flowFor[(String, Array[Byte]), CommittableOffset](tupleFlow, partitionBy, parallelism)
     KafkaStreamManager(topic, consumerSettings, replayStrategy, replaySettings, businessFlow)
   }
@@ -58,7 +58,7 @@ class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec"))
   "StreamManager" should {
 
     "Subscribe to events from Kafka" in {
-      withRunningKafkaOnFoundPort(EmbeddedKafkaConfig(kafkaPort = 0, zooKeeperPort = 0)) { implicit actualConfig ⇒
+      withRunningKafkaOnFoundPort(EmbeddedKafkaConfig(kafkaPort = 0, zooKeeperPort = 0)) { implicit actualConfig =>
         val topic = KafkaTopic("testTopic")
         createCustomTopic(topic.name, partitions = 3)
         val embeddedBroker = s"localhost:${actualConfig.kafkaPort}"
@@ -89,7 +89,7 @@ class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec"))
     }
 
     "Continue processing elements from Kafka when the business future completes, even if it does not emit an element" in {
-      withRunningKafkaOnFoundPort(EmbeddedKafkaConfig(kafkaPort = 0, zooKeeperPort = 0)) { implicit actualConfig ⇒
+      withRunningKafkaOnFoundPort(EmbeddedKafkaConfig(kafkaPort = 0, zooKeeperPort = 0)) { implicit actualConfig =>
         val topic = KafkaTopic("testTopic")
         createCustomTopic(topic.name, partitions = 1)
         val embeddedBroker = s"localhost:${actualConfig.kafkaPort}"
@@ -98,7 +98,7 @@ class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec"))
         // Returning null here when the future completes gets us the same result as converting from a Java Future that completes with null,
         // which is typical in cases where the future is just used to signal completion and doesn't care about the return value
         def handler(key: String, value: Array[Byte]): Future[Any] = sendToTestProbe(probe)(key, value)
-          .flatMap(_ ⇒ Future.successful(null)) // scalastyle:ignore null
+          .flatMap(_ => Future.successful(null)) // scalastyle:ignore null
 
         val record1 = "record 1"
         val record2 = "record 2"
@@ -115,7 +115,7 @@ class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec"))
     }
 
     "Restart the stream if it fails" in {
-      withRunningKafkaOnFoundPort(EmbeddedKafkaConfig(kafkaPort = 0, zooKeeperPort = 0)) { implicit actualConfig ⇒
+      withRunningKafkaOnFoundPort(EmbeddedKafkaConfig(kafkaPort = 0, zooKeeperPort = 0)) { implicit actualConfig =>
         val topic = KafkaTopic("testTopic2")
         createCustomTopic(topic.name, partitions = 3)
         val embeddedBroker = s"localhost:${actualConfig.kafkaPort}"
@@ -161,7 +161,7 @@ class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec"))
     }
 
     "Be able to stop the stream" in {
-      withRunningKafkaOnFoundPort(EmbeddedKafkaConfig(kafkaPort = 0, zooKeeperPort = 0)) { implicit actualConfig ⇒
+      withRunningKafkaOnFoundPort(EmbeddedKafkaConfig(kafkaPort = 0, zooKeeperPort = 0)) { implicit actualConfig =>
         val topic = KafkaTopic("testTopic3")
         createCustomTopic(topic.name, partitions = 3)
         val embeddedBroker = s"localhost:${actualConfig.kafkaPort}"
@@ -189,7 +189,7 @@ class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec"))
     }
 
     "Be able to replay a stream" in {
-      withRunningKafkaOnFoundPort(EmbeddedKafkaConfig(kafkaPort = 0, zooKeeperPort = 0)) { implicit actualConfig ⇒
+      withRunningKafkaOnFoundPort(EmbeddedKafkaConfig(kafkaPort = 0, zooKeeperPort = 0)) { implicit actualConfig =>
         val topic = KafkaTopic("testTopic4")
         createCustomTopic(topic.name, partitions = 3)
         val embeddedBroker = s"localhost:${actualConfig.kafkaPort}"

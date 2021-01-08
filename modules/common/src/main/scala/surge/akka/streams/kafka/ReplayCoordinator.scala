@@ -44,37 +44,37 @@ class ReplayCoordinator(
   override def receive: Receive = uninitialized()
 
   def uninitialized(): Receive = {
-    case StartReplay ⇒
+    case StartReplay =>
       context.become(ready(ReplayState.init(sender())))
-      getTopicAssignments().map(assignments ⇒ TopicAssignmentsFound(assignments)).pipeTo(self)
+      getTopicAssignments().map(assignments => TopicAssignmentsFound(assignments)).pipeTo(self)
   }
 
   def ready(replayState: ReplayState): Receive = inlineReceive {
-    case TopicAssignmentsFound(assignments) ⇒
-      getTopicConsumers(assignments).map(actors ⇒ TopicConsumersFound(assignments, actors)).pipeTo(self)
-    case TopicConsumersFound(topicAssignments, topicConsumerActors) ⇒
+    case TopicAssignmentsFound(assignments) =>
+      getTopicConsumers(assignments).map(actors => TopicConsumersFound(assignments, actors)).pipeTo(self)
+    case TopicConsumersFound(topicAssignments, topicConsumerActors) =>
       val waitingActorsPaths = topicConsumerActors.toSet
       context.become(pausing(replayState.copy(running = waitingActorsPaths, stopped = Set.empty, assignments = topicAssignments)))
-      topicConsumerActors.foreach { streamManagerActorPath ⇒
+      topicConsumerActors.foreach { streamManagerActorPath =>
         actorSystem.actorSelection(streamManagerActorPath) ! KafkaStreamManagerActor.StopConsuming
       }
   } orElse handleStopReplay(replayState)
 
   def pausing(replayState: ReplayState): Receive = inlineReceive {
-    case SuccessfullyStopped(address, ref) ⇒
+    case SuccessfullyStopped(address, ref) =>
       handleSuccessfullyStopped(replayState, address, ref)
-    case PreReplayCompleted ⇒
+    case PreReplayCompleted =>
       doReplay(replayState)
-    case DoPreReplay ⇒
+    case DoPreReplay =>
       doPreReplay()
   } orElse handleStopReplay(replayState)
 
   def replaying(replayState: ReplayState): Receive = inlineReceive {
-    case failure: ReplayFailed ⇒
+    case failure: ReplayFailed =>
       startStoppedConsumers(replayState)
       replayState.replyTo ! failure
       context.become(uninitialized())
-    case ReplayCompleted ⇒
+    case ReplayCompleted =>
       replayStrategy.postReplay()
       startStoppedConsumers(replayState)
       replayState.replyTo ! ReplayCompleted
@@ -82,7 +82,7 @@ class ReplayCoordinator(
   } orElse handleStopReplay(replayState)
 
   def handleStopReplay(replayState: ReplayState): Receive = {
-    case ReplayCoordinator.StopReplay ⇒
+    case ReplayCoordinator.StopReplay =>
       log.debug("StopReplay received, this is typically because a timeout of the ReplayCoordinator or an unexpected error")
       startStoppedConsumers(replayState)
       context.become(uninitialized())
@@ -100,9 +100,9 @@ class ReplayCoordinator(
 
   def doPreReplay(): Unit = {
     replayStrategy.preReplay().onComplete {
-      case Success(_) ⇒
+      case Success(_) =>
         self ! PreReplayCompleted
-      case Failure(e) ⇒
+      case Failure(e) =>
         log.error(s"An unexpected error happened running replaying $consumerGroup, " +
           s"please try again, if the problem persists, reach out Surge team for support", e)
         self ! ReplayFailed(e)
@@ -111,14 +111,14 @@ class ReplayCoordinator(
 
   def doReplay(replayState: ReplayCoordinator.ReplayState): Unit = {
     val existingPartitions = replayState.assignments.map {
-      case (topicPartition, _) ⇒
+      case (topicPartition, _) =>
         topicPartition.partition()
     }
     context.become(replaying(replayState))
-    replayStrategy.replay(consumerGroup, existingPartitions).map { _ ⇒
+    replayStrategy.replay(consumerGroup, existingPartitions).map { _ =>
       ReplayCompleted
     }.recoverWith {
-      case err: Throwable ⇒
+      case err: Throwable =>
         log.error("Replay failed", err)
         Future.successful(ReplayFailed(err))
     }.pipeTo(self)(sender)
@@ -126,27 +126,27 @@ class ReplayCoordinator(
   }
 
   def startStoppedConsumers(state: ReplayState): Unit = {
-    state.stopped.foreach { actorPath ⇒
+    state.stopped.foreach { actorPath =>
       log.trace(s"Starting stream manager actor with path $actorPath")
       actorSystem.actorSelection(actorPath) ! StartConsuming
     }
   }
 
   def getTopicAssignments(): Future[Map[TopicPartition, HostPort]] = {
-    HostAssignmentTracker.allAssignments.map { assignments ⇒
+    HostAssignmentTracker.allAssignments.map { assignments =>
       assignments.filter {
-        case (topicPartition, _) ⇒
+        case (topicPartition, _) =>
           topicPartition.topic() equals topicName
       }
     }.recoverWith {
-      case err: Throwable ⇒
+      case err: Throwable =>
         log.error(s"Failed getting all topic consumers for topic $topicName")
         throw err
     }
   }
 
   def getTopicConsumers(assignments: Map[TopicPartition, HostPort]): Future[List[String]] = {
-    val hostPorts = assignments.map { case (_, hostPort) ⇒ hostPort }.toList.distinct
+    val hostPorts = assignments.map { case (_, hostPort) => hostPort }.toList.distinct
     discoverActors(KafkaStreamManager.serviceIdentifier, hostPorts, List(topicName))
   }
 }

@@ -55,10 +55,10 @@ class Shard[IdType](
   private val actorProvider = regionLogicProvider.actorProvider(context)
 
   override def receive: Receive = {
-    case msg: Terminated                         ⇒ receiveTerminated(msg)
-    case msg: Passivate                          ⇒ receivePassivate(msg)
-    case GetHealth                               ⇒ getHealthCheck
-    case msg if extractEntityId.isDefinedAt(msg) ⇒ deliverMessage(msg, sender())
+    case msg: Terminated                         => receiveTerminated(msg)
+    case msg: Passivate                          => receivePassivate(msg)
+    case GetHealth                               => getHealthCheck
+    case msg if extractEntityId.isDefinedAt(msg) => deliverMessage(msg, sender())
   }
 
   private def deliverMessage(msg: Any, send: ActorRef): Unit = {
@@ -82,8 +82,8 @@ class Shard[IdType](
   private def getOrCreateEntity(id: IdType): ActorRef = {
     val name = URLEncoder.encode(id.toString, "utf-8")
     context.child(name) match {
-      case Some(child) ⇒ child
-      case None ⇒
+      case Some(child) => child
+      case None =>
         log.debug(s"Shard $shardId creating child actor for aggregate $name")
         val actorRef = context.watch(context.actorOf(actorProvider.actorPropsById(id), name))
         idByRef = idByRef.updated(actorRef, id)
@@ -105,9 +105,9 @@ class Shard[IdType](
 
   private def receiveTerminated(terminated: Terminated): Unit = {
     idByRef.get(terminated.actor) match {
-      case Some(id) ⇒
+      case Some(id) =>
         entityTerminated(id, terminated.actor)
-      case None ⇒
+      case None =>
         log.debug("Partition region saw untracked actor terminate {}", terminated.actor.path.toStringWithoutAddress)
     }
   }
@@ -138,7 +138,7 @@ class Shard[IdType](
       // Now there is no deliveryBuffer we can try to redeliver
       // and as the child exists, the message will be directly forwarded
       messages.foreach {
-        case (msg, snd) ⇒ deliverMessage(msg, snd)
+        case (msg, snd) => deliverMessage(msg, snd)
       }
     }
   }
@@ -148,7 +148,7 @@ class Shard[IdType](
     val entity = sender()
 
     idByRef.get(entity) match {
-      case Some(id) ⇒
+      case Some(id) =>
         if (!messageBuffers.contains(id)) {
           passivating = passivating + entity
           messageBuffers.add(id)
@@ -156,12 +156,12 @@ class Shard[IdType](
         } else {
           log.debug("Passivation already in progress for {}. Not sending stopMessage back to entity.", entity)
         }
-      case None ⇒ log.debug("Unknown entity {}. Not sending stopMessage back to entity.", entity)
+      case None => log.debug("Unknown entity {}. Not sending stopMessage back to entity.", entity)
     }
   }
 
   private def getHealthCheck: Future[HealthCheck] = {
-    regionLogicProvider.healthCheck().map { regionProviderHealth ⇒
+    regionLogicProvider.healthCheck().map { regionProviderHealth =>
       HealthCheck(
         name = s"shard",
         id = shardId,

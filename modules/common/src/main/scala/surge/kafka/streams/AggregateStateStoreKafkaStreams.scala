@@ -50,7 +50,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
     stateTopic: KafkaTopic,
     partitionTrackerProvider: KafkaStreamsPartitionTrackerProvider,
     kafkaStateMetadataHandler: KafkaPartitionMetadataHandler,
-    aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) ⇒ Boolean,
+    aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) => Boolean,
     applicationHostPort: Option[String],
     consumerGroupName: String,
     system: ActorSystem) extends HealthyComponent with Logging {
@@ -115,7 +115,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
 
     val underlyingCreatedActor = system.actorOf(underlyingActorProps)
 
-    system.actorOf(BackoffChildActorTerminationWatcher.props(underlyingCreatedActor, () ⇒ onMaxRetries()))
+    system.actorOf(BackoffChildActorTerminationWatcher.props(underlyingCreatedActor, () => onMaxRetries()))
 
     underlyingCreatedActor
   }

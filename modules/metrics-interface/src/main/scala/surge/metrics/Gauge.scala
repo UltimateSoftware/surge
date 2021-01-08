@@ -9,7 +9,7 @@ import scala.concurrent.{ ExecutionContext, Future }
 trait Gauge extends MetricContainerTrait[Gauge] {
   def set(value: Double): Unit
   def toMetrics(implicit ec: ExecutionContext): Future[Seq[Metric]] = {
-    value.map { gaugeValue ⇒
+    value.map { gaugeValue =>
       Seq(Metric(name = name, value = gaugeValue, tenantId = tenantId))
     }
   }

@@ -13,7 +13,7 @@ trait Counter extends MetricContainerTrait[Counter] {
   def increment(): Unit = increment(1)
   def decrement(): Unit = decrement(1)
   def toMetrics(implicit ec: ExecutionContext): Future[Seq[Metric]] = {
-    value.map { counterValue ⇒
+    value.map { counterValue =>
       Seq(Metric(name = name, value = counterValue, tenantId = tenantId))
     }
   }

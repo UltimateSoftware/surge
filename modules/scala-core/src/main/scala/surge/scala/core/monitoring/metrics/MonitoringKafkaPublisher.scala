@@ -19,7 +19,7 @@ final case class MonitoringKafkaPublisher(producer: KafkaProducer[String, String
 
   override def publish(metrics: Seq[Metric]): Unit = {
     val metricsFormatted = metrics.map(Json.toJson(_).toString)
-    metricsFormatted.foreach { metric ⇒
+    metricsFormatted.foreach { metric =>
       producer.send(new ProducerRecord(topicName, metric))
     }
   }

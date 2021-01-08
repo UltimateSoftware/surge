@@ -9,7 +9,7 @@ import surge.support.Logging
 
 class KafkaPartitionMetadataHandlerImpl(system: ActorSystem) extends KafkaPartitionMetadataHandler with Logging {
   override def processPartitionMetadata(stream: KStream[String, KafkaPartitionMetadata]): Unit = {
-    stream.mapValues { value ⇒
+    stream.mapValues { value =>
       log.trace("Updating StateMeta for {} to {}", Seq(value.topicPartition, value): _*)
       // KafkaProducerActor should subscribe to these events
       system.eventStream.publish(KafkaPartitionMetadataUpdated(value))

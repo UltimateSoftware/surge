@@ -38,7 +38,7 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
       override def baseEventName: String = "TestAggregateEvent"
       override def metricsProvider: MetricsProvider = NoOpMetricsProvider
       override def kafkaTopic: KafkaTopic = topic
-      override def formatting: SurgeEventReadFormatting[String] = bytes ⇒ new String(bytes)
+      override def formatting: SurgeEventReadFormatting[String] = bytes => new String(bytes)
       override def actorSystem: ActorSystem = system
     }
   }
@@ -61,7 +61,7 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
   "EventSource" should {
     "Subscribe to events from Kafka" in {
       val userDefinedConfig = EmbeddedKafkaConfig(kafkaPort = 0, zooKeeperPort = 0)
-      withRunningKafkaOnFoundPort(userDefinedConfig) { implicit actualConfig ⇒
+      withRunningKafkaOnFoundPort(userDefinedConfig) { implicit actualConfig =>
         val topic = KafkaTopic("testTopic")
         createCustomTopic(topic.name, partitions = 3)
         val embeddedBroker = s"localhost:${actualConfig.kafkaPort}"
@@ -97,7 +97,7 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
     //  group rebalance, which are much slower and far more disruptive than restarting the stream using the same underlying consumer
     "Restart if an exception is thrown in the stream" ignore {
       val userDefinedConfig = EmbeddedKafkaConfig(kafkaPort = 0, zooKeeperPort = 0)
-      withRunningKafkaOnFoundPort(userDefinedConfig) { implicit actualConfig ⇒
+      withRunningKafkaOnFoundPort(userDefinedConfig) { implicit actualConfig =>
         val topic = KafkaTopic("testTopic2")
         createCustomTopic(topic.name, partitions = 3)
         val embeddedBroker = s"localhost:${actualConfig.kafkaPort}"
@@ -141,7 +141,7 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
 
     "Quick load test" ignore {
       val userDefinedConfig = EmbeddedKafkaConfig(kafkaPort = 0, zooKeeperPort = 0)
-      withRunningKafkaOnFoundPort(userDefinedConfig) { implicit actualConfig ⇒
+      withRunningKafkaOnFoundPort(userDefinedConfig) { implicit actualConfig =>
         val topic = KafkaTopic("loadTestTopic")
         createCustomTopic(topic.name, partitions = 3)
 
@@ -150,7 +150,7 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
         def createConsumer: EventSource[String] =
           testEventSource(topic, kafkaBrokers = embeddedBroker, groupId = groupId)
 
-        (1 to 1000).foreach { num ⇒
+        (1 to 1000).foreach { num =>
           publishToKafka(new ProducerRecord[String, String](topic.name, num % 3, s"record $num", s"record $num"))
         }
         val consumer1 = createConsumer

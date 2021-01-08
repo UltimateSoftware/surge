@@ -16,7 +16,7 @@ import scala.concurrent.Future
 class RabbitEventSourceSpec extends TestKit(ActorSystem("RabbitEventSourceSpec")) with AnyWordSpecLike {
   class TestRabbitEventSource(val rabbitMqUri: String, val queueName: String) extends RabbitEventSource[String] {
     override def actorSystem: ActorSystem = system
-    override def formatting: SurgeEventReadFormatting[String] = (bytes: Array[Byte]) ⇒ new String(bytes)
+    override def formatting: SurgeEventReadFormatting[String] = (bytes: Array[Byte]) => new String(bytes)
   }
 
   class TestProbeSink(probe: TestProbe) extends EventSink[String] {

@@ -7,12 +7,12 @@ import org.apache.kafka.streams.kstream.{ ValueTransformerWithKey, ValueTransfor
 import org.apache.kafka.streams.processor.ProcessorContext
 import org.slf4j.{ Logger, LoggerFactory }
 
-class ValidationProcessor[Agg](aggregateName: String, aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) ⇒ Boolean) {
+class ValidationProcessor[Agg](aggregateName: String, aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) => Boolean) {
 
   private val log: Logger = LoggerFactory.getLogger(getClass)
 
   val supplier: ValueTransformerWithKeySupplier[String, Change[Array[Byte]], KafkaPartitionMetadata] = {
-    () ⇒ new StateProcessorImpl
+    () => new StateProcessorImpl
   }
 
   private class StateProcessorImpl extends ValueTransformerWithKey[String, Change[Array[Byte]], KafkaPartitionMetadata] {

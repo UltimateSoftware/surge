@@ -26,27 +26,27 @@ class ObjectValidationTest extends AsyncWordSpec with Matchers {
     val CA_TAX_ID_ERR_MSG = "National ID must be a valid Canadian SIN"
     val TAX_ID_ERR_MSG = "National ID must be blank"
 
-    val ValidNationalTaxId: Validator[Employee] = { input ⇒
+    val ValidNationalTaxId: Validator[Employee] = { input =>
       val res = input match {
-        case (employee, _) if employee.taxData.country.equalsIgnoreCase("US") ⇒
+        case (employee, _) if employee.taxData.country.equalsIgnoreCase("US") =>
           employee.taxData.nationalId mustBe ValidUsSSN orElse US_TAX_ID_ERR_MSG
-        case (employee, _) if employee.taxData.country.equalsIgnoreCase("CA") ⇒
+        case (employee, _) if employee.taxData.country.equalsIgnoreCase("CA") =>
           employee.taxData.nationalId mustBe ValidCanadianSIN orElse CA_TAX_ID_ERR_MSG
-        case (employee, _) ⇒ employee.taxData.nationalId mustBe NonEmptyString orElse TAX_ID_ERR_MSG
+        case (employee, _) => employee.taxData.nationalId mustBe NonEmptyString orElse TAX_ID_ERR_MSG
       }
       res match {
-        case Right(st) ⇒ Right(input._1)
-        case Left(lvm) ⇒ Left(lvm)
+        case Right(st) => Right(input._1)
+        case Left(lvm) => Left(lvm)
       }
     }
 
     // TODO / WIP - Alternative Forms
     //
-    //    def ValidNationalTaxIdIn: String ⇒ Validator[String] = { country ⇒
+    //    def ValidNationalTaxIdIn: String => Validator[String] = { country =>
     //      country.toUpperCase() match {
-    //        case "US" ⇒ ValidUsSSN
-    //        case "CA" ⇒ ValidCanadianSIN
-    //        case _    ⇒ NonEmptyString
+    //        case "US" => ValidUsSSN
+    //        case "CA" => ValidCanadianSIN
+    //        case _    => NonEmptyString
     //      }
     //    }
 
@@ -58,7 +58,7 @@ class ObjectValidationTest extends AsyncWordSpec with Matchers {
     //    }
     //
 
-    val EmployeeValidator: ObjectValidator[Employee] = ObjectValidator[Employee]({ employee ⇒
+    val EmployeeValidator: ObjectValidator[Employee] = ObjectValidator[Employee]({ employee =>
       Seq(
         employee.name mustBe NonEmptyString orElse NAME_ERR_MSG,
         employee.salary mustBe PositiveNumber[Double] orElse SALARY_ERR_MSG,

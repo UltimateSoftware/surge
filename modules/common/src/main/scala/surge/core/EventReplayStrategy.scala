@@ -12,8 +12,8 @@ import scala.concurrent.Future
 import scala.concurrent.duration.{ FiniteDuration, _ }
 
 trait EventReplayStrategy {
-  def preReplay: () ⇒ Future[Any]
-  def postReplay: () ⇒ Unit
+  def preReplay: () => Future[Any]
+  def postReplay: () => Unit
   def replay(consumerGroup: String, partitions: Iterable[Int]): Future[Done]
 }
 
@@ -24,8 +24,8 @@ object DefaultEventReplaySettings extends EventReplaySettings {
 }
 
 case object NoOpEventReplayStrategy extends EventReplayStrategy with Logging {
-  override def preReplay: () ⇒ Future[Any] = () ⇒ Future.successful(true)
-  override def postReplay: () ⇒ Unit = () ⇒ {}
+  override def preReplay: () => Future[Any] = () => Future.successful(true)
+  override def postReplay: () => Unit = () => {}
   override def replay(
     consumerGroup: String,
     partitions: Iterable[Int]): Future[Done] = {

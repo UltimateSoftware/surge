@@ -35,7 +35,7 @@ package object domain {
    * @tparam Cmd  The Aggregate's Base Command Type
    * @tparam Evt  The Aggregate's Base Event Type
    */
-  type CommandProcessor[Agg, Cmd, Evt] = (Option[Agg], Cmd) ⇒ Try[Seq[Evt]]
+  type CommandProcessor[Agg, Cmd, Evt] = (Option[Agg], Cmd) => Try[Seq[Evt]]
 
   /**
    * Defines a function type that applies an event to an aggregate
@@ -43,5 +43,5 @@ package object domain {
    * @tparam Agg  The Aggregate Type
    * @tparam Evt  The Aggregate's Base Event Type
    */
-  type EventHandler[Agg, Evt] = (Option[Agg], Evt) ⇒ Option[Agg]
+  type EventHandler[Agg, Evt] = (Option[Agg], Evt) => Option[Agg]
 }

@@ -31,21 +31,21 @@ final case class Metrics(
 
   def incrementMetric(name: String, incrementBy: Double, tenantId: Option[UUID] = None): Metrics =
     metrics.find(_.name.equals(name)) match {
-      case Some(metric) ⇒ replaceMetric(metric.increment(incrementBy))
-      case None         ⇒ replaceMetric(MetricContainer(name, incrementBy, tenantId))
+      case Some(metric) => replaceMetric(metric.increment(incrementBy))
+      case None         => replaceMetric(MetricContainer(name, incrementBy, tenantId))
     }
 
   def incrementMetricWithIntervalBucket(
     name: String, intervalSize: FiniteDuration, duration: FiniteDuration,
     incrementBy: Double, tenantId: Option[UUID] = None): Metrics = {
     metrics.find(_.name.equals(name)) match {
-      case Some(metric @ MetricContainer(_, _, _, Some(_))) ⇒
+      case Some(metric @ MetricContainer(_, _, _, Some(_))) =>
         replaceMetric(metric.increment(incrementBy))
 
-      case Some(metric @ MetricContainer(_, _, _, _)) ⇒
+      case Some(metric @ MetricContainer(_, _, _, _)) =>
         replaceMetric(metric.copy(intervalBucket = Some(IntervalBucket(intervalSize, duration))).increment(incrementBy))
 
-      case _ ⇒
+      case _ =>
         replaceMetric(MetricContainer(name, 0d, tenantId, Some(IntervalBucket(intervalSize, duration))).increment(incrementBy))
     }
   }
@@ -53,7 +53,7 @@ final case class Metrics(
   private def replaceMetric(metric: MetricContainer) =
     copy(metrics = metrics.filter(!_.name.equalsIgnoreCase(metric.name)) :+ metric)
 
-  lazy val metricMap: Map[String, Double] = metrics.map(m ⇒ m.name → m.value).toMap
+  lazy val metricMap: Map[String, Double] = metrics.map(m => m.name -> m.value).toMap
 
 }
 
@@ -74,12 +74,12 @@ final case class MetricContainer(name: String, value: Double, tenantId: Option[U
     copy(value = value + incrementBy, intervalBucket = intervalBucket.map(_.increment(incrementBy)))
 
   def toMetrics: Seq[Metric] = {
-    intervalBucket.map { intervalBucket ⇒
+    intervalBucket.map { intervalBucket =>
       Seq(
         Metric(s"$name.${intervalBucket.duration.toString()}.total", intervalBucket.durationTotal, tenantId),
         Metric(s"$name.${intervalBucket.intervalSize.toString()}.average", intervalBucket.intervalAverage, tenantId),
         Metric(s"$name.${intervalBucket.intervalSize.toString()}.peak", intervalBucket.peakInterval._2, tenantId,
-          Some(Map("peakInterval" → MetricContainer.isoFormatter.format(intervalBucket.peakInterval._1)))),
+          Some(Map("peakInterval" -> MetricContainer.isoFormatter.format(intervalBucket.peakInterval._1)))),
         Metric(s"$name.${intervalBucket.intervalSize.toString()}.nadir", intervalBucket.nadirInterval._2, tenantId))
     }.getOrElse(Seq.empty) :+ Metric(name, value, tenantId)
   }
@@ -99,19 +99,19 @@ final case class IntervalBucket(
     def updateInterval(intervalMap: Map[Instant, Double], updateInterval: (Instant, Double)): Map[Instant, Double] = {
       (intervalMap - updateInterval._1 + updateInterval)
         // Remove any intervals that are older than the duration
-        .filter(interval ⇒ interval._1.toEpochMilli > updateInterval._1.toEpochMilli - duration.toMillis + intervalSize.toMillis)
+        .filter(interval => interval._1.toEpochMilli > updateInterval._1.toEpochMilli - duration.toMillis + intervalSize.toMillis)
     }
 
     dateTimeKey(Instant.now()) match {
-      case key if key == currentKey ⇒
+      case key if key == currentKey =>
         intervals.find(_._1 == key) match {
-          case Some(interval) ⇒ copy(intervals = updateInterval(intervals, key → (interval._2 + incrementBy)))
-          case None           ⇒ copy(currentKey = key, intervals = updateInterval(intervals, key → incrementBy))
+          case Some(interval) => copy(intervals = updateInterval(intervals, key -> (interval._2 + incrementBy)))
+          case None           => copy(currentKey = key, intervals = updateInterval(intervals, key -> incrementBy))
         }
-      case key ⇒
+      case key =>
         intervals.find(_._1 == key) match {
-          case Some(_) ⇒ copy(currentKey = key, intervals = updateInterval(intervals, key → incrementBy))
-          case None    ⇒ copy(intervals = updateInterval(intervals, key → incrementBy))
+          case Some(_) => copy(currentKey = key, intervals = updateInterval(intervals, key -> incrementBy))
+          case None    => copy(intervals = updateInterval(intervals, key -> incrementBy))
         }
     }
   }
@@ -119,11 +119,11 @@ final case class IntervalBucket(
   def durationTotal: Double = intervals.values.sum
   def intervalAverage: Double = if (intervals.nonEmpty) { intervals.values.sum / intervals.size } else { 0d }
   def peakInterval: (Instant, Double) = {
-    val maxValue = intervals.values.fold(0d)((a, b) ⇒ scala.math.max(a, b))
+    val maxValue = intervals.values.fold(0d)((a, b) => scala.math.max(a, b))
     intervals.find(_._2.equals(maxValue)).getOrElse((dateTimeKey(Instant.now()), 0d))
   }
   def nadirInterval: (Instant, Double) = {
-    val minValue = intervals.values.fold(0d)((a, b) ⇒ scala.math.max(a, b))
+    val minValue = intervals.values.fold(0d)((a, b) => scala.math.max(a, b))
     intervals.find(_._2.equals(minValue)).getOrElse((dateTimeKey(Instant.now()), 0d))
   }
 }

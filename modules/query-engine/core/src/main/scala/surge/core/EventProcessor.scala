@@ -11,8 +11,8 @@ class EventProcessor[Agg, Event](
     aggregateName: String,
     aggReads: SurgeAggregateReadFormatting[Agg],
     aggWrites: SurgeAggregateWriteFormatting[Agg],
-    extractAggregateId: Event ⇒ Option[String],
-    processEvent: (Option[Agg], Event) ⇒ Option[Agg],
+    extractAggregateId: Event => Option[String],
+    processEvent: (Option[Agg], Event) => Option[Agg],
     metricsProvider: MetricsProvider) {
 
   val aggregateDeserializationTimer = metricsProvider.createTimer(s"${aggregateName}AggregateStateDeserializationTimer")
@@ -27,8 +27,8 @@ class EventProcessor[Agg, Event](
     Serdes.String(),
     Serdes.ByteArray())
 
-  val supplier: () ⇒ Processor[String, Event] = {
-    () ⇒ new StateProcessorImpl
+  val supplier: () => Processor[String, Event] = {
+    () => new StateProcessorImpl
   }
 
   private class StateProcessorImpl extends AbstractProcessor[String, Event] {
@@ -40,15 +40,15 @@ class EventProcessor[Agg, Event](
     }
 
     override def process(key: String, value: Event): Unit = {
-      extractAggregateId(value).foreach { aggregateId ⇒
+      extractAggregateId(value).foreach { aggregateId =>
         val oldState = Option(keyValueStore.get(aggregateId))
         val previousBody = oldState
-          .flatMap(state ⇒
+          .flatMap(state =>
             aggregateDeserializationTimer.time(aggReads.readState(state)))
 
         val newState = eventHandlingTimer.time(processEvent(previousBody, value))
 
-        val newStateSerialized = newState.map { newStateValue ⇒
+        val newStateSerialized = newState.map { newStateValue =>
           aggregateSerializationTimer.time(aggWrites.writeState(newStateValue))
         }
 

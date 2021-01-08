@@ -46,7 +46,7 @@ class KafkaBytesProducer(
     kafkaConfig: java.util.Map[String, String]) extends AbstractKafkaProducer[String, Array[Byte]] {
   val props: Properties = {
     val p = new Properties()
-    kafkaConfig.asScala.foreach(propPair ⇒ p.put(propPair._1, propPair._2))
+    kafkaConfig.asScala.foreach(propPair => p.put(propPair._1, propPair._2))
     p.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, brokers.asScala.mkString(","))
     p.put(ProducerConfig.ACKS_CONFIG, "all")
     p.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, classOf[StringSerializer].getName)

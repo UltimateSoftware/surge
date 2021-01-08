@@ -43,7 +43,7 @@ private[surge] object GenericAggregateActor {
   }
   object RoutableMessage {
     def extractEntityId: PartialFunction[Any, String] = {
-      case routableMessage: RoutableMessage ⇒ routableMessage.aggregateId
+      case routableMessage: RoutableMessage => routableMessage.aggregateId
     }
   }
 
@@ -142,30 +142,30 @@ private[surge] class GenericAggregateActor[Agg, Command, Event](
   override def receive: Receive = uninitialized
 
   private def freeToProcess(state: InternalActorState): Receive = {
-    case msg: CommandEnvelope[Command]  ⇒ handle(state, msg)
-    case msg: ApplyEventEnvelope[Event] ⇒ handle(state, msg)
-    case _: GetState                    ⇒ sender() ! StateResponse(state.stateOpt)
-    case ReceiveTimeout                 ⇒ handlePassivate()
-    case Stop                           ⇒ handleStop()
+    case msg: CommandEnvelope[Command]  => handle(state, msg)
+    case msg: ApplyEventEnvelope[Event] => handle(state, msg)
+    case _: GetState                    => sender() ! StateResponse(state.stateOpt)
+    case ReceiveTimeout                 => handlePassivate()
+    case Stop                           => handleStop()
   }
 
   private def persistingEvents(state: InternalActorState): Receive = {
-    case msg: EventsSuccessfullyPersisted ⇒ handle(state, msg)
-    case msg: CommandFailure              ⇒ handle(state, msg)
-    case msg: CommandError                ⇒ handleCommandError(state, msg)
-    case msg: EventsFailedToPersist       ⇒ handleFailedToPersist(state, msg)
-    case msg: EventPublishTimedOut        ⇒ handlePersistenceTimedOut(state, msg)
-    case ReceiveTimeout                   ⇒ // Ignore and drop ReceiveTimeout messages from this state
-    case _                                ⇒ stash()
+    case msg: EventsSuccessfullyPersisted => handle(state, msg)
+    case msg: CommandFailure              => handle(state, msg)
+    case msg: CommandError                => handleCommandError(state, msg)
+    case msg: EventsFailedToPersist       => handleFailedToPersist(state, msg)
+    case msg: EventPublishTimedOut        => handlePersistenceTimedOut(state, msg)
+    case ReceiveTimeout                   => // Ignore and drop ReceiveTimeout messages from this state
+    case _                                => stash()
   }
 
   private def uninitialized: Receive = {
-    case msg: InitializeWithState ⇒ handle(msg)
-    case ReceiveTimeout ⇒
+    case msg: InitializeWithState => handle(msg)
+    case ReceiveTimeout =>
       // Ignore and drop ReceiveTimeout messages from this state
       log.warn(s"Aggregate actor for $aggregateId received a ReceiveTimeout message in uninitialized state. " +
         "This should not happen and is likely a logic error. Dropping the ReceiveTimeout message.")
-    case _ ⇒ stash()
+    case _ => stash()
   }
 
   private def handle(state: InternalActorState, commandEnvelope: CommandEnvelope[Command]): Unit = {
@@ -173,22 +173,22 @@ private[surge] class GenericAggregateActor[Agg, Command, Event](
     context.become(persistingEvents(state))
 
     val futureEventsPersisted = processCommand(state, commandEnvelope) match {
-      case Right(Success(events)) ⇒
-        val newState = events.foldLeft(state.stateOpt) { (state, evt) ⇒
+      case Right(Success(events)) =>
+        val newState = events.foldLeft(state.stateOpt) { (state, evt) =>
           metrics.eventHandlingTimer.time(businessLogic.model.handleEvent(state, evt))
         }
         val serializedEventsFut = serializeEvents(events)
         val serializedStateFut = serializeState(newState)
         for {
-          serializedEvents ← serializedEventsFut
-          serializedState ← serializedStateFut
-          publishResult ← doPublish(state.copy(stateOpt = newState), serializedEvents, serializedState, startTime = Instant.now)
+          serializedEvents <- serializedEventsFut
+          serializedState <- serializedStateFut
+          publishResult <- doPublish(state.copy(stateOpt = newState), serializedEvents, serializedState, startTime = Instant.now)
         } yield {
           publishResult
         }
-      case Right(Failure(exception)) ⇒
+      case Right(Failure(exception)) =>
         Future.successful(CommandError(exception))
-      case Left(validationErrors) ⇒
+      case Left(validationErrors) =>
         Future.successful(CommandFailure(validationErrors))
     }
 
@@ -200,7 +200,7 @@ private[surge] class GenericAggregateActor[Agg, Command, Event](
     context.become(persistingEvents(state))
 
     val newState = businessLogic.model.handleEvent(state.stateOpt, applyEventEnvelope.event)
-    val futureStatePersisted = serializeState(newState).flatMap { serializedState ⇒
+    val futureStatePersisted = serializeState(newState).flatMap { serializedState =>
       doPublish(state.copy(stateOpt = newState), serializedEvents = Seq.empty,
         serializedState = serializedState, startTime = Instant.now)
     }
@@ -212,10 +212,10 @@ private[surge] class GenericAggregateActor[Agg, Command, Event](
     log.trace("GenericAggregateActor for {} publishing messages", aggregateId)
     if (serializedEvents.nonEmpty) {
       kafkaProducerActor.publish(aggregateId = aggregateId, state = serializedState, events = serializedEvents).map {
-        case KafkaProducerActor.PublishSuccess    ⇒ EventsSuccessfullyPersisted(state, startTime)
-        case KafkaProducerActor.PublishFailure(t) ⇒ EventsFailedToPersist(state, t, currentFailureCount + 1, serializedEvents, serializedState, startTime)
+        case KafkaProducerActor.PublishSuccess    => EventsSuccessfullyPersisted(state, startTime)
+        case KafkaProducerActor.PublishFailure(t) => EventsFailedToPersist(state, t, currentFailureCount + 1, serializedEvents, serializedState, startTime)
       }.recover {
-        case t ⇒ EventPublishTimedOut(t, startTime)
+        case t => EventPublishTimedOut(t, startTime)
       }
     } else {
       Future.successful(EventsSuccessfullyPersisted(state, startTime))
@@ -223,7 +223,7 @@ private[surge] class GenericAggregateActor[Agg, Command, Event](
   }
 
   private def serializeEvents(events: Seq[Event]): Future[Seq[KafkaProducerActor.MessageToPublish]] = Future {
-    events.map { event ⇒
+    events.map { event =>
       val serializedMessage = metrics.serializeEventTimer.time(businessLogic.writeFormatting.writeEvent(event))
       log.trace(s"Publishing event for {} {}", Seq(businessLogic.aggregateName, serializedMessage.key): _*)
       KafkaProducerActor.MessageToPublish(
@@ -234,11 +234,11 @@ private[surge] class GenericAggregateActor[Agg, Command, Event](
   }(GenericAggregateActor.serializationExecutionContext)
 
   private def serializeState(stateValueOpt: Option[Agg]): Future[KafkaProducerActor.MessageToPublish] = Future {
-    val serializedStateOpt = stateValueOpt.map { value ⇒
+    val serializedStateOpt = stateValueOpt.map { value =>
       metrics.serializeStateTimer.time(businessLogic.writeFormatting.writeState(value))
     }
     val stateValue = serializedStateOpt.map(_.value).orNull
-    val stateHeaders = serializedStateOpt.map(ser ⇒ HeadersHelper.createHeaders(ser.headers)).getOrElse(new RecordHeaders())
+    val stateHeaders = serializedStateOpt.map(ser => HeadersHelper.createHeaders(ser.headers)).getOrElse(new RecordHeaders())
     KafkaProducerActor.MessageToPublish(aggregateId.toString, stateValue, stateHeaders)
   }(GenericAggregateActor.serializationExecutionContext)
 
@@ -311,7 +311,7 @@ private[surge] class GenericAggregateActor[Agg, Command, Event](
       log.error(s"Could not initialize actor for $aggregateId after $initializationAttempts attempts.  Stopping actor")
       context.stop(self)
     } else {
-      kafkaProducerActor.isAggregateStateCurrent(aggregateId).map { isStateCurrent ⇒
+      kafkaProducerActor.isAggregateStateCurrent(aggregateId).map { isStateCurrent =>
         if (isStateCurrent) {
           fetchState(initializationAttempts)
         } else {
@@ -320,7 +320,7 @@ private[surge] class GenericAggregateActor[Agg, Command, Event](
           context.system.scheduler.scheduleOnce(retryIn)(initializeState(initializationAttempts + 1))
         }
       }.recover {
-        case exception ⇒
+        case exception =>
           val retryIn = RetryConfig.AggregateActor.fetchStateRetryInterval
           log.error(s"Failed to check if ${businessLogic.aggregateName} aggregate was up to date for id $aggregateId, retrying in $retryIn", exception)
           context.system.scheduler.scheduleOnce(retryIn)(initializeState(initializationAttempts + 1))
@@ -341,17 +341,17 @@ private[surge] class GenericAggregateActor[Agg, Command, Event](
   private def fetchState(initializationAttempts: Int): Unit = {
     val fetchedStateFut = metrics.stateInitializationTimer.time(kafkaStreamsCommand.getAggregateBytes(aggregateId.toString))
 
-    fetchedStateFut.map { state ⇒
+    fetchedStateFut.map { state =>
       log.trace("GenericAggregateActor for {} fetched state", aggregateId)
-      val stateOpt = state.flatMap { bodyBytes ⇒
+      val stateOpt = state.flatMap { bodyBytes =>
         metrics.aggregateDeserializationTimer.time(businessLogic.readFormatting.readState(bodyBytes))
       }
 
       self ! InitializeWithState(stateOpt)
     }.recover {
-      case _: NullPointerException ⇒
+      case _: NullPointerException =>
         log.error("Used null for aggregateId - this is weird. Will not try to initialize state again")
-      case exception ⇒
+      case exception =>
         val retryIn = RetryConfig.AggregateActor.fetchStateRetryInterval
         log.error(s"Failed to initialize ${businessLogic.aggregateName} actor for aggregate $aggregateId, retrying in $retryIn", exception)
         context.system.scheduler.scheduleOnce(retryIn)(initializeState(initializationAttempts + 1))

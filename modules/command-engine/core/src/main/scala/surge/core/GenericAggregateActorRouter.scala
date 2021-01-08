@@ -46,7 +46,7 @@ private[surge] final class GenericAggregateActorRouter[Agg, Command, Event](
       .ask(HealthyActor.GetHealth)(TimeoutConfig.HealthCheck.actorAskTimeout * 3)
       .mapTo[HealthCheck]
       .recoverWith {
-        case err: Throwable ⇒
+        case err: Throwable =>
           log.error(s"Failed to get router-actor health check", err)
           Future.successful(
             HealthCheck(
@@ -73,7 +73,7 @@ class GenericAggregateActorRegionProvider[Agg, Command, Event](
   override def actorProvider(context: ActorContext): EntityPropsProvider[String] = {
     val aggregateMetrics = GenericAggregateActor.createMetrics(metricsProvider, businessLogic.aggregateName)
 
-    actorId: String ⇒ GenericAggregateActor.props(aggregateId = actorId, businessLogic = businessLogic,
+    actorId: String => GenericAggregateActor.props(aggregateId = actorId, businessLogic = businessLogic,
       kafkaProducerActor = kafkaProducerActor, metrics = aggregateMetrics, kafkaStreamsCommand = aggregateKafkaStreamsImpl)
   }
 

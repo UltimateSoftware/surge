@@ -37,7 +37,7 @@ class SurgeHealthCheckSpec extends AnyWordSpec with Matchers with PrivateMethodT
     if (node.name == name) {
       Some(node)
     } else {
-      node.components.flatMap(_.flatMap(n ⇒ findNode(n, name)).find(_.name.equals(name)))
+      node.components.flatMap(_.flatMap(n => findNode(n, name)).find(_.name.equals(name)))
     }
   }
 

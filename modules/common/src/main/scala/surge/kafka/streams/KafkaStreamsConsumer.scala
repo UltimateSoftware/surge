@@ -26,10 +26,10 @@ abstract class KafkaStreamsConsumer[K, V](implicit keySerde: Serde[K], valueSerd
 
   private def props: Properties = {
     val p = new Properties()
-    kafkaConfig.foreach(propPair ⇒ p.put(propPair._1, propPair._2))
+    kafkaConfig.foreach(propPair => p.put(propPair._1, propPair._2))
     p.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, brokers.mkString(","))
     p.put(StreamsConfig.APPLICATION_ID_CONFIG, applicationId)
-    applicationServerConfig.foreach(config ⇒ p.put(StreamsConfig.APPLICATION_SERVER_CONFIG, config))
+    applicationServerConfig.foreach(config => p.put(StreamsConfig.APPLICATION_SERVER_CONFIG, config))
     configureSecurityProperties(p)
     p
   }
@@ -41,7 +41,7 @@ abstract class KafkaStreamsConsumer[K, V](implicit keySerde: Serde[K], valueSerd
   }
 
   lazy val topology: Topology = {
-    topologyProps.map(props ⇒ builder.build(props)).getOrElse(builder.build())
+    topologyProps.map(props => builder.build(props)).getOrElse(builder.build())
   }
   lazy val streams: KafkaStreams = new KafkaStreams(topology, props)
 

@@ -17,10 +17,10 @@ class AsyncObjectValidationTest extends AsyncWordSpec with Matchers {
   // Sample Domain Model
 
   // Mock Service for Verifying a Tax Authority ID
-  val MockTaxAuthorityVerifyService: UUID ⇒ Future[Boolean] = {
-    case uuid if uuid.eq(Employee.TAX_AUTHORITY_ID) ⇒ Future { true }
-    case uuid if uuid.eq(Employee.TAX_AUTHORITY_ID_TIMEOUT) ⇒ Future.failed(new TimeoutException(Employee.TAX_AUTHORITY_TIME_MESSAGE))
-    case _ ⇒ Future { false }
+  val MockTaxAuthorityVerifyService: UUID => Future[Boolean] = {
+    case uuid if uuid.eq(Employee.TAX_AUTHORITY_ID) => Future { true }
+    case uuid if uuid.eq(Employee.TAX_AUTHORITY_ID_TIMEOUT) => Future.failed(new TimeoutException(Employee.TAX_AUTHORITY_TIME_MESSAGE))
+    case _ => Future { false }
   }
 
   case class TaxData(state: String, exemptions: Int, taxRate: Double, taxAuthorityId: UUID)
@@ -42,9 +42,9 @@ class AsyncObjectValidationTest extends AsyncWordSpec with Matchers {
 
     // Async Validator that uses a mock service to make a latent I/O call
     val ValidTaxAuthorityId: AsyncValidator[UUID] =
-      AsyncValidateWith(id ⇒ MockTaxAuthorityVerifyService(id), Some(TAX_AUTHORITY_ID_ERR_MSG))
+      AsyncValidateWith(id => MockTaxAuthorityVerifyService(id), Some(TAX_AUTHORITY_ID_ERR_MSG))
 
-    val EmployeeAsyncValidator: AsyncObjectValidator[Employee] = AsyncObjectValidator[Employee]({ employee ⇒
+    val EmployeeAsyncValidator: AsyncObjectValidator[Employee] = AsyncObjectValidator[Employee]({ employee =>
       Seq(
         employee.name mustBe NonEmptyString orElse NAME_ERR_MSG,
         employee.salary mustBe PositiveNumber[Double] orElse SALARY_ERR_MSG,

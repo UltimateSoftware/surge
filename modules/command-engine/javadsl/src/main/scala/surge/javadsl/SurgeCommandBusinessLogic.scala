@@ -66,7 +66,7 @@ object SurgeCommandBusinessLogic {
       writeFormatting = businessLogic.writeFormatting,
       readFormatting = businessLogic.readFormatting,
       commandValidator = businessLogic.commandValidator,
-      aggregateValidator = (key, agg, prevAgg) ⇒ businessLogic.aggregateValidator(key, agg, prevAgg.asJava),
+      aggregateValidator = (key, agg, prevAgg) => businessLogic.aggregateValidator(key, agg, prevAgg.asJava),
       metricsProvider = businessLogic.metricsProvider,
       metricsPublisher = businessLogic.metricsPublisher,
       metricsInterval = businessLogic.metricsInterval,

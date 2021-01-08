@@ -34,11 +34,11 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event](
   def ask(command: Cmd): CompletionStage[CommandResult[Agg]] = {
     val envelope = GenericAggregateActor.CommandEnvelope[Cmd](aggregateId.toString, command)
     val result = askWithRetries(envelope).map {
-      case Left(error: core.DomainValidationError) ⇒
+      case Left(error: core.DomainValidationError) =>
         CommandFailure[Agg](error.asJava)
-      case Left(error) ⇒
+      case Left(error) =>
         CommandFailure[Agg](error)
-      case Right(aggOpt) ⇒
+      case Right(aggOpt) =>
         CommandSuccess[Agg](aggOpt.asJava)
     }
     FutureConverters.toJava(result)
@@ -47,9 +47,9 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event](
   def applyEvent(event: Event): CompletionStage[ApplyEventResult[Agg]] = {
     val envelope = GenericAggregateActor.ApplyEventEnvelope[Event](aggregateId.toString, event)
     val result = applyEventsWithRetries(envelope)
-      .map(aggOpt ⇒ ApplyEventsSuccess[Agg](aggOpt.asJava))
+      .map(aggOpt => ApplyEventsSuccess[Agg](aggOpt.asJava))
       .recover {
-        case e ⇒
+        case e =>
           ApplyEventsFailure[Agg](e)
       }
     FutureConverters.toJava(result)

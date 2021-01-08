@@ -29,7 +29,7 @@ class ActorRegistrySpec extends AnyWordSpec with Matchers with ScalaFutures with
     implicit val executionContext: ExecutionContext = context.dispatcher
 
     override def receive: Receive = {
-      case _ ⇒ // ignore, this actor does nothing
+      case _ => // ignore, this actor does nothing
     }
 
     override def preStart(): Unit = {

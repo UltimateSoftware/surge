@@ -30,22 +30,22 @@ trait KafkaStreamsStateChangeListenerCommon extends KafkaStreams.StateListener w
   }
   override def onChange(newState: State, oldState: State): Unit = {
     newState match {
-      case State.RUNNING if oldState == State.REBALANCING ⇒
+      case State.RUNNING if oldState == State.REBALANCING =>
         logMessage(s"Kafka stream $streamName state transitioned from REBALANCING to RUNNING")
         onRunning()
-      case State.REBALANCING ⇒
+      case State.REBALANCING =>
         logMessage(s"Kafka stream $streamName state is REBALANCING")
         onRebalancing()
-      case State.CREATED ⇒
+      case State.CREATED =>
         logMessage(s"Kafka stream $streamName state is CREATED")
         onCreated()
-      case State.ERROR ⇒
+      case State.ERROR =>
         logMessage(s"Kafka stream $streamName shutting down because it transitioned to state ERROR")
         onError()
-      case State.NOT_RUNNING ⇒
+      case State.NOT_RUNNING =>
         logMessage(s"Kafka stream $streamName is NOT_RUNNING")
         onNotRunning()
-      case _ ⇒
+      case _ =>
         log.debug("Kafka stream transitioning from {} to {}", Seq(oldState, newState): _*)
     }
     changed(KafkaStateChange(oldState, newState))
@@ -54,11 +54,11 @@ trait KafkaStreamsStateChangeListenerCommon extends KafkaStreams.StateListener w
 
 class KafkaStreamsNotifyOnStateChangeListener(
     override val streamName: String,
-    notifyTo: List[KafkaStateChange ⇒ Unit],
+    notifyTo: List[KafkaStateChange => Unit],
     override val verbose: Boolean = true) extends KafkaStreamsStateChangeListenerCommon {
   override def changed(change: KafkaStateChange): Unit = {
     if (notifyTo.nonEmpty) {
-      notifyTo.foreach(f ⇒ f(change))
+      notifyTo.foreach(f => f(change))
     }
   }
 }
@@ -81,12 +81,12 @@ object KafkaStreamsUpdatePartitionsOnStateChangeListener {
   case class KafkaStateChange(oldState: State, newState: State)
 }
 
-class KafkaStreamsUncaughtExceptionHandler(notifyTo: List[KafkaStreamsUncaughtException ⇒ Unit] = List()) extends UncaughtExceptionHandler {
+class KafkaStreamsUncaughtExceptionHandler(notifyTo: List[KafkaStreamsUncaughtException => Unit] = List()) extends UncaughtExceptionHandler {
   private val log = LoggerFactory.getLogger(getClass)
   override def uncaughtException(t: Thread, e: Throwable): Unit = {
     log.warn(s"Kafka Streams uncaught exception is [$e]")
     log.error("Kafka Streams saw an uncaught exception", e)
-    notifyTo.foreach(f ⇒ f(KafkaStreamsUncaughtException(t, e)))
+    notifyTo.foreach(f => f(KafkaStreamsUncaughtException(t, e)))
   }
 }
 object KafkaStreamsUncaughtExceptionHandler {

@@ -20,7 +20,7 @@ private[surge] case class SurgeCommandBusinessLogic[Agg, Command, Event](
     readFormatting: SurgeAggregateReadFormatting[Agg],
     writeFormatting: SurgeWriteFormatting[Agg, Event],
     commandValidator: AsyncCommandValidator[Command, Agg],
-    aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) ⇒ Boolean,
+    aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) => Boolean,
     metricsProvider: MetricsProvider, metricsPublisher: MetricsPublisher, metricsInterval: FiniteDuration,
     consumerGroup: String,
     transactionalIdPrefix: String) {

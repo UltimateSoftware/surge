@@ -33,12 +33,12 @@ trait AggregateRefTrait[AggId, Agg, Cmd, Event] {
 
   private val log: Logger = LoggerFactory.getLogger(getClass)
 
-  private def interpretActorResponse: Any ⇒ Either[Throwable, Option[Agg]] = {
-    case success: GenericAggregateActor.CommandSuccess[Agg] ⇒ Right(success.aggregateState)
-    case failure: GenericAggregateActor.CommandFailure      ⇒ Left(new DomainValidationError(failure.validationError))
-    case error: GenericAggregateActor.CommandError ⇒
+  private def interpretActorResponse: Any => Either[Throwable, Option[Agg]] = {
+    case success: GenericAggregateActor.CommandSuccess[Agg] => Right(success.aggregateState)
+    case failure: GenericAggregateActor.CommandFailure      => Left(new DomainValidationError(failure.validationError))
+    case error: GenericAggregateActor.CommandError =>
       Left(error.exception)
-    case other ⇒
+    case other =>
       val errorMsg = s"Unable to interpret response from aggregate - this should not happen: $other"
       log.error(errorMsg)
       Left(SurgeUnexpectedException(new IllegalStateException(errorMsg)))
@@ -70,14 +70,14 @@ trait AggregateRefTrait[AggId, Agg, Cmd, Event] {
     envelope: GenericAggregateActor.CommandEnvelope[Cmd],
     retriesRemaining: Int = 0)(implicit ec: ExecutionContext): Future[Either[Throwable, Option[Agg]]] = {
     (region ? envelope).map(interpretActorResponse).recoverWith {
-      case _: Throwable if retriesRemaining > 0 ⇒
+      case _: Throwable if retriesRemaining > 0 =>
         log.warn("Ask timed out to aggregate actor region, retrying request...")
         askWithRetries(envelope, retriesRemaining - 1)
-      case _: AskTimeoutException ⇒
+      case _: AskTimeoutException =>
         val msg = s"Ask timed out after $askTimeoutDuration to aggregate actor with id ${envelope.aggregateId} executing command ${envelope.command.getClass.getName}. " +
           s"This is typically a result of other parts of the engine performing incorrectly or hitting exceptions"
         Future.successful[Either[Throwable, Option[Agg]]](Left(SurgeTimeoutException(msg)))
-      case e: Throwable ⇒
+      case e: Throwable =>
         Future.successful[Either[Throwable, Option[Agg]]](Left(SurgeUnexpectedException(e)))
     }
   }
@@ -86,9 +86,9 @@ trait AggregateRefTrait[AggId, Agg, Cmd, Event] {
     envelope: GenericAggregateActor.ApplyEventEnvelope[Event],
     retriesRemaining: Int = 0)(implicit ec: ExecutionContext): Future[Option[Agg]] = {
     (region ? envelope).map {
-      case success: GenericAggregateActor.CommandSuccess[Agg] ⇒ success.aggregateState
+      case success: GenericAggregateActor.CommandSuccess[Agg] => success.aggregateState
     }.recoverWith {
-      case e ⇒
+      case e =>
         if (retriesRemaining > 0) {
           log.warn("Ask timed out to aggregate actor region, retrying request...")
           applyEventsWithRetries(envelope, retriesRemaining - 1)

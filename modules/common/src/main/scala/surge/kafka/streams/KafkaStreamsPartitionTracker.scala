@@ -12,8 +12,9 @@ import scala.collection.JavaConverters._
 abstract class KafkaStreamsPartitionTracker(kafkaStreams: KafkaStreams) {
   protected def allMetadata(): Iterable[StreamsMetadata] = kafkaStreams.allMetadata().asScala
   protected def metadataByInstance(): Map[HostPort, List[TopicPartition]] = allMetadata()
-    .groupBy(meta ⇒ HostPort(meta.host(), meta.port()))
-    .mapValues(meta ⇒ meta.toList.flatMap(_.topicPartitions().asScala))
+    .groupBy(meta => HostPort(meta.host(), meta.port()))
+    .mapValues(meta => meta.toList.flatMap(_.topicPartitions().asScala))
+    .toMap
 
   def update(): Unit
 }

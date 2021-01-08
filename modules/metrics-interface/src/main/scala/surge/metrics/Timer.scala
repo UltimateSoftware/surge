@@ -18,7 +18,7 @@ trait Timer extends MetricContainerTrait[Timer] {
 
   def time[T](fut: Future[T]): Future[T] = {
     val startTime = Instant.now()
-    fut.onComplete { _ ⇒
+    fut.onComplete { _ =>
       val endTime = Instant.now()
       val tookMillis = endTime.toEpochMilli - startTime.toEpochMilli
       recordTime(tookMillis)
@@ -26,7 +26,7 @@ trait Timer extends MetricContainerTrait[Timer] {
     fut
   }
 
-  def time[T](block: ⇒ T): T = {
+  def time[T](block: => T): T = {
     val startTime = Instant.now()
     val result = block
     val endTime = Instant.now()
@@ -37,7 +37,7 @@ trait Timer extends MetricContainerTrait[Timer] {
 
   // TODO maybe we want to track other stuff for this too?
   def toMetrics(implicit ec: ExecutionContext): Future[Seq[Metric]] = {
-    value.map { timerValue ⇒
+    value.map { timerValue =>
       Seq(Metric(name = name, value = timerValue, tenantId = tenantId))
     }
   }

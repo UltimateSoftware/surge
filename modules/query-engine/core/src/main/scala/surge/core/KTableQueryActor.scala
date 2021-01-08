@@ -29,7 +29,7 @@ class KTableQueryActor[A](streams: KafkaStreams, storeName: String, keyValueStor
   import context.dispatcher
 
   override def receive: Receive = {
-    case msg: GetState ⇒ handleGetState(msg.aggregateId)
+    case msg: GetState => handleGetState(msg.aggregateId)
   }
 
   private def handleGetState(aggregateId: String): Unit = {
@@ -37,7 +37,7 @@ class KTableQueryActor[A](streams: KafkaStreams, storeName: String, keyValueStor
 
     val fetchedStateFuture = if (isHostInfoThisNode(aggregateOwnerHostInfo)) {
       // State for key is local, just query state store
-      keyValueStore.get(aggregateId).map(aggregateOpt ⇒ FetchedState(aggregateId, aggregateOpt))
+      keyValueStore.get(aggregateId).map(aggregateOpt => FetchedState(aggregateId, aggregateOpt))
     } else {
       // State for key is remote, ask peer who owns the aggregate for an answer
       val remoteAddress = Address(akkaProtocol, context.system.name, aggregateOwnerHostInfo.host, aggregateOwnerHostInfo.port)

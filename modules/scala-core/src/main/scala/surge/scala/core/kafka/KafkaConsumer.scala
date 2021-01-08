@@ -34,13 +34,13 @@ trait KafkaConsumerTrait[K, V] extends KafkaSecurityConfiguration {
 
   private var running = true
 
-  def subscribe(topic: KafkaTopic, businessLogic: ConsumerRecord[K, V] ⇒ Unit): Unit = {
+  def subscribe(topic: KafkaTopic, businessLogic: ConsumerRecord[K, V] => Unit): Unit = {
     consumer.subscribe(java.util.Arrays.asList(topic.name))
     try {
       while (running) {
         val records = consumer.poll(java.time.Duration.ofMillis(consumerConfig.pollDuration.toMillis))
         for {
-          record ← records.iterator().asScala
+          record <- records.iterator().asScala
         } {
           businessLogic(record)
         }
@@ -58,7 +58,7 @@ trait KafkaConsumerTrait[K, V] extends KafkaSecurityConfiguration {
     consumer.partitionsFor(topic.name).asScala.toSet
   }
   def partitions(topic: KafkaTopic): Set[TopicPartition] = {
-    partitionInfo(topic).map(info ⇒ new TopicPartition(info.topic, info.partition))
+    partitionInfo(topic).map(info => new TopicPartition(info.topic, info.partition))
   }
 
   def startOffsets(topic: KafkaTopic): Map[TopicPartition, Long] = {
@@ -82,7 +82,7 @@ final case class KafkaStringConsumer(
     kafkaConfig: Map[String, String]) extends KafkaConsumerTrait[String, String] {
   val props: Properties = {
     val p = defaultProps
-    kafkaConfig.foreach(propPair ⇒ p.put(propPair._1, propPair._2))
+    kafkaConfig.foreach(propPair => p.put(propPair._1, propPair._2))
     p.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, classOf[StringDeserializer].getName)
     p.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, classOf[StringDeserializer].getName)
     p
@@ -96,7 +96,7 @@ final case class KafkaBytesConsumer(
     kafkaConfig: Map[String, String]) extends KafkaConsumerTrait[String, Array[Byte]] {
   val props: Properties = {
     val p = defaultProps
-    kafkaConfig.foreach(propPair ⇒ p.put(propPair._1, propPair._2))
+    kafkaConfig.foreach(propPair => p.put(propPair._1, propPair._2))
     p.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, classOf[StringDeserializer].getName)
     p.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, classOf[ByteArrayDeserializer].getName)
     p
