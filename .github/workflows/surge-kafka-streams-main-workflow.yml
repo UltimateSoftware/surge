@@ -44,7 +44,8 @@ jobs:
             --sonar_host=https://sonar.ulti.io \
             --sonar_token=secrets.prod::sonar:token \
             --sonar_project_key=GEARS_Tools \
-            --sonar_quality_gate_id=
+            --sonar_quality_gate_id= \
+            -s=.
       - name: publish-library
         run: |-
           fnd tanagra:deploy:library \
