@@ -1,0 +1,20 @@
+template: lib-gh
+branches:
+  - name: ci
+    options:
+      - test
+  - name: main
+    options:
+      - test
+      - sonar
+      - publish-library
+  - name: 0.4-compat
+    options:
+      - test
+      - sonar
+      - publish-library
+name: surge-kafka-streams
+parameters:
+  project-dir: ''
+type: github-actions
+settings-profile: default
