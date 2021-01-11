@@ -45,7 +45,6 @@ jobs:
             --sonar_token=secrets.prod::sonar:token \
             --sonar_project_key=GEARS_Tools \
             --sonar_quality_gate_id= \
-            -s=.
       - name: publish-library
         run: |-
           fnd tanagra:deploy:library \
