@@ -13,6 +13,7 @@ jobs:
       SMALL_TEST_CMD_OPTS: SmallTests
       MEDIUM_TEST_CMD_OPTS: MediumTests
       CONTRACT_TEST_CMD_OPTS: ContractTests
+      GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
       NAMESPACE: ge-incubator
       NAMESPACE_AIRLOCK_HOST: 'https://gateway.quark-airlock.dlas1.ucloud.int/tcxadoption'
       NAMESPACE_AIRLOCK_HASH: '${{ secrets.AIRLOCK_HASH }}'
