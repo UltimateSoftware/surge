@@ -38,6 +38,9 @@ object KafkaBytesProducer {
   def create(brokers: java.util.Collection[String], topic: KafkaTopic): KafkaBytesProducer = {
     new KafkaBytesProducer(brokers, topic, PartitionStringUpToColon, Map.empty[String, String].asJava)
   }
+  def create(brokers: java.util.Collection[String], topic: KafkaTopic, kafkaConfig: java.util.Map[String, String]): KafkaBytesProducer = {
+    new KafkaBytesProducer(brokers, topic, PartitionStringUpToColon, kafkaConfig)
+  }
 }
 class KafkaBytesProducer(
     brokers: java.util.Collection[String],
