@@ -5,7 +5,7 @@ package surge.core
 import java.time.Instant
 
 import akka.actor.{ ActorRef, ActorSystem, Props }
-import akka.pattern.ask
+import akka.pattern.{ AskTimeoutException, ask }
 import akka.testkit.{ TestKit, TestProbe }
 import akka.util.Timeout
 import org.apache.kafka.clients.producer.{ ProducerRecord, RecordMetadata }
@@ -92,6 +92,22 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
     val testAggs1 = KafkaProducerActor.MessageToPublish("agg1", "agg1".getBytes(), new RecordHeaders())
     val testEvents2 = testObjects(Seq("event3", "event4"))
     val testAggs2 = KafkaProducerActor.MessageToPublish("agg3", "agg3".getBytes(), new RecordHeaders())
+
+    "Return a failed future when the ask to the underlying publisher actor times out" in {
+      val probe = TestProbe()
+      val producer = new KafkaProducerActor[String, String](probe.ref, NoOpMetricsProvider, "test-aggregate")
+
+      val errorWatchProbe = TestProbe()
+      val stateToPublish = KafkaProducerActor.MessageToPublish("test", "test".getBytes(), new RecordHeaders())
+      val eventsToPublish = Seq(KafkaProducerActor.MessageToPublish("test", "test".getBytes(), new RecordHeaders()))
+      producer.publish("test", stateToPublish, eventsToPublish).map { msg ⇒
+        fail(s"Expected a failed future but received successful future with message [$msg]")
+      }.recover {
+        case e ⇒ errorWatchProbe.ref ! e
+      }
+      probe.expectMsg(KafkaProducerActorImpl.Publish(eventsToPublish = eventsToPublish, state = stateToPublish))
+      errorWatchProbe.expectMsgType[AskTimeoutException](10.seconds)
+    }
 
     "Recovers from beginTransaction failure" in {
       val probe = TestProbe()

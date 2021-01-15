@@ -13,7 +13,7 @@ import com.typesafe.config.ConfigFactory
 import org.apache.kafka.clients.producer.{ ProducerConfig, ProducerRecord }
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.ProducerFencedException
-import org.apache.kafka.common.header.{ Header, Headers }
+import org.apache.kafka.common.header.Headers
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.config.TimeoutConfig
 import surge.kafka.streams.HealthyActor.GetHealth
@@ -51,28 +51,18 @@ import scala.util.{ Failure, Success, Try }
  * that there were no remaining aggregate states that were in flight, since the newly created
  * producer cannot initialize with the knowledge of everything that was published previously.
  *
- * @param actorSystem The actor system to create the underlying stateful producer actor in
- * @param assignedPartition The state topic/partition assigned to this instance of the stateful producer.
- *                          The producer will use Kafka transactions to ensure that it is the only instance
- *                          of a stateful producer for a particular partition.  Any older producers for
- *                          that partition will be fenced out by Kafka.
+ * @param publisherActor The underlying publisher actor used to batch and publish messages to Kafka
  * @param metricsProvider Metrics provider interface to use for recording internal metrics to
- * @param businessLogic Command service business logic wrapper used for determining state and event topics
+ * @param aggregateName The name of the aggregate this publisher is responsible for
  * @tparam Agg Generic aggregate type of aggregates publishing states/events through this stateful producer
  * @tparam Event Generic base type for events that aggregate instances publish through this stateful producer
  */
 class KafkaProducerActor[Agg, Event](
-    actorSystem: ActorSystem,
-    assignedPartition: TopicPartition,
+    publisherActor: ActorRef,
     metricsProvider: MetricsProvider,
-    businessLogic: SurgeCommandBusinessLogic[Agg, _, Event]) extends HealthyComponent {
+    aggregateName: String) extends HealthyComponent {
 
   private val log = LoggerFactory.getLogger(getClass)
-  private val aggregateName: String = businessLogic.aggregateName
-
-  private val publisherActor = actorSystem.actorOf(
-    Props(new KafkaProducerActorImpl(
-      assignedPartition, metricsProvider, businessLogic)).withDispatcher("kafka-publisher-actor-dispatcher"))
 
   def publish(aggregateId: String, state: KafkaProducerActor.MessageToPublish,
     events: Seq[KafkaProducerActor.MessageToPublish]): Future[KafkaProducerActor.PublishResult] = {
@@ -111,6 +101,18 @@ class KafkaProducerActor[Agg, Event](
 }
 
 object KafkaProducerActor {
+  def apply[Agg, Event](
+    actorSystem: ActorSystem,
+    assignedPartition: TopicPartition,
+    metricsProvider: MetricsProvider,
+    businessLogic: SurgeCommandBusinessLogic[Agg, _, Event]): KafkaProducerActor[Agg, Event] = {
+    val publisherActor = actorSystem.actorOf(
+      Props(new KafkaProducerActorImpl(
+        assignedPartition, metricsProvider, businessLogic)).withDispatcher("kafka-publisher-actor-dispatcher"))
+
+    new KafkaProducerActor[Agg, Event](publisherActor, metricsProvider, businessLogic.aggregateName)
+  }
+
   sealed trait PublishResult
   case object PublishSuccess extends PublishResult
   case class PublishFailure(t: Throwable) extends PublishResult
