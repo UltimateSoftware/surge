@@ -27,16 +27,22 @@ trait EventSourceDeserialization[Event] {
 
   protected def dataHandler(eventHandler: EventHandler[Event]): DataHandler[String, Array[Byte]] = {
     new DataHandler[String, Array[Byte]] {
-      override def dataHandler[Meta]: Flow[EventPlusStreamMeta[(String, Array[Byte]), Meta], Meta, NotUsed] = {
-        Flow[EventPlusStreamMeta[(String, Array[Byte]), Meta]].map { eventPlusOffset =>
-          val key = eventPlusOffset.messageBody._1
-          val value = eventPlusOffset.messageBody._2
-          Try(eventDeserializationTimer.time(formatting.readEvent(value))) match {
-            case Failure(exception) =>
-              onFailure(key, value, exception)
-              Left(eventPlusOffset.streamMeta)
-            case Success(event) =>
-              Right(EventPlusStreamMeta(event, eventPlusOffset.streamMeta))
+      override def dataHandler[Meta]: Flow[EventPlusStreamMeta[String, Array[Byte], Meta], Meta, NotUsed] = {
+        Flow[EventPlusStreamMeta[String, Array[Byte], Meta]].map { eventPlusOffset =>
+          val key = eventPlusOffset.messageKey
+          Option(eventPlusOffset.messageBody) match {
+            case Some(value) =>
+              Try(eventDeserializationTimer.time(formatting.readEvent(value))) match {
+                case Failure(exception) =>
+                  onFailure(key, value, exception)
+                  Left(eventPlusOffset.streamMeta)
+                case Success(event) =>
+                  Right(EventPlusStreamMeta(key, event, eventPlusOffset.streamMeta, eventPlusOffset.headers))
+              }
+            case _ =>
+              eventHandler.nullEventFactory(key, eventPlusOffset.headers).map { event =>
+                Right(EventPlusStreamMeta(key, event, eventPlusOffset.streamMeta, eventPlusOffset.headers))
+              }.getOrElse(Left(eventPlusOffset.streamMeta))
           }
         }.via(EitherFlow(
           rightFlow = eventHandler.eventHandler,

@@ -156,7 +156,9 @@ private[surge] class GenericAggregateActor[Agg, Command, Event](
     case msg: EventsFailedToPersist       => handleFailedToPersist(state, msg)
     case msg: EventPublishTimedOut        => handlePersistenceTimedOut(state, msg)
     case ReceiveTimeout                   => // Ignore and drop ReceiveTimeout messages from this state
-    case _                                => stash()
+    case other =>
+      log.info(s"Aggregate actor for $aggregateId stashing a message with class [{}] from the 'persistingEvents' state", other.getClass)
+      stash()
   }
 
   private def uninitialized: Receive = {
@@ -165,7 +167,9 @@ private[surge] class GenericAggregateActor[Agg, Command, Event](
       // Ignore and drop ReceiveTimeout messages from this state
       log.warn(s"Aggregate actor for $aggregateId received a ReceiveTimeout message in uninitialized state. " +
         "This should not happen and is likely a logic error. Dropping the ReceiveTimeout message.")
-    case _ => stash()
+    case other =>
+      log.debug(s"Aggregate actor for $aggregateId stashing a message with class [{}] from the 'uninitialized' state", other.getClass)
+      stash()
   }
 
   private def handle(state: InternalActorState, commandEnvelope: CommandEnvelope[Command]): Unit = {
@@ -254,10 +258,16 @@ private[surge] class GenericAggregateActor[Agg, Command, Event](
 
   private def handleFailedToPersist(state: InternalActorState, eventsFailedToPersist: EventsFailedToPersist): Unit = {
     if (eventsFailedToPersist.numberOfFailures > maxProducerFailureRetries) {
+      log.error(s"Failed to publish to Kafka after ${eventsFailedToPersist.numberOfFailures} tries, crashing " +
+        s"actor for ${businessLogic.aggregateName} $aggregateId", eventsFailedToPersist.reason)
       val publishTimeMillis = Instant.now.toEpochMilli - eventsFailedToPersist.startTime.toEpochMilli
       metrics.eventPublishTimer.recordTime(publishTimeMillis)
       sender() ! CommandError(eventsFailedToPersist.reason)
+      context.stop(self)
     } else {
+      log.warn(
+        s"Failed to publish to Kafka after try #${eventsFailedToPersist.numberOfFailures}, retrying for ${businessLogic.aggregateName} $aggregateId",
+        eventsFailedToPersist.reason)
       doPublish(eventsFailedToPersist.newState, eventsFailedToPersist.serializedEvents, eventsFailedToPersist.serializedState,
         eventsFailedToPersist.numberOfFailures, eventsFailedToPersist.startTime).pipeTo(self)(sender())
     }
@@ -270,6 +280,7 @@ private[surge] class GenericAggregateActor[Agg, Command, Event](
   }
 
   private def handle(state: InternalActorState, failure: CommandFailure): Unit = {
+    log.debug(s"The command for ${businessLogic.aggregateName} $aggregateId resulted in a validation error")
     context.setReceiveTimeout(receiveTimeout)
     context.become(freeToProcess(state))
 
@@ -277,6 +288,7 @@ private[surge] class GenericAggregateActor[Agg, Command, Event](
   }
 
   private def handleCommandError(state: InternalActorState, error: CommandError): Unit = {
+    log.debug(s"The command for ${businessLogic.aggregateName} $aggregateId resulted in an error", error.exception)
     context.setReceiveTimeout(receiveTimeout)
     context.become(freeToProcess(state))
 

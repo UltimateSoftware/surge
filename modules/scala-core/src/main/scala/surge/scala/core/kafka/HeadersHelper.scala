@@ -13,4 +13,8 @@ object HeadersHelper {
 
     new RecordHeaders(headers.asJava)
   }
+
+  def unapplyHeaders(headers: Headers): Map[String, Array[Byte]] = {
+    headers.toArray.map(h => h.key() -> h.value()).toMap
+  }
 }

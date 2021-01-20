@@ -100,10 +100,10 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
       val errorWatchProbe = TestProbe()
       val stateToPublish = KafkaProducerActor.MessageToPublish("test", "test".getBytes(), new RecordHeaders())
       val eventsToPublish = Seq(KafkaProducerActor.MessageToPublish("test", "test".getBytes(), new RecordHeaders()))
-      producer.publish("test", stateToPublish, eventsToPublish).map { msg ⇒
+      producer.publish("test", stateToPublish, eventsToPublish).map { msg =>
         fail(s"Expected a failed future but received successful future with message [$msg]")
       }.recover {
-        case e ⇒ errorWatchProbe.ref ! e
+        case e => errorWatchProbe.ref ! e
       }
       probe.expectMsg(KafkaProducerActorImpl.Publish(eventsToPublish = eventsToPublish, state = stateToPublish))
       errorWatchProbe.expectMsgType[AskTimeoutException](10.seconds)
@@ -360,11 +360,6 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
       val assignedPartition = new TopicPartition("testTopic", 1)
       val mockProducerFenceOnBegin = mock[KafkaBytesProducer]
       val mockProducerFenceOnCommit = mock[KafkaBytesProducer]
-      val fencedOnBegin = testProducerActor(assignedPartition, mockProducerFenceOnBegin)
-      sendMetadataUpdated(probe, fencedOnBegin, assignedPartition)
-      val fencedOnCommit = testProducerActor(assignedPartition, mockProducerFenceOnCommit)
-      sendMetadataUpdated(probe, fencedOnCommit, assignedPartition)
-
       val mockMetadata = mockRecordMetadata(assignedPartition)
 
       when(mockProducerFenceOnBegin.initTransactions()(any[ExecutionContext])).thenReturn(Future.unit)
@@ -384,6 +379,11 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
         .thenReturn(Seq(Future.successful(mockMetadata)))
       when(mockProducerFenceOnCommit.putRecord(any[ProducerRecord[String, Array[Byte]]]))
         .thenReturn(Future.successful(mockMetadata))
+
+      val fencedOnBegin = testProducerActor(assignedPartition, mockProducerFenceOnBegin)
+      sendMetadataUpdated(probe, fencedOnBegin, assignedPartition)
+      val fencedOnCommit = testProducerActor(assignedPartition, mockProducerFenceOnCommit)
+      sendMetadataUpdated(probe, fencedOnCommit, assignedPartition)
 
       probe.watch(fencedOnBegin)
       probe.send(fencedOnBegin, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))

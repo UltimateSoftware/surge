@@ -304,6 +304,7 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
       val testEnvelope = envelope(incrementCmd)
       probe.send(actor, testEnvelope)
       probe.expectMsg(CommandError(expectedException))
+      probe.expectTerminated(actor)
     }
 
     "Retry publishing to Kafka if publishing explicitly fails" in {

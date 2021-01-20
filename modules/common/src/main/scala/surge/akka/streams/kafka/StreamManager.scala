@@ -20,11 +20,17 @@ import org.apache.kafka.common.{ Metric, MetricName }
 import surge.akka.cluster.{ ActorHostAwareness, ActorRegistry, ActorSystemHostAwareness }
 import surge.core.DataPipeline.{ ReplayResult, _ }
 import surge.core.{ EventPlusStreamMeta, EventReplaySettings, EventReplayStrategy }
-import surge.scala.core.kafka.KafkaTopic
+import surge.scala.core.kafka.{ HeadersHelper, KafkaTopic }
 import surge.support.Logging
 
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
+
+case class KafkaStreamMeta(topic: String, partition: Int, offset: Long, committableOffset: CommittableOffset) {
+  override def toString: String = {
+    s"topic=$topic, partition=$partition, offset=$offset"
+  }
+}
 
 object KafkaStreamManager {
   val serviceIdentifier = "StreamManager"
@@ -32,12 +38,13 @@ object KafkaStreamManager {
   def apply[Key, Value](topic: KafkaTopic, consumerSettings: ConsumerSettings[Key, Value],
     replayStrategy: EventReplayStrategy,
     replaySettings: EventReplaySettings,
-    business: Flow[EventPlusStreamMeta[(Key, Value), CommittableOffset], CommittableOffset, NotUsed])(implicit
+    business: Flow[EventPlusStreamMeta[Key, Value, KafkaStreamMeta], KafkaStreamMeta, NotUsed])(implicit
     actorSystem: ActorSystem,
     ec: ExecutionContext): KafkaStreamManager[Key, Value] = {
     val subscription = Subscriptions.topics(topic.name)
     val businessFlow = Flow[ConsumerMessage.CommittableMessage[Key, Value]].map { msg =>
-      EventPlusStreamMeta(msg.record.key -> msg.record.value, msg.committableOffset)
+      val kafkaMeta = KafkaStreamMeta(msg.record.topic(), msg.record.partition(), msg.record.offset(), msg.committableOffset)
+      EventPlusStreamMeta(msg.record.key, msg.record.value, kafkaMeta, HeadersHelper.unapplyHeaders(msg.record.headers()))
     }.via(business)
     new KafkaStreamManager[Key, Value](subscription, topic.name, consumerSettings, replayStrategy, replaySettings, businessFlow)
   }
@@ -47,7 +54,7 @@ class KafkaStreamManager[Key, Value](
     subscription: Subscription, topicName: String, consumerSettings: ConsumerSettings[Key, Value],
     replayStrategy: EventReplayStrategy,
     replaySettings: EventReplaySettings,
-    businessFlow: Flow[ConsumerMessage.CommittableMessage[Key, Value], CommittableOffset, NotUsed])(implicit val actorSystem: ActorSystem)
+    businessFlow: Flow[ConsumerMessage.CommittableMessage[Key, Value], KafkaStreamMeta, NotUsed])(implicit val actorSystem: ActorSystem)
   extends ActorSystemHostAwareness with Logging {
 
   private val consumerGroup = consumerSettings.getProperty(ConsumerConfig.GROUP_ID_CONFIG)
@@ -99,7 +106,7 @@ object KafkaStreamManagerActor {
   case object SuccessfullyStarted extends KafkaStreamManagerActorEvent
 }
 class KafkaStreamManagerActor[Key, Value](subscription: Subscription, topicName: String, baseConsumerSettings: ConsumerSettings[Key, Value],
-    businessFlow: Flow[ConsumerMessage.CommittableMessage[Key, Value], CommittableOffset, NotUsed]) extends Actor
+    businessFlow: Flow[ConsumerMessage.CommittableMessage[Key, Value], KafkaStreamMeta, NotUsed]) extends Actor
   with ActorHostAwareness with Stash with ActorRegistry with Logging {
   import KafkaStreamManagerActor._
   import context.{ dispatcher, system }
@@ -172,6 +179,7 @@ class KafkaStreamManagerActor[Key, Value](subscription: Subscription, topicName:
           .committableSource(consumerSettings, subscription)
           .mapMaterializedValue(c => control.set(c))
           .via(businessFlow)
+          .map(_.committableOffset)
           .via(Committer.flow(committerSettings))
       }.runWith(Sink.ignore)
 

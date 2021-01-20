@@ -13,6 +13,8 @@ import surge.akka.streams.graph.PassThroughFlow
 import surge.core._
 import surge.support.Logging
 
+import scala.collection.JavaConverters._
+
 trait RabbitDataSource[Key, Value] extends DataSource {
   def actorSystem: ActorSystem
 
@@ -30,8 +32,10 @@ trait RabbitDataSource[Key, Value] extends DataSource {
   private val log = LoggerFactory.getLogger(getClass)
   private def businessFlow(sink: DataHandler[Key, Value]): Flow[CommittableReadResult, CommittableReadResult, NotUsed] = {
     val handleEventFlow = Flow[CommittableReadResult].map { crr =>
-      val keyValue = readResultToKey(crr) -> readResultToValue(crr.message.bytes)
-      val eventPlusMeta = EventPlusStreamMeta(keyValue, streamMeta = None)
+      val key = readResultToKey(crr)
+      val value = readResultToValue(crr.message.bytes)
+      val headers = crr.message.properties.getHeaders.asScala.mapValues(_.toString.getBytes()).toMap
+      val eventPlusMeta = EventPlusStreamMeta(key, value, streamMeta = None, headers)
       eventPlusMeta
     }.via(sink.dataHandler)
 

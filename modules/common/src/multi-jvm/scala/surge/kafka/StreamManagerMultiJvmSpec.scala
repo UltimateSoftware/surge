@@ -3,7 +3,6 @@
 package surge.kafka
 
 import akka.NotUsed
-import akka.kafka.ConsumerMessage.CommittableOffset
 import akka.remote.testconductor.RoleName
 import akka.remote.testkit.{ MultiNodeConfig, MultiNodeSpec, MultiNodeSpecCallbacks }
 import akka.stream.scaladsl.Flow
@@ -16,7 +15,7 @@ import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatest.{ BeforeAndAfterAll, OptionValues }
-import surge.akka.streams.kafka.{ KafkaConsumer, KafkaStreamManager }
+import surge.akka.streams.kafka.{ KafkaConsumer, KafkaStreamManager, KafkaStreamMeta }
 import surge.core._
 import surge.kafka.streams.DefaultSerdes
 import surge.scala.core.kafka.KafkaTopic
@@ -64,9 +63,9 @@ class StreamManagerSpecBase extends MultiNodeSpec(StreamManagerSpecConfig) with 
       val topic = KafkaTopic(topicName)
       val record1 = "record 1"
       val record2 = "record 2"
-      def sendToTestProbe(testProbe: TestProbe): Flow[EventPlusStreamMeta[(String, Array[Byte]), CommittableOffset], CommittableOffset, NotUsed] = {
-        Flow[EventPlusStreamMeta[(String, Array[Byte]), CommittableOffset]].map { eventPlusOffset =>
-          val msg = stringDeserializer.deserialize("", eventPlusOffset.messageBody._2)
+      def sendToTestProbe(testProbe: TestProbe): Flow[EventPlusStreamMeta[String, Array[Byte], KafkaStreamMeta], KafkaStreamMeta, NotUsed] = {
+        Flow[EventPlusStreamMeta[String, Array[Byte], KafkaStreamMeta]].map { eventPlusOffset =>
+          val msg = stringDeserializer.deserialize("", eventPlusOffset.messageBody)
           testProbe.ref ! msg
           eventPlusOffset.streamMeta
         }

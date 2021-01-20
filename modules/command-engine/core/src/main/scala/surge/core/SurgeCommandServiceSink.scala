@@ -14,7 +14,7 @@ trait SurgeMultiCommandServiceSink[AggId, Command, Event] extends EventSink[Even
 
   def aggregateIdFromCommand: Command => AggId
 
-  def handleEvent(event: Event): Future[Any] = {
+  override def handleEvent(key: String, event: Event, headers: Map[String, Array[Byte]]): Future[Any] = {
     val aggregateCommands = eventToCommands(event).map { cmd =>
       (aggregateIdFromCommand(cmd), cmd)
     }

@@ -50,12 +50,14 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
   }
 
   private def testEventSink(probe: TestProbe): EventSink[String] = new EventSink[String] {
-    override def handleEvent(event: String): Future[Any] = {
+    override def handleEvent(key: String, event: String, headers: Map[String, Array[Byte]]): Future[Any] = {
       probe.ref ! event
       Future.successful(Done)
     }
 
-    override def partitionBy(event: String): String = event
+    override def partitionBy(key: String, event: String, headers: Map[String, Array[Byte]]): String = {
+      event
+    }
   }
 
   "EventSource" should {
@@ -92,10 +94,47 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
       }
     }
 
-    // FIXME this needs to have the new consumer enabled to have any chance of working.  With the new consumer
-    //  we need to reuse the underlying Kafka consumer for restarts, otherwise we are at the mercy of the Kafka consumer
-    //  group rebalance, which are much slower and far more disruptive than restarting the stream using the same underlying consumer
-    "Restart if an exception is thrown in the stream" ignore {
+    "Read tombstone records" in {
+      val userDefinedConfig = EmbeddedKafkaConfig(kafkaPort = 0, zooKeeperPort = 0)
+      withRunningKafkaOnFoundPort(userDefinedConfig) { implicit actualConfig =>
+        val topic = KafkaTopic("testTopic")
+        createCustomTopic(topic.name, partitions = 3)
+        val embeddedBroker = s"localhost:${actualConfig.kafkaPort}"
+
+        val groupId = "tombstone-record-test"
+
+        def createConsumer: EventSource[String] =
+          testEventSource(topic, kafkaBrokers = embeddedBroker, groupId = groupId)
+
+        val record1 = "record 1"
+        publishToKafka(new ProducerRecord[String, String](topic.name, 0, record1, record1))
+        publishToKafka(new ProducerRecord[String, String](topic.name, 0, record1, null))
+
+        val consumer1 = createConsumer
+        val consumerSettings = testConsumerSettings(embeddedBroker, groupId)
+        val probe = TestProbe()
+        val testSink = new EventSink[String] {
+          override def handleEvent(key: String, event: String, headers: Map[String, Array[Byte]]): Future[Any] = {
+            probe.ref ! event
+            Future.successful(Done)
+          }
+
+          override def nullEventFactory(key: String, headers: Map[String, Array[Byte]]): Option[String] = {
+            Some(s"DELETE $key")
+          }
+
+          override def partitionBy(key: String, event: String, headers: Map[String, Array[Byte]]): String = {
+            event
+          }
+        }
+
+        consumer1.to(consumerSettings)(testSink)
+
+        probe.expectMsgAllOf(10.seconds, record1, s"DELETE $record1")
+      }
+    }
+
+    "Restart if an exception is thrown in the stream" in {
       val userDefinedConfig = EmbeddedKafkaConfig(kafkaPort = 0, zooKeeperPort = 0)
       withRunningKafkaOnFoundPort(userDefinedConfig) { implicit actualConfig =>
         val topic = KafkaTopic("testTopic2")
@@ -119,7 +158,7 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
         def createTestSink: EventSink[String] = new EventSink[String] {
           private val expectedNumExceptions = 1
           private var exceptionCount = 0
-          override def handleEvent(event: String): Future[Any] = {
+          override def handleEvent(key: String, event: String, headers: Map[String, Array[Byte]]): Future[Any] = {
             if (exceptionCount < expectedNumExceptions) {
               exceptionCount = exceptionCount + 1
               Future.failed(new RuntimeException("This is expected"))
@@ -128,7 +167,7 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
               Future.successful(Done)
             }
           }
-          override def partitionBy(event: String): String = event
+          override def partitionBy(key: String, event: String, headers: Map[String, Array[Byte]]): String = event
         }
 
         val consumerSettings = testConsumerSettings(embeddedBroker, groupId)
@@ -139,7 +178,7 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
       }
     }
 
-    "Quick load test" ignore {
+    "Quick load test" in {
       val userDefinedConfig = EmbeddedKafkaConfig(kafkaPort = 0, zooKeeperPort = 0)
       withRunningKafkaOnFoundPort(userDefinedConfig) { implicit actualConfig =>
         val topic = KafkaTopic("loadTestTopic")
@@ -157,11 +196,11 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
         val consumerSettings = testConsumerSettings(embeddedBroker, groupId)
         var count = 0
         val countingEventSink = new EventSink[String] {
-          override def handleEvent(event: String): Future[Any] = {
+          override def handleEvent(key: String, event: String, headers: Map[String, Array[Byte]]): Future[Any] = {
             count += 1
             Future.successful(Done)
           }
-          override def partitionBy(event: String): String = event
+          override def partitionBy(key: String, event: String, headers: Map[String, Array[Byte]]): String = event
         }
 
         consumer1.to(consumerSettings)(countingEventSink)
@@ -171,7 +210,8 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
           count shouldEqual 1000
         }
         val endTime = Instant.now
-        log.info(s"Time taken is: ${endTime.toEpochMilli - startTime.toEpochMilli} ms")
+        val timeElapsed = endTime.toEpochMilli - startTime.toEpochMilli
+        log.info(s"Time taken is: $timeElapsed ms")
         succeed
       }
     }

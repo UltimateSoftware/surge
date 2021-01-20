@@ -4,7 +4,6 @@ package surge.akka.streams.kafka
 
 import akka.Done
 import akka.actor.ActorSystem
-import akka.kafka.ConsumerMessage.CommittableOffset
 import akka.testkit.{ TestKit, TestProbe }
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.clients.producer.ProducerRecord
@@ -49,9 +48,9 @@ class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec"))
       .withBootstrapServers(kafkaBrokers)
 
     val parallelism = 16
-    val tupleFlow: ((String, Array[Byte])) => Future[_] = { tup => businessLogic(tup._1, tup._2) }
-    val partitionBy: ((String, Array[Byte])) => String = _._1
-    val businessFlow = FlowConverter.flowFor[(String, Array[Byte]), CommittableOffset](tupleFlow, partitionBy, parallelism)
+    val tupleFlow: (String, Array[Byte], Map[String, Array[Byte]]) => Future[_] = { (k, v, _) => businessLogic(k, v) }
+    val partitionBy: (String, Array[Byte], Map[String, Array[Byte]]) => String = { (k, _, _) => k }
+    val businessFlow = FlowConverter.flowFor[String, Array[Byte], KafkaStreamMeta](tupleFlow, partitionBy, parallelism)
     KafkaStreamManager(topic, consumerSettings, replayStrategy, replaySettings, businessFlow)
   }
 

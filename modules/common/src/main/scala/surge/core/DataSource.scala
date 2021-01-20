@@ -50,42 +50,44 @@ trait KafkaDataSource[Key, Value] extends DataSource {
 object FlowConverter {
   private val log = LoggerFactory.getLogger(getClass)
 
-  def flowFor[T, Meta](
-    businessLogic: T => Future[Any],
-    partitionBy: T => String,
-    parallelism: Int)(implicit ec: ExecutionContext): Flow[EventPlusStreamMeta[T, Meta], Meta, NotUsed] = {
+  def flowFor[K, V, Meta](
+    businessLogic: (K, V, Map[String, Array[Byte]]) => Future[Any],
+    partitionBy: (K, V, Map[String, Array[Byte]]) => String,
+    parallelism: Int)(implicit ec: ExecutionContext): Flow[EventPlusStreamMeta[K, V, Meta], Meta, NotUsed] = {
 
     Flow.fromGraph(
       GraphDSL.create() { implicit builder =>
         import GraphDSL.Implicits._
-        def toPartition: EventPlusStreamMeta[T, Meta] => Int = { t => math.abs(MurmurHash3.stringHash(partitionBy(t.messageBody)) % parallelism) }
-        val partition = builder.add(Partition[EventPlusStreamMeta[T, Meta]](parallelism, toPartition))
+        def toPartition: EventPlusStreamMeta[K, V, Meta] => Int = { t =>
+          math.abs(MurmurHash3.stringHash(partitionBy(t.messageKey, t.messageBody, t.headers)) % parallelism)
+        }
+        val partition = builder.add(Partition[EventPlusStreamMeta[K, V, Meta]](parallelism, toPartition))
         val merge = builder.add(Merge[Meta](parallelism))
-        val flow = Flow[EventPlusStreamMeta[T, Meta]].mapAsync(1) { eventPlusOffset =>
-          businessLogic(eventPlusOffset.messageBody).recover {
+        val flow = Flow[EventPlusStreamMeta[K, V, Meta]].mapAsync(1) { evtPlusMeta =>
+          businessLogic(evtPlusMeta.messageKey, evtPlusMeta.messageBody, evtPlusMeta.headers).recover {
             case e =>
-              log.error(s"An exception was thrown by the event handler! The stream will restart and the message will be retried.", e)
+              log.error(s"An exception was thrown by the event handler for message with metadata[${evtPlusMeta.streamMeta}]. " +
+                s"The stream will restart and the message will be retried.", e)
               throw e
-          }.map(_ => eventPlusOffset.streamMeta)
+          }.map(_ => evtPlusMeta.streamMeta)
         }
 
         for (_ <- 1 to parallelism) { partition ~> flow ~> merge }
 
-        FlowShape[EventPlusStreamMeta[T, Meta], Meta](partition.in, merge.out)
+        FlowShape[EventPlusStreamMeta[K, V, Meta], Meta](partition.in, merge.out)
       })
   }
 }
 
 trait DataHandler[Key, Value] {
-  def dataHandler[Meta]: Flow[EventPlusStreamMeta[(Key, Value), Meta], Meta, NotUsed]
+  def dataHandler[Meta]: Flow[EventPlusStreamMeta[Key, Value, Meta], Meta, NotUsed]
 }
 trait DataSink[Key, Value] extends DataHandler[Key, Value] {
   def parallelism: Int = 8
-  def handle(key: Key, value: Value): Future[Any]
-  def partitionBy(kv: (Key, Value)): String
+  def handle(key: Key, value: Value, headers: Map[String, Array[Byte]]): Future[Any]
+  def partitionBy(key: Key, value: Value, headers: Map[String, Array[Byte]]): String
 
-  override def dataHandler[Meta]: Flow[EventPlusStreamMeta[(Key, Value), Meta], Meta, NotUsed] = {
-    val tupHandler: ((Key, Value)) => Future[Any] = { tup => handle(tup._1, tup._2) }
-    FlowConverter.flowFor(tupHandler, partitionBy, parallelism)(ExecutionContext.global)
+  override def dataHandler[Meta]: Flow[EventPlusStreamMeta[Key, Value, Meta], Meta, NotUsed] = {
+    FlowConverter.flowFor(handle, partitionBy, parallelism)(ExecutionContext.global)
   }
 }
