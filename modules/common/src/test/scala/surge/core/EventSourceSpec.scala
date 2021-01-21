@@ -87,10 +87,37 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
         val probe = TestProbe()
         val testSink = testEventSink(probe)
 
-        consumer1.to(consumerSettings)(testSink)
-        consumer2.to(consumerSettings)(testSink)
+        consumer1.to(consumerSettings)(testSink, autoStart = true)
+        consumer2.to(consumerSettings)(testSink, autoStart = true)
 
         probe.expectMsgAllOf(10.seconds, record1, record2, record3, record4)
+      }
+    }
+
+    "Not automatically subscribe to events if autoStart is false" in {
+      val userDefinedConfig = EmbeddedKafkaConfig(kafkaPort = 0, zooKeeperPort = 0)
+      withRunningKafkaOnFoundPort(userDefinedConfig) { implicit actualConfig =>
+        val topic = KafkaTopic("testTopic")
+        createCustomTopic(topic.name, partitions = 3)
+        val embeddedBroker = s"localhost:${actualConfig.kafkaPort}"
+
+        val groupId = "auto-start-false-test"
+
+        def createConsumer: EventSource[String] =
+          testEventSource(topic, kafkaBrokers = embeddedBroker, groupId = groupId)
+
+        val record1 = "record 1"
+        publishToKafka(new ProducerRecord[String, String](topic.name, 0, record1, record1))
+
+        val consumer1 = createConsumer
+        val consumerSettings = testConsumerSettings(embeddedBroker, groupId)
+        val probe = TestProbe()
+        val testSink = testEventSink(probe)
+
+        val pipeline = consumer1.to(consumerSettings)(testSink, autoStart = false)
+        probe.expectNoMessage(5.seconds)
+        pipeline.start()
+        probe.expectMsgAllOf(10.seconds, record1)
       }
     }
 
@@ -128,7 +155,7 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
           }
         }
 
-        consumer1.to(consumerSettings)(testSink)
+        consumer1.to(consumerSettings)(testSink, autoStart = true)
 
         probe.expectMsgAllOf(10.seconds, record1, s"DELETE $record1")
       }
@@ -172,7 +199,7 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
 
         val consumerSettings = testConsumerSettings(embeddedBroker, groupId)
         val testSink1 = createTestSink
-        consumer1.to(consumerSettings)(testSink1)
+        consumer1.to(consumerSettings)(testSink1, autoStart = true)
 
         probe.expectMsgAllOf(10.seconds, record1, record2, record3)
       }
@@ -203,7 +230,7 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
           override def partitionBy(key: String, event: String, headers: Map[String, Array[Byte]]): String = event
         }
 
-        consumer1.to(consumerSettings)(countingEventSink)
+        consumer1.to(consumerSettings)(countingEventSink, autoStart = true)
 
         val startTime = Instant.now
         eventually {

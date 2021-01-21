@@ -21,7 +21,7 @@ trait EventSourceDeserialization[Event] {
   protected lazy val eventDeserializationTimer: Timer = metricsProvider.createTimer(s"${baseEventName}DeserializationTimer")
   protected lazy val eventHandlingTimer: Timer = metricsProvider.createTimer(s"${baseEventName}HandlingTimer")
 
-  protected def onFailure(key: String, value: Array[Byte], exception: Throwable): Unit = {
+  protected def onDeserializationFailure(key: String, value: Array[Byte], exception: Throwable): Unit = {
     log.error("Unable to read event from byte array", exception)
   }
 
@@ -34,7 +34,7 @@ trait EventSourceDeserialization[Event] {
             case Some(value) =>
               Try(eventDeserializationTimer.time(formatting.readEvent(value))) match {
                 case Failure(exception) =>
-                  onFailure(key, value, exception)
+                  onDeserializationFailure(key, value, exception)
                   Left(eventPlusOffset.streamMeta)
                 case Success(event) =>
                   Right(EventPlusStreamMeta(key, event, eventPlusOffset.streamMeta, eventPlusOffset.headers))
@@ -60,7 +60,11 @@ trait EventSource[Event] extends KafkaDataSource[String, Array[Byte]] with Event
     super.to(dataHandler(sink), consumerGroup)
   }
 
-  private[core] def to(consumerSettings: ConsumerSettings[String, Array[Byte]])(sink: EventHandler[Event]): DataPipeline = {
-    super.to(consumerSettings)(dataHandler(sink))
+  def to(sink: EventHandler[Event], consumerGroup: String, autoStart: Boolean): DataPipeline = {
+    super.to(dataHandler(sink), consumerGroup, autoStart)
+  }
+
+  private[core] def to(consumerSettings: ConsumerSettings[String, Array[Byte]])(sink: EventHandler[Event], autoStart: Boolean): DataPipeline = {
+    super.to(consumerSettings)(dataHandler(sink), autoStart)
   }
 }

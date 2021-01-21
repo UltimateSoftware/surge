@@ -34,16 +34,23 @@ trait KafkaDataSource[Key, Value] extends DataSource {
   def valueDeserializer: Deserializer[Value]
 
   def to(sink: DataHandler[Key, Value], consumerGroup: String): DataPipeline = {
-    val consumerSettings = KafkaConsumer.consumerSettings[Key, Value](actorSystem, groupId = consumerGroup,
-      brokers = kafkaBrokers)(keyDeserializer, valueDeserializer)
-    to(consumerSettings)(sink)
+    to(sink, consumerGroup, autoStart = true)
   }
 
-  private[core] def to(consumerSettings: ConsumerSettings[Key, Value])(sink: DataHandler[Key, Value]): DataPipeline = {
+  def to(sink: DataHandler[Key, Value], consumerGroup: String, autoStart: Boolean): DataPipeline = {
+    val consumerSettings = KafkaConsumer.consumerSettings[Key, Value](actorSystem, groupId = consumerGroup,
+      brokers = kafkaBrokers)(keyDeserializer, valueDeserializer)
+    to(consumerSettings)(sink, autoStart)
+  }
+
+  private[core] def to(consumerSettings: ConsumerSettings[Key, Value])(sink: DataHandler[Key, Value], autoStart: Boolean): DataPipeline = {
     implicit val system: ActorSystem = actorSystem
     implicit val executionContext: ExecutionContext = ExecutionContext.global
-
-    new ManagedDataPipelineImpl(KafkaStreamManager(kafkaTopic, consumerSettings, replayStrategy, replaySettings, sink.dataHandler).start())
+    val pipeline = new ManagedDataPipelineImpl(KafkaStreamManager(kafkaTopic, consumerSettings, replayStrategy, replaySettings, sink.dataHandler))
+    if (autoStart) {
+      pipeline.start()
+    }
+    pipeline
   }
 }
 
