@@ -17,14 +17,32 @@ import scala.concurrent.duration._
 trait RabbitEventSink[Event] extends EventHandler[Event] {
   def rabbitMqUri: String
   def queueName: String
+  def durableQueue: Boolean = false
+  def autoDeleteQueue: Boolean = false
+  def exclusiveQueue: Boolean = false
+
+  def bufferSize: Int = 10
+  def confirmationTimeout: FiniteDuration = 200.millis
+
+  /**
+   * Queue Arguments used to configure the write settings for `queueName`
+   *
+   * @see akka.stream.alpakka.amqp.QueueDeclaration
+   * @return Map[String, AnyRef]
+   */
+  def queueArguments: Map[String, AnyRef] = Map.empty
   def writeFormatting: SurgeEventWriteFormatting[Event]
 
   private lazy val connectionProvider: AmqpConnectionProvider = AmqpUriConnectionProvider(rabbitMqUri)
   private lazy val writeSettings = AmqpWriteSettings(connectionProvider)
     .withRoutingKey(queueName)
-    .withDeclaration(QueueDeclaration(queueName))
-    .withBufferSize(10)
-    .withConfirmationTimeout(200.millis)
+    .withDeclaration(QueueDeclaration(queueName)
+      .withDurable(durableQueue)
+      .withAutoDelete(autoDeleteQueue)
+      .withExclusive(exclusiveQueue)
+      .withArguments(queueArguments))
+    .withBufferSize(bufferSize = bufferSize)
+    .withConfirmationTimeout(confirmationTimeout)
 
   private lazy val rabbitWriteFlow = AmqpFlow.withConfirm(writeSettings)
 

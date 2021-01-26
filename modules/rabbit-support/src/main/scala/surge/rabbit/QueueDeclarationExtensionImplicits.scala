@@ -16,6 +16,17 @@ object QueueDeclarationExtensionImplicits {
       queueDeclaration.withArguments(newArguments)
     }
 
+    /**
+     * Append all map entries to queueDeclaration.arguments
+     * @param arguments Map[String, AnyRef]
+     * @return QueueDeclaration
+     */
+    def addArguments(arguments: Map[String, AnyRef]): QueueDeclaration = {
+      val originalArguments = queueDeclaration.arguments
+      val newArguments = originalArguments ++ arguments
+      queueDeclaration.withArguments(newArguments)
+    }
+
     def withDeadLetterExchange(deadLetterExchangeName: String): QueueDeclaration = {
       addArgument(deadLetterExchangeKey, deadLetterExchangeName)
     }

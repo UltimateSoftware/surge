@@ -72,6 +72,7 @@ lazy val `surge-rabbitmq-support` = (project in file ("modules/rabbit-support"))
     libraryDependencies ++= Seq(
       Alpakka.amqp,
       Akka.testKit,
+      mockitoCore,
       scalatest
     )
   )

@@ -21,13 +21,26 @@ trait RabbitDataSource[Key, Value] extends DataSource {
   def rabbitMqUri: String
 
   def queueName: String
-
+  def durableQueue: Boolean = false
+  def autoDeleteQueue: Boolean = false
+  def exclusiveQueue: Boolean = false
+  /**
+   * Queue Arguments used to configure the read settings for `queueName`
+   *
+   * @see akka.stream.alpakka.amqp.QueueDeclaration
+   * @return Map[String, AnyRef]
+   */
+  def queueArguments: Map[String, AnyRef] = Map.empty
   def readResultToKey: CommittableReadResult => Key
 
   def readResultToValue: ByteString => Value
 
   private val connectionProvider: AmqpConnectionProvider = AmqpUriConnectionProvider(rabbitMqUri)
   private val queueDeclaration = QueueDeclaration(queueName)
+    .withDurable(durableQueue)
+    .withExclusive(exclusiveQueue)
+    .withAutoDelete(autoDeleteQueue)
+    .withArguments(queueArguments)
 
   private val log = LoggerFactory.getLogger(getClass)
   private def businessFlow(sink: DataHandler[Key, Value]): Flow[CommittableReadResult, CommittableReadResult, NotUsed] = {
