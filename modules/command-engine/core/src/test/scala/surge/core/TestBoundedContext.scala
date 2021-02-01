@@ -5,6 +5,7 @@ package surge.core
 import play.api.libs.json._
 import surge.metrics.{ NoOpMetricsProvider, NoOpsMetricsPublisher }
 import surge.scala.core.kafka.KafkaTopic
+import surge.scala.core.utils.JsonFormats
 import surge.scala.core.validations.{ AsyncCommandValidator, AsyncValidationResult, ValidationError }
 import surge.scala.oss.domain.{ AggregateCommandModel, CommandProcessor }
 
@@ -40,26 +41,6 @@ object TestBoundedContext {
   case class FailCommandProcessing(failProcessingId: String, withError: RuntimeException) extends BaseTestCommand {
     val aggregateId: String = failProcessingId
   }
-}
-
-trait TestBoundedContext {
-  import TestBoundedContext._
-  implicit val countIncrementedFormat: Format[CountIncremented] = Json.format
-  implicit val countDecrementedFormat: Format[CountDecremented] = Json.format
-
-  val baseEventFormat: Format[BaseTestEvent] = new Format[BaseTestEvent] {
-    override def reads(json: JsValue): JsResult[BaseTestEvent] = {
-      Json.fromJson[CountIncremented](json) orElse
-        Json.fromJson[CountDecremented](json)
-    }
-
-    override def writes(o: BaseTestEvent): JsValue = {
-      o match {
-        case inc: CountIncremented => Json.toJson(inc)
-        case dec: CountDecremented => Json.toJson(dec)
-      }
-    }
-  }
 
   sealed trait BaseTestEvent {
     def aggregateId: String
@@ -74,6 +55,12 @@ trait TestBoundedContext {
   case class CountDecremented(aggregateId: String, decrementBy: Int, sequenceNumber: Int) extends BaseTestEvent {
     val eventName: String = "countDecremented"
   }
+}
+
+trait TestBoundedContext {
+  import TestBoundedContext._
+  implicit val countIncrementedFormat: Format[CountIncremented] = Json.format
+  implicit val countDecrementedFormat: Format[CountDecremented] = Json.format
 
   trait BusinessLogicTrait extends AggregateCommandModel[State, BaseTestCommand, BaseTestEvent] {
 
@@ -114,11 +101,12 @@ trait TestBoundedContext {
 
   private val kafkaConfig = SurgeCommandKafkaConfig(
     stateTopic = KafkaTopic("testStateTopic", compacted = false, None),
-    eventsTopic = KafkaTopic("testEventsTopic", compacted = false, None))
+    eventsTopic = KafkaTopic("testEventsTopic", compacted = false, None),
+    publishStateOnly = false)
 
   val readFormats: SurgeReadFormatting[State, BaseTestEvent] = new SurgeReadFormatting[State, BaseTestEvent] {
     override def readEvent(bytes: Array[Byte]): BaseTestEvent = {
-      Json.parse(bytes).as[BaseTestEvent](baseEventFormat)
+      Json.parse(bytes).as[BaseTestEvent](JsonFormats.jsonFormatterFromJackson)
     }
 
     override def readState(bytes: Array[Byte]): Option[State] = {
@@ -129,7 +117,7 @@ trait TestBoundedContext {
   val writeFormats: SurgeWriteFormatting[State, BaseTestEvent] = new SurgeWriteFormatting[State, BaseTestEvent] {
     override def writeEvent(evt: BaseTestEvent): SerializedMessage = {
       val key = s"${evt.aggregateId}:${evt.sequenceNumber}"
-      val body = Json.toJson(evt)(baseEventFormat).toString().getBytes()
+      val body = Json.toJson(evt)(JsonFormats.jsonFormatterFromJackson).toString().getBytes()
       SerializedMessage(key, body, Map.empty)
     }
 

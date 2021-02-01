@@ -23,6 +23,7 @@ abstract class SurgeCommandBusinessLogic[AggId, Agg, Command, Event] {
   def stateTopic: KafkaTopic
 
   def eventsTopic: KafkaTopic
+  def publishStateOnly: Boolean
 
   def commandModel: AggregateCommandModel[Agg, Command, Event]
 
@@ -44,7 +45,7 @@ abstract class SurgeCommandBusinessLogic[AggId, Agg, Command, Event] {
 
   def metricsProvider: MetricsProvider = NoOpMetricsProvider
 
-  private def kafkaConfig = SurgeCommandKafkaConfig(stateTopic = stateTopic, eventsTopic = eventsTopic)
+  private def kafkaConfig = SurgeCommandKafkaConfig(stateTopic = stateTopic, eventsTopic = eventsTopic, publishStateOnly = publishStateOnly)
 
   def consumerGroupBase: String = {
     val environment = config.getString("app.environment")

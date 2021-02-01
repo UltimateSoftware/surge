@@ -20,6 +20,7 @@ trait SurgeCommandBusinessLogic[AggId, Agg, Command, Event] {
   def stateTopic: KafkaTopic
 
   def eventsTopic: KafkaTopic
+  def publishStateOnly: Boolean
 
   def commandModel: AggregateCommandModel[Agg, Command, Event]
 
@@ -48,7 +49,9 @@ trait SurgeCommandBusinessLogic[AggId, Agg, Command, Event] {
 
   def transactionalIdPrefix: String = "surge-transactional-event-producer-partition"
 
-  private def kafkaConfig: SurgeCommandKafkaConfig = SurgeCommandKafkaConfig(stateTopic, eventsTopic)
+  private def kafkaConfig: SurgeCommandKafkaConfig = SurgeCommandKafkaConfig(
+    stateTopic = stateTopic,
+    eventsTopic = eventsTopic, publishStateOnly = publishStateOnly)
 }
 
 object SurgeCommandBusinessLogic {

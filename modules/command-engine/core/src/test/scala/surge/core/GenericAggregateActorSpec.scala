@@ -19,13 +19,17 @@ import org.scalatest.{ BeforeAndAfterAll, PartialFunctionValues }
 import org.scalatestplus.mockito.MockitoSugar
 import play.api.libs.json.{ JsValue, Json }
 import surge.akka.cluster.Passivate
-import surge.core.GenericAggregateActor.{ CommandError, Stop }
+import surge.core.GenericAggregateActor.{ ApplyEventEnvelope, CommandError, Stop }
 import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, KafkaStreamsKeyValueStore }
 import surge.metrics.NoOpMetricsProvider
 import surge.scala.core.kafka.HeadersHelper
 
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
+import org.mockito.ArgumentMatcher
+class IsAtLeastOneElementSeq extends ArgumentMatcher[Seq[KafkaProducerActor.MessageToPublish]] {
+  def matches(seq: Seq[KafkaProducerActor.MessageToPublish]): Boolean = seq.nonEmpty
+}
 
 class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateActorSpec")) with AnyWordSpecLike with Matchers
   with BeforeAndAfterAll with MockitoSugar with TestBoundedContext with PartialFunctionValues {
@@ -40,21 +44,26 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
   def randomUUID: String = UUID.randomUUID().toString
 
   private def testActor(aggregateId: String = randomUUID, producerActor: KafkaProducerActor[State, BaseTestEvent],
-    aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue]): ActorRef = {
+    aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue], publishStateOnly: Boolean = false): ActorRef = {
 
-    val props = testActorProps(aggregateId, producerActor, aggregateKafkaStreamsImpl)
+    val props = testActorProps(aggregateId, producerActor, aggregateKafkaStreamsImpl, publishStateOnly)
     system.actorOf(props)
   }
 
   private def testActorProps(aggregateId: String = randomUUID, producerActor: KafkaProducerActor[State, BaseTestEvent],
-    aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue]): Props = {
+    aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue],
+    publishStateOnly: Boolean = false): Props = {
     val metrics = GenericAggregateActor.createMetrics(NoOpMetricsProvider, "testAggregate")
 
-    GenericAggregateActor.props(aggregateId, businessLogic, producerActor, metrics, aggregateKafkaStreamsImpl)
+    GenericAggregateActor.props(aggregateId, businessLogic.copy(kafka = businessLogic.kafka.copy(publishStateOnly = publishStateOnly)), producerActor, metrics, aggregateKafkaStreamsImpl)
   }
 
   private def envelope(cmd: BaseTestCommand): GenericAggregateActor.CommandEnvelope[BaseTestCommand] = {
     GenericAggregateActor.CommandEnvelope(cmd.aggregateId, cmd)
+  }
+
+  private def eventEnvelope(event: BaseTestEvent): GenericAggregateActor.ApplyEventEnvelope[BaseTestEvent] = {
+    GenericAggregateActor.ApplyEventEnvelope[BaseTestEvent](event.aggregateId, event)
   }
 
   private def mockKafkaStreams(state: State): AggregateStateStoreKafkaStreams[JsValue] = {
@@ -126,17 +135,19 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
 
     def setupDefault(
       testAggregateId: String = randomUUID,
-      mockProducer: KafkaProducerActor[State, BaseTestEvent] = defaultMockProducer): TestContext = {
+      mockProducer: KafkaProducerActor[State, BaseTestEvent] = defaultMockProducer,
+      publishStateOnly: Boolean = false): TestContext = {
       val probe = TestProbe()
 
       val baseState = State(testAggregateId, 3, 3)
       val mockStreams = mockKafkaStreams(baseState)
-      val actor = probe.childActorOf(testActorProps(testAggregateId, mockProducer, mockStreams))
+      val actor = probe.childActorOf(testActorProps(testAggregateId, mockProducer, mockStreams, publishStateOnly = publishStateOnly))
 
-      TestContext(probe, baseState, mockProducer, actor)
+      TestContext(probe, baseState, mockProducer, actor, publishStateOnly)
     }
   }
-  case class TestContext(probe: TestProbe, baseState: State, mockProducer: KafkaProducerActor[State, BaseTestEvent], actor: ActorRef) {
+  case class TestContext(probe: TestProbe, baseState: State, mockProducer: KafkaProducerActor[State, BaseTestEvent], actor: ActorRef,
+      publishStateOnly: Boolean) {
     val testAggregateId: String = baseState.aggregateId
   }
 
@@ -151,62 +162,183 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
       processIncrementCommand(actor, baseState, mockProducer)
     }
 
-    "Retry initialization if not up to date" in {
-      val probe = TestProbe()
+    "Not Publish" should {
+      "Anything when state did not change and publishStateOnly is false" in {
+        val testContext = TestContext.setupDefault
+        import testContext._
 
-      val testAggregateId = UUID.randomUUID().toString
-      val baseState = State(testAggregateId, 3, 3)
+        val probe = TestProbe()
 
-      val mockProducer = mock[KafkaProducerActor[State, BaseTestEvent]]
-      when(mockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.successful(false), Future.successful(true))
-      when(mockProducer.publish(anyString, any[KafkaProducerActor.MessageToPublish],
-        any[Seq[KafkaProducerActor.MessageToPublish]])).thenReturn(Future.successful(KafkaProducerActor.PublishSuccess))
+        val doNothingCmd = DoNothing(baseState.aggregateId)
+        val testEnvelope = envelope(doNothingCmd)
+        probe.send(actor, testEnvelope)
 
-      val mockStreams = mockKafkaStreams(baseState)
+        probe.expectMsg(GenericAggregateActor.CommandSuccess(Some(baseState)))
 
-      val actor = testActor(testAggregateId, mockProducer, mockStreams)
+        verify(testContext.mockProducer, never()).publish(
+          ArgumentMatchers.eq(testAggregateId),
+          ArgumentMatchers.any[KafkaProducerActor.MessageToPublish](),
+          ArgumentMatchers.eq(Seq[KafkaProducerActor.MessageToPublish]()))
 
-      probe.send(actor, GenericAggregateActor.GetState(testAggregateId))
-      probe.expectMsg(GenericAggregateActor.StateResponse(Some(baseState)))
+      }
+
+      "Anything when state did not change and publishStateOnly is true" in {
+        val testContext = TestContext.setupDefault(publishStateOnly = true)
+        import testContext._
+
+        val probe = TestProbe()
+
+        val doNothingCmd = DoNothing(baseState.aggregateId)
+        val testEnvelope = envelope(doNothingCmd)
+        probe.send(actor, testEnvelope)
+
+        probe.expectMsg(GenericAggregateActor.CommandSuccess(Some(baseState)))
+
+        verify(testContext.mockProducer, never()).publish(
+          ArgumentMatchers.eq(testAggregateId),
+          ArgumentMatchers.any[KafkaProducerActor.MessageToPublish](),
+          ArgumentMatchers.eq(Seq[KafkaProducerActor.MessageToPublish]()))
+
+      }
+
+      "Anything when there are no events processed and publishStateOnly is false" in {
+        val testContext = TestContext.setupDefault
+        import testContext._
+
+        val testEnvelope = envelope(DoNothing(testAggregateId))
+
+        probe.send(actor, testEnvelope)
+        probe.expectMsg(GenericAggregateActor.CommandSuccess(Some(baseState)))
+
+        verify(mockProducer, never()).publish(
+          any[String],
+          any[KafkaProducerActor.MessageToPublish],
+          any[Seq[KafkaProducerActor.MessageToPublish]])
+      }
+
+      "Anything when state has not changed and publishStateOnly is false" in {
+
+        val producerProbe = TestProbe()
+        val testContext = TestContext.setupDefault(mockProducer = probeBackedMockProducer(producerProbe))
+        import testContext._
+
+        val testEnvelope: ApplyEventEnvelope[CountIncremented] =
+          ApplyEventEnvelope[CountIncremented](testAggregateId, CountIncremented(testAggregateId, 0, 3))
+
+        probe.send(actor, testEnvelope)
+        probe.expectMsg(GenericAggregateActor.CommandSuccess(Some(baseState)))
+
+        verify(mockProducer, never()).publish(
+          ArgumentMatchers.eq(testAggregateId),
+          ArgumentMatchers.any(classOf[KafkaProducerActor.MessageToPublish]),
+          ArgumentMatchers.argThat(new IsAtLeastOneElementSeq()))
+      }
     }
 
-    "Retry initialization if up to date check fails" in {
-      val probe = TestProbe()
+    "Publish" should {
+      "Everything when publishStateOnly is false" in {
+        val testContext = TestContext.setupDefault
+        import testContext._
 
-      val testAggregateId = UUID.randomUUID().toString
-      val baseState = State(testAggregateId, 3, 3)
+        val probe = TestProbe()
 
-      val mockProducer = mock[KafkaProducerActor[State, BaseTestEvent]]
-      when(mockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.failed(new RuntimeException("This is expected")), Future.successful(true))
-      when(mockProducer.publish(anyString, any[KafkaProducerActor.MessageToPublish],
-        any[Seq[KafkaProducerActor.MessageToPublish]])).thenReturn(Future.successful(KafkaProducerActor.PublishSuccess))
+        val incrementCmd = Increment(baseState.aggregateId)
+        val testEnvelope = envelope(incrementCmd)
+        probe.send(actor, testEnvelope)
 
-      val mockStreams = mockKafkaStreams(baseState)
+        val publishedState = baseState.copy(
+          count = baseState.count + 1,
+          version = baseState.version + 1)
 
-      val actor = testActor(testAggregateId, mockProducer, mockStreams)
+        probe.expectMsg(GenericAggregateActor.CommandSuccess(Some(publishedState)))
 
-      probe.send(actor, GenericAggregateActor.GetState(testAggregateId))
-      probe.expectMsg(6.seconds, GenericAggregateActor.StateResponse(Some(baseState)))
+        verify(testContext.mockProducer, times(1)).publish(
+          ArgumentMatchers.eq(testAggregateId),
+          ArgumentMatchers.any[KafkaProducerActor.MessageToPublish](),
+          ArgumentMatchers.argThat(new IsAtLeastOneElementSeq()))
+      }
+
+      "Only stateChange when publishStateOnly is true" in {
+        val testContext = TestContext.setupDefault(publishStateOnly = true)
+        import testContext._
+
+        val probe = TestProbe()
+
+        val incrementCmd = Increment(baseState.aggregateId)
+        val testEnvelope = envelope(incrementCmd)
+        probe.send(actor, testEnvelope)
+
+        val publishedState = baseState.copy(
+          count = baseState.count + 1,
+          version = baseState.version + 1)
+
+        probe.expectMsg(GenericAggregateActor.CommandSuccess(Some(publishedState)))
+
+        verify(testContext.mockProducer, times(1)).publish(
+          ArgumentMatchers.eq(testAggregateId),
+          ArgumentMatchers.any[KafkaProducerActor.MessageToPublish](),
+          ArgumentMatchers.eq(Seq[KafkaProducerActor.MessageToPublish]()))
+      }
     }
 
-    "Retry initialization on a failure to read from the KTable" in {
-      val probe = TestProbe()
+    "Retry initialization" should {
+      "if not up to date" in {
+        val probe = TestProbe()
 
-      val testAggregateId = UUID.randomUUID().toString
-      val baseState = State(testAggregateId, 3, 3)
+        val testAggregateId = UUID.randomUUID().toString
+        val baseState = State(testAggregateId, 3, 3)
 
-      val mockProducer = defaultMockProducer
+        val mockProducer = mock[KafkaProducerActor[State, BaseTestEvent]]
+        when(mockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.successful(false), Future.successful(true))
+        when(mockProducer.publish(anyString, any[KafkaProducerActor.MessageToPublish],
+          any[Seq[KafkaProducerActor.MessageToPublish]])).thenReturn(Future.successful(KafkaProducerActor.PublishSuccess))
 
-      val mockStore = mock[KafkaStreamsKeyValueStore[String, Array[Byte]]]
-      val mockStreams = mockKafkaStreams(baseState)
-      when(mockStore.get(testAggregateId.toString)).thenReturn(
-        Future.failed[Option[Array[Byte]]](new RuntimeException("This is expected")),
-        Future.successful(Some(Json.toJson(baseState).toString().getBytes())))
+        val mockStreams = mockKafkaStreams(baseState)
 
-      val actor = testActor(testAggregateId, mockProducer, mockStreams)
+        val actor = testActor(testAggregateId, mockProducer, mockStreams)
 
-      probe.send(actor, GenericAggregateActor.GetState(testAggregateId))
-      probe.expectMsg(5.seconds, GenericAggregateActor.StateResponse(Some(baseState)))
+        probe.send(actor, GenericAggregateActor.GetState(testAggregateId))
+        probe.expectMsg(GenericAggregateActor.StateResponse(Some(baseState)))
+      }
+
+      "if up to date check fails" in {
+        val probe = TestProbe()
+
+        val testAggregateId = UUID.randomUUID().toString
+        val baseState = State(testAggregateId, 3, 3)
+
+        val mockProducer = mock[KafkaProducerActor[State, BaseTestEvent]]
+        when(mockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.failed(new RuntimeException("This is expected")), Future.successful(true))
+        when(mockProducer.publish(anyString, any[KafkaProducerActor.MessageToPublish],
+          any[Seq[KafkaProducerActor.MessageToPublish]])).thenReturn(Future.successful(KafkaProducerActor.PublishSuccess))
+
+        val mockStreams = mockKafkaStreams(baseState)
+
+        val actor = testActor(testAggregateId, mockProducer, mockStreams)
+
+        probe.send(actor, GenericAggregateActor.GetState(testAggregateId))
+        probe.expectMsg(6.seconds, GenericAggregateActor.StateResponse(Some(baseState)))
+      }
+
+      "on a failure to read from the KTable" in {
+        val probe = TestProbe()
+
+        val testAggregateId = UUID.randomUUID().toString
+        val baseState = State(testAggregateId, 3, 3)
+
+        val mockProducer = defaultMockProducer
+
+        val mockStore = mock[KafkaStreamsKeyValueStore[String, Array[Byte]]]
+        val mockStreams = mockKafkaStreams(baseState)
+        when(mockStore.get(testAggregateId.toString)).thenReturn(
+          Future.failed[Option[Array[Byte]]](new RuntimeException("This is expected")),
+          Future.successful(Some(Json.toJson(baseState).toString().getBytes())))
+
+        val actor = testActor(testAggregateId, mockProducer, mockStreams)
+
+        probe.send(actor, GenericAggregateActor.GetState(testAggregateId))
+        probe.expectMsg(5.seconds, GenericAggregateActor.StateResponse(Some(baseState)))
+      }
     }
 
     "Not update state if there are no events processed" in {
@@ -224,19 +356,21 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
         any[Seq[KafkaProducerActor.MessageToPublish]])
     }
 
-    "Handle exceptions from the domain by returning a CommandError" in {
-      val testContext = TestContext.setupDefault
-      import testContext._
+    "Handle exceptions" should {
+      "from the domain by returning a CommandError" in {
+        val testContext = TestContext.setupDefault
+        import testContext._
 
-      val testException = new RuntimeException("This is an expected exception")
-      val validationCmd = FailCommandProcessing(testAggregateId, testException)
-      val testEnvelope = envelope(validationCmd)
+        val testException = new RuntimeException("This is an expected exception")
+        val validationCmd = FailCommandProcessing(testAggregateId, testException)
+        val testEnvelope = envelope(validationCmd)
 
-      probe.send(actor, testEnvelope)
-      val commandError = probe.expectMsgClass(classOf[GenericAggregateActor.CommandError])
-      // Fuzzy matching because serializing and deserializing gets a different object and messes up .equals even though the two are identical
-      commandError.exception shouldBe a[RuntimeException]
-      commandError.exception.getMessage shouldEqual testException.getMessage
+        probe.send(actor, testEnvelope)
+        val commandError = probe.expectMsgClass(classOf[GenericAggregateActor.CommandError])
+        // Fuzzy matching because serializing and deserializing gets a different object and messes up .equals even though the two are identical
+        commandError.exception shouldBe a[RuntimeException]
+        commandError.exception.getMessage shouldEqual testException.getMessage
+      }
     }
 
     "Process commands one at a time" in {
@@ -374,6 +508,22 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
       }
       doSerde(GenericAggregateActor.CommandEnvelope[String]("hello", "test2"))
       doSerde(envelope(Increment(UUID.randomUUID().toString)))
+    }
+
+    "Serialize/Deserialize an ApplyEventEnvelope from Akka" in {
+      import akka.serialization.SerializationExtension
+
+      def doSerde[A](envelope: ApplyEventEnvelope[A]): Unit = {
+        val serialization = SerializationExtension.get(system)
+        val serializer = serialization.findSerializerFor(envelope)
+        val serialized = serialization.serialize(envelope).get
+        val manifest = Serializers.manifestFor(serializer, envelope)
+        val deserialized = serialization.deserialize(serialized, serializer.identifier, manifest).get
+        deserialized shouldEqual envelope
+      }
+
+      doSerde(GenericAggregateActor.ApplyEventEnvelope[String](UUID.randomUUID().toString, "test2"))
+      doSerde(eventEnvelope(CountIncremented(UUID.randomUUID().toString, 1, 1)))
     }
   }
 }

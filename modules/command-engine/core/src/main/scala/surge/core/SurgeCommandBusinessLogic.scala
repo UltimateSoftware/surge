@@ -11,7 +11,8 @@ import scala.concurrent.duration._
 
 private[surge] case class SurgeCommandKafkaConfig(
     stateTopic: KafkaTopic,
-    eventsTopic: KafkaTopic)
+    eventsTopic: KafkaTopic,
+    publishStateOnly: Boolean)
 
 private[surge] case class SurgeCommandBusinessLogic[Agg, Command, Event](
     aggregateName: String,
