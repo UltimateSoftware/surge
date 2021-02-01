@@ -20,7 +20,7 @@ trait SurgeCommandBusinessLogic[AggId, Agg, Command, Event] {
   def stateTopic: KafkaTopic
 
   def eventsTopic: KafkaTopic
-  def publishStateOnly: Boolean
+  def publishStateOnly: Boolean = false
 
   def commandModel: AggregateCommandModel[Agg, Command, Event]
 
