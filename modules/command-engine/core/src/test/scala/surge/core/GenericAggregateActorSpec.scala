@@ -402,6 +402,28 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
       probe.expectMsg(GenericAggregateActor.CommandSuccess(expectedState2))
     }
 
+    "Handle ApplyEventEnvelope requests" in {
+      val testContext = TestContext.setupDefault
+      import testContext._
+
+      val event1 = CountIncremented(baseState.aggregateId, 1, baseState.version + 1)
+      val expectedState1 = BusinessLogic.handleEvent(Some(baseState), event1)
+
+      val event2 = CountIncremented(expectedState1.get.aggregateId, 1, expectedState1.get.version + 1)
+      val expectedState2 = BusinessLogic.handleEvent(expectedState1, event2)
+
+      probe.send(actor, GenericAggregateActor.ApplyEventEnvelope(testAggregateId, event1))
+      probe.send(actor, GenericAggregateActor.ApplyEventEnvelope(testAggregateId, event2))
+
+      probe.expectMsg(GenericAggregateActor.CommandSuccess(expectedState1))
+      probe.expectMsg(GenericAggregateActor.CommandSuccess(expectedState2))
+
+      verify(mockProducer, times(2)).publish(
+        any[String],
+        any[KafkaProducerActor.MessageToPublish],
+        argEquals(Seq[KafkaProducerActor.MessageToPublish]()))
+    }
+
     "Crash the actor to force reinitialization if publishing events times out" in {
       val crashingMockProducer = mock[KafkaProducerActor[State, BaseTestEvent]]
       val expectedException = new RuntimeException("This is expected")
