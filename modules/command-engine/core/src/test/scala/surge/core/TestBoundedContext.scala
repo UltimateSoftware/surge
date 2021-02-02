@@ -32,6 +32,7 @@ object TestBoundedContext {
   }
 
   case class DoNothing(aggregateId: String) extends BaseTestCommand
+  case class CreateNoOpEvent(aggregateId: String) extends BaseTestCommand
 
   case class CauseInvalidValidation(aggregateId: String) extends BaseTestCommand {
     val validationErrors: Seq[ValidationError] = Seq(ValidationError("This command is invalid"))
@@ -55,6 +56,10 @@ object TestBoundedContext {
   case class CountDecremented(aggregateId: String, decrementBy: Int, sequenceNumber: Int) extends BaseTestEvent {
     val eventName: String = "countDecremented"
   }
+
+  case class NoOpEvent(aggregateId: String, sequenceNumber: Int) extends BaseTestEvent {
+    val eventName: String = "no-op"
+  }
 }
 
 trait TestBoundedContext {
@@ -72,6 +77,7 @@ trait TestBoundedContext {
           current.copy(count = current.count + incrementBy, version = sequenceNumber)
         case CountDecremented(_, decrementBy, sequenceNumber) =>
           current.copy(count = current.count - decrementBy, version = sequenceNumber)
+        case _: NoOpEvent => current
       }
       Some(newState)
     }
@@ -84,6 +90,7 @@ trait TestBoundedContext {
           sequenceNumber = newSequenceNumber)))
         case Decrement(aggregateId) => Success(Seq(CountDecremented(aggregateId, decrementBy = 1,
           sequenceNumber = newSequenceNumber)))
+        case CreateNoOpEvent(aggregateId) => Success(Seq(NoOpEvent(aggregateId, newSequenceNumber)))
         case _: DoNothing => Success(Seq.empty)
         case fail: FailCommandProcessing =>
           Failure(fail.withError)

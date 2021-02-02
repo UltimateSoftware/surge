@@ -402,6 +402,21 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
       probe.expectMsg(GenericAggregateActor.CommandSuccess(expectedState2))
     }
 
+    "Publish events even if they don't update the state" in {
+      val producerProbe = TestProbe()
+      val testContext = TestContext.setupDefault(mockProducer = probeBackedMockProducer(producerProbe))
+      import testContext._
+
+      val probe = TestProbe()
+
+      val testEnvelope = envelope(CreateNoOpEvent(baseState.aggregateId))
+
+      probe.send(actor, testEnvelope)
+      producerProbe.expectMsg(Publish(testAggregateId))
+      producerProbe.reply(KafkaProducerActor.PublishSuccess)
+      probe.expectMsg(GenericAggregateActor.CommandSuccess(Some(baseState)))
+    }
+
     "Handle ApplyEventEnvelope requests" in {
       val testContext = TestContext.setupDefault
       import testContext._
