@@ -91,7 +91,7 @@ trait TestBoundedContext {
         case Decrement(aggregateId) => Success(Seq(CountDecremented(aggregateId, decrementBy = 1,
           sequenceNumber = newSequenceNumber)))
         case CreateNoOpEvent(aggregateId) => Success(Seq(NoOpEvent(aggregateId, newSequenceNumber)))
-        case _: DoNothing => Success(Seq.empty)
+        case _: DoNothing                 => Success(Seq.empty)
         case fail: FailCommandProcessing =>
           Failure(fail.withError)
         case _ =>

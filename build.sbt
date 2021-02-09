@@ -73,7 +73,8 @@ lazy val `surge-rabbitmq-support` = (project in file ("modules/rabbit-support"))
       Alpakka.amqp,
       Akka.testKit,
       mockitoCore,
-      scalatest
+      scalatest,
+      RabbitMq.embedded,
     )
   )
   .dependsOn(`surge-common`)

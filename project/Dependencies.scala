@@ -32,6 +32,10 @@ object Dependencies extends AutoPlugin {
       val kafkaStreamsTestUtils = "org.apache.kafka" % "kafka-streams-test-utils" % kafkaVersion % Test
     }
 
+    object RabbitMq {
+      val embedded = "io.arivera.oss" % "embedded-rabbitmq" % "1.4.0" % Test
+    }
+
     object PlayFramework {
       val json = "com.typesafe.play" %% "play-json" % "2.9.1"
     }
@@ -48,7 +52,8 @@ object Dependencies extends AutoPlugin {
     val slf4jApi = "org.slf4j" % "slf4j-api" % "1.7.30"
     val typesafeConfig = "com.typesafe" % "config" % "1.4.1"
   }
-  val dependenciesOverride = Seq(
+
+  val dependenciesOverride: Seq[ModuleID] = Seq(
     Dependencies.autoImport.Akka.akkaStreamTestKit
   )
 }
