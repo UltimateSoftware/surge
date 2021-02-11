@@ -11,7 +11,7 @@ import surge.akka.cluster.{ EntityPropsProvider, PerShardLogicProvider, Shard }
 import surge.config.TimeoutConfig
 import surge.kafka.{ KafkaPartitionShardRouterActor, TopicPartitionRegionCreator }
 import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, HealthCheck, HealthCheckStatus, HealthyActor, HealthyComponent }
-import surge.metrics.MetricsProvider
+import surge.metrics.Metrics
 import surge.support.Logging
 
 import scala.concurrent.{ ExecutionContext, Future }
@@ -20,7 +20,7 @@ private[surge] final class GenericAggregateActorRouter[Agg, Command, Event](
     system: ActorSystem,
     clusterStateTrackingActor: ActorRef,
     businessLogic: SurgeCommandBusinessLogic[Agg, Command, Event],
-    metricsProvider: MetricsProvider,
+    metrics: Metrics,
     kafkaStreamsCommand: AggregateStateStoreKafkaStreams[JsValue]) extends HealthyComponent {
 
   private val log = LoggerFactory.getLogger(getClass)
@@ -29,7 +29,7 @@ private[surge] final class GenericAggregateActorRouter[Agg, Command, Event](
     val shardRegionCreator = new TopicPartitionRegionCreator {
       override def propsFromTopicPartition(topicPartition: TopicPartition): Props = {
         val provider = new GenericAggregateActorRegionProvider(system, topicPartition, businessLogic,
-          kafkaStreamsCommand, metricsProvider)
+          kafkaStreamsCommand, metrics)
 
         Shard.props(topicPartition.toString, provider, GenericAggregateActor.RoutableMessage.extractEntityId)
       }
@@ -62,16 +62,16 @@ class GenericAggregateActorRegionProvider[Agg, Command, Event](
     assignedPartition: TopicPartition,
     businessLogic: SurgeCommandBusinessLogic[Agg, Command, Event],
     aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue],
-    metricsProvider: MetricsProvider) extends PerShardLogicProvider[String] with Logging {
+    metrics: Metrics) extends PerShardLogicProvider[String] with Logging {
 
   val kafkaProducerActor: KafkaProducerActor[Agg, Event] = KafkaProducerActor[Agg, Event](
     actorSystem = system,
     assignedPartition = assignedPartition,
-    metricsProvider = metricsProvider,
+    metrics = metrics,
     businessLogic = businessLogic)
 
   override def actorProvider(context: ActorContext): EntityPropsProvider[String] = {
-    val aggregateMetrics = GenericAggregateActor.createMetrics(metricsProvider, businessLogic.aggregateName)
+    val aggregateMetrics = GenericAggregateActor.createMetrics(metrics, businessLogic.aggregateName)
 
     actorId: String => GenericAggregateActor.props(aggregateId = actorId, businessLogic = businessLogic,
       kafkaProducerActor = kafkaProducerActor, metrics = aggregateMetrics, kafkaStreamsCommand = aggregateKafkaStreamsImpl)

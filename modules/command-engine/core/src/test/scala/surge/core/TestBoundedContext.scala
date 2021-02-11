@@ -3,14 +3,13 @@
 package surge.core
 
 import play.api.libs.json._
-import surge.metrics.{ NoOpMetricsProvider, NoOpsMetricsPublisher }
+import surge.metrics.Metrics
 import surge.scala.core.kafka.KafkaTopic
 import surge.scala.core.utils.JsonFormats
 import surge.scala.core.validations.{ AsyncCommandValidator, AsyncValidationResult, ValidationError }
 import surge.scala.oss.domain.{ AggregateCommandModel, CommandProcessor }
 
 import scala.concurrent.Future
-import scala.concurrent.duration._
 import scala.util.{ Failure, Success }
 
 object TestBoundedContext {
@@ -139,9 +138,7 @@ trait TestBoundedContext {
       writeFormatting = writeFormats,
       commandValidator = BusinessLogic.commandValidator,
       aggregateValidator = { (_, _, _) => true },
-      metricsProvider = NoOpMetricsProvider,
-      metricsPublisher = NoOpsMetricsPublisher,
-      metricsInterval = 100.seconds,
+      metrics = Metrics.globalMetricRegistry,
       consumerGroup = "count-aggregate-consumer-group-name",
       transactionalIdPrefix = "test-transaction-id-prefix")
 }

@@ -2,12 +2,10 @@
 
 package surge.core
 
-import surge.metrics.{ MetricsProvider, MetricsPublisher }
+import surge.metrics.Metrics
 import surge.scala.core.kafka.{ KafkaPartitioner, KafkaTopic, PartitionStringUpToColon }
 import surge.scala.core.validations.AsyncCommandValidator
 import surge.scala.oss.domain.AggregateCommandModel
-
-import scala.concurrent.duration._
 
 private[surge] case class SurgeCommandKafkaConfig(
     stateTopic: KafkaTopic,
@@ -22,8 +20,8 @@ private[surge] case class SurgeCommandBusinessLogic[Agg, Command, Event](
     writeFormatting: SurgeWriteFormatting[Agg, Event],
     commandValidator: AsyncCommandValidator[Command, Agg],
     aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) => Boolean,
-    metricsProvider: MetricsProvider, metricsPublisher: MetricsPublisher, metricsInterval: FiniteDuration,
     consumerGroup: String,
-    transactionalIdPrefix: String) {
+    transactionalIdPrefix: String,
+    metrics: Metrics) {
   val partitioner: KafkaPartitioner[String] = PartitionStringUpToColon
 }

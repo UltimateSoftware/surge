@@ -36,7 +36,7 @@ lazy val `surge-scala-core` = (project in file("modules/scala-core"))
       typesafeConfig,
       mockitoCore
     )
-  ).dependsOn(`surge-metrics-interface`)
+  ).dependsOn(`surge-metrics`)
 
 lazy val `surge-common` = (project in file("modules/common"))
   .settings(
@@ -100,28 +100,13 @@ lazy val `surge-engine-command-scaladsl` = (project in file("modules/command-eng
 lazy val `surge-engine-command-javadsl` = (project in file("modules/command-engine/javadsl"))
   .dependsOn(`surge-engine-command-core`)
 
-lazy val `surge-engine-query-core` = (project in file("modules/query-engine/core"))
-  .settings(
-    multiJvmTestSettings,
-    jvmOptions in MultiJvm := Seq("-Dmultinode.server-port=4712"),
-    libraryDependencies ++= Seq(
-      Akka.actor,
-      Akka.testKit,
-      scalatest,
-      scalatestPlusMockito,
-      logback,
-      mockitoCore
-    )
-  ).dependsOn(`surge-common` % "compile->compile;test->test")
-   .enablePlugins(MultiJvmPlugin)
-   .configs(MultiJvm)
-
-lazy val `surge-metrics-interface` = (project in file("modules/metrics-interface"))
+lazy val `surge-metrics` = (project in file("modules/metrics"))
   .settings(
     libraryDependencies ++= Seq(
       PlayFramework.json,
       slf4jApi,
-      typesafeConfig
+      typesafeConfig,
+      scalatest
     )
   )
 
@@ -131,8 +116,7 @@ lazy val `surge` = project.in(file("."))
     `surge-engine-command-core`,
     `surge-engine-command-javadsl`,
     `surge-engine-command-scaladsl`,
-    `surge-engine-query-core`,
-    `surge-metrics-interface`,
+    `surge-metrics`,
     `surge-scala-core`,
     `surge-rabbitmq-support`
   )

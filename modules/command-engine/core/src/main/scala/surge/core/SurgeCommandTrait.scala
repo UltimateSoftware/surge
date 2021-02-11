@@ -37,7 +37,7 @@ abstract class SurgeCommandImpl[Agg, Command, Event](
     businessLogic.consumerGroup,
     system)
   protected val actorRouter = new GenericAggregateActorRouter[Agg, Command, Event](actorSystem, stateChangeActor,
-    businessLogic, businessLogic.metricsProvider, kafkaStreamsImpl)
+    businessLogic, businessLogic.metrics, kafkaStreamsImpl)
 
   protected val surgeHealthCheck = new SurgeHealthCheck(
     businessLogic.aggregateName,

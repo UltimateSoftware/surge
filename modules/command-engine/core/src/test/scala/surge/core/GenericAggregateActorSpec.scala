@@ -21,12 +21,12 @@ import play.api.libs.json.{ JsValue, Json }
 import surge.akka.cluster.Passivate
 import surge.core.GenericAggregateActor.{ ApplyEventEnvelope, CommandError, Stop }
 import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, KafkaStreamsKeyValueStore }
-import surge.metrics.NoOpMetricsProvider
 import surge.scala.core.kafka.HeadersHelper
 
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
 import org.mockito.ArgumentMatcher
+import surge.metrics.Metrics
 class IsAtLeastOneElementSeq extends ArgumentMatcher[Seq[KafkaProducerActor.MessageToPublish]] {
   def matches(seq: Seq[KafkaProducerActor.MessageToPublish]): Boolean = seq.nonEmpty
 }
@@ -53,7 +53,7 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
   private def testActorProps(aggregateId: String = randomUUID, producerActor: KafkaProducerActor[State, BaseTestEvent],
     aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue],
     publishStateOnly: Boolean = false): Props = {
-    val metrics = GenericAggregateActor.createMetrics(NoOpMetricsProvider, "testAggregate")
+    val metrics = GenericAggregateActor.createMetrics(Metrics.globalMetricRegistry, "testAggregate")
 
     GenericAggregateActor.props(aggregateId, businessLogic.copy(kafka = businessLogic.kafka.copy(publishStateOnly = publishStateOnly)), producerActor, metrics, aggregateKafkaStreamsImpl)
   }

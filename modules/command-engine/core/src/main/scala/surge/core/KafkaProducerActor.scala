@@ -19,7 +19,7 @@ import surge.config.TimeoutConfig
 import surge.kafka.streams.HealthyActor.GetHealth
 import surge.kafka.streams.KafkaPartitionMetadataHandlerImpl.KafkaPartitionMetadataUpdated
 import surge.kafka.streams._
-import surge.metrics.{ MetricsProvider, Rate, Timer }
+import surge.metrics.{ MetricInfo, Metrics, Rate, Timer }
 import surge.scala.core.kafka.{ KafkaBytesProducer, KafkaRecordMetadata }
 
 import scala.concurrent.duration._
@@ -52,14 +52,14 @@ import scala.util.{ Failure, Success, Try }
  * producer cannot initialize with the knowledge of everything that was published previously.
  *
  * @param publisherActor The underlying publisher actor used to batch and publish messages to Kafka
- * @param metricsProvider Metrics provider interface to use for recording internal metrics to
+ * @param metrics Metrics provider to use for recording internal metrics to
  * @param aggregateName The name of the aggregate this publisher is responsible for
  * @tparam Agg Generic aggregate type of aggregates publishing states/events through this stateful producer
  * @tparam Event Generic base type for events that aggregate instances publish through this stateful producer
  */
 class KafkaProducerActor[Agg, Event](
     publisherActor: ActorRef,
-    metricsProvider: MetricsProvider,
+    metrics: Metrics,
     aggregateName: String) extends HealthyComponent {
 
   private val log = LoggerFactory.getLogger(getClass)
@@ -77,7 +77,10 @@ class KafkaProducerActor[Agg, Event](
     publisherActor ! PoisonPill
   }
 
-  private val isAggregateStateCurrentTimer: Timer = metricsProvider.createTimer(s"${aggregateName}IsAggregateCurrentTimer")
+  private val isAggregateStateCurrentTimer: Timer = metrics.timer(
+    MetricInfo(
+      s"${aggregateName}IsAggregateCurrentTimer",
+      "Average time in milliseconds taken to check if a particular aggregate is up to date in the KTable"))
   def isAggregateStateCurrent(aggregateId: String): Future[Boolean] = {
     implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PublisherActor.aggregateStateCurrentTimeout)
     val expirationTime = Instant.now.plusMillis(askTimeout.duration.toMillis)
@@ -104,13 +107,13 @@ object KafkaProducerActor {
   def apply[Agg, Event](
     actorSystem: ActorSystem,
     assignedPartition: TopicPartition,
-    metricsProvider: MetricsProvider,
+    metrics: Metrics,
     businessLogic: SurgeCommandBusinessLogic[Agg, _, Event]): KafkaProducerActor[Agg, Event] = {
     val publisherActor = actorSystem.actorOf(
       Props(new KafkaProducerActorImpl(
-        assignedPartition, metricsProvider, businessLogic)).withDispatcher("kafka-publisher-actor-dispatcher"))
+        assignedPartition, metrics, businessLogic)).withDispatcher("kafka-publisher-actor-dispatcher"))
 
-    new KafkaProducerActor[Agg, Event](publisherActor, metricsProvider, businessLogic.aggregateName)
+    new KafkaProducerActor[Agg, Event](publisherActor, metrics, businessLogic.aggregateName)
   }
 
   sealed trait PublishResult
@@ -124,6 +127,19 @@ private object KafkaProducerActorImpl {
   case class Publish(state: KafkaProducerActor.MessageToPublish, eventsToPublish: Seq[KafkaProducerActor.MessageToPublish]) extends KafkaProducerActorMessage
   case class StateProcessed(stateMeta: KafkaPartitionMetadata) extends KafkaProducerActorMessage
   case class IsAggregateStateCurrent(aggregateId: String, expirationTime: Instant) extends KafkaProducerActorMessage
+
+  object AggregateStateRates {
+    def apply(aggregateName: String, metrics: Metrics): AggregateStateRates = AggregateStateRates(
+      current = metrics.rate(
+        MetricInfo(
+          name = s"${aggregateName}AggregateStateCurrentRate",
+          description = "The per-second rate of aggregates that are up-to-date in and can be loaded immediately from the KTable")),
+      notCurrent = metrics.rate(
+        MetricInfo(
+          name = s"${aggregateName}AggregateStateNotCurrentRate",
+          description = "The per-second rate of aggregates that are not up-to-date in the KTable and must wait to be loaded")))
+
+  }
   case class AggregateStateRates(current: Rate, notCurrent: Rate)
 
   sealed trait InternalMessage extends NoSerializationVerificationNeeded
@@ -139,7 +155,7 @@ private object KafkaProducerActorImpl {
   case class PendingInitialization(actor: ActorRef, key: String, expiration: Instant) extends InternalMessage
 }
 private class KafkaProducerActorImpl[Agg, Event](
-    assignedPartition: TopicPartition, metrics: MetricsProvider,
+    assignedPartition: TopicPartition, metrics: Metrics,
     businessLogic: SurgeCommandBusinessLogic[Agg, _, Event],
     kafkaProducerOverride: Option[KafkaBytesProducer] = None) extends Actor with Stash {
 
@@ -168,10 +184,11 @@ private class KafkaProducerActorImpl[Agg, Event](
 
   private val nonTransactionalStatePublisher = kafkaProducerOverride.getOrElse(KafkaBytesProducer(brokers, stateTopic, partitioner = partitioner))
 
-  private val kafkaPublisherTimer: Timer = metrics.createTimer(s"${aggregateName}KafkaWriteTimer")
-  private implicit val rates: AggregateStateRates = AggregateStateRates(
-    current = metrics.createRate(s"${aggregateName}AggregateStateCurrentRate"),
-    notCurrent = metrics.createRate(s"${aggregateName}AggregateStateNotCurrentRate"))
+  private val kafkaPublisherTimer: Timer = metrics.timer(
+    MetricInfo(
+      s"${aggregateName}KafkaWriteTimer",
+      "Average time in milliseconds that it takes the publisher to write a batch of messages (events & state) to Kafka"))
+  private implicit val rates: AggregateStateRates = AggregateStateRates(aggregateName, metrics)
 
   context.system.eventStream.subscribe(self, classOf[KafkaPartitionMetadataUpdated])
 
@@ -326,7 +343,8 @@ private class KafkaProducerActorImpl[Agg, Event](
 
   private var lastTransactionInProgressWarningTime: Instant = Instant.ofEpochMilli(0L)
   private val transactionTimeWarningThreshold = flushInterval.toMillis * 4
-  private val eventsPublishedRate: Rate = metrics.createRate(s"${aggregateName}EventPublishRate")
+  private val eventsPublishedRate: Rate = metrics.rate(
+    MetricInfo(s"${aggregateName}EventPublishRate", "The per-second rate at which this aggregate attempts to publish events to Kafka"))
   private def handleFlushMessages(state: KafkaProducerActorState): Unit = {
     if (state.transactionInProgress) {
       if (state.currentTransactionTimeMillis >= transactionTimeWarningThreshold &&

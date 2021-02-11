@@ -5,6 +5,7 @@ package surge.javadsl
 import java.util
 import java.util.concurrent.CompletionStage
 
+import play.api.libs.json.Writes
 import surge.kafka.streams.{ HealthCheck => ScalaHealthCheck }
 import surge.scala.core.utils.JsonFormats
 
@@ -19,7 +20,7 @@ class HealthCheck(
     val details: java.util.Map[String, String])
 
 object HealthCheck {
-  implicit val writer = JsonFormats.jacksonWriter[HealthCheck]
+  implicit val writer: Writes[HealthCheck] = JsonFormats.jacksonWriter[HealthCheck]
   implicit class HealthCheckToJavaConverter(scalaHealthCheck: ScalaHealthCheck) {
     def asJava: HealthCheck = {
       new HealthCheck(

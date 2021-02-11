@@ -7,12 +7,15 @@ import java.util.concurrent.CompletionStage
 import akka.actor.ActorSystem
 import surge.core
 import surge.javadsl.HealthCheck._
+import surge.metrics.Metric
 
+import scala.collection.JavaConverters._
 import scala.compat.java8.FutureConverters
 import scala.concurrent.ExecutionContext.Implicits.global
 
 trait SurgeCommand[AggId, Agg, Command, Event] extends core.SurgeCommandTrait[Agg, Command, Event] with HealthCheckTrait {
   def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Command, Event]
+  def getMetrics: java.util.List[Metric]
 }
 
 object SurgeCommand {
@@ -43,4 +46,6 @@ private[javadsl] class SurgeCommandImpl[AggId, Agg, Command, Event](
   def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Command, Event] = {
     new AggregateRefImpl(aggIdToString(aggregateId), actorRouter.actorRegion)
   }
+
+  def getMetrics: java.util.List[Metric] = businessLogic.metrics.getMetrics.asJava
 }

@@ -19,7 +19,6 @@ import org.scalatest.wordspec.AnyWordSpecLike
 import org.slf4j.LoggerFactory
 import surge.akka.streams.kafka.KafkaConsumer
 import surge.kafka.streams.DefaultSerdes
-import surge.metrics.{ MetricsProvider, NoOpMetricsProvider }
 import surge.scala.core.kafka.KafkaTopic
 
 import scala.concurrent.Future
@@ -36,7 +35,6 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
   private def testEventSource(topic: KafkaTopic, kafkaBrokers: String, groupId: String): EventSource[String] = {
     new EventSource[String] {
       override def baseEventName: String = "TestAggregateEvent"
-      override def metricsProvider: MetricsProvider = NoOpMetricsProvider
       override def kafkaTopic: KafkaTopic = topic
       override def formatting: SurgeEventReadFormatting[String] = bytes => new String(bytes)
       override def actorSystem: ActorSystem = system

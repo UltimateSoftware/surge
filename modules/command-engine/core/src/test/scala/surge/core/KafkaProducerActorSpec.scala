@@ -24,7 +24,7 @@ import surge.core.KafkaProducerActor.{ PublishFailure, PublishSuccess }
 import surge.core.KafkaProducerActorImpl.AggregateStateRates
 import surge.kafka.streams.KafkaPartitionMetadata
 import surge.kafka.streams.KafkaPartitionMetadataHandlerImpl.KafkaPartitionMetadataUpdated
-import surge.metrics.NoOpMetricsProvider
+import surge.metrics.Metrics
 import surge.scala.core.kafka.{ KafkaBytesProducer, KafkaRecordMetadata }
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -54,7 +54,7 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
     system.eventStream.publish(event)
   }
   private def testProducerActor(assignedPartition: TopicPartition, mockProducer: KafkaBytesProducer): ActorRef = {
-    val actor = system.actorOf(Props(new KafkaProducerActorImpl(assignedPartition, NoOpMetricsProvider, businessLogic, Some(mockProducer))))
+    val actor = system.actorOf(Props(new KafkaProducerActorImpl(assignedPartition, Metrics.globalMetricRegistry, businessLogic, Some(mockProducer))))
     // Blocks the execution to wait until the actor is ready so we know its subscribed to the event bus
     system.actorSelection(actor.path).resolveOne()(Timeout(patienceConfig.timeout)).futureValue
     actor
@@ -95,7 +95,7 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
 
     "Return a failed future when the ask to the underlying publisher actor times out" in {
       val probe = TestProbe()
-      val producer = new KafkaProducerActor[String, String](probe.ref, NoOpMetricsProvider, "test-aggregate")
+      val producer = new KafkaProducerActor[String, String](probe.ref, Metrics.globalMetricRegistry, "test-aggregate")
 
       val errorWatchProbe = TestProbe()
       val stateToPublish = KafkaProducerActor.MessageToPublish("test", "test".getBytes(), new RecordHeaders())
@@ -404,9 +404,7 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
 
   "KafkaProducerActorState" should {
     implicit val unusedStateParent: ActorRef = TestProbe().ref
-    implicit val rates: KafkaProducerActorImpl.AggregateStateRates = AggregateStateRates(
-      NoOpMetricsProvider.createRate("aggregateCurrentRateUnused"),
-      NoOpMetricsProvider.createRate("aggregateNotCurrentRateUnused"))
+    implicit val rates: KafkaProducerActorImpl.AggregateStateRates = AggregateStateRates("test-aggregate", Metrics.globalMetricRegistry)
 
     val fooRecord1 = KafkaRecordMetadata(Some("foo"), createRecordMeta("testTopic", 0, 1))
     val barRecord1 = KafkaRecordMetadata(Some("bar"), createRecordMeta("testTopic", 0, 2))

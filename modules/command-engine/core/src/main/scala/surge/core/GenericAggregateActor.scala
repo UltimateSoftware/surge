@@ -15,7 +15,7 @@ import play.api.libs.json.JsValue
 import surge.akka.cluster.{ JacksonSerializable, Passivate }
 import surge.config.{ RetryConfig, TimeoutConfig }
 import surge.kafka.streams.AggregateStateStoreKafkaStreams
-import surge.metrics.{ MetricsProvider, Timer }
+import surge.metrics.{ MetricInfo, Metrics, Timer }
 import surge.scala.core.kafka.HeadersHelper
 import surge.scala.core.validations.ValidationError
 
@@ -67,15 +67,36 @@ private[surge] object GenericAggregateActor {
   case class CommandSuccess[Agg](
       @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "aggregateType", visible = true) aggregateState: Option[Agg]) extends CommandResponse
 
-  def createMetrics(metricsProvider: MetricsProvider, aggregateName: String): GenericAggregateActorMetrics = {
+  def createMetrics(metrics: Metrics, aggregateName: String): GenericAggregateActorMetrics = {
     GenericAggregateActorMetrics(
-      stateInitializationTimer = metricsProvider.createTimer(s"${aggregateName}ActorStateInitializationTimer"),
-      aggregateDeserializationTimer = metricsProvider.createTimer(s"${aggregateName}AggregateStateDeserializationTimer"),
-      commandHandlingTimer = metricsProvider.createTimer(s"${aggregateName}CommandHandlingTimer"),
-      eventHandlingTimer = metricsProvider.createTimer(s"${aggregateName}EventHandlingTimer"),
-      serializeStateTimer = metricsProvider.createTimer(s"${aggregateName}AggregateStateSerializationTimer"),
-      serializeEventTimer = metricsProvider.createTimer(s"${aggregateName}EventSerializationTimer"),
-      eventPublishTimer = metricsProvider.createTimer(s"${aggregateName}EventPublishTimer"))
+      stateInitializationTimer = metrics.timer(
+        MetricInfo(
+          name = s"${aggregateName}ActorStateInitializationTimer",
+          description = "Average time in milliseconds taken to load aggregate state from the KTable")),
+      aggregateDeserializationTimer = metrics.timer(
+        MetricInfo(
+          name = s"${aggregateName}AggregateStateDeserializationTimer",
+          description = "Average time taken in milliseconds to deserialize aggregate state after the bytes are read from the KTable")),
+      commandHandlingTimer = metrics.timer(
+        MetricInfo(
+          name = s"${aggregateName}CommandHandlingTimer",
+          description = "Average time taken in milliseconds for the business logic 'processCommand' function to process a command")),
+      eventHandlingTimer = metrics.timer(
+        MetricInfo(
+          name = s"${aggregateName}EventHandlingTimer",
+          description = "Average time taken in milliseconds for the business logic 'handleEvent' function to handle an event")),
+      serializeStateTimer = metrics.timer(
+        MetricInfo(
+          name = s"${aggregateName}AggregateStateSerializationTimer",
+          description = "Average time taken in milliseconds to serialize a new aggregate state to bytes before persisting to Kafka")),
+      serializeEventTimer = metrics.timer(
+        MetricInfo(
+          name = s"${aggregateName}EventSerializationTimer",
+          description = "Average time taken in milliseconds to serialize an individual event to bytes before persisting to Kafka")),
+      eventPublishTimer = metrics.timer(
+        MetricInfo(
+          name = s"${aggregateName}EventPublishTimer",
+          description = "Average time taken in milliseconds to persist all generated events plus an updated state to Kafka")))
   }
 
   case class GenericAggregateActorMetrics(

@@ -8,18 +8,18 @@ import akka.stream.scaladsl.Flow
 import org.apache.kafka.common.serialization.{ ByteArrayDeserializer, Deserializer, StringDeserializer }
 import org.slf4j.LoggerFactory
 import surge.akka.streams.graph.EitherFlow
-import surge.metrics.{ MetricsProvider, NoOpMetricsProvider, Timer }
+import surge.metrics.{ MetricInfo, Metrics, Timer }
 
 import scala.util.{ Failure, Success, Try }
 
 trait EventSourceDeserialization[Event] {
   private val log = LoggerFactory.getLogger(getClass)
   def formatting: SurgeEventReadFormatting[Event]
-  def metricsProvider: MetricsProvider = NoOpMetricsProvider
+  def metrics: Metrics = Metrics.globalMetricRegistry
   def baseEventName: String = "SurgeDefaultBaseEventName"
 
-  protected lazy val eventDeserializationTimer: Timer = metricsProvider.createTimer(s"${baseEventName}DeserializationTimer")
-  protected lazy val eventHandlingTimer: Timer = metricsProvider.createTimer(s"${baseEventName}HandlingTimer")
+  protected lazy val eventDeserializationTimer: Timer = metrics.timer(
+    MetricInfo(s"${baseEventName}DeserializationTimer", "The average time (in ms) taken to deserialize events"))
 
   protected def onDeserializationFailure(key: String, value: Array[Byte], exception: Throwable): Unit = {
     log.error("Unable to read event from byte array", exception)

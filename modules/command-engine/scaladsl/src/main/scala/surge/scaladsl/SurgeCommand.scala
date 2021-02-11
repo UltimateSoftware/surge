@@ -4,11 +4,13 @@ package surge.scaladsl
 
 import akka.actor.ActorSystem
 import surge.core
+import surge.metrics.Metric
 
 trait SurgeCommand[AggId, Agg, Command, Event]
   extends core.SurgeCommandTrait[Agg, Command, Event]
   with HealthCheckTrait {
   def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Command, Event]
+  def getMetrics: Seq[Metric] = businessLogic.metrics.getMetrics
 }
 
 object SurgeCommand {
@@ -34,4 +36,6 @@ private[scaladsl] class SurgeCommandImpl[AggId, Agg, Command, Event](
   def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Command, Event] = {
     new AggregateRefImpl(aggIdToString(aggregateId), actorRouter.actorRegion)
   }
+
+  override def getMetrics: Seq[Metric] = businessLogic.metrics.getMetrics
 }

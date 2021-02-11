@@ -4,12 +4,10 @@ package surge.scaladsl
 
 import com.typesafe.config.ConfigFactory
 import surge.core.{ SurgeAggregateReadFormatting, SurgeCommandKafkaConfig, SurgeWriteFormatting }
-import surge.metrics.{ MetricsProvider, MetricsPublisher, NoOpMetricsProvider, NoOpsMetricsPublisher }
+import surge.metrics.Metrics
 import surge.scala.core.kafka.KafkaTopic
 import surge.scala.core.validations.AsyncCommandValidator
 import surge.scala.oss.domain.AggregateCommandModel
-
-import scala.concurrent.duration._
 
 trait SurgeCommandBusinessLogic[AggId, Agg, Command, Event] {
 
@@ -32,13 +30,7 @@ trait SurgeCommandBusinessLogic[AggId, Agg, Command, Event] {
 
   def aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) => Boolean = { (_, _, _) => true }
 
-  // Defaults to noops publishing (for now) and 30 second interval on metrics snapshots
-  // These can be overridden in the derived applications
-  def metricsPublisher: MetricsPublisher = NoOpsMetricsPublisher
-
-  def metricsInterval: FiniteDuration = 30.seconds
-
-  def metricsProvider: MetricsProvider = NoOpMetricsProvider
+  def metrics: Metrics = Metrics.globalMetricRegistry
 
   def aggregateIdToString: AggId => String
 
@@ -55,7 +47,6 @@ trait SurgeCommandBusinessLogic[AggId, Agg, Command, Event] {
 }
 
 object SurgeCommandBusinessLogic {
-
   def toCore[Agg, Command, Event](
     businessLogic: SurgeCommandBusinessLogic[_, Agg, Command, Event]): surge.core.SurgeCommandBusinessLogic[Agg, Command, Event] = {
     new surge.core.SurgeCommandBusinessLogic[Agg, Command, Event](
@@ -66,10 +57,8 @@ object SurgeCommandBusinessLogic {
       writeFormatting = businessLogic.writeFormatting,
       commandValidator = businessLogic.commandValidator,
       aggregateValidator = businessLogic.aggregateValidator,
-      metricsProvider = businessLogic.metricsProvider,
-      metricsPublisher = businessLogic.metricsPublisher,
-      metricsInterval = businessLogic.metricsInterval,
       consumerGroup = businessLogic.consumerGroupBase,
-      transactionalIdPrefix = businessLogic.transactionalIdPrefix)
+      transactionalIdPrefix = businessLogic.transactionalIdPrefix,
+      metrics = businessLogic.metrics)
   }
 }
