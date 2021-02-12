@@ -2,6 +2,8 @@
 
 package surge.core
 
+import java.util.Properties
+
 import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.kafka.ConsumerSettings
@@ -13,6 +15,7 @@ import org.slf4j.LoggerFactory
 import surge.akka.streams.kafka.{ KafkaConsumer, KafkaStreamManager }
 import surge.scala.core.kafka.KafkaTopic
 
+import scala.collection.JavaConverters._
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.hashing.MurmurHash3
 
@@ -33,6 +36,8 @@ trait KafkaDataSource[Key, Value] extends DataSource {
   def keyDeserializer: Deserializer[Key]
   def valueDeserializer: Deserializer[Value]
 
+  def additionalKafkaProperties: Properties = new Properties()
+
   def to(sink: DataHandler[Key, Value], consumerGroup: String): DataPipeline = {
     to(sink, consumerGroup, autoStart = true)
   }
@@ -40,6 +45,7 @@ trait KafkaDataSource[Key, Value] extends DataSource {
   def to(sink: DataHandler[Key, Value], consumerGroup: String, autoStart: Boolean): DataPipeline = {
     val consumerSettings = KafkaConsumer.consumerSettings[Key, Value](actorSystem, groupId = consumerGroup,
       brokers = kafkaBrokers)(keyDeserializer, valueDeserializer)
+        .withProperties(additionalKafkaProperties.asScala.toMap)
     to(consumerSettings)(sink, autoStart)
   }
 

@@ -19,6 +19,7 @@ object KafkaConsumer extends KafkaSecurityConfiguration {
   private val config: Config = ConfigFactory.load()
   private val defaultBrokers = config.getString("kafka.brokers")
   private val consumerSessionTimeout = config.getDuration("surge.kafka-event-source.consumer.session-timeout")
+  private val autoOffsetReset = config.getString("surge.kafka-event-source.consumer.auto-offset-reset")
 
   def defaultConsumerSettings(actorSystem: ActorSystem, groupId: String): ConsumerSettings[String, Array[Byte]] = {
     implicit val stringDeserializer: StringDeserializer = new StringDeserializer()
@@ -41,7 +42,7 @@ object KafkaConsumer extends KafkaSecurityConfiguration {
       .withBootstrapServers(brokers)
       .withGroupId(groupId)
       .withProperty(ConsumerConfig.ISOLATION_LEVEL_CONFIG, IsolationLevel.READ_COMMITTED.toString.toLowerCase)
-      .withProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
+      .withProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, autoOffsetReset.toLowerCase)
       .withProperty(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, consumerSessionTimeout.toMillis.toString)
       .withProperty(ConsumerConfigExtension.LEAVE_GROUP_ON_CLOSE_CONFIG, TimeoutConfig.debugTimeoutEnabled.toString)
       .withProperties(securityProps.asScala.toMap)
