@@ -4,8 +4,7 @@ package surge.metrics
 
 import org.scalatest.concurrent.Eventually
 
-import scala.concurrent.{ Await, ExecutionContext, Future }
-import scala.concurrent.duration._
+import scala.concurrent.{ ExecutionContext, Future }
 
 class TimerSpec extends MetricsSpecLike with Eventually {
   "Timer" should {
@@ -25,19 +24,21 @@ class TimerSpec extends MetricsSpecLike with Eventually {
     "Properly time scala Future completion time" in {
       val testTimerName = "future-timer-test"
       val timer = metrics.timer(MetricInfo(testTimerName, "Test timer description"))
-      lazy val future = Future { Thread.sleep(25L) }(ExecutionContext.global)
+      lazy val future = Future { Thread.sleep(10L) }(ExecutionContext.global)
       timer.time(future)
       eventually {
-        metricValue(testTimerName) shouldEqual 25.0 +- 10 // Give it a little wiggle room
-
+        // The timing for the future is a little flaky and can sometimes be 10+ ms off in these tests.
+        // Just assert that we're at least timing the amount of time we've slept for to prevent this test from being really flaky.
+        metricValue(testTimerName) should be >= 10.0
+        metricValue(testTimerName) should be <= 100.0
       }
     }
 
     "Properly time method completion time" in {
       val testTimerName = "method-timer-test"
       val timer = metrics.timer(MetricInfo(testTimerName, "Test timer description"))
-      timer.time({ Thread.sleep(25L) })
-      metricValue(testTimerName) shouldEqual 25.0 +- 4 // Give it a little wiggle room
+      timer.time({ Thread.sleep(10L) })
+      metricValue(testTimerName) shouldEqual 10.0 +- 4 // Give it a little wiggle room
     }
   }
 }
