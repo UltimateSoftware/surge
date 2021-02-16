@@ -9,22 +9,22 @@ import akka.pattern.pipe
 import com.typesafe.config.ConfigFactory
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.serialization.Serdes.ByteArraySerde
-import org.apache.kafka.streams.{ StoreQueryParameters, StreamsConfig }
 import org.apache.kafka.streams.errors.InvalidStateStoreException
 import org.apache.kafka.streams.kstream.Materialized
 import org.apache.kafka.streams.kstream.internals.{ KTableImpl, KTableImplExtensions }
 import org.apache.kafka.streams.state.QueryableStoreTypes
+import org.apache.kafka.streams.{ LagInfo, StoreQueryParameters, StreamsConfig }
 import surge.kafka.streams.AggregateStateStoreKafkaStreamsImpl._
 import surge.kafka.streams.HealthyActor.GetHealth
 import surge.scala.core.kafka.{ KafkaTopic, UltiKafkaConsumerConfig }
 
+import scala.collection.JavaConverters._
 import scala.concurrent.Future
 
 private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
     aggregateName: String,
     stateTopic: KafkaTopic,
     partitionTrackerProvider: KafkaStreamsPartitionTrackerProvider,
-    kafkaStateMetadataHandler: KafkaPartitionMetadataHandler,
     aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) => Boolean,
     applicationHostPort: Option[String],
     override val settings: AggregateStateStoreKafkaStreamsImplSettings)
@@ -74,7 +74,6 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
       aggregateStoreMaterializedBase
     }
 
-    // Build the KTable directly from Kafka
     val aggKTable = consumer.builder.table(stateTopic.name, aggregateStoreMaterialized)
 
     // Reach into the underlying implementation and tell it to send the old value for an aggregate
@@ -84,8 +83,7 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
 
     // Run business logic validation and transform values from an aggregate into metadata about
     // the processed record including topic/partition, and offset of the message in Kafka
-    val stateMeta = aggKTableJavaImpl.toStreamWithChanges.transformValues(validationProcessor.supplier)
-    kafkaStateMetadataHandler.processPartitionMetadata(stateMeta)
+    aggKTableJavaImpl.toStreamWithChanges.transformValues(validationProcessor.supplier)
   }
 
   override def createQueryableStore(consumer: KafkaByteStreamsConsumer): KafkaStreamsKeyValueStore[String, Array[Byte]] = {
@@ -117,6 +115,9 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
       getSubstatesForAggregate(aggregateQueryableStateStore, aggregateId).pipeTo(sender())
     case GetAggregateBytes(aggregateId) =>
       getAggregateBytes(aggregateQueryableStateStore, aggregateId).pipeTo(sender())
+    case GetLocalStorePartitionLags =>
+      val lagAsScala = consumer.streams.allLocalStorePartitionLags().asScala.mapValues(_.asScala.toMap).toMap
+      sender() ! LocalStorePartitionLags(lagAsScala)
     case GetTopology =>
       sender() ! consumer.topology
     case GetHealth =>
@@ -172,12 +173,14 @@ private[streams] object AggregateStateStoreKafkaStreamsImpl {
   case object GetTopology extends AggregateStateStoreKafkaStreamsCommand
   case class GetSubstatesForAggregate(aggregateId: String) extends AggregateStateStoreKafkaStreamsCommand
   case class GetAggregateBytes(aggregateId: String) extends AggregateStateStoreKafkaStreamsCommand
+  case object GetLocalStorePartitionLags extends AggregateStateStoreKafkaStreamsCommand
+
+  case class LocalStorePartitionLags(lags: Map[String, Map[java.lang.Integer, LagInfo]])
 
   def props(
     aggregateName: String,
     stateTopic: KafkaTopic,
     partitionTrackerProvider: KafkaStreamsPartitionTrackerProvider,
-    kafkaStateMetadataHandler: KafkaPartitionMetadataHandler,
     aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) => Boolean,
     applicationHostPort: Option[String],
     settings: AggregateStateStoreKafkaStreamsImplSettings): Props = {
@@ -186,7 +189,6 @@ private[streams] object AggregateStateStoreKafkaStreamsImpl {
         aggregateName,
         stateTopic,
         partitionTrackerProvider,
-        kafkaStateMetadataHandler,
         aggregateValidator,
         applicationHostPort,
         settings))
@@ -210,12 +212,7 @@ private[streams] object AggregateStateStoreKafkaStreamsImpl {
       val brokers = config.getString("kafka.brokers").split(",")
       val consumerConfig = UltiKafkaConsumerConfig(consumerGroupName)
       val environment = config.getString("app.environment")
-      val applicationId = consumerConfig.consumerGroup match {
-        case name: String if name.contains(s"-$environment") =>
-          s"${consumerConfig.consumerGroup}-$aggregateName"
-        case _ =>
-          s"${consumerConfig.consumerGroup}-$aggregateName-$environment"
-      }
+      val applicationId = s"${consumerConfig.consumerGroup}-$aggregateName-$environment"
       val cacheHeapPercentage = config.getDouble("kafka.streams.cache-heap-percentage")
       val totalMemory = Runtime.getRuntime.maxMemory()
       val cacheMemory = (totalMemory * cacheHeapPercentage).longValue

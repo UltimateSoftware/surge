@@ -5,7 +5,7 @@ package surge.kafka.streams
 import akka.actor.{ ActorRef, ActorSystem }
 import akka.pattern.{ BackoffOpts, BackoffSupervisor, ask }
 import akka.util.Timeout
-import org.apache.kafka.streams.Topology
+import org.apache.kafka.streams.{ LagInfo, Topology }
 import surge.config.{ BackoffConfig, TimeoutConfig }
 import surge.kafka.streams.AggregateStateStoreKafkaStreamsImpl._
 import surge.kafka.streams.KafkaStreamLifeCycleManagement.{ Restart, Start, Stop }
@@ -36,9 +36,6 @@ class AggregateStreamsRocksDBConfig extends CustomRocksDBConfigSetter(AggregateS
  * @param partitionTrackerProvider Registered within a Kafka Streams state change listener to track updates to the Kafka Streams consumer group.
  *                                 When the consumer group transitions from rebalancing to running, the partition tracker provided will be notified
  *                                 automatically.  This can be used for notifying other processes/interested parties that a consumer group change has occurred.
- * @param kafkaStateMetadataHandler Once records from the aggregate state topic are fully processed (stored in the KTable) this handler is invoked
- *                                  with metadata about the record processed.  This can be used to notify external entities of progress being made through
- *                                  the aggregate topic.
  * @param aggregateValidator Validation function used for each consumed message from Kafka to check if a change from previous aggregate state to new
  *                           aggregate state is valid or not.  Just emits a warning if the change is not valid.
  * @param applicationHostPort Optional string to use for a host/port exposed by this application.  This information is exposed to the partition tracker
@@ -49,7 +46,6 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
     aggregateName: String,
     stateTopic: KafkaTopic,
     partitionTrackerProvider: KafkaStreamsPartitionTrackerProvider,
-    kafkaStateMetadataHandler: KafkaPartitionMetadataHandler,
     aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) => Boolean,
     applicationHostPort: Option[String],
     consumerGroupName: String,
@@ -77,6 +73,10 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
     underlyingActor ! Restart
   }
 
+  def partitionLags()(implicit ec: ExecutionContext): Future[Map[String, Map[java.lang.Integer, LagInfo]]] = {
+    underlyingActor.ask(GetLocalStorePartitionLags).mapTo[LocalStorePartitionLags].map(_.lags)
+  }
+
   def substatesForAggregate(aggregateId: String)(implicit ec: ExecutionContext): Future[List[(String, Array[Byte])]] = {
     underlyingActor.ask(GetSubstatesForAggregate(aggregateId)).mapTo[List[(String, Array[Byte])]]
   }
@@ -99,7 +99,6 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
       aggregateName,
       stateTopic,
       partitionTrackerProvider,
-      kafkaStateMetadataHandler,
       aggregateValidator,
       applicationHostPort,
       settings)

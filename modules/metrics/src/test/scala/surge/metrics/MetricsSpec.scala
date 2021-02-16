@@ -50,6 +50,21 @@ class MetricsSpec extends AnyWordSpec with Matchers {
       metrics.metricValues.head shouldEqual MetricValue(sensorMax.name, Map.empty, 10.0)
     }
 
+    "Reuse the same underlying metric instance so it can be queried directly later" in {
+      val metrics = Metrics(MetricsConfig(RecordingLevel.Info))
+      val sensor = metrics.sensor("some-cool-sensor")
+      val sensorMax = MetricInfo("cool-sensor-max", "The maximum value we've seen for this sensor")
+      sensor.addMetric(sensorMax, new Max)
+      sensor.record(10.0)
+
+      metrics.getMetrics should have length 1
+      val metric = metrics.getMetrics.head
+      metric.getValue shouldEqual 10.0
+
+      sensor.record(20.0)
+      metric.getValue shouldEqual 20.0
+    }
+
     "Return an existing sensor instead of creating a new one if one already exists" in {
       val metrics = Metrics(MetricsConfig(RecordingLevel.Info))
       val sensor = metrics.sensor("some-cool-sensor")

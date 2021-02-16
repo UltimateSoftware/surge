@@ -26,12 +26,10 @@ abstract class SurgeCommandImpl[Agg, Command, Event](
   private implicit val system: ActorSystem = actorSystem
 
   private val stateChangeActor = system.actorOf(KafkaConsumerStateTrackingActor.props)
-  private val stateMetaHandler = new KafkaPartitionMetadataHandlerImpl(system)
   private val kafkaStreamsImpl = new AggregateStateStoreKafkaStreams[JsValue](
     businessLogic.aggregateName,
     businessLogic.kafka.stateTopic,
     new KafkaStreamsPartitionTrackerActorProvider(stateChangeActor),
-    stateMetaHandler,
     businessLogic.aggregateValidator,
     applicationHostPort,
     businessLogic.consumerGroup,

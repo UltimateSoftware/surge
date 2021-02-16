@@ -68,7 +68,8 @@ class GenericAggregateActorRegionProvider[Agg, Command, Event](
     actorSystem = system,
     assignedPartition = assignedPartition,
     metrics = metrics,
-    businessLogic = businessLogic)
+    businessLogic = businessLogic,
+    kStreams = aggregateKafkaStreamsImpl)
 
   override def actorProvider(context: ActorContext): EntityPropsProvider[String] = {
     val aggregateMetrics = GenericAggregateActor.createMetrics(metrics, businessLogic.aggregateName)

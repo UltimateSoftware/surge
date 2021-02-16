@@ -17,6 +17,7 @@ import akka.{ Done, NotUsed }
 import com.typesafe.config.ConfigFactory
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.{ Metric, MetricName }
+import org.slf4j.LoggerFactory
 import surge.akka.cluster.{ ActorHostAwareness, ActorRegistry, ActorSystemHostAwareness }
 import surge.core.DataPipeline.{ ReplayResult, _ }
 import surge.core.{ EventPlusStreamMeta, EventReplaySettings, EventReplayStrategy }
@@ -25,6 +26,18 @@ import surge.support.Logging
 
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
+
+object PartitionAssignorConfig {
+  private val config = ConfigFactory.load()
+  private val log = LoggerFactory.getLogger(getClass)
+  val assignorClassName: String = config.getString("surge.kafka-event-source.consumer.range-assignor").toLowerCase() match {
+    case "range"              => classOf[HostAwareRangeAssignor].getName
+    case "cooperative-sticky" => classOf[HostAwareCooperativeStickyAssignor].getName
+    case other =>
+      log.warn("Attempted to use an unknown range assignor named [{}], accepted values are [range, cooperative-sticky].  Defaulting to range.", other)
+      classOf[HostAwareRangeAssignor].getName
+  }
+}
 
 case class KafkaStreamMeta(topic: String, partition: Int, offset: Long, committableOffset: CommittableOffset) {
   override def toString: String = {
@@ -129,7 +142,7 @@ class KafkaStreamManagerActor[Key, Value](subscription: Subscription, topicName:
     .withParallelism(committerParallelism)
 
   private lazy val consumerSettingsWithHost = baseConsumerSettings
-    .withProperty(ConsumerConfig.PARTITION_ASSIGNMENT_STRATEGY_CONFIG, classOf[HostAwareRangeAssignor].getName)
+    .withProperty(ConsumerConfig.PARTITION_ASSIGNMENT_STRATEGY_CONFIG, PartitionAssignorConfig.assignorClassName)
     .withProperty(HostAwarenessConfig.HOST_CONFIG, localHostname)
     .withProperty(HostAwarenessConfig.PORT_CONFIG, localPort.toString)
     .withStopTimeout(Duration.Zero)

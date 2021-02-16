@@ -45,7 +45,7 @@ trait KafkaDataSource[Key, Value] extends DataSource {
   def to(sink: DataHandler[Key, Value], consumerGroup: String, autoStart: Boolean): DataPipeline = {
     val consumerSettings = KafkaConsumer.consumerSettings[Key, Value](actorSystem, groupId = consumerGroup,
       brokers = kafkaBrokers)(keyDeserializer, valueDeserializer)
-        .withProperties(additionalKafkaProperties.asScala.toMap)
+      .withProperties(additionalKafkaProperties.asScala.toMap)
     to(consumerSettings)(sink, autoStart)
   }
 

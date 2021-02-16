@@ -13,8 +13,28 @@ import surge.scala.core.kafka.HostPort
 import scala.collection.JavaConverters._
 import scala.util.Try
 
-class HostAwareRangeAssignor extends RangeAssignor with Configurable {
-  private var hostPort: Option[HostPort] = None
+class HostAwareRangeAssignor extends RangeAssignor with HostAwarenessConfig {
+  override def subscriptionUserData(topics: util.Set[String]): ByteBuffer = {
+    SubscriptionInfo(hostPort = hostPort).encode
+  }
+
+  override def assign(metadata: Cluster, groupSubscription: ConsumerPartitionAssignor.GroupSubscription): ConsumerPartitionAssignor.GroupAssignment = {
+    val withNoMetadata = super.assign(metadata, groupSubscription)
+    val assignmentsWithMetadata = addMetadataToAssignment(withNoMetadata, groupSubscription)
+    new ConsumerPartitionAssignor.GroupAssignment(assignmentsWithMetadata.asJava)
+  }
+
+  override def onAssignment(assignment: ConsumerPartitionAssignor.Assignment, metadata: ConsumerGroupMetadata): Unit = {
+    handleOnAssignment(assignment, metadata)
+  }
+}
+
+object HostAwarenessConfig {
+  val HOST_CONFIG: String = "application.host"
+  val PORT_CONFIG: String = "application.port"
+}
+trait HostAwarenessConfig extends Configurable {
+  protected var hostPort: Option[HostPort] = None
 
   override def configure(configs: util.Map[String, _]): Unit = {
     for {
@@ -25,39 +45,31 @@ class HostAwareRangeAssignor extends RangeAssignor with Configurable {
     }
   }
 
-  override def subscriptionUserData(topics: util.Set[String]): ByteBuffer = {
-    SubscriptionInfo(hostPort = hostPort).encode
-  }
-
-  override def assign(metadata: Cluster, groupSubscription: ConsumerPartitionAssignor.GroupSubscription): ConsumerPartitionAssignor.GroupAssignment = {
-    val withNoMetadata = super.assign(metadata, groupSubscription)
+  protected def addMetadataToAssignment(
+    groupAssignment: ConsumerPartitionAssignor.GroupAssignment,
+    groupSubscription: ConsumerPartitionAssignor.GroupSubscription): Map[String, Assignment] = {
 
     val hostPortMappings = groupSubscription.groupSubscription().asScala.flatMap {
-      case (key, subscription) =>
-        SubscriptionInfo.decode(subscription.userData()).flatMap(_.hostPort).toList.flatMap { hostPort =>
-          val assignedPartitions = Option(withNoMetadata.groupAssignment().get(key)).map(_.partitions().asScala.toSet).getOrElse(Set.empty)
+      case (key, subscription) ⇒
+        SubscriptionInfo.decode(subscription.userData()).flatMap(_.hostPort).toList.flatMap { hostPort ⇒
+          val assignedPartitions = Option(groupAssignment.groupAssignment().get(key)).map(_.partitions().asScala.toSet).getOrElse(Set.empty)
           assignedPartitions.map(_ -> hostPort)
         }
     }
     val assignmentInfo = AssignmentInfo(hostPortMappings.toList)
     val assignmentUserData = assignmentInfo.encode
 
-    val assignmentsWithMetadata = withNoMetadata.groupAssignment().asScala.map {
-      case (key, assignment) =>
+    val assignmentsWithMetadata = groupAssignment.groupAssignment().asScala.map {
+      case (key, assignment) ⇒
         key -> new Assignment(assignment.partitions(), assignmentUserData)
     }
-
-    new ConsumerPartitionAssignor.GroupAssignment(assignmentsWithMetadata.asJava)
+    assignmentsWithMetadata.toMap
   }
 
-  override def onAssignment(assignment: ConsumerPartitionAssignor.Assignment, metadata: ConsumerGroupMetadata): Unit = {
-    AssignmentInfo.decode(assignment.userData()).foreach { assignmentInfo =>
+  protected def handleOnAssignment(assignment: ConsumerPartitionAssignor.Assignment, metadata: ConsumerGroupMetadata): Unit = {
+    val decodedUserData = Option(assignment.userData()).flatMap(AssignmentInfo.decode)
+    decodedUserData.foreach { assignmentInfo ⇒
       HostAssignmentTracker.updateState(assignmentInfo.assignedPartitions)
     }
   }
-}
-
-object HostAwarenessConfig {
-  val HOST_CONFIG: String = "application.host"
-  val PORT_CONFIG: String = "application.port"
 }

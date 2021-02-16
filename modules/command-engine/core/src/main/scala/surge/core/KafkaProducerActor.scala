@@ -5,8 +5,7 @@ package surge.core
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 
-import akka.Done
-import akka.actor.{ Actor, ActorRef, ActorSystem, NoSerializationVerificationNeeded, PoisonPill, Props, Stash, Status }
+import akka.actor.{ Actor, ActorRef, ActorSystem, NoSerializationVerificationNeeded, PoisonPill, Props, Stash, Status, Timers }
 import akka.pattern._
 import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
@@ -14,10 +13,10 @@ import org.apache.kafka.clients.producer.{ ProducerConfig, ProducerRecord }
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.ProducerFencedException
 import org.apache.kafka.common.header.Headers
+import org.apache.kafka.streams.LagInfo
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.config.TimeoutConfig
 import surge.kafka.streams.HealthyActor.GetHealth
-import surge.kafka.streams.KafkaPartitionMetadataHandlerImpl.KafkaPartitionMetadataUpdated
 import surge.kafka.streams._
 import surge.metrics.{ MetricInfo, Metrics, Rate, Timer }
 import surge.scala.core.kafka.{ KafkaBytesProducer, KafkaRecordMetadata }
@@ -108,10 +107,11 @@ object KafkaProducerActor {
     actorSystem: ActorSystem,
     assignedPartition: TopicPartition,
     metrics: Metrics,
-    businessLogic: SurgeCommandBusinessLogic[Agg, _, Event]): KafkaProducerActor[Agg, Event] = {
+    businessLogic: SurgeCommandBusinessLogic[Agg, _, Event],
+    kStreams: AggregateStateStoreKafkaStreams[_]): KafkaProducerActor[Agg, Event] = {
     val publisherActor = actorSystem.actorOf(
       Props(new KafkaProducerActorImpl(
-        assignedPartition, metrics, businessLogic)).withDispatcher("kafka-publisher-actor-dispatcher"))
+        assignedPartition, metrics, businessLogic, kStreams)).withDispatcher("kafka-publisher-actor-dispatcher"))
 
     new KafkaProducerActor[Agg, Event](publisherActor, metrics, businessLogic.aggregateName)
   }
@@ -125,7 +125,6 @@ object KafkaProducerActor {
 private object KafkaProducerActorImpl {
   sealed trait KafkaProducerActorMessage extends NoSerializationVerificationNeeded
   case class Publish(state: KafkaProducerActor.MessageToPublish, eventsToPublish: Seq[KafkaProducerActor.MessageToPublish]) extends KafkaProducerActorMessage
-  case class StateProcessed(stateMeta: KafkaPartitionMetadata) extends KafkaProducerActorMessage
   case class IsAggregateStateCurrent(aggregateId: String, expirationTime: Instant) extends KafkaProducerActorMessage
 
   object AggregateStateRates {
@@ -147,17 +146,18 @@ private object KafkaProducerActorImpl {
   case class EventsFailedToPublish(originalSenders: Seq[ActorRef], reason: Throwable) extends InternalMessage
   case class AbortTransactionFailed(originalSenders: Seq[ActorRef], abortTransactionException: Throwable, originalException: Throwable) extends InternalMessage
   case object InitTransactions extends InternalMessage
+  case object InitTransactionSuccess extends InternalMessage
   case object FailedToInitTransactions extends InternalMessage
-  case class Initialize(endOffset: Long) extends InternalMessage
-  case object FailedToInitialize extends InternalMessage
   case object FlushMessages extends InternalMessage
   case class PublishWithSender(sender: ActorRef, publish: Publish) extends InternalMessage
   case class PendingInitialization(actor: ActorRef, key: String, expiration: Instant) extends InternalMessage
+  case class KTableProgressUpdate(topicPartition: TopicPartition, lagInfo: LagInfo) extends InternalMessage
 }
 private class KafkaProducerActorImpl[Agg, Event](
     assignedPartition: TopicPartition, metrics: Metrics,
     businessLogic: SurgeCommandBusinessLogic[Agg, _, Event],
-    kafkaProducerOverride: Option[KafkaBytesProducer] = None) extends Actor with Stash {
+    kStreams: AggregateStateStoreKafkaStreams[_],
+    kafkaProducerOverride: Option[KafkaBytesProducer] = None) extends Actor with Stash with Timers {
 
   import KafkaProducerActorImpl._
   import businessLogic._
@@ -174,15 +174,13 @@ private class KafkaProducerActorImpl[Agg, Event](
   private val publisherCompression = config.getString("kafka.publisher.compression-type")
   private val publisherAcks = config.getString("kafka.publisher.acks")
   private val publisherTransactionTimeoutMs = config.getString("kafka.publisher.transaction-timeout-ms")
+  private val ktableCheckInterval = config.getDuration("kafka.publisher.ktable-check-interval").toMillis.milliseconds
   private val brokers = config.getString("kafka.brokers").split(",")
 
   private val transactionalIdPrefix = businessLogic.transactionalIdPrefix
-  // TODO revisit this - seems like a long transactional id, but may be close to what we want
   private val transactionalId = s"$transactionalIdPrefix-${assignedPartition.topic()}-${assignedPartition.partition()}"
 
   private var kafkaPublisher = getPublisher()
-
-  private val nonTransactionalStatePublisher = kafkaProducerOverride.getOrElse(KafkaBytesProducer(brokers, stateTopic, partitioner = partitioner))
 
   private val kafkaPublisherTimer: Timer = metrics.timer(
     MetricInfo(
@@ -190,10 +188,9 @@ private class KafkaProducerActorImpl[Agg, Event](
       "Average time in milliseconds that it takes the publisher to write a batch of messages (events & state) to Kafka"))
   private implicit val rates: AggregateStateRates = AggregateStateRates(aggregateName, metrics)
 
-  context.system.eventStream.subscribe(self, classOf[KafkaPartitionMetadataUpdated])
-
   context.system.scheduler.scheduleOnce(10.milliseconds, self, InitTransactions)
   context.system.scheduler.scheduleWithFixedDelay(flushInterval, flushInterval, self, FlushMessages)
+  context.system.scheduler.scheduleAtFixedRate(ktableCheckInterval, ktableCheckInterval)(() => checkKTableProgress())
 
   private def getPublisher(): KafkaBytesProducer = {
     kafkaProducerOverride.getOrElse(newPublisher())
@@ -217,65 +214,55 @@ private class KafkaProducerActorImpl[Agg, Event](
 
   override def receive: Receive = uninitialized
 
-  // scalastyle:off cyclomatic.complexity
   private def uninitialized: Receive = {
-    case InitTransactions                 => initializeTransactions()
-    case msg: Initialize                  => handle(msg)
-    case FailedToInitialize               => context.system.scheduler.scheduleOnce(3.seconds)(initializeState())
-    case FlushMessages                    => // Ignore from this state
-    case GetHealth                        => getHealthCheck()
-    case _: KafkaPartitionMetadataUpdated => stash() // process only AFTER flush message is sent
-    case _: Publish                       => stash()
-    case _: StateProcessed                => stash()
-    case _: IsAggregateStateCurrent       => stash()
-    case unknown                          => log.warn("Receiving unhandled message {} on uninitialized state", unknown.getClass.getName)
+    case InitTransactions => initializeTransactions()
+    case InitTransactionSuccess =>
+      unstashAll()
+      context.become(waitingForKTableIndexing())
+    case FlushMessages              => // Ignore from this state
+    case GetHealth                  => getHealthCheck()
+    case _: KTableProgressUpdate    => stash() // process only AFTER flush message is sent
+    case _: Publish                 => stash()
+    case _: IsAggregateStateCurrent => stash()
+    case unknown                    => log.warn("Receiving unhandled message {} on uninitialized state", unknown.getClass.getName)
   }
-  // scalastyle:on
 
-  private def recoveringBacklog(endOffset: Long): Receive = {
-    case msg: KafkaPartitionMetadataUpdated => handle(msg)
-    case msg: StateProcessed                => handleFromRecoveringState(endOffset, msg)
-    case FlushMessages                      => // Ignore from this state
-    case GetHealth                          => getHealthCheck()
-    case _: Publish                         => stash()
-    case _: IsAggregateStateCurrent         => stash()
-    case unknown                            => log.warn("Receiving unhandled message {} on recoveringBacklog state", unknown.getClass.getName)
+  private def waitingForKTableIndexing(): Receive = {
+    case msg: KTableProgressUpdate  => handleFromWaitingForKTableIndexingState(msg)
+    case FlushMessages              => // Ignore from this state
+    case GetHealth                  => getHealthCheck()
+    case _: Publish                 => stash()
+    case _: IsAggregateStateCurrent => stash()
+    case unknown                    => log.warn("Receiving unhandled message {} on recoveringBacklog state", unknown.getClass.getName)
   }
 
   private def processing(state: KafkaProducerActorState): Receive = {
-    case msg: KafkaPartitionMetadataUpdated => handle(msg)
-    case msg: Publish                       => handle(state, msg)
-    case msg: EventsPublished               => handle(state, msg)
-    case msg: EventsFailedToPublish         => handleFailedToPublish(state, msg)
-    case msg: StateProcessed                => handle(state, msg)
-    case msg: IsAggregateStateCurrent       => handle(state, msg)
-    case GetHealth                          => getHealthCheck(state)
-    case FlushMessages                      => handleFlushMessages(state)
-    case Done                               => // Ignore to prevent these messages to become dead letters
-    case msg: AbortTransactionFailed        => handle(msg)
+    case msg: KTableProgressUpdate    => handle(state, msg)
+    case msg: Publish                 => handle(state, msg)
+    case msg: EventsPublished         => handle(state, msg)
+    case msg: EventsFailedToPublish   => handleFailedToPublish(state, msg)
+    case msg: IsAggregateStateCurrent => handle(state, msg)
+    case GetHealth                    => getHealthCheck(state)
+    case FlushMessages                => handleFlushMessages(state)
+    case msg: AbortTransactionFailed  => handle(msg)
     case Status.Failure(e) =>
       log.error(s"Saw unhandled exception in producer for $assignedPartition", e)
   }
 
-  private def sendFlushRecord: Future[InternalMessage] = {
-    val flushRecord = new ProducerRecord[String, Array[Byte]](assignedPartition.topic(), assignedPartition.partition(), "", "".getBytes)
-
-    nonTransactionalStatePublisher.putRecord(flushRecord).map { flushRecordMeta =>
-      val flushRecordOffset = flushRecordMeta.wrapped.offset()
-      log.debug("Flush Record for partition {} is at offset {}", assignedPartition, flushRecordOffset)
-
-      Initialize(flushRecordOffset)
-    } recover {
-      case e =>
-        log.error("Failed to initialize kafka producer actor state", e)
-        FailedToInitialize
+  private def checkKTableProgress(): Unit = {
+    kStreams.partitionLags().foreach { allLags =>
+      allLags.values.headOption.foreach { lagsForStateStore =>
+        lagsForStateStore.get(assignedPartition.partition()).foreach { lagForThisPartition =>
+          self ! KTableProgressUpdate(assignedPartition, lagForThisPartition)
+        }
+      }
     }
   }
 
   private def initializeTransactions(): Unit = {
     kafkaPublisher.initTransactions().map { _ =>
       log.debug(s"KafkaPublisherActor transactions successfully initialized: $assignedPartition")
-      initializeState()
+      self ! InitTransactionSuccess
     }.recover {
       case err: Throwable =>
         log.error(s"KafkaPublisherActor failed to initialize kafka transactions, retrying in 3 seconds: $assignedPartition", err)
@@ -289,43 +276,22 @@ private class KafkaProducerActorImpl[Agg, Event](
     kafkaPublisher = getPublisher()
   }
 
-  private def initializeState(): Unit = {
-    sendFlushRecord pipeTo self
-  }
-
-  private def handle(event: KafkaPartitionMetadataUpdated): Unit = {
-    if (event.value.topicPartition == assignedTopicPartitionKey) {
-      self ! StateProcessed(event.value)
-    }
-  }
-
-  private def handle(initialize: Initialize): Unit = {
-    log.info(s"Publisher actor initializing for topic-partition $assignedPartition with end offset ${initialize.endOffset}")
-    context.become(recoveringBacklog(initialize.endOffset))
-    unstashAll()
-  }
-
   private def handle(state: KafkaProducerActorState, publish: Publish): Unit = {
     context.become(processing(state.addPendingWrites(sender(), publish)))
   }
 
-  private def handle(state: KafkaProducerActorState, stateProcessed: StateProcessed): Unit = {
-    context.become(processing(state.processedUpTo(stateProcessed.stateMeta)))
-    sender() ! Done
+  private def handle(state: KafkaProducerActorState, kTableProgressUpdate: KTableProgressUpdate): Unit = {
+    context.become(processing(state.processedUpTo(kTableProgressUpdate)))
   }
 
-  private def handleFromRecoveringState(endOffset: Long, stateProcessed: StateProcessed): Unit = {
-    val stateMeta = stateProcessed.stateMeta
-
-    log.trace("KafkaPublisherActor partition {} received StateMeta {}", Seq(assignedPartition, stateMeta): _*)
-    val partitionIsCurrent = assignedPartition.topic() == stateMeta.topic &&
-      assignedPartition.partition() == stateMeta.partition &&
-      endOffset <= stateMeta.offset
-
-    if (partitionIsCurrent) {
+  private def handleFromWaitingForKTableIndexingState(kTableProgressUpdate: KTableProgressUpdate): Unit = {
+    val currentLag = kTableProgressUpdate.lagInfo.offsetLag()
+    if (currentLag == 0L) {
       log.info(s"KafkaPublisherActor partition {} is fully up to date on processing", assignedPartition)
       unstashAll()
       context.become(processing(KafkaProducerActorState.empty))
+    } else {
+      log.debug("Producer actor still waiting for KTable to finish indexing, current lag is {}", kTableProgressUpdate.lagInfo)
     }
   }
 
@@ -490,7 +456,7 @@ private[core] case class KafkaProducerActorState(
 
   def transactionInProgress: Boolean = transactionInProgressSince.nonEmpty
   def currentTransactionTimeMillis: Long = {
-    Instant.now.minusMillis(transactionInProgressSince.getOrElse(Instant.now).toEpochMilli).toEpochMilli
+    transactionInProgressSince.map(since => Instant.now.minusMillis(since.toEpochMilli).toEpochMilli).getOrElse(0L)
   }
 
   def inFlightByKey: Map[String, Seq[KafkaRecordMetadata[String]]] = {
@@ -533,12 +499,14 @@ private[core] case class KafkaProducerActorState(
     this.copy(inFlight = newInFlight.toSeq)
   }
 
-  def processedUpTo(stateMeta: KafkaPartitionMetadata): KafkaProducerActorState = {
-    val processedRecordsFromPartition = inFlight.filter(record => record.wrapped.offset() <= stateMeta.offset)
+  def processedUpTo(kTableProgressUpdate: KTableProgressUpdate): KafkaProducerActorState = {
+    val kTableCurrentOffset = kTableProgressUpdate.lagInfo.currentOffsetPosition()
+    val topicPartition = kTableProgressUpdate.topicPartition
+    val processedRecordsFromPartition = inFlight.filter(record => record.wrapped.offset() <= kTableCurrentOffset)
 
     if (processedRecordsFromPartition.nonEmpty) {
       val processedOffsets = processedRecordsFromPartition.map(_.wrapped.offset())
-      log.trace(s"${stateMeta.topic}:${stateMeta.partition} processed up to offset ${stateMeta.offset}. " +
+      log.trace(s"${topicPartition.topic}:${topicPartition.partition} processed up to offset ${kTableCurrentOffset}. " +
         s"Outstanding offsets that were processed are [${processedOffsets.min} -> ${processedOffsets.max}]")
     }
     val newInFlight = inFlight.filterNot(processedRecordsFromPartition.contains)

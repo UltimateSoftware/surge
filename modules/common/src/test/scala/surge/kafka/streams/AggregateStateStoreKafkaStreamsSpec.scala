@@ -28,9 +28,6 @@ class MockPartitionTracker(streams: KafkaStreams) extends KafkaStreamsPartitionT
   }
 }
 
-class MockPartitionMetaHandler extends KafkaPartitionMetadataHandler {
-}
-
 object MockState {
   implicit val format: Format[MockState] = Json.format
 }
@@ -102,7 +99,6 @@ class AggregateStateStoreKafkaStreamsSpec
           aggregateName = testAggregateName,
           stateTopic = stateTopic,
           partitionTrackerProvider = new MockPartitionTrackerProvider,
-          kafkaStateMetadataHandler = new MockPartitionMetaHandler,
           aggregateValidator = mockValidator,
           applicationHostPort = Some("localhost:1234"),
           consumerGroupName = testConsumerGroupName,
@@ -119,14 +115,19 @@ class AggregateStateStoreKafkaStreamsSpec
       }
     }
     "Restart the stream on any errors" in {
+      var errorCount = 0
+      def mockValidatorWithAnError(key: String, newValue: Array[Byte], oldValue: Option[Array[Byte]]): Boolean = {
+        if (errorCount < 1) {
+          errorCount = errorCount + 1
+          throw new RuntimeException("This is Expected")
+        } else {
+          true
+        }
+      }
       withRunningKafkaOnFoundPort(config) { implicit actualConfig =>
         val topicName = "testStateTopic"
         createCustomTopic(topicName)
         val stateTopic: KafkaTopic = KafkaTopic(topicName)
-
-        val mockedStateMetaHandler = spy(new MockPartitionMetaHandler())
-        // Kafka streams will fail to initialize in the first attempt
-        doThrow(new RuntimeException("This is Expected")).doNothing().when(mockedStateMetaHandler).processPartitionMetadata(any[KStream[String, KafkaPartitionMetadata]])
 
         val testAggregateName = "test"
         val testConsumerGroupName = "test-aggregate-consumer-group-name"
@@ -134,8 +135,7 @@ class AggregateStateStoreKafkaStreamsSpec
           aggregateName = testAggregateName,
           stateTopic = stateTopic,
           partitionTrackerProvider = new MockPartitionTrackerProvider,
-          kafkaStateMetadataHandler = mockedStateMetaHandler,
-          aggregateValidator = mockValidator,
+          aggregateValidator = mockValidatorWithAnError,
           applicationHostPort = Some("localhost:1234"),
           consumerGroupName = testConsumerGroupName,
           system) {
@@ -146,6 +146,7 @@ class AggregateStateStoreKafkaStreamsSpec
         val topology = aggStoreKafkaStreams.getTopology().futureValue
 
         withTopologyTestDriver(topology) { testDriver =>
+          an[Exception] should be thrownBy assertStoreKeyValue(testDriver, stateTopic, aggStoreKafkaStreams) // Initial failure will propagate to test driver
           // if we make it to use the stream it means it restarted correctly after the crash
           assertStoreKeyValue(testDriver, stateTopic, aggStoreKafkaStreams)
         }

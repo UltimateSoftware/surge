@@ -12,6 +12,7 @@ import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
 import org.apache.kafka.clients.consumer.{ ConsumerConfig, ConsumerRebalanceListener, KafkaConsumer, OffsetAndMetadata }
 import org.apache.kafka.common.TopicPartition
+import surge.akka.streams.kafka.PartitionAssignorConfig
 import surge.core.TopicResetActor._
 import surge.scala.core.kafka.{ KafkaBytesConsumer, UltiKafkaConsumerConfig }
 import surge.support.Logging
@@ -117,7 +118,9 @@ class TopicResetActor(brokers: List[String], kafkaTopic: String) extends Actor w
     val consumer = KafkaBytesConsumer(
       brokers,
       UltiKafkaConsumerConfig(consumerGroup),
-      Map(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG -> "60000")).consumer
+      Map(
+        ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG -> "60000",
+        ConsumerConfig.PARTITION_ASSIGNMENT_STRATEGY_CONFIG -> PartitionAssignorConfig.assignorClassName)).consumer
     consumer.subscribe(List(kafkaTopic).asJava, new ConsumerRebalanceListener() {
       override def onPartitionsAssigned(partitions: util.Collection[TopicPartition]): Unit = {
         if (partitions.size != topicPartitions.size) {
