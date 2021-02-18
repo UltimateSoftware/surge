@@ -39,6 +39,13 @@ jobs:
           fnd tanagra:build:test \
             --cmd_opts=$SMALL_TEST_CMD_OPTS \
             --environment_json=
+      - name: sonar
+        run: |-
+          fnd tanagra:build:sonar \
+            --sonar_host=https://sonar.ulti.io \
+            --sonar_token=secrets.prod::sonar:token \
+            --sonar_project_key=GEARS_Tools \
+            --sonar_quality_gate_id=
       - name: succeeded
         run: 'fnd tanagra:status:report --pipeline_status=SUCCEEDED'
         if: '${{ success() }}'

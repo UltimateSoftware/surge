@@ -3,6 +3,7 @@ branches:
   - name: ci
     options:
       - test
+      - sonar
   - name: main
     options:
       - test
