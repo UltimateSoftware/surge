@@ -79,5 +79,16 @@ class MetricsSpec extends AnyWordSpec with Matchers {
       metrics.registerMetric(testMetric)
       an[IllegalArgumentException] should be thrownBy (metrics.registerMetric(testMetric))
     }
+
+    "Print an html table of metrics" in {
+      val metrics = Metrics(MetricsConfig(RecordingLevel.Info))
+      val sensor = metrics.sensor("some-cool-sensor")
+      val sensorMax = MetricInfo("cool-sensor-max", "The maximum value we've seen for this sensor")
+      sensor.addMetric(sensorMax, new Max)
+      sensor.record(10.0)
+
+      metrics.metricHtml should include(sensorMax.name)
+      metrics.metricHtml should include(sensorMax.description)
+    }
   }
 }

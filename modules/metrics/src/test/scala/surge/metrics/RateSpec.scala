@@ -18,9 +18,9 @@ class RateSpec extends MetricsSpecLike {
         val numSeconds = numMinutes * 60
         1001.0 / numSeconds
       }
-      metricValue(s"$testRateName.oneMinuteAverage") shouldEqual expectedValue(1)
-      metricValue(s"$testRateName.fiveMinuteAverage") shouldEqual expectedValue(5)
-      metricValue(s"$testRateName.fifteenMinuteAverage") shouldEqual expectedValue(15)
+      metricValue(s"$testRateName.one-minute-average") shouldEqual expectedValue(1)
+      metricValue(s"$testRateName.five-minute-average") shouldEqual expectedValue(5)
+      metricValue(s"$testRateName.fifteen-minute-average") shouldEqual expectedValue(15)
     }
   }
 }

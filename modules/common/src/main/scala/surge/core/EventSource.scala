@@ -16,10 +16,20 @@ trait EventSourceDeserialization[Event] {
   private val log = LoggerFactory.getLogger(getClass)
   def formatting: SurgeEventReadFormatting[Event]
   def metrics: Metrics = Metrics.globalMetricRegistry
-  def baseEventName: String = "SurgeDefaultBaseEventName"
+  def baseEventName: String = ""
 
-  protected lazy val eventDeserializationTimer: Timer = metrics.timer(
-    MetricInfo(s"${baseEventName}DeserializationTimer", "The average time (in ms) taken to deserialize events"))
+  protected lazy val eventDeserializationTimer: Timer = {
+    val metricTags = if (baseEventName.nonEmpty) {
+      Map("eventType" -> baseEventName)
+    } else {
+      Map.empty[String, String]
+    }
+    metrics.timer(
+      MetricInfo(
+        name = s"surge.${baseEventName.toLowerCase()}.deserialization-timer",
+        description = "The average time (in ms) taken to deserialize events",
+        tags = metricTags))
+  }
 
   protected def onDeserializationFailure(key: String, value: Array[Byte], exception: Throwable): Unit = {
     log.error("Unable to read event from byte array", exception)

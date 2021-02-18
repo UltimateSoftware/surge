@@ -71,32 +71,39 @@ private[surge] object GenericAggregateActor {
     GenericAggregateActorMetrics(
       stateInitializationTimer = metrics.timer(
         MetricInfo(
-          name = s"${aggregateName}ActorStateInitializationTimer",
-          description = "Average time in milliseconds taken to load aggregate state from the KTable")),
+          name = s"surge.${aggregateName.toLowerCase()}.actor-state-initialization-timer",
+          description = "Average time in milliseconds taken to load aggregate state from the KTable",
+          tags = Map("aggregate" -> aggregateName))),
       aggregateDeserializationTimer = metrics.timer(
         MetricInfo(
-          name = s"${aggregateName}AggregateStateDeserializationTimer",
-          description = "Average time taken in milliseconds to deserialize aggregate state after the bytes are read from the KTable")),
+          name = s"surge.${aggregateName.toLowerCase()}.aggregate-state-deserialization-timer",
+          description = "Average time taken in milliseconds to deserialize aggregate state after the bytes are read from the KTable",
+          tags = Map("aggregate" -> aggregateName))),
       commandHandlingTimer = metrics.timer(
         MetricInfo(
-          name = s"${aggregateName}CommandHandlingTimer",
-          description = "Average time taken in milliseconds for the business logic 'processCommand' function to process a command")),
+          name = s"surge.${aggregateName.toLowerCase()}.command-handling-timer",
+          description = "Average time taken in milliseconds for the business logic 'processCommand' function to process a command",
+          tags = Map("aggregate" -> aggregateName))),
       eventHandlingTimer = metrics.timer(
         MetricInfo(
-          name = s"${aggregateName}EventHandlingTimer",
-          description = "Average time taken in milliseconds for the business logic 'handleEvent' function to handle an event")),
+          name = s"surge.${aggregateName.toLowerCase()}.event-handling-timer",
+          description = "Average time taken in milliseconds for the business logic 'handleEvent' function to handle an event",
+          tags = Map("aggregate" -> aggregateName))),
       serializeStateTimer = metrics.timer(
         MetricInfo(
-          name = s"${aggregateName}AggregateStateSerializationTimer",
-          description = "Average time taken in milliseconds to serialize a new aggregate state to bytes before persisting to Kafka")),
+          name = s"surge.${aggregateName.toLowerCase()}.aggregate-state-serialization-timer",
+          description = "Average time taken in milliseconds to serialize a new aggregate state to bytes before persisting to Kafka",
+          tags = Map("aggregate" -> aggregateName))),
       serializeEventTimer = metrics.timer(
         MetricInfo(
-          name = s"${aggregateName}EventSerializationTimer",
-          description = "Average time taken in milliseconds to serialize an individual event to bytes before persisting to Kafka")),
+          name = s"surge.${aggregateName.toLowerCase()}.event-serialization-timer",
+          description = "Average time taken in milliseconds to serialize an individual event to bytes before persisting to Kafka",
+          tags = Map("aggregate" -> aggregateName))),
       eventPublishTimer = metrics.timer(
         MetricInfo(
-          name = s"${aggregateName}EventPublishTimer",
-          description = "Average time taken in milliseconds to persist all generated events plus an updated state to Kafka")))
+          name = s"surge.${aggregateName.toLowerCase()}.event-publish-timer",
+          description = "Average time taken in milliseconds to persist all generated events plus an updated state to Kafka",
+          tags = Map("aggregate" -> aggregateName))))
   }
 
   case class GenericAggregateActorMetrics(

@@ -78,8 +78,9 @@ class KafkaProducerActor[Agg, Event](
 
   private val isAggregateStateCurrentTimer: Timer = metrics.timer(
     MetricInfo(
-      s"${aggregateName}IsAggregateCurrentTimer",
-      "Average time in milliseconds taken to check if a particular aggregate is up to date in the KTable"))
+      s"surge.${aggregateName.toLowerCase()}.is-aggregate-current-timer",
+      "Average time in milliseconds taken to check if a particular aggregate is up to date in the KTable",
+      tags = Map("aggregate" -> aggregateName)))
   def isAggregateStateCurrent(aggregateId: String): Future[Boolean] = {
     implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PublisherActor.aggregateStateCurrentTimeout)
     val expirationTime = Instant.now.plusMillis(askTimeout.duration.toMillis)
@@ -131,12 +132,14 @@ private object KafkaProducerActorImpl {
     def apply(aggregateName: String, metrics: Metrics): AggregateStateRates = AggregateStateRates(
       current = metrics.rate(
         MetricInfo(
-          name = s"${aggregateName}AggregateStateCurrentRate",
-          description = "The per-second rate of aggregates that are up-to-date in and can be loaded immediately from the KTable")),
+          name = s"surge.${aggregateName.toLowerCase()}.aggregate-state-current-rate",
+          description = "The per-second rate of aggregates that are up-to-date in and can be loaded immediately from the KTable",
+          tags = Map("aggregate" -> aggregateName))),
       notCurrent = metrics.rate(
         MetricInfo(
-          name = s"${aggregateName}AggregateStateNotCurrentRate",
-          description = "The per-second rate of aggregates that are not up-to-date in the KTable and must wait to be loaded")))
+          name = s"surge.${aggregateName.toLowerCase()}.aggregate-state-not-current-rate",
+          description = "The per-second rate of aggregates that are not up-to-date in the KTable and must wait to be loaded",
+          tags = Map("aggregate" -> aggregateName))))
 
   }
   case class AggregateStateRates(current: Rate, notCurrent: Rate)
@@ -184,8 +187,9 @@ private class KafkaProducerActorImpl[Agg, Event](
 
   private val kafkaPublisherTimer: Timer = metrics.timer(
     MetricInfo(
-      s"${aggregateName}KafkaWriteTimer",
-      "Average time in milliseconds that it takes the publisher to write a batch of messages (events & state) to Kafka"))
+      s"surge.${aggregateName.toLowerCase()}.kafka-write-timer",
+      "Average time in milliseconds that it takes the publisher to write a batch of messages (events & state) to Kafka",
+      tags = Map("aggregate" -> aggregateName)))
   private implicit val rates: AggregateStateRates = AggregateStateRates(aggregateName, metrics)
 
   context.system.scheduler.scheduleOnce(10.milliseconds, self, InitTransactions)
@@ -310,7 +314,10 @@ private class KafkaProducerActorImpl[Agg, Event](
   private var lastTransactionInProgressWarningTime: Instant = Instant.ofEpochMilli(0L)
   private val transactionTimeWarningThreshold = flushInterval.toMillis * 4
   private val eventsPublishedRate: Rate = metrics.rate(
-    MetricInfo(s"${aggregateName}EventPublishRate", "The per-second rate at which this aggregate attempts to publish events to Kafka"))
+    MetricInfo(
+      name = s"surge.${aggregateName.toLowerCase()}.event-publish-rate",
+      description = "The per-second rate at which this aggregate attempts to publish events to Kafka",
+      tags = Map("aggregate" -> aggregateName)))
   private def handleFlushMessages(state: KafkaProducerActorState): Unit = {
     if (state.transactionInProgress) {
       if (state.currentTransactionTimeMillis >= transactionTimeWarningThreshold &&

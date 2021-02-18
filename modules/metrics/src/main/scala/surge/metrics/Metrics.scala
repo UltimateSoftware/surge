@@ -40,17 +40,17 @@ final case class Metrics(config: MetricsConfig) {
     val rateSensor = sensor(metricInfo.name, recordingLevel)
 
     val oneMinuteAverage = metricInfo.copy(
-      name = s"${metricInfo.name}.oneMinuteAverage",
+      name = s"${metricInfo.name}.one-minute-average",
       description = s"${metricInfo.description} averaged over the past minute")
     rateSensor.addMetric(oneMinuteAverage, new RateHistogram(1.minute.toSeconds), recordingLevel)
 
     val fiveMinuteAverage = metricInfo.copy(
-      name = s"${metricInfo.name}.fiveMinuteAverage",
+      name = s"${metricInfo.name}.five-minute-average",
       description = s"${metricInfo.description} averaged over the past 5 minutes")
     rateSensor.addMetric(fiveMinuteAverage, new RateHistogram(5.minutes.toSeconds), recordingLevel)
 
     val fifteenMinuteAverage = metricInfo.copy(
-      name = s"${metricInfo.name}.fifteenMinuteAverage",
+      name = s"${metricInfo.name}.fifteen-minute-average",
       description = s"${metricInfo.description} averaged over the past 15 minutes")
     rateSensor.addMetric(fifteenMinuteAverage, new RateHistogram(15.minutes.toSeconds), recordingLevel)
     new RateImpl(rateSensor)
@@ -87,5 +87,58 @@ final case class Metrics(config: MetricsConfig) {
 
   def metricValues: Seq[MetricValue] = {
     getMetrics.map(_.toMetricValue)
+  }
+
+  private def metricRowHtml(metric: Metric): String = {
+    s"""
+       |<tr>
+       |    <td>${metric.info.name}</td>
+       |    <td>${metric.info.description}</td>
+       |    <td>[${metric.info.tags.mkString(", ")}]</td>
+       |    <td>${metric.getValue}</td>
+       |</tr>
+       |""".stripMargin
+  }
+
+  def metricHtml: String = {
+    s"""
+       |<html>
+       |<head>
+       |<style>
+       |table {
+       |  font-family: arial, sans-serif;
+       |  border-collapse: collapse;
+       |  width: 100%;
+       |}
+       |
+       |td, th {
+       |  border: 1px solid #dddddd;
+       |  text-align: left;
+       |  padding: 8px;
+       |}
+       |
+       |tr:nth-child(even) {
+       |  background-color: #dddddd;
+       |}
+       |</style>
+       |</head>
+       |<body>
+       |
+       |<h2>Surge Metrics</h2>
+       |
+       |<table>
+       |  <tr>
+       |    <th>Metric Name</th>
+       |    <th>Metric Description</th>
+       |    <th>Metric Tags</th>
+       |    <th>Metric Value</th>
+       |  </tr>
+       |  ${metrics.values.map(metricRowHtml).mkString("\n")}
+       |</table>
+       |
+       |</body>
+       |</html>
+       |
+       |""".stripMargin
   }
 }
