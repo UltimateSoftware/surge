@@ -13,6 +13,7 @@ import com.typesafe.config.{ Config, ConfigFactory }
 import org.apache.kafka.common.serialization.Deserializer
 import org.slf4j.LoggerFactory
 import surge.akka.streams.kafka.{ KafkaConsumer, KafkaStreamManager }
+import surge.metrics.Metrics
 import surge.scala.core.kafka.KafkaTopic
 
 import scala.collection.JavaConverters._
@@ -36,6 +37,8 @@ trait KafkaDataSource[Key, Value] extends DataSource {
   def keyDeserializer: Deserializer[Key]
   def valueDeserializer: Deserializer[Value]
 
+  def metrics: Metrics = Metrics.globalMetricRegistry
+
   def additionalKafkaProperties: Properties = new Properties()
 
   def to(sink: DataHandler[Key, Value], consumerGroup: String): DataPipeline = {
@@ -52,7 +55,7 @@ trait KafkaDataSource[Key, Value] extends DataSource {
   private[core] def to(consumerSettings: ConsumerSettings[Key, Value])(sink: DataHandler[Key, Value], autoStart: Boolean): DataPipeline = {
     implicit val system: ActorSystem = actorSystem
     implicit val executionContext: ExecutionContext = ExecutionContext.global
-    val pipeline = new ManagedDataPipelineImpl(KafkaStreamManager(kafkaTopic, consumerSettings, replayStrategy, replaySettings, sink.dataHandler))
+    val pipeline = new ManagedDataPipelineImpl(KafkaStreamManager(kafkaTopic, consumerSettings, replayStrategy, replaySettings, sink.dataHandler), metrics)
     if (autoStart) {
       pipeline.start()
     }

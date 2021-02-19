@@ -16,6 +16,7 @@ import org.apache.kafka.streams.state.QueryableStoreTypes
 import org.apache.kafka.streams.{ LagInfo, StoreQueryParameters, StreamsConfig }
 import surge.kafka.streams.AggregateStateStoreKafkaStreamsImpl._
 import surge.kafka.streams.HealthyActor.GetHealth
+import surge.metrics.Metrics
 import surge.scala.core.kafka.{ KafkaTopic, UltiKafkaConsumerConfig }
 
 import scala.collection.JavaConverters._
@@ -27,7 +28,8 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
     partitionTrackerProvider: KafkaStreamsPartitionTrackerProvider,
     aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) => Boolean,
     applicationHostPort: Option[String],
-    override val settings: AggregateStateStoreKafkaStreamsImplSettings)
+    override val settings: AggregateStateStoreKafkaStreamsImplSettings,
+    override val metrics: Metrics)
   extends KafkaStreamLifeCycleManagement[String, Array[Byte], KafkaByteStreamsConsumer, Array[Byte]] {
 
   import DefaultSerdes._
@@ -183,7 +185,8 @@ private[streams] object AggregateStateStoreKafkaStreamsImpl {
     partitionTrackerProvider: KafkaStreamsPartitionTrackerProvider,
     aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) => Boolean,
     applicationHostPort: Option[String],
-    settings: AggregateStateStoreKafkaStreamsImplSettings): Props = {
+    settings: AggregateStateStoreKafkaStreamsImplSettings,
+    metrics: Metrics): Props = {
     Props(
       new AggregateStateStoreKafkaStreamsImpl(
         aggregateName,
@@ -191,7 +194,8 @@ private[streams] object AggregateStateStoreKafkaStreamsImpl {
         partitionTrackerProvider,
         aggregateValidator,
         applicationHostPort,
-        settings))
+        settings,
+        metrics))
   }
 
   case class AggregateStateStoreKafkaStreamsImplSettings(

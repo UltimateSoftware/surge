@@ -66,6 +66,8 @@ trait EventSource[Event] extends KafkaDataSource[String, Array[Byte]] with Event
   override val keyDeserializer: Deserializer[String] = new StringDeserializer()
   override val valueDeserializer: Deserializer[Array[Byte]] = new ByteArrayDeserializer()
 
+  override def metrics: Metrics = super.metrics
+
   def to(sink: EventHandler[Event], consumerGroup: String): DataPipeline = {
     super.to(dataHandler(sink), consumerGroup)
   }

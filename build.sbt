@@ -103,10 +103,13 @@ lazy val `surge-engine-command-javadsl` = (project in file("modules/command-engi
 lazy val `surge-metrics` = (project in file("modules/metrics"))
   .settings(
     libraryDependencies ++= Seq(
+      Kafka.kafkaClients,
       PlayFramework.json,
       slf4jApi,
       typesafeConfig,
-      scalatest
+      scalatest,
+      scalatestPlusMockito,
+      mockitoCore
     )
   )
 

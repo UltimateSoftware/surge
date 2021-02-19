@@ -3,6 +3,7 @@
 package surge.kafka.streams
 
 import akka.actor.{ Actor, Stash }
+import com.typesafe.config.ConfigFactory
 import org.apache.kafka.clients.consumer.{ ConsumerConfig, ConsumerConfigExtension }
 import org.apache.kafka.streams.{ KafkaStreams, StreamsConfig }
 import surge.config.TimeoutConfig
@@ -10,6 +11,7 @@ import surge.kafka.streams.HealthyActor.GetHealth
 import surge.kafka.streams.KafkaStreamLifeCycleManagement._
 import surge.kafka.streams.KafkaStreamsUncaughtExceptionHandler.KafkaStreamsUncaughtException
 import surge.kafka.streams.KafkaStreamsUpdatePartitionsOnStateChangeListener.KafkaStateChange
+import surge.metrics.Metrics
 import surge.scala.core.kafka.UltiKafkaConsumerConfig
 import surge.support.{ Logging, SystemExit, inlineReceive }
 
@@ -23,6 +25,11 @@ trait KafkaStreamLifeCycleManagement[K, V, T <: KafkaStreamsConsumer[K, V], SV] 
   log.debug(s"Kafka streams ${settings.storeName} cache memory being used is {} KiB", Math.round(settings.cacheMemory / 1024))
 
   protected val streamsConfig: Map[String, String]
+  protected val metrics: Metrics
+
+  private val streamsMetricName = s"kafka-streams-${settings.applicationId}-${settings.storeName}"
+  private val config = ConfigFactory.load()
+  private val enableMetrics = config.getBoolean("surge.kafka-streams.enable-kafka-metrics")
 
   /**
    * Base configuration for all streams, extend as needed
@@ -66,10 +73,16 @@ trait KafkaStreamLifeCycleManagement[K, V, T <: KafkaStreamsConsumer[K, V], SV] 
       consumer.streams.cleanUp()
     }
     consumer.start()
+    if (enableMetrics) {
+      metrics.registerKafkaMetrics(streamsMetricName, () => consumer.streams.metrics())
+    }
     onStart() // child specific start operations
   }
 
   final def stop(consumer: T): Unit = {
+    if (enableMetrics) {
+      metrics.unregisterKafkaMetric(streamsMetricName)
+    }
     Try(consumer.streams.close()) match {
       case Success(_) =>
         log.debug(s"Kafka streams ${settings.storeName} stopped")

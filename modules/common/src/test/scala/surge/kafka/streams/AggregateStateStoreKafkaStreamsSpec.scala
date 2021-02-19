@@ -5,10 +5,7 @@ package surge.kafka.streams
 import akka.actor.ActorSystem
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.common.serialization.StringSerializer
-import org.apache.kafka.streams.scala.kstream.KStream
 import org.apache.kafka.streams.{ KafkaStreams, TopologyTestDriver }
-import org.mockito.ArgumentMatchers.any
-import org.mockito.Mockito._
 import org.scalatest.concurrent.{ PatienceConfiguration, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Millis, Seconds, Span }
@@ -17,6 +14,7 @@ import org.scalatest.{ Assertion, BeforeAndAfterAll }
 import org.scalatestplus.mockito.MockitoSugar
 import play.api.libs.json.{ Format, JsValue, Json }
 import surge.kafka.streams.AggregateStateStoreKafkaStreamsImpl.AggregateStateStoreKafkaStreamsImplSettings
+import surge.metrics.Metrics
 import surge.scala.core.kafka.{ JsonSerdes, KafkaTopic }
 
 class MockPartitionTrackerProvider extends KafkaStreamsPartitionTrackerProvider {
@@ -102,7 +100,8 @@ class AggregateStateStoreKafkaStreamsSpec
           aggregateValidator = mockValidator,
           applicationHostPort = Some("localhost:1234"),
           consumerGroupName = testConsumerGroupName,
-          system) {
+          system,
+          Metrics.globalMetricRegistry) {
           override lazy val settings = AggregateStateStoreKafkaStreamsImplSettings(testAggregateName, testConsumerGroupName).copy(
             brokers = Seq(s"localhost:${actualConfig.kafkaPort}"))
         }
@@ -138,7 +137,8 @@ class AggregateStateStoreKafkaStreamsSpec
           aggregateValidator = mockValidatorWithAnError,
           applicationHostPort = Some("localhost:1234"),
           consumerGroupName = testConsumerGroupName,
-          system) {
+          system,
+          Metrics.globalMetricRegistry) {
           override lazy val settings = AggregateStateStoreKafkaStreamsImplSettings(testConsumerGroupName, testAggregateName).copy(
             brokers = Seq(s"localhost:${actualConfig.kafkaPort}"))
         }

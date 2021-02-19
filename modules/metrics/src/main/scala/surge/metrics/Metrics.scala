@@ -2,6 +2,9 @@
 
 package surge.metrics
 
+import java.util.function.Supplier
+
+import org.apache.kafka.common.MetricName
 import org.slf4j.LoggerFactory
 import surge.metrics.statistics.{ Count, ExponentiallyWeightedMovingAverage, MostRecentValue, RateHistogram }
 
@@ -12,11 +15,21 @@ object Metrics {
   lazy val globalMetricRegistry: Metrics = Metrics(config = MetricsConfig.fromConfig)
 }
 
+object KafkaMetricListener {
+  type KafkaMetricSupplier = Supplier[java.util.Map[MetricName, _ <: org.apache.kafka.common.Metric]]
+}
+trait KafkaMetricListener {
+  def onMetricsRegistered(name: String, supplier: KafkaMetricListener.KafkaMetricSupplier): Unit
+  def onMetricsUnregistered(name: String): Unit
+}
+
 final case class Metrics(config: MetricsConfig) {
   private val log = LoggerFactory.getLogger(getClass)
 
   private val sensors: mutable.Map[String, Sensor] = mutable.Map.empty
   private val metrics: mutable.Map[MetricInfo, Metric] = mutable.Map.empty
+  private val kafkaMetrics: mutable.Map[String, KafkaMetricListener.KafkaMetricSupplier] = mutable.Map.empty
+  private val metricListeners: mutable.Set[KafkaMetricListener] = mutable.Set.empty
 
   def counter(metricInfo: MetricInfo, recordingLevel: RecordingLevel = RecordingLevel.Info): Counter = {
     val counterSensor = sensor(metricInfo.name, recordingLevel)
@@ -77,6 +90,29 @@ final case class Metrics(config: MetricsConfig) {
       }
       metrics.put(metricInfo, metric)
     }
+  }
+
+  def registerKafkaMetrics(name: String, metricSupplier: KafkaMetricListener.KafkaMetricSupplier): Unit = {
+    if (!kafkaMetrics.contains(name)) {
+      metricListeners.foreach(_.onMetricsRegistered(name, metricSupplier))
+      kafkaMetrics.put(name, metricSupplier)
+    }
+  }
+
+  def unregisterKafkaMetric(name: String): Unit = {
+    metricListeners.foreach(_.onMetricsUnregistered(name))
+    kafkaMetrics.remove(name)
+  }
+
+  def addKafkaMetricListener(listener: KafkaMetricListener): Unit = {
+    if (!metricListeners.contains(listener)) {
+      metricListeners.add(listener)
+      kafkaMetrics.foreach { case (name, supplier) => listener.onMetricsRegistered(name, supplier) }
+    }
+  }
+
+  def removeKafkaMetricListener(listener: KafkaMetricListener): Unit = {
+    metricListeners.remove(listener)
   }
 
   def getMetrics: Seq[Metric] = metrics.values.toVector

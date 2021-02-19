@@ -9,6 +9,7 @@ import org.apache.kafka.streams.{ LagInfo, Topology }
 import surge.config.{ BackoffConfig, TimeoutConfig }
 import surge.kafka.streams.AggregateStateStoreKafkaStreamsImpl._
 import surge.kafka.streams.KafkaStreamLifeCycleManagement.{ Restart, Start, Stop }
+import surge.metrics.Metrics
 import surge.scala.core.kafka.KafkaTopic
 import surge.support.{ BackoffChildActorTerminationWatcher, Logging, SystemExit }
 
@@ -49,7 +50,8 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
     aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) => Boolean,
     applicationHostPort: Option[String],
     consumerGroupName: String,
-    system: ActorSystem) extends HealthyComponent with Logging {
+    system: ActorSystem,
+    metrics: Metrics) extends HealthyComponent with Logging {
 
   private[streams] lazy val settings = AggregateStateStoreKafkaStreamsImplSettings(consumerGroupName, aggregateName)
 
@@ -101,7 +103,8 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
       partitionTrackerProvider,
       aggregateValidator,
       applicationHostPort,
-      settings)
+      settings,
+      metrics)
 
     val underlyingActorProps = BackoffSupervisor.props(
       BackoffOpts.onStop(

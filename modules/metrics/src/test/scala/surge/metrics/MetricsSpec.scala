@@ -2,11 +2,19 @@
 
 package surge.metrics
 
+import org.apache.kafka.common.MetricName
+import org.apache.kafka.common.metrics.{ KafkaMetric, MetricConfig }
+import org.apache.kafka.common.utils.SystemTime
+import org.mockito.Mockito._
+import org.mockito.ArgumentMatchers._
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
+import org.scalatestplus.mockito.MockitoSugar
 import surge.metrics.statistics.{ ExponentiallyWeightedMovingAverage, Max, Min }
 
-class MetricsSpec extends AnyWordSpec with Matchers {
+import scala.collection.JavaConverters._
+
+class MetricsSpec extends AnyWordSpec with Matchers with MockitoSugar {
   "Metrics" should {
     "Have a working example" in {
       val metrics = Metrics(MetricsConfig(RecordingLevel.Info))
@@ -77,7 +85,7 @@ class MetricsSpec extends AnyWordSpec with Matchers {
       val metrics = new Metrics(MetricsConfig.fromConfig)
 
       metrics.registerMetric(testMetric)
-      an[IllegalArgumentException] should be thrownBy (metrics.registerMetric(testMetric))
+      an[IllegalArgumentException] should be thrownBy metrics.registerMetric(testMetric)
     }
 
     "Print an html table of metrics" in {
@@ -89,6 +97,53 @@ class MetricsSpec extends AnyWordSpec with Matchers {
 
       metrics.metricHtml should include(sensorMax.name)
       metrics.metricHtml should include(sensorMax.description)
+    }
+
+    def setupMockKafkaMetricListener(metrics: Metrics): KafkaMetricListener = {
+      val mockKafkaMetricListener = mock[KafkaMetricListener]
+      doNothing().when(mockKafkaMetricListener).onMetricsRegistered(anyString, any(classOf[KafkaMetricListener.KafkaMetricSupplier]))
+      doNothing().when(mockKafkaMetricListener).onMetricsUnregistered(anyString)
+
+      metrics.addKafkaMetricListener(mockKafkaMetricListener)
+      verifyNoInteractions(mockKafkaMetricListener)
+
+      mockKafkaMetricListener
+    }
+    val kafkaMetricName = new MetricName("test", "test", "test", Map.empty[String, String].asJava)
+    val kafkaMetric = new KafkaMetric("", kafkaMetricName, new org.apache.kafka.common.metrics.stats.Max, new MetricConfig, new SystemTime)
+    val exampleKafkaMetricsSupplier: KafkaMetricListener.KafkaMetricSupplier = () => Map(kafkaMetricName -> kafkaMetric).asJava
+
+    "Ignore Duplicate Kafka metrics supplier registrations" in {
+      val metrics = Metrics(MetricsConfig(RecordingLevel.Info))
+      val mockKafkaMetricListener = setupMockKafkaMetricListener(metrics)
+
+      metrics.registerKafkaMetrics("test", exampleKafkaMetricsSupplier)
+      verify(mockKafkaMetricListener).onMetricsRegistered("test", exampleKafkaMetricsSupplier)
+      metrics.registerKafkaMetrics("test", exampleKafkaMetricsSupplier)
+      verifyNoMoreInteractions(mockKafkaMetricListener)
+    }
+
+    "Unregister a Kafka metrics supplier" in {
+      val metrics = Metrics(MetricsConfig(RecordingLevel.Info))
+      val mockKafkaMetricListener = setupMockKafkaMetricListener(metrics)
+
+      metrics.registerKafkaMetrics("test", exampleKafkaMetricsSupplier)
+      verify(mockKafkaMetricListener).onMetricsRegistered("test", exampleKafkaMetricsSupplier)
+      metrics.unregisterKafkaMetric("test")
+      verify(mockKafkaMetricListener).onMetricsUnregistered("test")
+    }
+
+    "Automatically call onMetricsRegistered for previously registered metrics when adding a new Kafka metric listener" in {
+      val metrics = Metrics(MetricsConfig(RecordingLevel.Info))
+      val mockKafkaMetricListener = setupMockKafkaMetricListener(metrics)
+
+      metrics.removeKafkaMetricListener(mockKafkaMetricListener)
+      metrics.registerKafkaMetrics("test", exampleKafkaMetricsSupplier)
+      metrics.addKafkaMetricListener(mockKafkaMetricListener)
+      verify(mockKafkaMetricListener).onMetricsRegistered("test", exampleKafkaMetricsSupplier)
+
+      metrics.addKafkaMetricListener(mockKafkaMetricListener)
+      verifyNoMoreInteractions(mockKafkaMetricListener)
     }
   }
 }

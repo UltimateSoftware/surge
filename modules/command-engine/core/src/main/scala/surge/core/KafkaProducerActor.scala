@@ -179,9 +179,11 @@ private class KafkaProducerActorImpl[Agg, Event](
   private val publisherTransactionTimeoutMs = config.getString("kafka.publisher.transaction-timeout-ms")
   private val ktableCheckInterval = config.getDuration("kafka.publisher.ktable-check-interval").toMillis.milliseconds
   private val brokers = config.getString("kafka.brokers").split(",")
+  private val enableMetrics = config.getBoolean("surge.producer.enable-kafka-metrics")
 
   private val transactionalIdPrefix = businessLogic.transactionalIdPrefix
   private val transactionalId = s"$transactionalIdPrefix-${assignedPartition.topic()}-${assignedPartition.partition()}"
+  private val kafkaPublisherMetricsName = transactionalId
 
   private var kafkaPublisher = getPublisher()
 
@@ -210,10 +212,13 @@ private class KafkaProducerActorImpl[Agg, Event](
       ProducerConfig.TRANSACTION_TIMEOUT_CONFIG -> publisherTransactionTimeoutMs.toString,
       ProducerConfig.TRANSACTIONAL_ID_CONFIG -> transactionalId)
 
-    // TODO Expose Kafka Producer Metrics
     // Set up the producer on the events topic so the partitioner can partition automatically on the events topic since we manually set the partition for the
     // aggregate state topic record and the events topic could have a different number of partitions
-    KafkaBytesProducer(brokers, eventsTopic, partitioner, kafkaConfig)
+    val producer = KafkaBytesProducer(brokers, eventsTopic, partitioner, kafkaConfig)
+    if (enableMetrics) {
+      metrics.registerKafkaMetrics(kafkaPublisherMetricsName, () => producer.producer.metrics)
+    }
+    producer
   }
 
   override def receive: Receive = uninitialized
@@ -276,6 +281,9 @@ private class KafkaProducerActorImpl[Agg, Event](
   }
 
   private def closeAndRecreatePublisher(): Unit = {
+    if (enableMetrics) {
+      metrics.unregisterKafkaMetric(kafkaPublisherMetricsName)
+    }
     Try(kafkaPublisher.close())
     kafkaPublisher = getPublisher()
   }

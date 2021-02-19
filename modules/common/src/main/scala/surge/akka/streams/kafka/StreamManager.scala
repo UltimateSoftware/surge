@@ -25,7 +25,8 @@ import surge.scala.core.kafka.{ HeadersHelper, KafkaTopic }
 import surge.support.Logging
 
 import scala.concurrent.duration._
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.{ Await, ExecutionContext, Future }
+import scala.util.Try
 
 object PartitionAssignorConfig {
   private val config = ConfigFactory.load()
@@ -70,6 +71,8 @@ class KafkaStreamManager[Key, Value](
     businessFlow: Flow[ConsumerMessage.CommittableMessage[Key, Value], KafkaStreamMeta, NotUsed])(implicit val actorSystem: ActorSystem)
   extends ActorSystemHostAwareness with Logging {
 
+  private val config = ConfigFactory.load()
+  private val metricFetchTimeout = config.getDuration("surge.kafka-event-source.kafka-metric-fetch-timeout").toMillis.milliseconds
   private val consumerGroup = consumerSettings.getProperty(ConsumerConfig.GROUP_ID_CONFIG)
   private[streams] val managerActor = actorSystem.actorOf(Props(new KafkaStreamManagerActor(subscription, topicName, consumerSettings, businessFlow)))
   private[streams] val replayCoordinator = actorSystem.actorOf(Props(new ReplayCoordinator(topicName, consumerGroup, replayStrategy)))
@@ -85,8 +88,13 @@ class KafkaStreamManager[Key, Value](
   }
 
   def getMetrics: Future[Map[MetricName, Metric]] = {
-    implicit val timeout: Timeout = Timeout(15.seconds)
+    implicit val timeout: Timeout = Timeout(metricFetchTimeout)
     (managerActor ? KafkaStreamManagerActor.GetMetrics).mapTo[Map[MetricName, Metric]]
+  }
+
+  // TODO is this Await too expensive? Akka streams only exposes the Kafka metrics from a future even though the Kafka client interfaces expose it non-async
+  def getMetricsSynchronous: Map[MetricName, Metric] = {
+    Try(Await.result(getMetrics, metricFetchTimeout)).getOrElse(Map.empty)
   }
 
   def replay(): Future[ReplayResult] = {

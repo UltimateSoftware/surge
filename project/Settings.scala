@@ -36,7 +36,7 @@ object Settings extends AutoPlugin {
   override def projectSettings: Seq[Def.Setting[_]] = headerSettings ++ scalariformSettings ++ Seq(
     publishTo := {
       if (isSnapshot.value) {
-        Some("artifactory.mia.ulti.io-gt-snapshots" at "https://artifactory.mia.ulti.io/artifactory/gt-maven-plugins-snapshot")
+        Some("artifactory.mia.ulti.io-gt-snapshots" at "https://artifactory.mia.ulti.io/artifactory/gt-maven-libs-snapshot")
       } else {
         Some(gearsToolsMavenRelease)
       }
