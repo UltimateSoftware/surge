@@ -31,7 +31,7 @@ import scala.util.Try
 object PartitionAssignorConfig {
   private val config = ConfigFactory.load()
   private val log = LoggerFactory.getLogger(getClass)
-  val assignorClassName: String = config.getString("surge.kafka-event-source.consumer.range-assignor").toLowerCase() match {
+  val assignorClassName: String = config.getString("surge.kafka-event-source.consumer.partition-assignor").toLowerCase() match {
     case "range"              => classOf[HostAwareRangeAssignor].getName
     case "cooperative-sticky" => classOf[HostAwareCooperativeStickyAssignor].getName
     case other =>
