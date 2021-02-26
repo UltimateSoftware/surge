@@ -3,10 +3,13 @@
 package surge.scala.core.kafka
 
 import java.util.Properties
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicLong
 
 import org.apache.kafka.clients.consumer.{ ConsumerConfig, ConsumerRecord, KafkaConsumer }
 import org.apache.kafka.common.serialization.{ ByteArrayDeserializer, StringDeserializer }
 import org.apache.kafka.common.{ PartitionInfo, TopicPartition }
+import org.slf4j.LoggerFactory
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
@@ -19,6 +22,15 @@ trait KafkaConsumerTrait[K, V] extends KafkaSecurityConfiguration {
   def consumerConfig: UltiKafkaConsumerConfig
 
   def consumer: KafkaConsumer[K, V]
+
+  private val log = LoggerFactory.getLogger(getClass)
+  private val threadNumberCount: AtomicLong = new AtomicLong(0)
+  private val pollThread = Executors.newSingleThreadExecutor(
+    (r: Runnable) => {
+      val thread = new Thread(r, s"kafka-poll-${threadNumberCount.getAndIncrement()}")
+      thread.setDaemon(true)
+      thread
+    })
 
   protected val defaultProps: Properties = {
     val p = new Properties()
@@ -36,13 +48,21 @@ trait KafkaConsumerTrait[K, V] extends KafkaSecurityConfiguration {
 
   def subscribe(topic: KafkaTopic, businessLogic: ConsumerRecord[K, V] => Unit): Unit = {
     consumer.subscribe(java.util.Arrays.asList(topic.name))
+    pollThread.execute(() => pollKafka(businessLogic))
+  }
+
+  private def pollKafka(businessLogic: ConsumerRecord[K, V] => Unit): Unit = {
     try {
       while (running) {
-        val records = consumer.poll(java.time.Duration.ofMillis(consumerConfig.pollDuration.toMillis))
-        for {
-          record <- records.iterator().asScala
-        } {
-          businessLogic(record)
+        try {
+          val records = consumer.poll(java.time.Duration.ofMillis(consumerConfig.pollDuration.toMillis))
+          for {
+            record <- records.iterator().asScala
+          } {
+            businessLogic(record)
+          }
+        } catch {
+          case t: Throwable => log.error("Poll loop failed in KafkaConsumer. Retrying.", t)
         }
       }
     } finally {
