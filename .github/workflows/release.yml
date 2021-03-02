@@ -6,7 +6,7 @@ on:
       - 'v*'
 
 jobs:
-  update_release_draft:
+  release:
     runs-on: self-hosted
     steps:
       - uses: release-drafter/release-drafter@v5
