@@ -1,7 +1,5 @@
-name-template: 'v$RESOLVED_VERSION'
-tag-template: 'v$RESOLVED_VERSION'
 template: |
-  # Surge Version $NEXT_PATCH_VERSION
+  # Surge Version $RESOLVED_VERSION
 
   $CHANGES
 
