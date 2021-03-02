@@ -1,5 +1,5 @@
 template: |
-  # Surge Version $RESOLVED_VERSION
+  # Surge Version $PREVIOUS_TAG
 
   $CHANGES
 

@@ -11,6 +11,7 @@ jobs:
     steps:
       - uses: release-drafter/release-drafter@v5
         id: draft_release
+        name: Draft Release Notes
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Create Release

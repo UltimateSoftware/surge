@@ -1,0 +1,25 @@
+enable:
+  issues: false
+  prs: true
+
+comments:
+  issues: |
+    Thanks for opening this issue!
+    I have applied any labels matching special text in your title and description.
+
+    Please review the labels and make any necessary changes.
+  prs: |
+    Thanks for the contribution!
+    I have applied any labels matching special text in your title and description.
+
+    Please review the labels and make any necessary changes.
+
+labels:
+  'bug':
+    include:
+      - '\bbug[s]?\b'
+    exclude: []
+  'enhancement':
+    include:
+      - '\bfeat\b'
+    exclude: []
