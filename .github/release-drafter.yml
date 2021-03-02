@@ -1,0 +1,26 @@
+name-template: 'v$RESOLVED_VERSION'
+tag-template: 'v$RESOLVED_VERSION'
+template: |
+  # Surge Version $NEXT_PATCH_VERSION
+
+  $CHANGES
+
+categories:
+  - title: 'New Features'
+    label: 'enhancement'
+  - title: 'Bug Fixes'
+    label: 'bug'
+
+exclude-labels:
+  - 'skip-changelog'
+
+autolabeler:
+  - label: 'bug'
+    branch:
+      - '/fix\/.+/'
+      - '/bugfix\/.+/'
+    title:
+      - '/fix/i'
+  - label: 'enhancement'
+    branch:
+      - '/feature\/.+/'
