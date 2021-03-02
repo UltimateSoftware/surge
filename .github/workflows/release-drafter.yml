@@ -12,8 +12,3 @@ jobs:
         name: Add Labels from Branch Name
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Add Labels From Context
-        id: labeler
-        uses: jimschubert/labeler-action@v2
-        with:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
