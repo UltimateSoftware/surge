@@ -21,3 +21,5 @@ addSbtPlugin("com.timushev.sbt" % "sbt-updates" % "0.5.1")
 addSbtPlugin("net.virtual-void" % "sbt-dependency-graph" % "0.10.0-RC1")
 
 addSbtPlugin("de.heikoseeberger" % "sbt-header" % "5.6.0")
+
+addSbtPlugin("com.github.sbt" % "sbt-release" % "1.0.15")
