@@ -8,6 +8,9 @@ ThisBuild / crossScalaVersions := Seq("2.13.4", "2.12.8")
 
 skip in publish := true
 
+publishSite
+
+
 lazy val unitTest = taskKey[Unit]("Runs only the unit tests")
 
 val multiJvmTestSettings = Seq(
@@ -123,9 +126,12 @@ lazy val `surge` = project.in(file("."))
     `surge-scala-core`,
     `surge-rabbitmq-support`
   )
+  .enablePlugins(ParadoxPlugin, ParadoxSitePlugin)
   .settings(
     skip in publish := true,
     aggregate in sonarScan := false,
     sonarUseExternalConfig := true,
-    ReleaseSettings.settings
-  )
+    ReleaseSettings.settings,
+    paradoxTheme := Some(builtinParadoxTheme("generic"))
+)
+
