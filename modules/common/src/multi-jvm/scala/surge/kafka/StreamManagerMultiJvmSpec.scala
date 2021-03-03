@@ -19,6 +19,8 @@ import surge.akka.streams.kafka.{ KafkaConsumer, KafkaStreamManager, KafkaStream
 import surge.core._
 import surge.kafka.streams.DefaultSerdes
 import surge.scala.core.kafka.KafkaTopic
+import surge.streams.EventPlusStreamMeta
+import surge.streams.replay.{ DefaultEventReplaySettings, KafkaForeverReplaySettings, KafkaForeverReplayStrategy, NoOpEventReplayStrategy }
 
 import scala.concurrent.duration._
 

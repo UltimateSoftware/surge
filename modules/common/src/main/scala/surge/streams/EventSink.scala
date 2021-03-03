@@ -1,6 +1,6 @@
 // Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
 
-package surge.core
+package surge.streams
 
 import akka.NotUsed
 import akka.stream.scaladsl.Flow

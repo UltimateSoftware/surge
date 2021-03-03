@@ -14,8 +14,9 @@ import org.mockito.{ ArgumentCaptor, ArgumentMatchers, Mockito }
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
-import surge.core.DataPipeline.ReplaySuccessfullyStarted
-import surge.core.{ DataPipeline, EventSink, SurgeEventReadFormatting }
+import surge.streams.DataPipeline.ReplaySuccessfullyStarted
+import surge.core.SurgeEventReadFormatting
+import surge.streams.{ DataPipeline, EventSink }
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable

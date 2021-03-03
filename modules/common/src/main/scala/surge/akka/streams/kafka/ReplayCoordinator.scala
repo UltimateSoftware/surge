@@ -8,8 +8,8 @@ import org.apache.kafka.common.TopicPartition
 import surge.akka.cluster.{ ActorHostAwareness, ActorRegistry }
 import surge.akka.streams.kafka.KafkaStreamManagerActor.{ StartConsuming, SuccessfullyStopped }
 import surge.akka.streams.kafka.ReplayCoordinator.{ DoPreReplay, PreReplayCompleted, ReplayCompleted, ReplayFailed, ReplayState, StartReplay, TopicAssignmentsFound, TopicConsumersFound }
-import surge.core.EventReplayStrategy
 import surge.scala.core.kafka.HostPort
+import surge.streams.replay.EventReplayStrategy
 import surge.support.inlineReceive
 
 import scala.concurrent.Future

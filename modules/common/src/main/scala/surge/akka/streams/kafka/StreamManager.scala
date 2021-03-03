@@ -19,9 +19,10 @@ import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.{ Metric, MetricName }
 import org.slf4j.LoggerFactory
 import surge.akka.cluster.{ ActorHostAwareness, ActorRegistry, ActorSystemHostAwareness }
-import surge.core.DataPipeline.{ ReplayResult, _ }
-import surge.core.{ EventPlusStreamMeta, EventReplaySettings, EventReplayStrategy }
+import surge.streams.DataPipeline._
 import surge.scala.core.kafka.{ HeadersHelper, KafkaTopic }
+import surge.streams.EventPlusStreamMeta
+import surge.streams.replay.{ EventReplaySettings, EventReplayStrategy }
 import surge.support.Logging
 
 import scala.concurrent.duration._

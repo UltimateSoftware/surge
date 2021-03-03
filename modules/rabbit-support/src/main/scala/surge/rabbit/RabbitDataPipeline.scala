@@ -7,8 +7,8 @@ import akka.actor.ActorSystem
 import akka.stream.alpakka.amqp.scaladsl.CommittableReadResult
 import akka.stream.scaladsl.{ Keep, RestartSource, Sink, Source }
 import akka.stream.{ KillSwitch, KillSwitches, Materializer }
-import surge.core.DataPipeline
-import surge.core.DataPipeline.ReplaySuccessfullyStarted
+import surge.streams.DataPipeline
+import surge.streams.DataPipeline.ReplaySuccessfullyStarted
 
 import scala.concurrent.Future
 import scala.concurrent.duration._

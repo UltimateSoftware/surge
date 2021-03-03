@@ -8,9 +8,10 @@ import akka.stream.alpakka.amqp.scaladsl.AmqpFlow
 import akka.stream.scaladsl.{ Flow, Keep }
 import akka.util.ByteString
 import com.rabbitmq.client.AMQP.BasicProperties
+import org.slf4j.LoggerFactory
 import surge.akka.streams.graph.PassThroughFlow
-import surge.core.{ EventHandler, EventPlusStreamMeta, SurgeEventWriteFormatting }
-import surge.rabbit.RabbitDataSource.log
+import surge.core.SurgeEventWriteFormatting
+import surge.streams.{ EventHandler, EventPlusStreamMeta }
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
@@ -26,6 +27,8 @@ trait RabbitEventSink[Event] extends EventHandler[Event] {
   def formatting: SurgeEventWriteFormatting[Event]
 
   private lazy val connectionProvider: AmqpConnectionProvider = AmqpUriConnectionProvider(rabbitMqUri)
+
+  private val log = LoggerFactory.getLogger(getClass)
 
   override def eventHandler[Meta]: Flow[EventPlusStreamMeta[String, Event, Meta], Meta, NotUsed] = {
     Flow[EventPlusStreamMeta[String, Event, Meta]].map { evtPlusOffset =>

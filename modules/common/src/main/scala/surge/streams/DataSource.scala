@@ -1,6 +1,6 @@
 // Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
 
-package surge.core
+package surge.streams
 
 import java.util.Properties
 
@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory
 import surge.akka.streams.kafka.{ KafkaConsumer, KafkaStreamManager }
 import surge.metrics.Metrics
 import surge.scala.core.kafka.KafkaTopic
+import surge.streams.replay.{ DefaultEventReplaySettings, EventReplaySettings, EventReplayStrategy, NoOpEventReplayStrategy }
 
 import scala.collection.JavaConverters._
 import scala.concurrent.{ ExecutionContext, Future }
@@ -52,7 +53,7 @@ trait KafkaDataSource[Key, Value] extends DataSource {
     to(consumerSettings)(sink, autoStart)
   }
 
-  private[core] def to(consumerSettings: ConsumerSettings[Key, Value])(sink: DataHandler[Key, Value], autoStart: Boolean): DataPipeline = {
+  private[streams] def to(consumerSettings: ConsumerSettings[Key, Value])(sink: DataHandler[Key, Value], autoStart: Boolean): DataPipeline = {
     implicit val system: ActorSystem = actorSystem
     implicit val executionContext: ExecutionContext = ExecutionContext.global
     val pipeline = new ManagedDataPipelineImpl(KafkaStreamManager(kafkaTopic, consumerSettings, replayStrategy, replaySettings, sink.dataHandler), metrics)

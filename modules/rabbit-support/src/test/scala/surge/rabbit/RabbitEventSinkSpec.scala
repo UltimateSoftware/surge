@@ -13,7 +13,8 @@ import org.mockito.{ ArgumentCaptor, ArgumentMatchers }
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
-import surge.core.{ EventPlusStreamMeta, SerializedMessage, SurgeEventWriteFormatting }
+import surge.core.{ SerializedMessage, SurgeEventWriteFormatting }
+import surge.streams.EventPlusStreamMeta
 
 import scala.concurrent.duration._
 

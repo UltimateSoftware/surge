@@ -14,10 +14,12 @@ import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Millis, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
-import surge.core.DataPipeline._
+import surge.streams.DataPipeline._
 import surge.core._
 import surge.kafka.streams.DefaultSerdes
 import surge.scala.core.kafka.KafkaTopic
+import surge.streams.FlowConverter
+import surge.streams.replay.{ DefaultEventReplaySettings, EventReplaySettings, EventReplayStrategy, KafkaForeverReplaySettings, KafkaForeverReplayStrategy, NoOpEventReplayStrategy }
 
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }

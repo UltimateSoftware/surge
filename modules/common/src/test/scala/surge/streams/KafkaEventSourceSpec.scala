@@ -1,6 +1,6 @@
 // Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
 
-package surge.core
+package surge.streams
 
 import java.time.Instant
 
@@ -18,13 +18,14 @@ import org.scalatest.time.{ Millis, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.slf4j.LoggerFactory
 import surge.akka.streams.kafka.KafkaConsumer
+import surge.core.SurgeEventReadFormatting
 import surge.kafka.streams.DefaultSerdes
 import surge.scala.core.kafka.KafkaTopic
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
-class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWordSpecLike with Matchers with EmbeddedKafka with Eventually {
+class KafkaEventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWordSpecLike with Matchers with EmbeddedKafka with Eventually {
   private val log = LoggerFactory.getLogger(getClass)
 
   implicit override val patienceConfig: PatienceConfig =
@@ -32,8 +33,8 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
 
   private implicit val stringSer: Serializer[String] = DefaultSerdes.stringSerde.serializer()
 
-  private def testEventSource(topic: KafkaTopic, kafkaBrokers: String, groupId: String): EventSource[String] = {
-    new EventSource[String] {
+  private def testEventSource(topic: KafkaTopic, kafkaBrokers: String, groupId: String): KafkaEventSource[String] = {
+    new KafkaEventSource[String] {
       override def baseEventName: String = "TestAggregateEvent"
       override def kafkaTopic: KafkaTopic = topic
       override def formatting: SurgeEventReadFormatting[String] = bytes => new String(bytes)
@@ -67,7 +68,7 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
         val embeddedBroker = s"localhost:${actualConfig.kafkaPort}"
 
         val groupId = "subscription-test"
-        def createConsumer: EventSource[String] =
+        def createConsumer: KafkaEventSource[String] =
           testEventSource(topic, kafkaBrokers = embeddedBroker, groupId = groupId)
 
         val record1 = "record 1"
@@ -101,7 +102,7 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
 
         val groupId = "auto-start-false-test"
 
-        def createConsumer: EventSource[String] =
+        def createConsumer: KafkaEventSource[String] =
           testEventSource(topic, kafkaBrokers = embeddedBroker, groupId = groupId)
 
         val record1 = "record 1"
@@ -128,7 +129,7 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
 
         val groupId = "tombstone-record-test"
 
-        def createConsumer: EventSource[String] =
+        def createConsumer: KafkaEventSource[String] =
           testEventSource(topic, kafkaBrokers = embeddedBroker, groupId = groupId)
 
         val record1 = "record 1"
@@ -167,7 +168,7 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
         val embeddedBroker = s"localhost:${actualConfig.kafkaPort}"
 
         val groupId = "restart-test"
-        def createConsumer: EventSource[String] =
+        def createConsumer: KafkaEventSource[String] =
           testEventSource(topic, kafkaBrokers = embeddedBroker, groupId = groupId)
 
         val record1 = "record 1"
@@ -211,7 +212,7 @@ class EventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWo
 
         val groupId = "quick-load-test"
         val embeddedBroker = s"localhost:${actualConfig.kafkaPort}"
-        def createConsumer: EventSource[String] =
+        def createConsumer: KafkaEventSource[String] =
           testEventSource(topic, kafkaBrokers = embeddedBroker, groupId = groupId)
 
         (1 to 1000).foreach { num =>

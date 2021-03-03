@@ -1,6 +1,6 @@
 // Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
 
-package surge.core
+package surge.streams.replay
 
 import java.util
 import java.util.concurrent.TimeUnit
@@ -13,8 +13,8 @@ import com.typesafe.config.ConfigFactory
 import org.apache.kafka.clients.consumer.{ ConsumerConfig, ConsumerRebalanceListener, KafkaConsumer, OffsetAndMetadata }
 import org.apache.kafka.common.TopicPartition
 import surge.akka.streams.kafka.PartitionAssignorConfig
-import surge.core.TopicResetActor._
 import surge.scala.core.kafka.{ KafkaBytesConsumer, UltiKafkaConsumerConfig }
+import surge.streams.replay.TopicResetActor._
 import surge.support.Logging
 
 import scala.collection.JavaConverters._
@@ -27,7 +27,7 @@ class KafkaForeverReplayStrategy(
     override val preReplay: () => Future[Any] = { () => Future.successful(true) },
     override val postReplay: () => Unit = { () => () })(implicit executionContext: ExecutionContext) extends EventReplayStrategy with Logging {
 
-  val underlyingActor = actorSystem.actorOf(Props(new TopicResetActor(settings.brokers, settings.topic)))
+  private val underlyingActor = actorSystem.actorOf(Props(new TopicResetActor(settings.brokers, settings.topic)))
 
   implicit val timeout: Timeout = Timeout(settings.resetTopicTimeout)
   override def replay(consumerGroup: String, partitions: Iterable[Int]): Future[Done] = {
@@ -49,10 +49,10 @@ case class KafkaForeverReplaySettings(
     topic: String) extends EventReplaySettings
 
 object KafkaForeverReplaySettings {
-  val config = ConfigFactory.load()
-  lazy val brokers = config.getString("kafka.brokers").split(",").toList
-  lazy val resetTopicTimeout: FiniteDuration = config.getDuration("kafka.streams.replay.reset-topic-timeout", TimeUnit.MILLISECONDS).milliseconds
-  lazy val entireProcessTimeout: FiniteDuration = config.getDuration("kafka.streams.replay.entire-process-timeout", TimeUnit.MILLISECONDS).milliseconds
+  private val config = ConfigFactory.load()
+  private val brokers = config.getString("kafka.brokers").split(",").toList
+  private val resetTopicTimeout: FiniteDuration = config.getDuration("kafka.streams.replay.reset-topic-timeout", TimeUnit.MILLISECONDS).milliseconds
+  private val entireProcessTimeout: FiniteDuration = config.getDuration("kafka.streams.replay.entire-process-timeout", TimeUnit.MILLISECONDS).milliseconds
 
   def apply(topic: String): KafkaForeverReplaySettings = {
     new KafkaForeverReplaySettings(brokers, resetTopicTimeout, entireProcessTimeout, topic)
@@ -132,7 +132,7 @@ class TopicResetActor(brokers: List[String], kafkaTopic: String) extends Actor w
       override def onPartitionsRevoked(partitions: util.Collection[TopicPartition]): Unit = {}
     })
     // NOTE: non-deprecated #poll(Duration) method doesn't work because it includesMetadataInTimeout opposite to this one
-    consumer.poll(1000) // scalastyle:ignore
+    consumer.poll(1000)
     context.become(initializing(sender(), consumer, kafkaTopic, topicPartitions))
   }
 
@@ -148,7 +148,7 @@ class TopicResetActor(brokers: List[String], kafkaTopic: String) extends Actor w
   override def receive: Receive = ready
 }
 
-private[core] object TopicResetActor {
+private[streams] object TopicResetActor {
   sealed trait ResetTopicCommand
   case class ResetTopic(consumerGroup: String, partitions: List[Int]) extends ResetTopicCommand
 

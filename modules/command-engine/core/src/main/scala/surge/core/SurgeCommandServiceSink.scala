@@ -2,6 +2,7 @@
 
 package surge.core
 
+import surge.streams.EventSink
 import surge.support.Logging
 
 import scala.concurrent.{ ExecutionContext, Future }

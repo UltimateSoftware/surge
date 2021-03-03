@@ -5,6 +5,7 @@ package surge.rabbit
 import akka.stream.alpakka.amqp.scaladsl.CommittableReadResult
 import akka.util.ByteString
 import surge.core._
+import surge.streams.{ DataPipeline, EventHandler, EventSourceDeserialization }
 import surge.support.Logging
 
 trait RabbitEventSource[Event] extends RabbitDataSource[String, Array[Byte]]

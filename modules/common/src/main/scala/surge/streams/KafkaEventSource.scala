@@ -1,6 +1,6 @@
 // Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
 
-package surge.core
+package surge.streams
 
 import akka.NotUsed
 import akka.kafka.ConsumerSettings
@@ -8,6 +8,7 @@ import akka.stream.scaladsl.Flow
 import org.apache.kafka.common.serialization.{ ByteArrayDeserializer, Deserializer, StringDeserializer }
 import org.slf4j.LoggerFactory
 import surge.akka.streams.graph.EitherFlow
+import surge.core.SurgeEventReadFormatting
 import surge.metrics.{ MetricInfo, Metrics, Timer }
 
 import scala.util.{ Failure, Success, Try }
@@ -62,7 +63,12 @@ trait EventSourceDeserialization[Event] {
   }
 }
 
-trait EventSource[Event] extends KafkaDataSource[String, Array[Byte]] with EventSourceDeserialization[Event] {
+trait EventSource[Event] {
+  def to(sink: EventHandler[Event], consumerGroup: String): DataPipeline
+  def to(sink: EventHandler[Event], consumerGroup: String, autoStart: Boolean): DataPipeline
+}
+
+trait KafkaEventSource[Event] extends EventSource[Event] with KafkaDataSource[String, Array[Byte]] with EventSourceDeserialization[Event] {
   override val keyDeserializer: Deserializer[String] = new StringDeserializer()
   override val valueDeserializer: Deserializer[Array[Byte]] = new ByteArrayDeserializer()
 
@@ -76,7 +82,7 @@ trait EventSource[Event] extends KafkaDataSource[String, Array[Byte]] with Event
     super.to(dataHandler(sink), consumerGroup, autoStart)
   }
 
-  private[core] def to(consumerSettings: ConsumerSettings[String, Array[Byte]])(sink: EventHandler[Event], autoStart: Boolean): DataPipeline = {
+  private[streams] def to(consumerSettings: ConsumerSettings[String, Array[Byte]])(sink: EventHandler[Event], autoStart: Boolean): DataPipeline = {
     super.to(consumerSettings)(dataHandler(sink), autoStart)
   }
 }

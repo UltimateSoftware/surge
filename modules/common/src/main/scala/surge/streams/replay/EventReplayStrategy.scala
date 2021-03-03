@@ -1,6 +1,6 @@
 // Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
 
-package surge.core
+package surge.streams.replay
 
 import java.util.concurrent.TimeUnit
 
@@ -18,9 +18,8 @@ trait EventReplayStrategy {
 }
 
 object DefaultEventReplaySettings extends EventReplaySettings {
-  val config = ConfigFactory.load()
-  val entireProcessTimeout: FiniteDuration = config.getDuration("kafka.streams.replay.entire-process-timeout", TimeUnit.MILLISECONDS).milliseconds
-  override val entireReplayTimeout: FiniteDuration = entireProcessTimeout
+  private val config = ConfigFactory.load()
+  override val entireReplayTimeout: FiniteDuration = config.getDuration("kafka.streams.replay.entire-process-timeout", TimeUnit.MILLISECONDS).milliseconds
 }
 
 case object NoOpEventReplayStrategy extends EventReplayStrategy with Logging {
