@@ -1,7 +1,6 @@
 // Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
 
 import sbt.Keys._
-import sbtrelease.ReleaseStateTransformations._
 
 scalaVersion in ThisBuild := "2.12.8"
 
@@ -25,26 +24,8 @@ val multiJvmTestSettings = Seq(
   dependencyOverrides ++= Dependencies.dependenciesOverride
 )
 
-val checkOrganization = ReleaseStep(action = st => {
-  println("JEFF --- Doing custom release step!")
-  st
-})
-val releaseSettings = Seq(
-  releaseProcess := Seq[ReleaseStep](
-    checkSnapshotDependencies,
-    checkOrganization,
-    inquireVersions,
-    setReleaseVersion,
-    commitReleaseVersion,
-    tagRelease,
-    setNextVersion,
-    commitNextVersion
-  )
-)
-
 lazy val `surge-scala-core` = (project in file("modules/scala-core"))
   .settings(
-    releaseSettings,
     libraryDependencies ++= Seq(
       jacksonKotlin,
       jacksonScala,
@@ -59,7 +40,6 @@ lazy val `surge-scala-core` = (project in file("modules/scala-core"))
 
 lazy val `surge-common` = (project in file("modules/common"))
   .settings(
-    releaseSettings,
     multiJvmTestSettings,
     libraryDependencies ++= Seq(
       Akka.actor,
@@ -89,7 +69,6 @@ lazy val `surge-common` = (project in file("modules/common"))
 
 lazy val `surge-rabbitmq-support` = (project in file ("modules/rabbit-support"))
   .settings(
-    releaseSettings,
     libraryDependencies ++= Seq(
       Alpakka.amqp,
       Akka.testKit,
@@ -102,7 +81,6 @@ lazy val `surge-rabbitmq-support` = (project in file ("modules/rabbit-support"))
 
 lazy val `surge-engine-command-core` = (project in file("modules/command-engine/core"))
   .settings(
-    releaseSettings,
     libraryDependencies ++= Seq(
       Akka.actor,
       Akka.remote,
@@ -117,16 +95,13 @@ lazy val `surge-engine-command-core` = (project in file("modules/command-engine/
   ).dependsOn(`surge-common`)
 
 lazy val `surge-engine-command-scaladsl` = (project in file("modules/command-engine/scaladsl"))
-  .settings(releaseSettings)
   .dependsOn(`surge-engine-command-core`)
 
 lazy val `surge-engine-command-javadsl` = (project in file("modules/command-engine/javadsl"))
-  .settings(releaseSettings)
   .dependsOn(`surge-engine-command-core`)
 
 lazy val `surge-metrics` = (project in file("modules/metrics"))
   .settings(
-    releaseSettings,
     libraryDependencies ++= Seq(
       Kafka.kafkaClients,
       PlayFramework.json,
@@ -152,5 +127,5 @@ lazy val `surge` = project.in(file("."))
     skip in publish := true,
     aggregate in sonarScan := false,
     sonarUseExternalConfig := true,
-    releaseSettings
+    ReleaseSettings.settings
   )
