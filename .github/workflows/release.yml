@@ -1,4 +1,4 @@
-name: Create Release
+name: Create Release Notes
 
 on:
   push:
@@ -9,13 +9,6 @@ jobs:
   release:
     runs-on: self-hosted
     steps:
-      - name: Extract branch name
-        shell: bash
-        run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
-        id: extract_branch
-      - name: Verify Tag is on a protected branch
-        run: exit 1
-        if: ${{ steps.extract_branch.outputs.branch }} != main && ${{ steps.extract_branch.outputs.branch }} != 0.4-compat
       - uses: release-drafter/release-drafter@v5
         id: draft_release
         name: Draft Release Notes
