@@ -5,10 +5,10 @@ package surge.scala.core.validations
 trait FieldValidators extends StringValidators with CollectionValidators with NumericValidators {
 
   def EqualTo[A](other: A): Validator[A] =
-    ValidateWith[A](_.equals(other), Some(s"The value must equal $other"))
+    ValidateWith[A](_ == other, Some(s"The value must equal $other"))
 
   def NotEqualTo[A](other: A): Validator[A] =
-    ValidateWith[A](!_.equals(other), Some(s"The value must not equal $other"))
+    ValidateWith[A](_ != other, Some(s"The value must not equal $other"))
 
   def LessThan[A](other: A)(implicit ord: Ordering[A]): Validator[A] =
     ValidateWith[A](value => ord.compare(value, other) < 0, Some(s"The value must be less than $other"))

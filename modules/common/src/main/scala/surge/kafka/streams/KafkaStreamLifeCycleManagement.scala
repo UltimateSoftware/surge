@@ -22,7 +22,7 @@ trait KafkaStreamLifeCycleManagement[K, V, T <: KafkaStreamsConsumer[K, V], SV] 
   var lastConsumerSeen: Option[T] = None
   val healthCheckName: String
 
-  log.debug(s"Kafka streams ${settings.storeName} cache memory being used is {} KiB", Math.round(settings.cacheMemory / 1024))
+  log.debug(s"Kafka streams ${settings.storeName} cache memory being used is {} KiB", Math.round(settings.cacheMemory.toFloat / 1024f))
 
   protected val streamsConfig: Map[String, String]
   protected val metrics: Metrics

@@ -178,7 +178,7 @@ private class KafkaProducerActorImpl[Agg, Event](
   private val publisherAcks = config.getString("kafka.publisher.acks")
   private val publisherTransactionTimeoutMs = config.getString("kafka.publisher.transaction-timeout-ms")
   private val ktableCheckInterval = config.getDuration("kafka.publisher.ktable-check-interval").toMillis.milliseconds
-  private val brokers = config.getString("kafka.brokers").split(",")
+  private val brokers = config.getString("kafka.brokers").split(",").toVector
   private val enableMetrics = config.getBoolean("surge.producer.enable-kafka-metrics")
 
   private val transactionalIdPrefix = businessLogic.transactionalIdPrefix
@@ -509,7 +509,7 @@ private[core] case class KafkaProducerActorState(
 
   def addInFlight(recordMetadata: Seq[KafkaRecordMetadata[String]]): KafkaProducerActorState = {
     val newTotalInFlight = inFlight ++ recordMetadata
-    val newInFlight = newTotalInFlight.groupBy(_.key).mapValues(_.maxBy(_.wrapped.offset())).values
+    val newInFlight = newTotalInFlight.groupBy(_.key).values.map(_.maxBy(_.wrapped.offset()))
 
     this.copy(inFlight = newInFlight.toSeq)
   }

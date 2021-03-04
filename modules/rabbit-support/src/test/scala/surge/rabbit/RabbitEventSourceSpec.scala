@@ -18,10 +18,10 @@ import surge.streams.DataPipeline.ReplaySuccessfullyStarted
 import surge.core.SurgeEventReadFormatting
 import surge.streams.{ DataPipeline, EventSink }
 
-import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.concurrent.duration._
 import scala.concurrent.{ Await, Future }
+import scala.jdk.CollectionConverters._
 
 object RabbitEventSourceSpec {
   val SERVICE_PORT: Int = 5672
@@ -34,7 +34,7 @@ class RabbitEventSourceSpec extends TestKit(ActorSystem("RabbitEventSourceSpec")
   class TestRabbitEventSource(val rabbitMqUri: String, val queueName: String,
       override val bufferSize: Int = 10,
       override val autoDeclarePlan: Option[AutoDeclarePlan]) extends RabbitEventSource[String] {
-    private var sourcedReadResults: mutable.Seq[CommittableReadResult] = mutable.Seq[CommittableReadResult]()
+    private var sourcedReadResults: Seq[CommittableReadResult] = Seq[CommittableReadResult]()
 
     override def actorSystem: ActorSystem = system
     override def formatting: SurgeEventReadFormatting[String] = (bytes: Array[Byte]) => new String(bytes)

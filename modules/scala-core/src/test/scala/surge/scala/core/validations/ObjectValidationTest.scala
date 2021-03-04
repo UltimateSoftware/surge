@@ -67,7 +67,7 @@ class ObjectValidationTest extends AsyncWordSpec with Matchers {
         employee.taxData.state mustBe NonEmptyString orElse TAX_STATE_ERR_MSG,
         employee.taxData.exemptions.toDouble mustBe NonNegativeNumber[Double] orElse TAX_EXEMPTION_ERR_MSG,
         employee.taxData.taxRate mustBe InTheRange(0, .5) orElse TAX_RATE_ERR_MSG,
-        employee mustHave ValidNationalTaxId orElseDefaultMessage)
+        employee.mustHave(ValidNationalTaxId).orElseDefaultMessage)
     })
   }
 

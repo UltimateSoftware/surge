@@ -21,7 +21,7 @@ import scala.util.Try
 
 object KafkaPartitionShardRouterActor {
   private val config: Config = ConfigFactory.load()
-  private val brokers = config.getString("kafka.brokers").split(",")
+  private val brokers = config.getString("kafka.brokers").split(",").toVector
 
   def props[Agg, Command, Event](
     partitionTracker: ActorRef,
@@ -100,7 +100,9 @@ class KafkaPartitionShardRouterActor(
       updatePartitionAssignments(partitionAssignments.partitionAssignments)
     }
     def updatePartitionAssignments(newAssignments: Map[HostPort, List[TopicPartition]]): ActorState = {
-      val assignmentsForEventsTopic = newAssignments.mapValues(_.filter(_.topic() == trackedTopic.name)).toMap
+      val assignmentsForEventsTopic = newAssignments.map {
+        case (hostPort, assignments) => hostPort -> assignments.filter(_.topic() == trackedTopic.name)
+      }
 
       val assignmentsWithChanges = partitionAssignments.update(assignmentsForEventsTopic)
       val revokedPartitions = assignmentsWithChanges.changes.revokedTopicPartitions

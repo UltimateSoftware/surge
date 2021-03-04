@@ -14,7 +14,7 @@ import org.slf4j.{ Logger, LoggerFactory }
 import surge.akka.streams.graph.PassThroughFlow
 import surge.streams.{ DataHandler, DataPipeline, DataSource, EventPlusStreamMeta }
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 object RabbitDataSource {
   val log: Logger = LoggerFactory.getLogger(getClass)
@@ -44,7 +44,8 @@ trait RabbitDataSource[Key, Value] extends DataSource {
     val handleEventFlow = Flow[CommittableReadResult].map { crr =>
       val key = readResultToKey(interceptReadResult(crr))
       val value = readResultToValue(crr.message.bytes)
-      val headers = Option(crr.message.properties.getHeaders).getOrElse(Collections.emptyMap()).asScala.mapValues(_.toString.getBytes()).toMap
+      val headers = Option(crr.message.properties.getHeaders).getOrElse(Collections.emptyMap()).asScala
+        .map(tup => tup._1 -> tup._2.toString.getBytes()).toMap
       val eventPlusMeta = EventPlusStreamMeta(key, value, streamMeta = None, headers)
       eventPlusMeta
     }.via(sink.dataHandler)

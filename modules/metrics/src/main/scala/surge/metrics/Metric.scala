@@ -6,7 +6,7 @@ import com.typesafe.config.ConfigFactory
 import org.slf4j.LoggerFactory
 
 trait MetricValueProvider {
-  def update(value: Double, timestampMs: Long)
+  def update(value: Double, timestampMs: Long): Unit
   def getValue: Double
 }
 

@@ -9,7 +9,7 @@ import play.api.libs.json.Writes
 import surge.kafka.streams.{ HealthCheck => ScalaHealthCheck }
 import surge.scala.core.utils.JsonFormats
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 class HealthCheck(
     val name: String,

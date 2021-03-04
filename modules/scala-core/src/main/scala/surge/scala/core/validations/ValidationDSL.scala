@@ -2,6 +2,8 @@
 
 package surge.scala.core.validations
 
+import scala.language.implicitConversions
+
 /**
  * Validation DSL (Domain Specific Language) includes implicits that allow for more expressive validations.
  *

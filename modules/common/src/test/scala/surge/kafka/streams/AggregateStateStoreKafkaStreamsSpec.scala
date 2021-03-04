@@ -46,7 +46,7 @@ class AggregateStateStoreKafkaStreamsSpec
 
   private val system = ActorSystem("test-actor-system")
 
-  override def afterAll() {
+  override def afterAll(): Unit = {
     system.terminate()
   }
 

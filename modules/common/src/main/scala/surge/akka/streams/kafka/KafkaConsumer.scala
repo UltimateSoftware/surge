@@ -13,7 +13,7 @@ import org.apache.kafka.common.serialization.{ ByteArrayDeserializer, Deserializ
 import surge.config.TimeoutConfig
 import surge.scala.core.kafka.KafkaSecurityConfiguration
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 object KafkaConsumer extends KafkaSecurityConfiguration {
   private val config: Config = ConfigFactory.load()

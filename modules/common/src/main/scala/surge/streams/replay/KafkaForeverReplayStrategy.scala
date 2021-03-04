@@ -17,9 +17,9 @@ import surge.scala.core.kafka.{ KafkaBytesConsumer, UltiKafkaConsumerConfig }
 import surge.streams.replay.TopicResetActor._
 import surge.support.Logging
 
-import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
+import scala.jdk.CollectionConverters._
 
 class KafkaForeverReplayStrategy(
     actorSystem: ActorSystem,

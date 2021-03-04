@@ -40,6 +40,7 @@ object Dependencies extends AutoPlugin {
       val json = "com.typesafe.play" %% "play-json" % "2.9.1"
     }
 
+    val scalaCollectionCompat = "org.scala-lang.modules" %% "scala-collection-compat" % "2.4.2"
     val jacksonKotlin = "com.fasterxml.jackson.module" % "jackson-module-kotlin" % "2.10.3"
     val jacksonScala = "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.10.3"
     val java8Compat = "org.scala-lang.modules" %% "scala-java8-compat" % "0.9.1"

@@ -117,12 +117,11 @@ class ReplayCoordinator(
     context.become(replaying(replayState))
     replayStrategy.replay(consumerGroup, existingPartitions).map { _ =>
       ReplayCompleted
-    }.recoverWith {
+    }.recover {
       case err: Throwable =>
         log.error("Replay failed", err)
-        Future.successful(ReplayFailed(err))
-    }.pipeTo(self)(sender)
-    ()
+        ReplayFailed(err)
+    }.pipeTo(self)(sender())
   }
 
   def startStoppedConsumers(state: ReplayState): Unit = {

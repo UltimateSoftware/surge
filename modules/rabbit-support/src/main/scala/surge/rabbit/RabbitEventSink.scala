@@ -13,8 +13,8 @@ import surge.akka.streams.graph.PassThroughFlow
 import surge.core.SurgeEventWriteFormatting
 import surge.streams.{ EventHandler, EventPlusStreamMeta }
 
-import scala.collection.JavaConverters._
 import scala.concurrent.duration._
+import scala.jdk.CollectionConverters._
 
 trait RabbitEventSink[Event] extends EventHandler[Event] {
   def rabbitMqUri: String

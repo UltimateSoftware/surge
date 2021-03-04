@@ -24,8 +24,10 @@ trait ObjectValidator[A] extends Validator[A] {
   def fieldValidator: FieldValidator[A]
 
   def apply(input: ValidatorInput[A]): ValidationResult[A] = {
-    // FIXME - Refactor to avoid using left.get
-    fieldValidator(input._1).withFilter(_.isLeft).flatMap(_.left.get) match {
+    fieldValidator(input._1).flatMap {
+      case Left(value) => value
+      case Right(_)    => Seq.empty
+    } match {
       case errors if errors.isEmpty => Right(input._1)
       case errors                   => Left(errors)
     }
@@ -66,8 +68,10 @@ trait AsyncObjectValidator[A] extends AsyncValidator[A] {
   def apply(input: ValidatorInput[A]): AsyncValidationResult[A] = {
     val validations: Seq[Future[ValidationResult[_]]] = fieldValidator(input._1)
     Future.sequence(validations) map { results =>
-      // FIXME - Refactor to avoid using left.get
-      results.withFilter(_.isLeft).flatMap(_.left.get) match {
+      results.flatMap {
+        case Left(value) => value
+        case Right(_)    => Seq.empty
+      } match {
         case errors if errors.isEmpty => Right(input._1)
         case errors                   => Left(errors)
       }

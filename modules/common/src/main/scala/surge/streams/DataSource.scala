@@ -17,8 +17,8 @@ import surge.metrics.Metrics
 import surge.scala.core.kafka.KafkaTopic
 import surge.streams.replay.{ DefaultEventReplaySettings, EventReplaySettings, EventReplayStrategy, NoOpEventReplayStrategy }
 
-import scala.collection.JavaConverters._
 import scala.concurrent.{ ExecutionContext, Future }
+import scala.jdk.CollectionConverters._
 import scala.util.hashing.MurmurHash3
 
 trait DataSource {

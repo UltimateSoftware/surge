@@ -10,9 +10,9 @@ import surge.akka.streams.kafka.KafkaStreamManager
 import surge.metrics.Metrics
 import surge.streams.DataPipeline.{ ReplayResult, ReplaySuccessfullyStarted }
 
-import scala.collection.JavaConverters._
 import scala.compat.java8.FutureConverters._
 import scala.concurrent.Future
+import scala.jdk.CollectionConverters._
 
 trait DataPipeline {
   def start(): Unit

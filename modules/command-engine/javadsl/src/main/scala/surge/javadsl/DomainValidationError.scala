@@ -5,7 +5,7 @@ package surge.javadsl
 import surge.core.{ DomainValidationError => ScalaDomainValidationError }
 import surge.scala.core.validations.ValidationError
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 object DomainValidationError {
   implicit class ScalaDomainValidationErrorExtensions(scalaValidationError: ScalaDomainValidationError) {

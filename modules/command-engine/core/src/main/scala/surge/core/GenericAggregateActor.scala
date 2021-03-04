@@ -254,10 +254,10 @@ private[surge] class GenericAggregateActor[Agg, Command, Event](
       Future.successful(PersistenceSuccess(state, startTime))
     } else {
       kafkaProducerActor.publish(aggregateId = aggregateId, state = serializedState, events = serializedEvents).map {
-        case KafkaProducerActor.PublishSuccess    ⇒ PersistenceSuccess(state, startTime)
-        case KafkaProducerActor.PublishFailure(t) ⇒ PersistenceFailure(state, t, currentFailureCount + 1, serializedEvents, serializedState, startTime)
+        case KafkaProducerActor.PublishSuccess    => PersistenceSuccess(state, startTime)
+        case KafkaProducerActor.PublishFailure(t) => PersistenceFailure(state, t, currentFailureCount + 1, serializedEvents, serializedState, startTime)
       }.recover {
-        case t ⇒ EventPublishTimedOut(t, startTime)
+        case t => EventPublishTimedOut(t, startTime)
       }
     }
   }

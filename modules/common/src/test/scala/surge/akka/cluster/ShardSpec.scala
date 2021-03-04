@@ -194,13 +194,13 @@ class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with AnyWordSpecLike w
     "Executes onTerminate callback when shard actor dies" in {
       val probe = TestProbe()
       def notifyProbe(): Unit = {
-        probe.ref ! 'Terminated
+        probe.ref ! Terminated
         ()
       }
       val shardActor = system.actorOf(Shard.props("testShard", new RegionLogicProvider(() => notifyProbe()), TestActor.idExtractor))
       probe.expectNoMessage()
       probe.send(shardActor, PoisonPill)
-      probe.expectMsg('Terminated)
+      probe.expectMsg(Terminated)
     }
   }
 }

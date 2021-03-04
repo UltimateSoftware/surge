@@ -15,7 +15,7 @@ import org.scalatestplus.mockito.MockitoSugar
 import surge.kafka.KafkaConsumerStateTrackingActor
 import surge.scala.core.kafka.HostPort
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 class KafkaStreamsPartitionTrackerActorImplSpec extends TestKit(ActorSystem("KafkaStreamsPartitionTrackerActorImplSpec")) with AnyWordSpecLike
   with Matchers with MockitoSugar {

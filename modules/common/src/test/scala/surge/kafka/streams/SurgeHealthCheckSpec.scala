@@ -44,7 +44,7 @@ class SurgeHealthCheckSpec extends AnyWordSpec with Matchers with PrivateMethodT
   "SurgeHealthCheck" should {
     "Calculate correctly isHealthy parameter and status if a leaf is DOWN" in {
       val root = buildTree(Map("3.1" -> HealthCheckStatus.DOWN))
-      val healthyTree = PrivateMethod[HealthCheck]('healthyTree)
+      val healthyTree = PrivateMethod[HealthCheck](Symbol("healthyTree"))
       val healthyNode = surgeHealthCheck invokePrivate healthyTree(root)
 
       assert(healthyNode.isHealthy.contains(false))
@@ -73,7 +73,7 @@ class SurgeHealthCheckSpec extends AnyWordSpec with Matchers with PrivateMethodT
 
     "Calculate correctly isHealthy parameter if a middle level node is DOWN" in {
       val root = buildTree(Map("2.2" -> HealthCheckStatus.DOWN))
-      val healthyTree = PrivateMethod[HealthCheck]('healthyTree)
+      val healthyTree = PrivateMethod[HealthCheck](Symbol("healthyTree"))
       val healthyNode = surgeHealthCheck invokePrivate healthyTree(root)
 
       assert(healthyNode.isHealthy.contains(false))
@@ -91,7 +91,7 @@ class SurgeHealthCheckSpec extends AnyWordSpec with Matchers with PrivateMethodT
 
     "Calculate correctly isHealthy parameter if all nodes are UP" in {
       val root = buildTree()
-      val healthyTree = PrivateMethod[HealthCheck]('healthyTree)
+      val healthyTree = PrivateMethod[HealthCheck](Symbol("healthyTree"))
       val healthyNode = surgeHealthCheck invokePrivate healthyTree(root)
 
       assert(healthyNode.isHealthy.contains(true))

@@ -9,10 +9,10 @@ import org.apache.kafka.clients.producer.{ KafkaProducer, ProducerConfig, Produc
 import org.apache.kafka.common.serialization.{ ByteArraySerializer, StringSerializer }
 import surge.scala.core.kafka._
 
-import scala.collection.JavaConverters._
 import scala.compat.java8.FutureConverters._
 import scala.compat.java8.OptionConverters._
 import scala.concurrent.ExecutionContext
+import scala.jdk.CollectionConverters._
 
 abstract class AbstractKafkaProducer[K, V] extends KafkaSecurityConfiguration with KafkaProducerHelperCommon[K, V] {
   private implicit val executionContext: ExecutionContext = ExecutionContext.global

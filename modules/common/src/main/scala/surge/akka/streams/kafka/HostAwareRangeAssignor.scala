@@ -10,7 +10,7 @@ import org.apache.kafka.clients.consumer.{ ConsumerGroupMetadata, ConsumerPartit
 import org.apache.kafka.common.{ Cluster, Configurable }
 import surge.scala.core.kafka.HostPort
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.util.Try
 
 class HostAwareRangeAssignor extends RangeAssignor with HostAwarenessConfig {
@@ -50,8 +50,8 @@ trait HostAwarenessConfig extends Configurable {
     groupSubscription: ConsumerPartitionAssignor.GroupSubscription): Map[String, Assignment] = {
 
     val hostPortMappings = groupSubscription.groupSubscription().asScala.flatMap {
-      case (key, subscription) ⇒
-        SubscriptionInfo.decode(subscription.userData()).flatMap(_.hostPort).toList.flatMap { hostPort ⇒
+      case (key, subscription) =>
+        SubscriptionInfo.decode(subscription.userData()).flatMap(_.hostPort).toList.flatMap { hostPort =>
           val assignedPartitions = Option(groupAssignment.groupAssignment().get(key)).map(_.partitions().asScala.toSet).getOrElse(Set.empty)
           assignedPartitions.map(_ -> hostPort)
         }
@@ -60,7 +60,7 @@ trait HostAwarenessConfig extends Configurable {
     val assignmentUserData = assignmentInfo.encode
 
     val assignmentsWithMetadata = groupAssignment.groupAssignment().asScala.map {
-      case (key, assignment) ⇒
+      case (key, assignment) =>
         key -> new Assignment(assignment.partitions(), assignmentUserData)
     }
     assignmentsWithMetadata.toMap
@@ -68,7 +68,7 @@ trait HostAwarenessConfig extends Configurable {
 
   protected def handleOnAssignment(assignment: ConsumerPartitionAssignor.Assignment, metadata: ConsumerGroupMetadata): Unit = {
     val decodedUserData = Option(assignment.userData()).flatMap(AssignmentInfo.decode)
-    decodedUserData.foreach { assignmentInfo ⇒
+    decodedUserData.foreach { assignmentInfo =>
       HostAssignmentTracker.updateState(assignmentInfo.assignedPartitions)
     }
   }

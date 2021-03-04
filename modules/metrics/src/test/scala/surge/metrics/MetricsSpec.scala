@@ -12,7 +12,7 @@ import org.scalatest.wordspec.AnyWordSpec
 import org.scalatestplus.mockito.MockitoSugar
 import surge.metrics.statistics.{ ExponentiallyWeightedMovingAverage, Max, Min }
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 class MetricsSpec extends AnyWordSpec with Matchers with MockitoSugar {
   "Metrics" should {

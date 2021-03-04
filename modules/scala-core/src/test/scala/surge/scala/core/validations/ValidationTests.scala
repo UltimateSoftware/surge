@@ -27,7 +27,7 @@ class ValidationTests extends AsyncWordSpec with Matchers {
     }
 
     "invalidate with the default message provided by the library" in {
-      val result = "" mustBe ValidateWith[String](_.nonEmpty) orElseDefaultMessage
+      val result = ("" mustBe ValidateWith[String](_.nonEmpty)).orElseDefaultMessage
 
       result shouldBe Left(Seq(ValidationError("String not valid")))
     }

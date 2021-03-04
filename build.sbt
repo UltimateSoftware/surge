@@ -2,9 +2,9 @@
 
 import sbt.Keys._
 
-scalaVersion in ThisBuild := "2.12.8"
+scalaVersion in ThisBuild := "2.12.10"
 
-ThisBuild / crossScalaVersions := Seq("2.13.4", "2.12.8")
+ThisBuild / crossScalaVersions := Seq("2.13.5", "2.12.10")
 
 skip in publish := true
 
@@ -35,6 +35,7 @@ lazy val `surge-scala-core` = (project in file("modules/scala-core"))
       java8Compat,
       Kafka.kafkaClients,
       PlayFramework.json,
+      scalaCollectionCompat,
       scalatest,
       typesafeConfig,
       mockitoCore
@@ -108,6 +109,7 @@ lazy val `surge-metrics` = (project in file("modules/metrics"))
     libraryDependencies ++= Seq(
       Kafka.kafkaClients,
       PlayFramework.json,
+      scalaCollectionCompat,
       slf4jApi,
       typesafeConfig,
       scalatest,

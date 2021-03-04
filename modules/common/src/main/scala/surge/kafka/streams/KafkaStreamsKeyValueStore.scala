@@ -4,8 +4,8 @@ package surge.kafka.streams
 
 import org.apache.kafka.streams.state.ReadOnlyKeyValueStore
 
-import scala.collection.JavaConverters._
 import scala.concurrent.{ ExecutionContext, Future }
+import scala.jdk.CollectionConverters._
 
 /**
  * Asynchronous wrapper for a Kafka Streams ReadOnlyKeyValueStore.  Just wraps calls

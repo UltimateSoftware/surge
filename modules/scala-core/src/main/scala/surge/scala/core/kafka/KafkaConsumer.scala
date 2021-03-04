@@ -11,8 +11,8 @@ import org.apache.kafka.common.serialization.{ ByteArrayDeserializer, StringDese
 import org.apache.kafka.common.{ PartitionInfo, TopicPartition }
 import org.slf4j.LoggerFactory
 
-import scala.collection.JavaConverters._
 import scala.concurrent.duration._
+import scala.jdk.CollectionConverters._
 
 final case class UltiKafkaConsumerConfig(consumerGroup: String, offsetReset: String = "earliest", pollDuration: FiniteDuration = 3.seconds)
 
@@ -85,14 +85,14 @@ trait KafkaConsumerTrait[K, V] extends KafkaSecurityConfiguration {
     startOffsets(partitions(topic))
   }
   def startOffsets(partitions: Set[TopicPartition]): Map[TopicPartition, Long] = {
-    consumer.beginningOffsets(partitions.asJava).asScala.mapValues(_.toLong).toMap
+    consumer.beginningOffsets(partitions.asJava).asScala.map(tup => tup._1 -> tup._2.toLong).toMap
   }
 
   def endOffsets(topic: KafkaTopic): Map[TopicPartition, Long] = {
     endOffsets(partitions(topic))
   }
   def endOffsets(partitions: Set[TopicPartition]): Map[TopicPartition, Long] = {
-    consumer.endOffsets(partitions.asJava).asScala.mapValues(_.toLong).toMap
+    consumer.endOffsets(partitions.asJava).asScala.map(tup => tup._1 -> tup._2.toLong).toMap
   }
 }
 

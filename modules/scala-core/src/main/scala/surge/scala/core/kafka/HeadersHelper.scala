@@ -5,7 +5,7 @@ package surge.scala.core.kafka
 import org.apache.kafka.common.header.internals.{ RecordHeader, RecordHeaders }
 import org.apache.kafka.common.header.{ Header, Headers }
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 object HeadersHelper {
   def createHeaders(headerMap: Map[String, String]): Headers = {

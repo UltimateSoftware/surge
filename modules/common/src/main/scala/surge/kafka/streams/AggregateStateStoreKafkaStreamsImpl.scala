@@ -19,8 +19,8 @@ import surge.kafka.streams.HealthyActor.GetHealth
 import surge.metrics.Metrics
 import surge.scala.core.kafka.{ KafkaTopic, UltiKafkaConsumerConfig }
 
-import scala.collection.JavaConverters._
 import scala.concurrent.Future
+import scala.jdk.CollectionConverters._
 
 private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
     aggregateName: String,
@@ -118,7 +118,7 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
     case GetAggregateBytes(aggregateId) =>
       getAggregateBytes(aggregateQueryableStateStore, aggregateId).pipeTo(sender())
     case GetLocalStorePartitionLags =>
-      val lagAsScala = consumer.streams.allLocalStorePartitionLags().asScala.mapValues(_.asScala.toMap).toMap
+      val lagAsScala = consumer.streams.allLocalStorePartitionLags().asScala.map(tup => tup._1 -> tup._2.asScala.toMap).toMap
       sender() ! LocalStorePartitionLags(lagAsScala)
     case GetTopology =>
       sender() ! consumer.topology
@@ -213,7 +213,7 @@ private[streams] object AggregateStateStoreKafkaStreamsImpl {
     def apply(consumerGroupName: String, aggregateName: String): AggregateStateStoreKafkaStreamsImplSettings = {
       val config = ConfigFactory.load()
       val aggregateStateStoreName: String = s"${aggregateName}AggregateStateStore"
-      val brokers = config.getString("kafka.brokers").split(",")
+      val brokers = config.getString("kafka.brokers").split(",").toVector
       val consumerConfig = UltiKafkaConsumerConfig(consumerGroupName)
       val environment = config.getString("app.environment")
       val applicationId = s"${consumerConfig.consumerGroup}-$aggregateName-$environment"

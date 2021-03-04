@@ -39,5 +39,5 @@ trait Timer {
 }
 
 private[metrics] class TimerImpl(sensor: Sensor) extends Timer {
-  override def recordTime(tookMillis: Long): Unit = sensor.record(tookMillis)
+  override def recordTime(tookMillis: Long): Unit = sensor.record(tookMillis.toDouble)
 }

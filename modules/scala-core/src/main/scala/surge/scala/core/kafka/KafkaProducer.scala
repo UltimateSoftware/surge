@@ -10,8 +10,8 @@ import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.header.Headers
 import org.apache.kafka.common.serialization.{ ByteArraySerializer, StringSerializer }
 
-import scala.collection.JavaConverters._
 import scala.concurrent.{ ExecutionContext, Future, Promise }
+import scala.jdk.CollectionConverters._
 import scala.util.control.NonFatal
 import scala.util.hashing.MurmurHash3
 import scala.util.{ Failure, Success, Try }

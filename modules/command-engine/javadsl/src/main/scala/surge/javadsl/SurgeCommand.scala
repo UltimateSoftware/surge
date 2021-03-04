@@ -9,9 +9,9 @@ import surge.core
 import surge.javadsl.HealthCheck._
 import surge.metrics.Metric
 
-import scala.collection.JavaConverters._
 import scala.compat.java8.FutureConverters
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.jdk.CollectionConverters._
 
 trait SurgeCommand[AggId, Agg, Command, Event] extends core.SurgeCommandTrait[Agg, Command, Event] with HealthCheckTrait {
   def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Command, Event]

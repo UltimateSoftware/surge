@@ -8,7 +8,7 @@ import java.util
 import org.apache.kafka.clients.consumer.{ ConsumerGroupMetadata, ConsumerPartitionAssignor, CooperativeStickyAssignor }
 import org.apache.kafka.common.Cluster
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 class HostAwareCooperativeStickyAssignor extends CooperativeStickyAssignor with HostAwarenessConfig {
   override def subscriptionUserData(topics: util.Set[String]): ByteBuffer = {

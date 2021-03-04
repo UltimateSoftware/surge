@@ -15,7 +15,7 @@ import org.apache.kafka.clients.producer.{ ProducerRecord, KafkaProducer => Apac
 import org.apache.kafka.common.serialization._
 import surge.scala.core.kafka.{ KafkaSecurityConfiguration, KafkaTopic }
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 trait KafkaProducerTrait extends KafkaSecurityConfiguration {
 
