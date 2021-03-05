@@ -3,7 +3,6 @@ name: surge-kafka-streams-main
   push:
     branches:
       - main
-      - 0.4-compat
 jobs:
   build:
     env:
@@ -34,6 +33,10 @@ jobs:
         run: |-
           fnd tanagra:build:package \
             --environment_json=
+      - name: lint
+        run: 'fnd tanagra:build:lint'
+      - name: check-binary-compatibility
+        run: 'fnd tanagra:build:check-binary-compat'
       - name: test
         run: |-
           fnd tanagra:build:test \

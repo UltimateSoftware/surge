@@ -3,7 +3,7 @@
 package surge.scala.core.kafka
 
 import java.util.Properties
-import java.util.concurrent.Executors
+import java.util.concurrent.{ ExecutorService, Executors }
 import java.util.concurrent.atomic.AtomicLong
 
 import org.apache.kafka.clients.consumer.{ ConsumerConfig, ConsumerRecord, KafkaConsumer }
@@ -16,7 +16,17 @@ import scala.jdk.CollectionConverters._
 
 final case class UltiKafkaConsumerConfig(consumerGroup: String, offsetReset: String = "earliest", pollDuration: FiniteDuration = 3.seconds)
 
-trait KafkaConsumerTrait[K, V] extends KafkaSecurityConfiguration {
+private[kafka] object KafkaPollThread {
+  private val threadNumberCount: AtomicLong = new AtomicLong(0)
+  def createNewPollThread: ExecutorService = Executors.newSingleThreadExecutor(
+    (r: Runnable) => {
+      val thread = new Thread(r, s"kafka-poll-${threadNumberCount.getAndIncrement()}")
+      thread.setDaemon(true)
+      thread
+    })
+}
+
+abstract class KafkaConsumerTrait[K, V] extends KafkaSecurityConfiguration {
   def brokers: Seq[String]
   def props: Properties
   def consumerConfig: UltiKafkaConsumerConfig
@@ -24,13 +34,6 @@ trait KafkaConsumerTrait[K, V] extends KafkaSecurityConfiguration {
   def consumer: KafkaConsumer[K, V]
 
   private val log = LoggerFactory.getLogger(getClass)
-  private val threadNumberCount: AtomicLong = new AtomicLong(0)
-  private val pollThread = Executors.newSingleThreadExecutor(
-    (r: Runnable) => {
-      val thread = new Thread(r, s"kafka-poll-${threadNumberCount.getAndIncrement()}")
-      thread.setDaemon(true)
-      thread
-    })
 
   protected val defaultProps: Properties = {
     val p = new Properties()
@@ -48,6 +51,7 @@ trait KafkaConsumerTrait[K, V] extends KafkaSecurityConfiguration {
 
   def subscribe(topic: KafkaTopic, businessLogic: ConsumerRecord[K, V] => Unit): Unit = {
     consumer.subscribe(java.util.Arrays.asList(topic.name))
+    val pollThread = KafkaPollThread.createNewPollThread
     pollThread.execute(() => pollKafka(businessLogic))
   }
 

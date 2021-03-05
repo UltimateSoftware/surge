@@ -135,5 +135,4 @@ lazy val `surge` = project.in(file("."))
     sonarUseExternalConfig := true,
     ReleaseSettings.settings,
     paradoxTheme := Some(builtinParadoxTheme("generic"))
-)
-
+  ).disablePlugins(MimaPlugin)
