@@ -1,0 +1,4 @@
+ProblemFilters.exclude[MissingClassProblem]("surge.javadsl.DomainValidationError$")
+ProblemFilters.exclude[MissingClassProblem]("surge.javadsl.DomainValidationError")
+ProblemFilters.exclude[DirectMissingMethodProblem]("surge.javadsl.SurgeCommandBusinessLogic.commandValidator")
+ProblemFilters.exclude[MissingClassProblem]("surge.javadsl.DomainValidationError$ScalaDomainValidationErrorExtensions")

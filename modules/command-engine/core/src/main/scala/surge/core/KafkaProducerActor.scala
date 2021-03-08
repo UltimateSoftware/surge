@@ -59,7 +59,8 @@ import scala.util.{ Failure, Success, Try }
 class KafkaProducerActor[Agg, Event](
     publisherActor: ActorRef,
     metrics: Metrics,
-    aggregateName: String) extends HealthyComponent {
+    aggregateName: String,
+    val assignedPartition: TopicPartition) extends HealthyComponent {
 
   private val log = LoggerFactory.getLogger(getClass)
 
@@ -114,7 +115,7 @@ object KafkaProducerActor {
       Props(new KafkaProducerActorImpl(
         assignedPartition, metrics, businessLogic, kStreams)).withDispatcher("kafka-publisher-actor-dispatcher"))
 
-    new KafkaProducerActor[Agg, Event](publisherActor, metrics, businessLogic.aggregateName)
+    new KafkaProducerActor[Agg, Event](publisherActor, metrics, businessLogic.aggregateName, assignedPartition)
   }
 
   sealed trait PublishResult
@@ -185,7 +186,7 @@ private class KafkaProducerActorImpl[Agg, Event](
   private val transactionalId = s"$transactionalIdPrefix-${assignedPartition.topic()}-${assignedPartition.partition()}"
   private val kafkaPublisherMetricsName = transactionalId
 
-  private var kafkaPublisher = getPublisher()
+  private var kafkaPublisher = getPublisher
 
   private val kafkaPublisherTimer: Timer = metrics.timer(
     MetricInfo(
@@ -198,7 +199,7 @@ private class KafkaProducerActorImpl[Agg, Event](
   context.system.scheduler.scheduleWithFixedDelay(flushInterval, flushInterval, self, FlushMessages)
   context.system.scheduler.scheduleAtFixedRate(ktableCheckInterval, ktableCheckInterval)(() => checkKTableProgress())
 
-  private def getPublisher(): KafkaBytesProducer = {
+  private def getPublisher: KafkaBytesProducer = {
     kafkaProducerOverride.getOrElse(newPublisher())
   }
 
@@ -229,20 +230,18 @@ private class KafkaProducerActorImpl[Agg, Event](
       unstashAll()
       context.become(waitingForKTableIndexing())
     case FlushMessages              => // Ignore from this state
-    case GetHealth                  => getHealthCheck()
+    case GetHealth                  => doHealthCheck()
     case _: KTableProgressUpdate    => stash() // process only AFTER flush message is sent
     case _: Publish                 => stash()
     case _: IsAggregateStateCurrent => stash()
-    case unknown                    => log.warn("Receiving unhandled message {} on uninitialized state", unknown.getClass.getName)
   }
 
   private def waitingForKTableIndexing(): Receive = {
     case msg: KTableProgressUpdate  => handleFromWaitingForKTableIndexingState(msg)
     case FlushMessages              => // Ignore from this state
-    case GetHealth                  => getHealthCheck()
+    case GetHealth                  => doHealthCheck()
     case _: Publish                 => stash()
     case _: IsAggregateStateCurrent => stash()
-    case unknown                    => log.warn("Receiving unhandled message {} on recoveringBacklog state", unknown.getClass.getName)
   }
 
   private def processing(state: KafkaProducerActorState): Receive = {
@@ -251,7 +250,7 @@ private class KafkaProducerActorImpl[Agg, Event](
     case msg: EventsPublished         => handle(state, msg)
     case msg: EventsFailedToPublish   => handleFailedToPublish(state, msg)
     case msg: IsAggregateStateCurrent => handle(state, msg)
-    case GetHealth                    => getHealthCheck(state)
+    case GetHealth                    => doHealthCheck(state)
     case FlushMessages                => handleFlushMessages(state)
     case msg: AbortTransactionFailed  => handle(msg)
     case Status.Failure(e) =>
@@ -285,7 +284,7 @@ private class KafkaProducerActorImpl[Agg, Event](
       metrics.unregisterKafkaMetric(kafkaPublisherMetricsName)
     }
     Try(kafkaPublisher.close())
-    kafkaPublisher = getPublisher()
+    kafkaPublisher = getPublisher
   }
 
   private def handle(state: KafkaProducerActorState, publish: Publish): Unit = {
@@ -420,7 +419,7 @@ private class KafkaProducerActorImpl[Agg, Event](
     }
   }
 
-  private def getHealthCheck(): Unit = {
+  private def doHealthCheck(): Unit = {
     val healthCheck = HealthCheck(
       name = "producer-actor",
       id = assignedTopicPartitionKey,
@@ -428,7 +427,7 @@ private class KafkaProducerActorImpl[Agg, Event](
     sender() ! healthCheck
   }
 
-  private def getHealthCheck(state: KafkaProducerActorState): Unit = {
+  private def doHealthCheck(state: KafkaProducerActorState): Unit = {
     val transactionsAppearStuck = state.currentTransactionTimeMillis > 2.minutes.toMillis
 
     val healthStatus = if (transactionsAppearStuck) {

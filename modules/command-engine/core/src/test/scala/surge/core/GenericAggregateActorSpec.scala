@@ -9,10 +9,11 @@ import akka.pattern._
 import akka.serialization.Serializers
 import akka.testkit.{ TestKit, TestProbe }
 import akka.util.Timeout
+import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.header.internals.RecordHeaders
 import org.mockito.Mockito._
 import org.mockito.invocation.InvocationOnMock
-import org.mockito.{ ArgumentCaptor, ArgumentMatchers }
+import org.mockito.{ ArgumentCaptor, ArgumentMatcher, ArgumentMatchers }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatest.{ BeforeAndAfterAll, PartialFunctionValues }
@@ -20,13 +21,13 @@ import org.scalatestplus.mockito.MockitoSugar
 import play.api.libs.json.{ JsValue, Json }
 import surge.akka.cluster.Passivate
 import surge.core.GenericAggregateActor.{ ApplyEventEnvelope, CommandError, Stop }
-import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, KafkaStreamsKeyValueStore }
+import surge.exceptions.{ AggregateInitializationException, KafkaPublishTimeoutException }
+import surge.kafka.streams.AggregateStateStoreKafkaStreams
+import surge.metrics.Metrics
 import surge.scala.core.kafka.HeadersHelper
 
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
-import org.mockito.ArgumentMatcher
-import surge.metrics.Metrics
 class IsAtLeastOneElementSeq extends ArgumentMatcher[Seq[KafkaProducerActor.MessageToPublish]] {
   def matches(seq: Seq[KafkaProducerActor.MessageToPublish]): Boolean = seq.nonEmpty
 }
@@ -55,7 +56,8 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
     publishStateOnly: Boolean = false): Props = {
     val metrics = GenericAggregateActor.createMetrics(Metrics.globalMetricRegistry, "testAggregate")
 
-    GenericAggregateActor.props(aggregateId, businessLogic.copy(kafka = businessLogic.kafka.copy(publishStateOnly = publishStateOnly)), producerActor, metrics, aggregateKafkaStreamsImpl)
+    GenericAggregateActor.props(aggregateId, businessLogic.copy(kafka = businessLogic.kafka.copy(publishStateOnly = publishStateOnly)),
+      producerActor, metrics, aggregateKafkaStreamsImpl)
   }
 
   private def envelope(cmd: BaseTestCommand): GenericAggregateActor.CommandEnvelope[BaseTestCommand] = {
@@ -76,6 +78,7 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
 
   private def defaultMockProducer: KafkaProducerActor[State, BaseTestEvent] = {
     val mockProducer = mock[KafkaProducerActor[State, BaseTestEvent]]
+    when(mockProducer.assignedPartition).thenReturn(new TopicPartition("TestTopic", 1))
     when(mockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.successful(true))
     when(mockProducer.publish(anyString, any[KafkaProducerActor.MessageToPublish], any[Seq[KafkaProducerActor.MessageToPublish]]))
       .thenReturn(Future.successful(KafkaProducerActor.PublishSuccess))
@@ -289,6 +292,7 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
         val baseState = State(testAggregateId, 3, 3)
 
         val mockProducer = mock[KafkaProducerActor[State, BaseTestEvent]]
+        when(mockProducer.assignedPartition).thenReturn(new TopicPartition("TestTopic", 1))
         when(mockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.successful(false), Future.successful(true))
         when(mockProducer.publish(anyString, any[KafkaProducerActor.MessageToPublish],
           any[Seq[KafkaProducerActor.MessageToPublish]])).thenReturn(Future.successful(KafkaProducerActor.PublishSuccess))
@@ -308,6 +312,7 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
         val baseState = State(testAggregateId, 3, 3)
 
         val mockProducer = mock[KafkaProducerActor[State, BaseTestEvent]]
+        when(mockProducer.assignedPartition).thenReturn(new TopicPartition("TestTopic", 1))
         when(mockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.failed(new RuntimeException("This is expected")), Future.successful(true))
         when(mockProducer.publish(anyString, any[KafkaProducerActor.MessageToPublish],
           any[Seq[KafkaProducerActor.MessageToPublish]])).thenReturn(Future.successful(KafkaProducerActor.PublishSuccess))
@@ -328,9 +333,8 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
 
         val mockProducer = defaultMockProducer
 
-        val mockStore = mock[KafkaStreamsKeyValueStore[String, Array[Byte]]]
-        val mockStreams = mockKafkaStreams(baseState)
-        when(mockStore.get(testAggregateId.toString)).thenReturn(
+        val mockStreams = mock[AggregateStateStoreKafkaStreams[JsValue]]
+        when(mockStreams.getAggregateBytes(anyString)).thenReturn(
           Future.failed[Option[Array[Byte]]](new RuntimeException("This is expected")),
           Future.successful(Some(Json.toJson(baseState).toString().getBytes())))
 
@@ -338,6 +342,34 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
 
         probe.send(actor, GenericAggregateActor.GetState(testAggregateId))
         probe.expectMsg(5.seconds, GenericAggregateActor.StateResponse(Some(baseState)))
+      }
+
+      "Return an error and stop the actor on persistent failures" in {
+        val expectedException = new RuntimeException("This is expected")
+        val testAggregateId = UUID.randomUUID().toString
+        val mockProducer = defaultMockProducer
+        val mockStreams = mock[AggregateStateStoreKafkaStreams[JsValue]]
+        when(mockStreams.getAggregateBytes(anyString)).thenReturn(Future.failed[Option[Array[Byte]]](expectedException))
+
+        val terminationWatcherProbe = TestProbe()
+
+        val probe1 = TestProbe()
+        val actor1 = testActor(testAggregateId, mockProducer, mockStreams)
+        terminationWatcherProbe.watch(actor1)
+        val cmdEnvelope = envelope(Increment(testAggregateId))
+        probe1.send(actor1, cmdEnvelope)
+        val cmdError1 = probe1.expectMsgType[CommandError](20.seconds)
+        cmdError1.exception shouldBe a[AggregateInitializationException]
+        terminationWatcherProbe.expectTerminated(actor1)
+
+        val probe2 = TestProbe()
+        val actor2 = testActor(testAggregateId, mockProducer, mockStreams)
+        terminationWatcherProbe.watch(actor2)
+        val applyEventEnvelope = GenericAggregateActor.ApplyEventEnvelope(testAggregateId, CountIncremented(testAggregateId, 1, 1))
+        probe2.send(actor2, applyEventEnvelope)
+        val cmdError2 = probe2.expectMsgType[CommandError](20.seconds)
+        cmdError2.exception shouldBe a[AggregateInitializationException]
+        terminationWatcherProbe.expectTerminated(actor2)
       }
     }
 
@@ -356,21 +388,29 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
         any[Seq[KafkaProducerActor.MessageToPublish]])
     }
 
-    "Handle exceptions" should {
-      "from the domain by returning a CommandError" in {
-        val testContext = TestContext.setupDefault
-        import testContext._
+    "handle exceptions from the domain by returning a CommandError" in {
+      val testContext = TestContext.setupDefault
+      import testContext._
 
-        val testException = new RuntimeException("This is an expected exception")
-        val validationCmd = FailCommandProcessing(testAggregateId, testException)
-        val testEnvelope = envelope(validationCmd)
+      val testException = new RuntimeException("This is an expected exception")
+      val testEnvelope = envelope(FailCommandProcessing(testAggregateId, testException))
 
-        probe.send(actor, testEnvelope)
-        val commandError = probe.expectMsgClass(classOf[GenericAggregateActor.CommandError])
-        // Fuzzy matching because serializing and deserializing gets a different object and messes up .equals even though the two are identical
-        commandError.exception shouldBe a[RuntimeException]
-        commandError.exception.getMessage shouldEqual testException.getMessage
-      }
+      probe.send(actor, testEnvelope)
+      val commandError = probe.expectMsgClass(classOf[GenericAggregateActor.CommandError])
+      // Fuzzy matching because serializing and deserializing gets a different object and messes up .equals even though the two are identical
+      commandError.exception.getMessage shouldEqual testException.getMessage
+
+      val testEnvelope2 = envelope(CreateExceptionThrowingEvent(testAggregateId, testException))
+      probe.send(actor, testEnvelope2)
+      val eventError = probe.expectMsgClass(classOf[GenericAggregateActor.CommandError])
+      // Fuzzy matching because serializing and deserializing gets a different object and messes up .equals even though the two are identical
+      eventError.exception.getMessage shouldEqual testException.getMessage
+
+      val applyEventEnvelope = GenericAggregateActor.ApplyEventEnvelope(testAggregateId, ExceptionThrowingEvent(testAggregateId, 1, testException))
+      probe.send(actor, applyEventEnvelope)
+      val applyEventError = probe.expectMsgClass(classOf[GenericAggregateActor.CommandError])
+      // Fuzzy matching because serializing and deserializing gets a different object and messes up .equals even though the two are identical
+      applyEventError.exception.getMessage shouldEqual testException.getMessage
     }
 
     "Process commands one at a time" in {
@@ -455,7 +495,7 @@ class GenericAggregateActorSpec extends TestKit(ActorSystem("GenericAggregateAct
       val incrementCmd = Increment(baseState.aggregateId)
       val testEnvelope = envelope(incrementCmd)
       probe.send(actor, testEnvelope)
-      probe.expectMsg(CommandError(expectedException))
+      probe.expectMsg(CommandError(KafkaPublishTimeoutException(testAggregateId, expectedException)))
       probe.expectTerminated(actor)
     }
 

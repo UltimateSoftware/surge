@@ -35,7 +35,6 @@ trait AggregateRefTrait[AggId, Agg, Cmd, Event] {
 
   private def interpretActorResponse: Any => Either[Throwable, Option[Agg]] = {
     case success: GenericAggregateActor.CommandSuccess[Agg] => Right(success.aggregateState)
-    case failure: GenericAggregateActor.CommandFailure      => Left(new DomainValidationError(failure.validationError))
     case error: GenericAggregateActor.CommandError =>
       Left(error.exception)
     case other =>
@@ -85,16 +84,9 @@ trait AggregateRefTrait[AggId, Agg, Cmd, Event] {
   protected def applyEventsWithRetries(
     envelope: GenericAggregateActor.ApplyEventEnvelope[Event],
     retriesRemaining: Int = 0)(implicit ec: ExecutionContext): Future[Option[Agg]] = {
-    (region ? envelope).map {
-      case success: GenericAggregateActor.CommandSuccess[Agg] => success.aggregateState
-    }.recoverWith {
-      case e =>
-        if (retriesRemaining > 0) {
-          log.warn("Ask timed out to aggregate actor region, retrying request...")
-          applyEventsWithRetries(envelope, retriesRemaining - 1)
-        } else {
-          Future.failed[Option[Agg]](e)
-        }
+    (region ? envelope).map(interpretActorResponse).flatMap {
+      case Left(exception) => Future.failed(exception)
+      case Right(state)    => Future.successful(state)
     }
   }
 }

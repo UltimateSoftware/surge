@@ -53,8 +53,4 @@ object Dependencies extends AutoPlugin {
     val slf4jApi = "org.slf4j" % "slf4j-api" % "1.7.30"
     val typesafeConfig = "com.typesafe" % "config" % "1.4.1"
   }
-
-  val dependenciesOverride: Seq[ModuleID] = Seq(
-    Dependencies.autoImport.Akka.akkaStreamTestKit
-  )
 }

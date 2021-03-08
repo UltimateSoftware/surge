@@ -6,10 +6,8 @@ import play.api.libs.json._
 import surge.metrics.Metrics
 import surge.scala.core.kafka.KafkaTopic
 import surge.scala.core.utils.JsonFormats
-import surge.scala.core.validations.{ AsyncCommandValidator, AsyncValidationResult, ValidationError }
 import surge.scala.oss.domain.{ AggregateCommandModel, CommandProcessor }
 
-import scala.concurrent.Future
 import scala.util.{ Failure, Success }
 
 object TestBoundedContext {
@@ -19,7 +17,6 @@ object TestBoundedContext {
   sealed trait BaseTestCommand {
     def aggregateId: String
     def expectedVersion: Int = 0
-    def validate: Seq[AsyncValidationResult[_]] = Seq.empty
   }
 
   case class Increment(incrementAggregateId: String) extends BaseTestCommand {
@@ -33,14 +30,10 @@ object TestBoundedContext {
   case class DoNothing(aggregateId: String) extends BaseTestCommand
   case class CreateNoOpEvent(aggregateId: String) extends BaseTestCommand
 
-  case class CauseInvalidValidation(aggregateId: String) extends BaseTestCommand {
-    val validationErrors: Seq[ValidationError] = Seq(ValidationError("This command is invalid"))
-    override def validate: Seq[AsyncValidationResult[_]] = Seq(
-      Future.successful(Left(validationErrors)))
-  }
-  case class FailCommandProcessing(failProcessingId: String, withError: RuntimeException) extends BaseTestCommand {
+  case class FailCommandProcessing(failProcessingId: String, withError: Throwable) extends BaseTestCommand {
     val aggregateId: String = failProcessingId
   }
+  case class CreateExceptionThrowingEvent(aggregateId: String, throwable: Throwable) extends BaseTestCommand
 
   sealed trait BaseTestEvent {
     def aggregateId: String
@@ -59,6 +52,10 @@ object TestBoundedContext {
   case class NoOpEvent(aggregateId: String, sequenceNumber: Int) extends BaseTestEvent {
     val eventName: String = "no-op"
   }
+
+  case class ExceptionThrowingEvent(aggregateId: String, sequenceNumber: Int, throwable: Throwable) extends BaseTestEvent {
+    val eventName: String = "exception-throwing"
+  }
 }
 
 trait TestBoundedContext {
@@ -76,7 +73,8 @@ trait TestBoundedContext {
           current.copy(count = current.count + incrementBy, version = sequenceNumber)
         case CountDecremented(_, decrementBy, sequenceNumber) =>
           current.copy(count = current.count - decrementBy, version = sequenceNumber)
-        case _: NoOpEvent => current
+        case _: NoOpEvent                    => current
+        case ExceptionThrowingEvent(_, _, e) => throw e
       }
       Some(newState)
     }
@@ -93,13 +91,11 @@ trait TestBoundedContext {
         case _: DoNothing                 => Success(Seq.empty)
         case fail: FailCommandProcessing =>
           Failure(fail.withError)
+        case createExceptionEvent: CreateExceptionThrowingEvent =>
+          Success(Seq(ExceptionThrowingEvent(createExceptionEvent.aggregateId, newSequenceNumber, createExceptionEvent.throwable)))
         case _ =>
           throw new RuntimeException("Received unexpected message in command handler! This should not happen and indicates a bad test")
       }
-    }
-
-    val commandValidator: AsyncCommandValidator[BaseTestCommand, State] = AsyncCommandValidator[BaseTestCommand, State] { cmd =>
-      cmd.msg.validate
     }
   }
 
@@ -136,7 +132,6 @@ trait TestBoundedContext {
       model = BusinessLogic,
       readFormatting = readFormats,
       writeFormatting = writeFormats,
-      commandValidator = BusinessLogic.commandValidator,
       aggregateValidator = { (_, _, _) => true },
       metrics = Metrics.globalMetricRegistry,
       consumerGroup = "count-aggregate-consumer-group-name",

@@ -4,7 +4,6 @@ package surge.core
 
 import surge.metrics.Metrics
 import surge.scala.core.kafka.{ KafkaPartitioner, KafkaTopic, PartitionStringUpToColon }
-import surge.scala.core.validations.AsyncCommandValidator
 import surge.scala.oss.domain.AggregateCommandModel
 
 private[surge] case class SurgeCommandKafkaConfig(
@@ -18,7 +17,6 @@ private[surge] case class SurgeCommandBusinessLogic[Agg, Command, Event](
     model: AggregateCommandModel[Agg, Command, Event],
     readFormatting: SurgeAggregateReadFormatting[Agg],
     writeFormatting: SurgeWriteFormatting[Agg, Event],
-    commandValidator: AsyncCommandValidator[Command, Agg],
     aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) => Boolean,
     consumerGroup: String,
     transactionalIdPrefix: String,

@@ -5,7 +5,7 @@ package surge.core
 import java.time.Instant
 
 import akka.actor.Status.Failure
-import akka.actor.{ ActorRef, ActorSystem, PoisonPill, Props }
+import akka.actor.{ ActorRef, ActorSystem, Props }
 import akka.pattern.{ AskTimeoutException, ask }
 import akka.testkit.{ TestKit, TestProbe }
 import akka.util.Timeout
@@ -110,7 +110,7 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
 
     "Return a failed future when the ask to the underlying publisher actor times out" in {
       val probe = TestProbe()
-      val producer = new KafkaProducerActor[String, String](probe.ref, Metrics.globalMetricRegistry, "test-aggregate")
+      val producer = new KafkaProducerActor[String, String](probe.ref, Metrics.globalMetricRegistry, "test-aggregate", new TopicPartition("testTopic", 1))
 
       val errorWatchProbe = TestProbe()
       val stateToPublish = KafkaProducerActor.MessageToPublish("test", "test".getBytes(), new RecordHeaders())
@@ -223,7 +223,12 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
       setupTransactions(mockProducer)
       when(mockProducer.putRecords(any[Seq[ProducerRecord[String, Array[Byte]]]]))
         .thenReturn(Seq(Future.successful(mockMetadata)))
-      val mockStateStore = mockStateStoreReturningOffset(assignedPartition, 100L, 100L)
+
+      val mockStateStore = mock[AggregateStateStoreKafkaStreams[String]]
+      when(mockStateStore.partitionLags()(any[ExecutionContext])).thenReturn(
+        Future.successful(mockStateStoreLags(assignedPartition, 0, 10)),
+        Future.successful(mockStateStoreLags(assignedPartition, 10, 10)))
+
       val actor = testProducerActor(assignedPartition, mockProducer, mockStateStore)
       probe.send(actor, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
       // Send IsAggregateStateCurrent messages to stash
@@ -379,7 +384,7 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
 
   "KafkaProducerActor" should {
     def producerMock(testProbe: TestProbe): KafkaProducerActor[String, String] = {
-      new KafkaProducerActor[String, String](testProbe.ref, Metrics.globalMetricRegistry, "test-aggregate-name")
+      new KafkaProducerActor[String, String](testProbe.ref, Metrics.globalMetricRegistry, "test-aggregate-name", new TopicPartition("testTopic", 1))
     }
     "Terminate an underlying actor by sending a PoisonPill" in {
       val probe = TestProbe()

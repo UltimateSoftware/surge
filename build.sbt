@@ -23,8 +23,7 @@ val multiJvmTestSettings = Seq(
   test in Test := {
     unitTest.in(Test).value
     test.in(MultiJvm).value
-  },
-  dependencyOverrides ++= Dependencies.dependenciesOverride
+  }
 )
 
 lazy val `surge-scala-core` = (project in file("modules/scala-core"))
@@ -58,6 +57,7 @@ lazy val `surge-common` = (project in file("modules/common"))
       Kafka.kafkaStreamsTestUtils,
       PlayFramework.json,
       typesafeConfig,
+      Akka.akkaStreamTestKit,
       embeddedKafka,
       junit,
       logback,
@@ -88,15 +88,16 @@ lazy val `surge-engine-command-core` = (project in file("modules/command-engine/
     libraryDependencies ++= Seq(
       Akka.actor,
       Akka.remote,
-      Akka.testKit,
       Kafka.kafkaClients,
+      Akka.testKit,
+      Akka.akkaStreamTestKit,
       mockitoCore,
       scalatest,
       scalatestPlusMockito,
       logback,
       typesafeConfig
     )
-  ).dependsOn(`surge-common`)
+  ).dependsOn(`surge-common` % "compile->compile;test->test")
 
 lazy val `surge-engine-command-scaladsl` = (project in file("modules/command-engine/scaladsl"))
   .dependsOn(`surge-engine-command-core`)

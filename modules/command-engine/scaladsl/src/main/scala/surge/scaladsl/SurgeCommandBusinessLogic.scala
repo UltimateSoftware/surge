@@ -6,7 +6,6 @@ import com.typesafe.config.ConfigFactory
 import surge.core.{ SurgeAggregateReadFormatting, SurgeCommandKafkaConfig, SurgeWriteFormatting }
 import surge.metrics.Metrics
 import surge.scala.core.kafka.KafkaTopic
-import surge.scala.core.validations.AsyncCommandValidator
 import surge.scala.oss.domain.AggregateCommandModel
 
 trait SurgeCommandBusinessLogic[AggId, Agg, Command, Event] {
@@ -25,8 +24,6 @@ trait SurgeCommandBusinessLogic[AggId, Agg, Command, Event] {
   def readFormatting: SurgeAggregateReadFormatting[Agg]
 
   def writeFormatting: SurgeWriteFormatting[Agg, Event]
-
-  def commandValidator: AsyncCommandValidator[Command, Agg]
 
   def aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) => Boolean = { (_, _, _) => true }
 
@@ -55,7 +52,6 @@ object SurgeCommandBusinessLogic {
       model = businessLogic.commandModel,
       readFormatting = businessLogic.readFormatting,
       writeFormatting = businessLogic.writeFormatting,
-      commandValidator = businessLogic.commandValidator,
       aggregateValidator = businessLogic.aggregateValidator,
       consumerGroup = businessLogic.consumerGroupBase,
       transactionalIdPrefix = businessLogic.transactionalIdPrefix,

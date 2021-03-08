@@ -24,7 +24,6 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event](
     val region: ActorRef) extends AggregateRef[Agg, Cmd, Event]
   with AggregateRefTrait[AggId, Agg, Cmd, Event] {
 
-  import DomainValidationError._
   private implicit val ec: ExecutionContext = ExecutionContext.global
 
   def getState: CompletionStage[Optional[Agg]] = {
@@ -34,8 +33,6 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event](
   def ask(command: Cmd): CompletionStage[CommandResult[Agg]] = {
     val envelope = GenericAggregateActor.CommandEnvelope[Cmd](aggregateId.toString, command)
     val result = askWithRetries(envelope).map {
-      case Left(error: core.DomainValidationError) =>
-        CommandFailure[Agg](error.asJava)
       case Left(error) =>
         CommandFailure[Agg](error)
       case Right(aggOpt) =>
