@@ -288,12 +288,14 @@ class KafkaPartitionShardRouterActor(
   }
 
   private def handle(partitionAssignments: PartitionAssignments): Unit = {
-    scheduledInitialize.cancel()
-    unstashAll()
-    log.debug(s"RouterActor initializing with partition assignments $partitionAssignments")
+    if (partitionAssignments.topicPartitionsToHosts.nonEmpty) {
+      scheduledInitialize.cancel()
+      unstashAll()
+      log.debug(s"RouterActor initializing with partition assignments $partitionAssignments")
 
-    val emptyState = ActorState(PartitionAssignments.empty, Map.empty)
-    handle(emptyState, partitionAssignments)
+      val emptyState = ActorState(PartitionAssignments.empty, Map.empty)
+      handle(emptyState, partitionAssignments)
+    }
   }
 
   private def initializeState(): Unit = {
