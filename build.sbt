@@ -2,14 +2,11 @@
 
 import sbt.Keys._
 
-scalaVersion in ThisBuild := "2.12.10"
+scalaVersion in ThisBuild := "2.12.12"
 
-ThisBuild / crossScalaVersions := Seq("2.13.5", "2.12.10")
+ThisBuild / crossScalaVersions := Seq("2.13.5", "2.12.12")
 
 skip in publish := true
-
-publishSite
-
 
 lazy val unitTest = taskKey[Unit]("Runs only the unit tests")
 
@@ -25,21 +22,6 @@ val multiJvmTestSettings = Seq(
     test.in(MultiJvm).value
   }
 )
-
-lazy val `surge-scala-core` = (project in file("modules/scala-core"))
-  .settings(
-    libraryDependencies ++= Seq(
-      jacksonKotlin,
-      jacksonScala,
-      java8Compat,
-      Kafka.kafkaClients,
-      PlayFramework.json,
-      scalaCollectionCompat,
-      scalatest,
-      typesafeConfig,
-      mockitoCore
-    )
-  ).dependsOn(`surge-metrics`)
 
 lazy val `surge-common` = (project in file("modules/common"))
   .settings(
@@ -69,7 +51,7 @@ lazy val `surge-common` = (project in file("modules/common"))
   )
   .enablePlugins(MultiJvmPlugin)
   .configs(MultiJvm)
-  .dependsOn(`surge-scala-core`)
+  .dependsOn(`surge-metrics`)
 
 lazy val `surge-rabbitmq-support` = (project in file ("modules/rabbit-support"))
   .settings(
@@ -126,7 +108,6 @@ lazy val `surge` = project.in(file("."))
     `surge-engine-command-javadsl`,
     `surge-engine-command-scaladsl`,
     `surge-metrics`,
-    `surge-scala-core`,
     `surge-rabbitmq-support`
   )
   .enablePlugins(ParadoxPlugin, ParadoxSitePlugin)

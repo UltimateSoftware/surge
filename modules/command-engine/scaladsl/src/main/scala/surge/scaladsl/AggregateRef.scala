@@ -3,7 +3,8 @@
 package surge.scaladsl
 
 import akka.actor.ActorRef
-import surge.core.{ AggregateRefTrait, GenericAggregateActor }
+import surge.core.AggregateRefTrait
+import surge.internal.persistence.cqrs.CQRSPersistentActor
 
 import scala.concurrent.{ ExecutionContext, Future }
 
@@ -19,7 +20,7 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event](
   with AggregateRefTrait[AggId, Agg, Cmd, Event] {
 
   def ask(command: Cmd)(implicit ec: ExecutionContext): Future[CommandResult[Agg]] = {
-    val envelope = GenericAggregateActor.CommandEnvelope[Cmd](aggregateId.toString, command)
+    val envelope = CQRSPersistentActor.CommandEnvelope[Cmd](aggregateId.toString, command)
     askWithRetries(envelope).map {
       case Left(error) =>
         CommandFailure(error)
@@ -31,7 +32,7 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event](
   def getState(implicit ec: ExecutionContext): Future[Option[Agg]] = queryState
 
   def applyEvent(event: Event)(implicit ec: ExecutionContext): Future[ApplyEventResult[Agg]] = {
-    val envelope = GenericAggregateActor.ApplyEventEnvelope[Event](aggregateId.toString, event)
+    val envelope = CQRSPersistentActor.ApplyEventEnvelope[Event](aggregateId.toString, event)
     applyEventsWithRetries(envelope)
       .map(aggOpt => ApplyEventsSuccess[Agg](aggOpt))
       .recover {

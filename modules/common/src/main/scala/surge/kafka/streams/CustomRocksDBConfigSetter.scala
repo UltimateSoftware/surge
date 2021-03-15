@@ -7,6 +7,7 @@ import java.util
 import com.typesafe.config.ConfigFactory
 import org.apache.kafka.streams.state.RocksDBConfigSetter
 import org.rocksdb.{ BlockBasedTableConfig, InfoLogLevel, Options, Statistics, StatsLevel }
+import org.slf4j.LoggerFactory
 
 trait BlockCacheSettings {
   def blockSizeKb: Int
@@ -46,14 +47,19 @@ object CustomRocksDBConfigSetter {
  */
 abstract class CustomRocksDBConfigSetter(blockCacheSettings: BlockCacheSettings, writeBufferSettings: WriteBufferSettings) extends RocksDBConfigSetter {
   import CustomRocksDBConfigSetter._
+  private val log = LoggerFactory.getLogger(getClass)
 
   override def setConfig(storeName: String, options: Options, configs: util.Map[String, AnyRef]): Unit = {
-    val tableConfig = new BlockBasedTableConfig
-
-    tableConfig.setBlockCacheSize(blockCacheSettings.blockCacheSizeMb * 1024 * 1024L)
-    tableConfig.setBlockSize(blockCacheSettings.blockSizeKb * 1024L)
-    tableConfig.setCacheIndexAndFilterBlocks(blockCacheSettings.cacheIndexAndFilterBlocks)
-    tableConfig.setPinL0FilterAndIndexBlocksInCache(true)
+    options.tableFormatConfig() match {
+      case tableConfig: BlockBasedTableConfig =>
+        tableConfig.setBlockCacheSize(blockCacheSettings.blockCacheSizeMb * 1024 * 1024L)
+        tableConfig.setBlockSize(blockCacheSettings.blockSizeKb * 1024L)
+        tableConfig.setCacheIndexAndFilterBlocks(blockCacheSettings.cacheIndexAndFilterBlocks)
+        tableConfig.setPinL0FilterAndIndexBlocksInCache(true)
+      case _ =>
+        log.warn("RocksDB tableFormatConfig was not of type BlockBasedTableConfig. " +
+          "Ignoring any configured block cache settings since they wouldn't impact anything.")
+    }
 
     options.setMaxWriteBufferNumber(writeBufferSettings.maxWriteBufferNumber)
     options.setWriteBufferSize(writeBufferSettings.writeBufferSizeMb * 1024 * 1024L)
@@ -70,8 +76,6 @@ abstract class CustomRocksDBConfigSetter(blockCacheSettings: BlockCacheSettings,
       options.setStatistics(stats)
       options.setStatsDumpPeriodSec(statisticsInterval)
     }
-
-    options.setTableFormatConfig(tableConfig)
   }
 
   override def close(storeName: String, options: Options): Unit = {

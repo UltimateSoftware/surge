@@ -3,10 +3,10 @@
 package surge.core
 
 import play.api.libs.json._
+import surge.domain.{ AggregateCommandModel, CommandProcessor }
+import surge.internal.utils.JsonFormats
+import surge.kafka.KafkaTopic
 import surge.metrics.Metrics
-import surge.scala.core.kafka.KafkaTopic
-import surge.scala.core.utils.JsonFormats
-import surge.scala.oss.domain.{ AggregateCommandModel, CommandProcessor }
 
 import scala.util.{ Failure, Success }
 

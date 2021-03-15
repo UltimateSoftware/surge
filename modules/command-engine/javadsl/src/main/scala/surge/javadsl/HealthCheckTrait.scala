@@ -6,8 +6,8 @@ import java.util
 import java.util.concurrent.CompletionStage
 
 import play.api.libs.json.Writes
+import surge.internal.utils.JsonFormats
 import surge.kafka.streams.{ HealthCheck => ScalaHealthCheck }
-import surge.scala.core.utils.JsonFormats
 
 import scala.jdk.CollectionConverters._
 

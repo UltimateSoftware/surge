@@ -10,7 +10,6 @@ import org.apache.kafka.common.TopicPartition
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
-import surge.scala.core.kafka.HostPort
 
 trait STMultiNodeSpec extends MultiNodeSpecCallbacks with AnyWordSpecLike with Matchers with BeforeAndAfterAll {
   self: MultiNodeSpec =>

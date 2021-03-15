@@ -11,7 +11,6 @@ import akka.stream.alpakka.amqp.scaladsl.{ AmqpSource, CommittableReadResult }
 import akka.stream.scaladsl.{ Flow, Keep }
 import akka.util.ByteString
 import org.slf4j.{ Logger, LoggerFactory }
-import surge.akka.streams.graph.PassThroughFlow
 import surge.streams.{ DataHandler, DataPipeline, DataSource, EventPlusStreamMeta }
 
 import scala.jdk.CollectionConverters._

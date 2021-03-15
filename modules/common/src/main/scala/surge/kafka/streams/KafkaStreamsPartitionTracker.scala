@@ -5,7 +5,7 @@ package surge.kafka.streams
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.streams.KafkaStreams
 import org.apache.kafka.streams.state.StreamsMetadata
-import surge.scala.core.kafka.HostPort
+import surge.kafka.HostPort
 
 import scala.jdk.CollectionConverters._
 

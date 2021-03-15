@@ -12,8 +12,8 @@ import org.mockito.Mockito._
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
-import surge.kafka.KafkaConsumerStateTrackingActor
-import surge.scala.core.kafka.HostPort
+import surge.internal.akka.kafka.KafkaConsumerStateTrackingActor
+import surge.kafka.HostPort
 
 import scala.jdk.CollectionConverters._
 

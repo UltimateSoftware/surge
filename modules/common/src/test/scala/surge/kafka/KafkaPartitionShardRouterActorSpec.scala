@@ -2,7 +2,7 @@
 
 package surge.kafka
 
-import akka.actor.{ Actor, ActorSystem, DeadLetter, Props }
+import akka.actor.{ Actor, ActorContext, ActorSystem, DeadLetter, Props }
 import akka.testkit.{ TestKit, TestProbe }
 import org.apache.kafka.common.TopicPartition
 import org.mockito.ArgumentMatchers.anyString
@@ -11,8 +11,12 @@ import org.mockito.invocation.InvocationOnMock
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
-import surge.akka.cluster.ActorSystemHostAwareness
-import surge.scala.core.kafka.{ HostPort, KafkaProducerTrait, KafkaTopic, PartitionAssignments }
+import surge.akka.cluster.{ EntityPropsProvider, PerShardLogicProvider }
+import surge.internal.akka.cluster.ActorSystemHostAwareness
+import surge.internal.akka.kafka.KafkaConsumerStateTrackingActor
+import surge.kafka.streams.{ HealthCheck, HealthCheckStatus }
+
+import scala.concurrent.Future
 
 object KafkaPartitionShardRouterActorSpecModels {
   case class Command(id: String)
@@ -24,8 +28,12 @@ object KafkaPartitionShardRouterActorSpecModels {
     }
   }
 
-  class ProbeInterceptorRegionCreator(probe: TestProbe) extends TopicPartitionRegionCreator {
-    override def propsFromTopicPartition(topicPartition: TopicPartition): Props = Props(new ProbeInterceptorActor(topicPartition, probe))
+  class ProbeInterceptorRegionCreator(probe: TestProbe) extends PersistentActorRegionCreator[String] {
+    override def regionFromTopicPartition(topicPartition: TopicPartition): PerShardLogicProvider[String] = new PerShardLogicProvider[String] {
+      override def actorProvider(context: ActorContext): EntityPropsProvider[String] = (_: String) => Props(new ProbeInterceptorActor(topicPartition, probe))
+      override def onShardTerminated(): Unit = {}
+      override def healthCheck(): Future[HealthCheck] = Future.successful(HealthCheck("test", "test", HealthCheckStatus.UP))
+    }
   }
 }
 

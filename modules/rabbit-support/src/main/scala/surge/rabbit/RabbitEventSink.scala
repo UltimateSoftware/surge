@@ -9,7 +9,6 @@ import akka.stream.scaladsl.{ Flow, Keep }
 import akka.util.ByteString
 import com.rabbitmq.client.AMQP.BasicProperties
 import org.slf4j.LoggerFactory
-import surge.akka.streams.graph.PassThroughFlow
 import surge.core.SurgeEventWriteFormatting
 import surge.streams.{ EventHandler, EventPlusStreamMeta }
 

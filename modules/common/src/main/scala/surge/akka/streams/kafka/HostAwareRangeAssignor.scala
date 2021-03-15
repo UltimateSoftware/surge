@@ -8,7 +8,7 @@ import java.util
 import org.apache.kafka.clients.consumer.ConsumerPartitionAssignor.Assignment
 import org.apache.kafka.clients.consumer.{ ConsumerGroupMetadata, ConsumerPartitionAssignor, RangeAssignor }
 import org.apache.kafka.common.{ Cluster, Configurable }
-import surge.scala.core.kafka.HostPort
+import surge.kafka.HostPort
 
 import scala.jdk.CollectionConverters._
 import scala.util.Try

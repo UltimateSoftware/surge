@@ -2,17 +2,12 @@
 
 package surge.streams
 
-import java.util.UUID
 import java.util.concurrent.CompletionStage
 
-import com.typesafe.config.ConfigFactory
-import surge.akka.streams.kafka.KafkaStreamManager
-import surge.metrics.Metrics
-import surge.streams.DataPipeline.{ ReplayResult, ReplaySuccessfullyStarted }
+import surge.streams.DataPipeline.ReplayResult
 
 import scala.compat.java8.FutureConverters._
 import scala.concurrent.Future
-import scala.jdk.CollectionConverters._
 
 trait DataPipeline {
   def start(): Unit
@@ -34,31 +29,4 @@ class TypedDataPipeline[Type](dataPipeline: DataPipeline) extends DataPipeline {
   override def start(): Unit = dataPipeline.start()
   override def stop(): Unit = dataPipeline.stop()
   override def replay(): Future[ReplayResult] = dataPipeline.replay()
-}
-
-private[streams] class ManagedDataPipelineImpl(underlyingManager: KafkaStreamManager[_, _], metrics: Metrics) extends DataPipeline {
-  private val kafkaConsumerMetricsName: String = s"kafka-consumer-metrics-${UUID.randomUUID()}"
-  private val config = ConfigFactory.load()
-  private val enableMetrics = config.getBoolean("surge.kafka-event-source.enable-kafka-metrics")
-  override def stop(): Unit = {
-    if (enableMetrics) {
-      metrics.unregisterKafkaMetric(kafkaConsumerMetricsName)
-    }
-    underlyingManager.stop()
-  }
-  override def start(): Unit = {
-    if (enableMetrics) {
-      metrics.registerKafkaMetrics(kafkaConsumerMetricsName, () => underlyingManager.getMetricsSynchronous.asJava)
-    }
-    underlyingManager.start()
-  }
-  override def replay(): Future[ReplayResult] = {
-    underlyingManager.replay()
-  }
-}
-
-private[streams] object NoOpDataPipelineImpl extends DataPipeline {
-  override def start(): Unit = {}
-  override def stop(): Unit = {}
-  override def replay(): Future[ReplayResult] = Future.successful(ReplaySuccessfullyStarted())
 }

@@ -8,6 +8,7 @@ import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AsyncWordSpecLike
 import surge.exceptions.SurgeUnexpectedException
+import surge.internal.persistence.cqrs.CQRSPersistentActor
 
 import scala.concurrent.Future
 
@@ -19,11 +20,11 @@ class AggregateRefTraitSpec extends TestKit(ActorSystem("AggregateRefTraitSpec")
     override val region: ActorRef = regionTestProbe.ref
 
     def ask(command: String, retries: Int = 0): Future[Either[Throwable, Option[Person]]] = {
-      val envelope = GenericAggregateActor.CommandEnvelope(aggregateId, command)
+      val envelope = CQRSPersistentActor.CommandEnvelope(aggregateId, command)
       askWithRetries(envelope, retries)
     }
     def applyEvent(event: String, retries: Int = 0): Future[Option[Person]] = {
-      val envelope = GenericAggregateActor.ApplyEventEnvelope(aggregateId, event)
+      val envelope = CQRSPersistentActor.ApplyEventEnvelope(aggregateId, event)
       applyEventsWithRetries(envelope, retries)
     }
     def getState: Future[Option[Person]] = queryState
@@ -40,12 +41,12 @@ class AggregateRefTraitSpec extends TestKit(ActorSystem("AggregateRefTraitSpec")
       val aggregateRef2 = TestAggregateRef(testPerson2.name, testProbe2)
 
       val testPerson1StateFut = aggregateRef1.getState
-      testProbe1.expectMsg(GenericAggregateActor.GetState(testPerson1.name))
-      testProbe1.reply(GenericAggregateActor.StateResponse(Some(testPerson1)))
+      testProbe1.expectMsg(CQRSPersistentActor.GetState(testPerson1.name))
+      testProbe1.reply(CQRSPersistentActor.StateResponse(Some(testPerson1)))
 
       val testPerson2StateFut = aggregateRef2.getState
-      testProbe2.expectMsg(GenericAggregateActor.GetState(testPerson2.name))
-      testProbe2.reply(GenericAggregateActor.StateResponse(None))
+      testProbe2.expectMsg(CQRSPersistentActor.GetState(testPerson2.name))
+      testProbe2.reply(CQRSPersistentActor.StateResponse(None))
 
       for {
         testPerson1State <- testPerson1StateFut
@@ -60,24 +61,24 @@ class AggregateRefTraitSpec extends TestKit(ActorSystem("AggregateRefTraitSpec")
       val testProbe1 = TestProbe()
       val aggregateRef1 = TestAggregateRef(testPerson1.name, testProbe1)
       val testPerson1StateFut = aggregateRef1.ask("Command1")
-      testProbe1.expectMsg(GenericAggregateActor.CommandEnvelope(testPerson1.name, "Command1"))
-      testProbe1.reply(GenericAggregateActor.CommandSuccess(Some(testPerson1)))
+      testProbe1.expectMsg(CQRSPersistentActor.CommandEnvelope(testPerson1.name, "Command1"))
+      testProbe1.reply(CQRSPersistentActor.CommandSuccess(Some(testPerson1)))
 
       val testProbe2 = TestProbe()
       val aggregateRef2 = TestAggregateRef(testPerson2.name, testProbe2)
       val testPerson2StateFut = aggregateRef2.ask("Command2")
-      testProbe2.expectMsg(GenericAggregateActor.CommandEnvelope(testPerson2.name, "Command2"))
-      testProbe2.reply(GenericAggregateActor.CommandSuccess(None))
+      testProbe2.expectMsg(CQRSPersistentActor.CommandEnvelope(testPerson2.name, "Command2"))
+      testProbe2.reply(CQRSPersistentActor.CommandSuccess(None))
 
       val errorProbe = TestProbe()
       val expectedException = new RuntimeException("This is expected")
       val testErrorResponseFut = TestAggregateRef("error", errorProbe).ask("Command4")
-      errorProbe.expectMsg(GenericAggregateActor.CommandEnvelope("error", "Command4"))
-      errorProbe.reply(GenericAggregateActor.CommandError(expectedException))
+      errorProbe.expectMsg(CQRSPersistentActor.CommandEnvelope("error", "Command4"))
+      errorProbe.reply(CQRSPersistentActor.CommandError(expectedException))
 
       val garbageProbe = TestProbe()
       val testGarbageResponseFut = TestAggregateRef("foo", garbageProbe).ask("Command5")
-      garbageProbe.expectMsg(GenericAggregateActor.CommandEnvelope("foo", "Command5"))
+      garbageProbe.expectMsg(CQRSPersistentActor.CommandEnvelope("foo", "Command5"))
       garbageProbe.reply("Not a person object")
 
       for {
@@ -97,24 +98,24 @@ class AggregateRefTraitSpec extends TestKit(ActorSystem("AggregateRefTraitSpec")
       val testProbe1 = TestProbe()
       val aggregateRef1 = TestAggregateRef(testPerson1.name, testProbe1)
       val testPerson1StateFut = aggregateRef1.applyEvent("Event1")
-      testProbe1.expectMsg(GenericAggregateActor.ApplyEventEnvelope(testPerson1.name, "Event1"))
-      testProbe1.reply(GenericAggregateActor.CommandSuccess(Some(testPerson1)))
+      testProbe1.expectMsg(CQRSPersistentActor.ApplyEventEnvelope(testPerson1.name, "Event1"))
+      testProbe1.reply(CQRSPersistentActor.CommandSuccess(Some(testPerson1)))
 
       val testProbe2 = TestProbe()
       val aggregateRef2 = TestAggregateRef(testPerson2.name, testProbe2)
       val testPerson2StateFut = aggregateRef2.applyEvent("Event2")
-      testProbe2.expectMsg(GenericAggregateActor.ApplyEventEnvelope(testPerson2.name, "Event2"))
-      testProbe2.reply(GenericAggregateActor.CommandSuccess(None))
+      testProbe2.expectMsg(CQRSPersistentActor.ApplyEventEnvelope(testPerson2.name, "Event2"))
+      testProbe2.reply(CQRSPersistentActor.CommandSuccess(None))
 
       val errorProbe = TestProbe()
       val expectedException = new RuntimeException("This is expected")
       val testErrorResponseFut = TestAggregateRef("error", errorProbe).applyEvent("Event3")
-      errorProbe.expectMsg(GenericAggregateActor.ApplyEventEnvelope("error", "Event3"))
-      errorProbe.reply(GenericAggregateActor.CommandError(expectedException))
+      errorProbe.expectMsg(CQRSPersistentActor.ApplyEventEnvelope("error", "Event3"))
+      errorProbe.reply(CQRSPersistentActor.CommandError(expectedException))
 
       val garbageProbe = TestProbe()
       val testGarbageResponseFut = TestAggregateRef("foo", garbageProbe).applyEvent("Event4")
-      garbageProbe.expectMsg(GenericAggregateActor.ApplyEventEnvelope("foo", "Event4"))
+      garbageProbe.expectMsg(CQRSPersistentActor.ApplyEventEnvelope("foo", "Event4"))
       garbageProbe.reply("Not a person object")
 
       for {

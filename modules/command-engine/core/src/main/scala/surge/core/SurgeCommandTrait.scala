@@ -4,8 +4,9 @@ package surge.core
 
 import akka.actor.ActorSystem
 import play.api.libs.json.JsValue
-import surge.akka.cluster.ActorSystemHostAwareness
-import surge.kafka.KafkaConsumerStateTrackingActor
+import surge.internal.akka.cluster.ActorSystemHostAwareness
+import surge.internal.akka.kafka.KafkaConsumerStateTrackingActor
+import surge.internal.persistence.cqrs.CQRSPersistentActorRegionCreator
 import surge.kafka.streams._
 
 import scala.concurrent.{ ExecutionContext, Future }
@@ -35,8 +36,10 @@ abstract class SurgeCommandImpl[Agg, Command, Event](
     businessLogic.consumerGroup,
     system,
     businessLogic.metrics)
-  protected val actorRouter = new GenericAggregateActorRouter[Agg, Command, Event](actorSystem, stateChangeActor,
-    businessLogic, businessLogic.metrics, kafkaStreamsImpl)
+  private val cqrsRegionCreator = new CQRSPersistentActorRegionCreator[Agg, Command, Event](actorSystem, businessLogic,
+    kafkaStreamsImpl, businessLogic.metrics)
+  protected val actorRouter = new SurgePartitionRouter[Agg, Command, Event](actorSystem, stateChangeActor,
+    businessLogic, cqrsRegionCreator)
 
   protected val surgeHealthCheck = new SurgeHealthCheck(
     businessLogic.aggregateName,

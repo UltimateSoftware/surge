@@ -6,7 +6,7 @@ import java.util.concurrent.TimeUnit
 
 import akka.Done
 import com.typesafe.config.ConfigFactory
-import surge.support.Logging
+import surge.internal.utils.Logging
 
 import scala.concurrent.Future
 import scala.concurrent.duration.{ FiniteDuration, _ }

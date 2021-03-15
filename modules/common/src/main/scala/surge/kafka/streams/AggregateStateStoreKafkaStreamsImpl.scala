@@ -14,10 +14,10 @@ import org.apache.kafka.streams.kstream.Materialized
 import org.apache.kafka.streams.kstream.internals.{ KTableImpl, KTableImplExtensions }
 import org.apache.kafka.streams.state.QueryableStoreTypes
 import org.apache.kafka.streams.{ LagInfo, StoreQueryParameters, StreamsConfig }
+import surge.kafka.{ KafkaTopic, UltiKafkaConsumerConfig }
 import surge.kafka.streams.AggregateStateStoreKafkaStreamsImpl._
 import surge.kafka.streams.HealthyActor.GetHealth
 import surge.metrics.Metrics
-import surge.scala.core.kafka.{ KafkaTopic, UltiKafkaConsumerConfig }
 
 import scala.concurrent.Future
 import scala.jdk.CollectionConverters._
@@ -44,14 +44,14 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
   val healthCheckName = "aggregate-state-store"
 
   val topologyProps = new Properties()
-  topologyProps.setProperty(StreamsConfig.TOPOLOGY_OPTIMIZATION, StreamsConfig.OPTIMIZE)
+  topologyProps.setProperty(StreamsConfig.TOPOLOGY_OPTIMIZATION_CONFIG, StreamsConfig.OPTIMIZE)
 
   val streamsConfig: Map[String, String] = baseStreamsConfig ++ Map(
     ConsumerConfig.ISOLATION_LEVEL_CONFIG -> "read_committed",
     ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG -> Integer.MAX_VALUE.toString,
     StreamsConfig.COMMIT_INTERVAL_MS_CONFIG -> settings.commitInterval.toString,
     StreamsConfig.NUM_STANDBY_REPLICAS_CONFIG -> settings.standByReplicas.toString,
-    StreamsConfig.TOPOLOGY_OPTIMIZATION -> StreamsConfig.OPTIMIZE,
+    StreamsConfig.TOPOLOGY_OPTIMIZATION_CONFIG -> StreamsConfig.OPTIMIZE,
     StreamsConfig.STATE_DIR_CONFIG -> settings.stateDirectory,
     StreamsConfig.ROCKSDB_CONFIG_SETTER_CLASS_CONFIG -> classOf[AggregateStreamsRocksDBConfig].getName)
 

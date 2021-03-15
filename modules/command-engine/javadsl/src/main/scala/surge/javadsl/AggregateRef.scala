@@ -6,8 +6,8 @@ import java.util.Optional
 import java.util.concurrent.CompletionStage
 
 import akka.actor.ActorRef
-import surge.core
-import surge.core.{ AggregateRefTrait, GenericAggregateActor }
+import surge.core.AggregateRefTrait
+import surge.internal.persistence.cqrs.CQRSPersistentActor
 
 import scala.compat.java8.FutureConverters
 import scala.compat.java8.OptionConverters._
@@ -31,7 +31,7 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event](
   }
 
   def ask(command: Cmd): CompletionStage[CommandResult[Agg]] = {
-    val envelope = GenericAggregateActor.CommandEnvelope[Cmd](aggregateId.toString, command)
+    val envelope = CQRSPersistentActor.CommandEnvelope[Cmd](aggregateId.toString, command)
     val result = askWithRetries(envelope).map {
       case Left(error) =>
         CommandFailure[Agg](error)
@@ -42,7 +42,7 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event](
   }
 
   def applyEvent(event: Event): CompletionStage[ApplyEventResult[Agg]] = {
-    val envelope = GenericAggregateActor.ApplyEventEnvelope[Event](aggregateId.toString, event)
+    val envelope = CQRSPersistentActor.ApplyEventEnvelope[Event](aggregateId.toString, event)
     val result = applyEventsWithRetries(envelope)
       .map(aggOpt => ApplyEventsSuccess[Agg](aggOpt.asJava))
       .recover {

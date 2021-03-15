@@ -6,8 +6,9 @@ import akka.actor.ActorRef
 import akka.pattern._
 import akka.util.Timeout
 import org.slf4j.{ Logger, LoggerFactory }
-import surge.config.TimeoutConfig
 import surge.exceptions.{ SurgeTimeoutException, SurgeUnexpectedException }
+import surge.internal.config.TimeoutConfig
+import surge.internal.persistence.cqrs.CQRSPersistentActor
 
 import scala.concurrent.{ ExecutionContext, Future }
 
@@ -34,8 +35,8 @@ trait AggregateRefTrait[AggId, Agg, Cmd, Event] {
   private val log: Logger = LoggerFactory.getLogger(getClass)
 
   private def interpretActorResponse: Any => Either[Throwable, Option[Agg]] = {
-    case success: GenericAggregateActor.CommandSuccess[Agg] => Right(success.aggregateState)
-    case error: GenericAggregateActor.CommandError =>
+    case success: CQRSPersistentActor.CommandSuccess[Agg] => Right(success.aggregateState)
+    case error: CQRSPersistentActor.CommandError =>
       Left(error.exception)
     case other =>
       val errorMsg = s"Unable to interpret response from aggregate - this should not happen: $other"
@@ -49,7 +50,7 @@ trait AggregateRefTrait[AggId, Agg, Cmd, Event] {
    *         aggregate with the aggregate id of this reference
    */
   protected def queryState(implicit ec: ExecutionContext): Future[Option[Agg]] = {
-    (region ? GenericAggregateActor.GetState(aggregateId.toString)).mapTo[GenericAggregateActor.StateResponse[Agg]].map(_.aggregateState)
+    (region ? CQRSPersistentActor.GetState(aggregateId.toString)).mapTo[CQRSPersistentActor.StateResponse[Agg]].map(_.aggregateState)
   }
 
   /**
@@ -66,7 +67,7 @@ trait AggregateRefTrait[AggId, Agg, Cmd, Event] {
    *         that resulted from the command.
    */
   protected def askWithRetries(
-    envelope: GenericAggregateActor.CommandEnvelope[Cmd],
+    envelope: CQRSPersistentActor.CommandEnvelope[Cmd],
     retriesRemaining: Int = 0)(implicit ec: ExecutionContext): Future[Either[Throwable, Option[Agg]]] = {
     (region ? envelope).map(interpretActorResponse).recoverWith {
       case _: Throwable if retriesRemaining > 0 =>
@@ -82,7 +83,7 @@ trait AggregateRefTrait[AggId, Agg, Cmd, Event] {
   }
 
   protected def applyEventsWithRetries(
-    envelope: GenericAggregateActor.ApplyEventEnvelope[Event],
+    envelope: CQRSPersistentActor.ApplyEventEnvelope[Event],
     retriesRemaining: Int = 0)(implicit ec: ExecutionContext): Future[Option[Agg]] = {
     (region ? envelope).map(interpretActorResponse).flatMap {
       case Left(exception) => Future.failed(exception)

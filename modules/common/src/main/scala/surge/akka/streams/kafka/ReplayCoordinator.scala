@@ -5,12 +5,12 @@ package surge.akka.streams.kafka
 import akka.actor.{ Actor, ActorRef, Address }
 import akka.pattern.pipe
 import org.apache.kafka.common.TopicPartition
-import surge.akka.cluster.{ ActorHostAwareness, ActorRegistry }
 import surge.akka.streams.kafka.KafkaStreamManagerActor.{ StartConsuming, SuccessfullyStopped }
-import surge.akka.streams.kafka.ReplayCoordinator.{ DoPreReplay, PreReplayCompleted, ReplayCompleted, ReplayFailed, ReplayState, StartReplay, TopicAssignmentsFound, TopicConsumersFound }
-import surge.scala.core.kafka.HostPort
+import surge.akka.streams.kafka.ReplayCoordinator._
+import surge.internal.akka.cluster.{ ActorHostAwareness, ActorRegistry }
+import surge.internal.utils.InlineReceive
+import surge.kafka.HostPort
 import surge.streams.replay.EventReplayStrategy
-import surge.support.inlineReceive
 
 import scala.concurrent.Future
 import scala.util.{ Failure, Success }
@@ -49,7 +49,7 @@ class ReplayCoordinator(
       getTopicAssignments().map(assignments => TopicAssignmentsFound(assignments)).pipeTo(self)
   }
 
-  def ready(replayState: ReplayState): Receive = inlineReceive {
+  def ready(replayState: ReplayState): Receive = InlineReceive {
     case TopicAssignmentsFound(assignments) =>
       getTopicConsumers(assignments).map(actors => TopicConsumersFound(assignments, actors)).pipeTo(self)
     case TopicConsumersFound(topicAssignments, topicConsumerActors) =>
@@ -60,7 +60,7 @@ class ReplayCoordinator(
       }
   } orElse handleStopReplay(replayState)
 
-  def pausing(replayState: ReplayState): Receive = inlineReceive {
+  def pausing(replayState: ReplayState): Receive = InlineReceive {
     case SuccessfullyStopped(address, ref) =>
       handleSuccessfullyStopped(replayState, address, ref)
     case PreReplayCompleted =>
@@ -69,7 +69,7 @@ class ReplayCoordinator(
       doPreReplay()
   } orElse handleStopReplay(replayState)
 
-  def replaying(replayState: ReplayState): Receive = inlineReceive {
+  def replaying(replayState: ReplayState): Receive = InlineReceive {
     case failure: ReplayFailed =>
       startStoppedConsumers(replayState)
       replayState.replyTo ! failure

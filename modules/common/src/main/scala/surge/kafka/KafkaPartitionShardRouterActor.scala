@@ -9,11 +9,11 @@ import akka.pattern._
 import com.typesafe.config.{ Config, ConfigFactory }
 import org.apache.kafka.common.TopicPartition
 import org.slf4j.{ Logger, LoggerFactory }
-import surge.akka.cluster.ActorHostAwareness
-import surge.config.TimeoutConfig
+import surge.internal.akka.cluster.{ ActorHostAwareness, Shard }
+import surge.internal.akka.kafka.KafkaConsumerStateTrackingActor
+import surge.internal.config.TimeoutConfig
 import surge.kafka.streams.HealthyActor.GetHealth
 import surge.kafka.streams.{ HealthCheck, HealthCheckStatus, HealthyActor }
-import surge.scala.core.kafka._
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -27,7 +27,7 @@ object KafkaPartitionShardRouterActor {
     partitionTracker: ActorRef,
     partitioner: KafkaPartitioner[String],
     trackedTopic: KafkaTopic,
-    regionCreator: TopicPartitionRegionCreator,
+    regionCreator: PersistentActorRegionCreator[String],
     extractEntityId: PartialFunction[Any, String]): Props = {
 
     // This producer is only used for determining partition assignments, not actually producing
@@ -67,7 +67,7 @@ object KafkaPartitionShardRouterActor {
 class KafkaPartitionShardRouterActor(
     partitionTracker: ActorRef,
     kafkaStateProducer: KafkaProducerTrait[String, _],
-    regionCreator: TopicPartitionRegionCreator,
+    regionCreator: PersistentActorRegionCreator[String],
     extractEntityId: PartialFunction[Any, String]) extends Actor with Stash with ActorHostAwareness {
 
   import KafkaPartitionShardRouterActor._
@@ -223,17 +223,16 @@ class KafkaPartitionShardRouterActor(
   private case class StatePlusRegion(state: ActorState, region: Option[PartitionRegion])
 
   private def newActorRegionForPartition(state: ActorState, partition: Int): StatePlusRegion = {
-    // TODO the None case for partition regions to hosts (rebalancing/crashed/etc...) causes
-    //  us to not be able to create a partition region for a particular aggregate
     state.partitionsToHosts.get(partition).map { hostPort =>
       val isLocal = isHostPortThisNode(hostPort)
       val newActorSelection = if (isLocal) {
         log.info(s"Creating partition region actor for partition {}", partition)
 
         val topicPartition = new TopicPartition(trackedTopic.name, partition)
-        val regionProps = regionCreator.propsFromTopicPartition(topicPartition)
+        val region = regionCreator.regionFromTopicPartition(topicPartition)
+        val shardProps = Shard.props(topicPartition.toString, region, extractEntityId)
 
-        val newActor = context.system.actorOf(regionProps)
+        val newActor = context.system.actorOf(shardProps)
         context.watch(newActor)
         context.actorSelection(newActor.path)
       } else {
@@ -319,7 +318,7 @@ class KafkaPartitionShardRouterActor(
     }.toSeq
   }
 
-  private def getPartitionTrackerActorHealthCheck(): Future[HealthCheck] = {
+  private def getPartitionTrackerActorHealthCheck: Future[HealthCheck] = {
     partitionTracker.ask(HealthyActor.GetHealth)(TimeoutConfig.HealthCheck.actorAskTimeout).mapTo[HealthCheck].recoverWith {
       case err: Throwable =>
         log.error(s"Failed to get partition-tracker health check", err)
@@ -333,7 +332,7 @@ class KafkaPartitionShardRouterActor(
   def getHealthCheck(state: ActorState): Future[HealthCheck] = {
 
     val localPartitionRegions = getLocalPartitionRegionsHealth(state.partitionRegions)
-    val partitionTrackerHealthCheck = getPartitionTrackerActorHealthCheck()
+    val partitionTrackerHealthCheck = getPartitionTrackerActorHealthCheck
 
     Future.sequence(localPartitionRegions :+ partitionTrackerHealthCheck).map { shardHealthChecks =>
       HealthCheck(

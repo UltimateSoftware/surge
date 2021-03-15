@@ -4,16 +4,16 @@ package surge.kafka.streams
 
 import akka.actor.{ Actor, Stash }
 import com.typesafe.config.ConfigFactory
-import org.apache.kafka.clients.consumer.{ ConsumerConfig, ConsumerConfigExtension }
+import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.streams.{ KafkaStreams, StreamsConfig }
-import surge.config.TimeoutConfig
+import surge.internal.config.TimeoutConfig
+import surge.internal.utils.{ InlineReceive, Logging }
+import surge.kafka.UltiKafkaConsumerConfig
 import surge.kafka.streams.HealthyActor.GetHealth
 import surge.kafka.streams.KafkaStreamLifeCycleManagement._
 import surge.kafka.streams.KafkaStreamsUncaughtExceptionHandler.KafkaStreamsUncaughtException
 import surge.kafka.streams.KafkaStreamsUpdatePartitionsOnStateChangeListener.KafkaStateChange
 import surge.metrics.Metrics
-import surge.scala.core.kafka.UltiKafkaConsumerConfig
-import surge.support.{ Logging, SystemExit, inlineReceive }
 
 import scala.util.{ Failure, Success, Try }
 
@@ -37,7 +37,6 @@ trait KafkaStreamLifeCycleManagement[K, V, T <: KafkaStreamsConsumer[K, V], SV] 
    */
   val baseStreamsConfig: Map[String, String] = Map[String, String](
     ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG -> TimeoutConfig.Kafka.consumerSessionTimeout.toMillis.toString,
-    ConsumerConfigExtension.LEAVE_GROUP_ON_CLOSE_CONFIG -> TimeoutConfig.debugTimeoutEnabled.toString,
     StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG -> settings.cacheMemory.toString)
 
   protected val stateChangeListener = new KafkaStreamsNotifyOnStateChangeListener(settings.storeName, List(receiveKafkaStreamStateChange))
@@ -89,7 +88,7 @@ trait KafkaStreamLifeCycleManagement[K, V, T <: KafkaStreamsConsumer[K, V], SV] 
       case Failure(error) =>
         log.error(s"Kafka streams ${settings.storeName} failed to stop, shutting down the JVM", error)
         // Let the app crash, dead locks risk if the stream fails to kill itself, its not safe to restart
-        SystemExit.exit(1)
+        System.exit(1)
     }
     onStop(consumer)
     log.info(s"Kafka streams ${settings.storeName} is uninitialized")
@@ -106,7 +105,7 @@ trait KafkaStreamLifeCycleManagement[K, V, T <: KafkaStreamsConsumer[K, V], SV] 
    * defined here in order to work correctly
    * Use KafkaStreamsStateChangeWithMultipleListeners(stateChangeListener, yourOwnListener)
    * to add your own state change listener
-   * @param consumer
+   * @param consumer A hook to the Kafka Streams consumer instance you can attach listeners to
    */
   protected def subscribeListeners(consumer: T): Unit = {
     consumer.streams.setStateListener(stateChangeListener)
@@ -116,7 +115,7 @@ trait KafkaStreamLifeCycleManagement[K, V, T <: KafkaStreamsConsumer[K, V], SV] 
 
   final override def receive: Receive = streamUninitialized
 
-  final def streamUninitialized: Receive = uninitialized orElse inlineReceive {
+  final def streamUninitialized: Receive = uninitialized orElse InlineReceive {
     case Start =>
       start()
     case GetHealth =>
@@ -125,7 +124,7 @@ trait KafkaStreamLifeCycleManagement[K, V, T <: KafkaStreamsConsumer[K, V], SV] 
     // drop, can't restart or stop if is not running
   } orElse errorHandler orElse logUnhandled("uninitialized")
 
-  final def streamCreated(consumer: T): Receive = created(consumer) orElse inlineReceive {
+  final def streamCreated(consumer: T): Receive = created(consumer) orElse InlineReceive {
     case Run =>
       val queryableStore: KafkaStreamsKeyValueStore[K, SV] = createQueryableStore(consumer)
       unstashAll()
@@ -140,7 +139,7 @@ trait KafkaStreamLifeCycleManagement[K, V, T <: KafkaStreamsConsumer[K, V], SV] 
       sender() ! getHealth(status)
   } orElse errorHandler orElse logUnhandled("created")
 
-  final def streamRunning(consumer: T, queryableStore: KafkaStreamsKeyValueStore[K, SV]): Receive = running(consumer, queryableStore) orElse inlineReceive {
+  final def streamRunning(consumer: T, queryableStore: KafkaStreamsKeyValueStore[K, SV]): Receive = running(consumer, queryableStore) orElse InlineReceive {
     case GetHealth =>
       val status = if (consumer.streams.state().isRunningOrRebalancing) HealthCheckStatus.UP else HealthCheckStatus.DOWN
       sender() ! getHealth(status)

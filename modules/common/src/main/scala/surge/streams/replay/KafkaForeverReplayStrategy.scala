@@ -13,9 +13,9 @@ import com.typesafe.config.ConfigFactory
 import org.apache.kafka.clients.consumer.{ ConsumerConfig, ConsumerRebalanceListener, KafkaConsumer, OffsetAndMetadata }
 import org.apache.kafka.common.TopicPartition
 import surge.akka.streams.kafka.PartitionAssignorConfig
-import surge.scala.core.kafka.{ KafkaBytesConsumer, UltiKafkaConsumerConfig }
+import surge.internal.utils.Logging
+import surge.kafka.{ KafkaBytesConsumer, UltiKafkaConsumerConfig }
 import surge.streams.replay.TopicResetActor._
-import surge.support.Logging
 
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }

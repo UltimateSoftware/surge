@@ -2,9 +2,9 @@
 
 package surge.core
 
+import surge.domain.AggregateCommandModel
+import surge.kafka.{ KafkaPartitioner, KafkaTopic, PartitionStringUpToColon }
 import surge.metrics.Metrics
-import surge.scala.core.kafka.{ KafkaPartitioner, KafkaTopic, PartitionStringUpToColon }
-import surge.scala.oss.domain.AggregateCommandModel
 
 private[surge] case class SurgeCommandKafkaConfig(
     stateTopic: KafkaTopic,

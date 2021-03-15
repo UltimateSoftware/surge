@@ -13,9 +13,10 @@ import org.scalatest.wordspec.AnyWordSpec
 import org.scalatest.{ Assertion, BeforeAndAfterAll }
 import org.scalatestplus.mockito.MockitoSugar
 import play.api.libs.json.{ Format, JsValue, Json }
+import surge.internal.kafka.JsonSerdes
+import surge.kafka.KafkaTopic
 import surge.kafka.streams.AggregateStateStoreKafkaStreamsImpl.AggregateStateStoreKafkaStreamsImplSettings
 import surge.metrics.Metrics
-import surge.scala.core.kafka.{ JsonSerdes, KafkaTopic }
 
 class MockPartitionTrackerProvider extends KafkaStreamsPartitionTrackerProvider {
   override def create(streams: KafkaStreams): KafkaStreamsPartitionTracker = new MockPartitionTracker(streams)
@@ -41,7 +42,7 @@ class AggregateStateStoreKafkaStreamsSpec
   with MockitoSugar
   with PatienceConfiguration {
 
-  override implicit val patienceConfig = PatienceConfig(
+  override implicit val patienceConfig: PatienceConfig = PatienceConfig(
     timeout = Span(30, Seconds), interval = Span(10, Millis)) // scalastyle:ignore magic.number
 
   private val system = ActorSystem("test-actor-system")
@@ -102,11 +103,12 @@ class AggregateStateStoreKafkaStreamsSpec
           consumerGroupName = testConsumerGroupName,
           system,
           Metrics.globalMetricRegistry) {
-          override lazy val settings = AggregateStateStoreKafkaStreamsImplSettings(testAggregateName, testConsumerGroupName).copy(
-            brokers = Seq(s"localhost:${actualConfig.kafkaPort}"))
+          override lazy val settings: AggregateStateStoreKafkaStreamsImplSettings =
+            AggregateStateStoreKafkaStreamsImplSettings(testAggregateName, testConsumerGroupName)
+              .copy(brokers = Seq(s"localhost:${actualConfig.kafkaPort}"))
         }
 
-        val topology = aggStoreKafkaStreams.getTopology().futureValue
+        val topology = aggStoreKafkaStreams.getTopology.futureValue
 
         withTopologyTestDriver(topology) { testDriver =>
           assertStoreKeyValue(testDriver, stateTopic, aggStoreKafkaStreams)
@@ -139,11 +141,12 @@ class AggregateStateStoreKafkaStreamsSpec
           consumerGroupName = testConsumerGroupName,
           system,
           Metrics.globalMetricRegistry) {
-          override lazy val settings = AggregateStateStoreKafkaStreamsImplSettings(testConsumerGroupName, testAggregateName).copy(
-            brokers = Seq(s"localhost:${actualConfig.kafkaPort}"))
+          override lazy val settings: AggregateStateStoreKafkaStreamsImplSettings =
+            AggregateStateStoreKafkaStreamsImplSettings(testConsumerGroupName, testAggregateName)
+              .copy(brokers = Seq(s"localhost:${actualConfig.kafkaPort}"))
         }
 
-        val topology = aggStoreKafkaStreams.getTopology().futureValue
+        val topology = aggStoreKafkaStreams.getTopology.futureValue
 
         withTopologyTestDriver(topology) { testDriver =>
           an[Exception] should be thrownBy assertStoreKeyValue(testDriver, stateTopic, aggStoreKafkaStreams) // Initial failure will propagate to test driver

@@ -7,8 +7,8 @@ import akka.pattern._
 import akka.util.Timeout
 import org.apache.kafka.common.TopicPartition
 import org.slf4j.LoggerFactory
-import surge.config.TimeoutConfig
-import surge.scala.core.kafka.HostPort
+import surge.internal.config.TimeoutConfig
+import surge.kafka.HostPort
 
 import scala.concurrent.{ ExecutionContext, Future }
 

@@ -9,9 +9,9 @@ import org.apache.kafka.streams.KafkaStreams
 import org.apache.kafka.streams.KafkaStreams.State
 import org.apache.kafka.streams.processor.StateRestoreListener
 import org.slf4j.LoggerFactory
+import surge.internal.utils.Logging
 import surge.kafka.streams.KafkaStreamsUncaughtExceptionHandler.KafkaStreamsUncaughtException
 import surge.kafka.streams.KafkaStreamsUpdatePartitionsOnStateChangeListener.KafkaStateChange
-import surge.support.Logging
 
 trait KafkaStreamsStateChangeListenerCommon extends KafkaStreams.StateListener with Logging {
 

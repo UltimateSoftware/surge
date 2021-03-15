@@ -6,12 +6,12 @@ import akka.actor.{ ActorRef, ActorSystem }
 import akka.pattern.{ BackoffOpts, BackoffSupervisor, ask }
 import akka.util.Timeout
 import org.apache.kafka.streams.{ LagInfo, Topology }
-import surge.config.{ BackoffConfig, TimeoutConfig }
+import surge.internal.config.{ BackoffConfig, TimeoutConfig }
+import surge.internal.utils.{ BackoffChildActorTerminationWatcher, Logging }
+import surge.kafka.KafkaTopic
 import surge.kafka.streams.AggregateStateStoreKafkaStreamsImpl._
 import surge.kafka.streams.KafkaStreamLifeCycleManagement.{ Restart, Start, Stop }
 import surge.metrics.Metrics
-import surge.scala.core.kafka.KafkaTopic
-import surge.support.{ BackoffChildActorTerminationWatcher, Logging, SystemExit }
 
 import scala.concurrent.{ ExecutionContext, Future }
 
@@ -94,7 +94,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
   private def createUnderlyingActorWithBackOff(): ActorRef = {
     def onMaxRetries(): Unit = {
       log.error(s"Kafka stream ${settings.storeName} failed more than the max number of retries, Surge is killing the JVM")
-      SystemExit.exit(1)
+      System.exit(1)
     }
 
     val aggregateStateStoreKafkaStreamsImplProps = AggregateStateStoreKafkaStreamsImpl.props(
@@ -122,7 +122,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
     underlyingCreatedActor
   }
 
-  private[streams] def getTopology(): Future[Topology] = {
+  private[streams] def getTopology: Future[Topology] = {
     underlyingActor.ask(GetTopology).mapTo[Topology]
   }
 }

@@ -28,7 +28,7 @@ object KTableImplExtensions {
   }
 
   implicit class KTableImplExtension[K, S, V](ktableImpl: KTableImpl[K, S, V]) {
-    def sendOldValues(): Unit = ktableImpl.enableSendingOldValues()
+    def sendOldValues(): Unit = ktableImpl.enableSendingOldValues(false)
     def getName: String = ktableImpl.name
 
     def toStreamWithChanges: KStream[K, Change[V]] = {
@@ -41,7 +41,7 @@ object KTableImplExtensions {
       ktableImpl.builder.addGraphNode(ktableImpl.streamsGraphNode, toStreamNode)
 
       // we can inherit parent key and value serde
-      val impl = new KStreamImpl[K, Change[V]](name, ktableImpl.keySerde, serdeForChanged(ktableImpl.valSerde), ktableImpl.subTopologySourceNodes,
+      val impl = new KStreamImpl[K, Change[V]](name, ktableImpl.keySerde, serdeForChanged(ktableImpl.valueSerde), ktableImpl.subTopologySourceNodes,
         false, toStreamNode, ktableImpl.builder)
 
       new KStream(impl)

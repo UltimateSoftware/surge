@@ -11,8 +11,8 @@ import org.apache.kafka.streams.scala.ImplicitConversions._
 import org.apache.kafka.streams.scala._
 import org.apache.kafka.streams.scala.kstream._
 import org.apache.kafka.streams.{ KafkaStreams, StreamsConfig, Topology }
+import surge.kafka.{ KafkaSecurityConfiguration, KafkaTopic, UltiKafkaConsumerConfig }
 import surge.kafka.streams.DefaultSerdes._
-import surge.scala.core.kafka.{ KafkaSecurityConfiguration, KafkaTopic, UltiKafkaConsumerConfig }
 
 abstract class KafkaStreamsConsumer[K, V](implicit keySerde: Serde[K], valueSerde: Serde[V]) extends KafkaSecurityConfiguration {
   def brokers: Seq[String]

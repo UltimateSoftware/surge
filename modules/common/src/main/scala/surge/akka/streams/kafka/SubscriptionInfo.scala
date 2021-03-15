@@ -6,8 +6,8 @@ import java.nio.ByteBuffer
 
 import org.apache.kafka.common.TopicPartition
 import play.api.libs.json.{ Format, JsValue, Json }
-import surge.scala.core.kafka.HostPort
-import surge.scala.core.utils.JsonFormats
+import surge.internal.utils.JsonFormats
+import surge.kafka.HostPort
 
 private object ByteBufferUtils {
   def toString(byteBuffer: ByteBuffer): String = {

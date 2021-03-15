@@ -10,15 +10,13 @@ import akka.testkit.TestProbe
 import com.typesafe.config.{ Config, ConfigFactory }
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.clients.producer.ProducerRecord
-import org.apache.kafka.common.serialization.Serializer
+import org.apache.kafka.common.serialization.{ Deserializer, Serializer }
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatest.{ BeforeAndAfterAll, OptionValues }
 import surge.akka.streams.kafka.{ KafkaConsumer, KafkaStreamManager, KafkaStreamMeta }
-import surge.core._
 import surge.kafka.streams.DefaultSerdes
-import surge.scala.core.kafka.KafkaTopic
 import surge.streams.EventPlusStreamMeta
 import surge.streams.replay.{ DefaultEventReplaySettings, KafkaForeverReplaySettings, KafkaForeverReplayStrategy, NoOpEventReplayStrategy }
 
@@ -60,7 +58,8 @@ class StreamManagerSpecBase extends MultiNodeSpec(StreamManagerSpecConfig) with 
       implicit val stringSerializer: Serializer[String] = DefaultSerdes.stringSerde.serializer()
       // FIXME: try to use dynamically allocated Embedded Kafka ports
       implicit val config = EmbeddedKafkaConfig(kafkaPort = 9092, zooKeeperPort = 9093)
-      val stringDeserializer = DefaultSerdes.stringSerde.deserializer()
+      implicit val stringDeserializer: Deserializer[String] = DefaultSerdes.stringSerde.deserializer()
+      implicit val byteDeserializer: Deserializer[Array[Byte]] = DefaultSerdes.byteArraySerde.deserializer()
       val topicName = "testTopic5"
       val topic = KafkaTopic(topicName)
       val record1 = "record 1"
@@ -73,7 +72,7 @@ class StreamManagerSpecBase extends MultiNodeSpec(StreamManagerSpecConfig) with 
         }
       }
       val embeddedBroker = s"${node(node0).address.host.getOrElse("localhost")}:${config.kafkaPort}"
-      val consumerSettings = KafkaConsumer.defaultConsumerSettings(system, "replay-test").withBootstrapServers(embeddedBroker)
+      val consumerSettings = KafkaConsumer.consumerSettings[String, Array[Byte]](system, "replay-test").withBootstrapServers(embeddedBroker)
 
       runOn(node0) {
         withRunningKafka {

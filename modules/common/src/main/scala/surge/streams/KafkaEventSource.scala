@@ -7,7 +7,7 @@ import akka.kafka.ConsumerSettings
 import akka.stream.scaladsl.Flow
 import org.apache.kafka.common.serialization.{ ByteArrayDeserializer, Deserializer, StringDeserializer }
 import org.slf4j.LoggerFactory
-import surge.akka.streams.graph.EitherFlow
+import surge.internal.akka.streams.graph.EitherFlow
 import surge.core.SurgeEventReadFormatting
 import surge.metrics.{ MetricInfo, Metrics, Timer }
 

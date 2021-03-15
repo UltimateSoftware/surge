@@ -6,9 +6,9 @@ import java.util.Optional
 
 import com.typesafe.config.ConfigFactory
 import surge.core.{ SurgeAggregateReadFormatting, SurgeCommandKafkaConfig, SurgeWriteFormatting }
+import surge.domain.AggregateCommandModel
+import surge.kafka.KafkaTopic
 import surge.metrics.Metrics
-import surge.scala.core.kafka.KafkaTopic
-import surge.scala.oss.domain.AggregateCommandModel
 
 import scala.compat.java8.OptionConverters._
 

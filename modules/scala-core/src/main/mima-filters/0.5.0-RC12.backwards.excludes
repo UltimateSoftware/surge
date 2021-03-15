@@ -1,7 +1,0 @@
-ProblemFilters.exclude[IncompatibleTemplateDefProblem]("surge.scala.core.kafka.KafkaConsumerTrait")
-ProblemFilters.exclude[MissingTypesProblem]("surge.scala.core.kafka.KafkaBytesConsumer")
-ProblemFilters.exclude[IncompatibleSignatureProblem]("surge.scala.core.kafka.KafkaBytesConsumer.subscribe")
-ProblemFilters.exclude[MissingTypesProblem]("surge.scala.core.kafka.KafkaStringConsumer")
-ProblemFilters.exclude[IncompatibleSignatureProblem]("surge.scala.core.kafka.KafkaStringConsumer.subscribe")
-ProblemFilters.exclude[MissingClassProblem]("surge.scala.core.kafka.TopicBuilder")
-ProblemFilters.exclude[MissingClassProblem]("surge.scala.core.kafka.TopicBuilder$")

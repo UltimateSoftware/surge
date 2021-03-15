@@ -11,7 +11,7 @@ import akka.testkit.{ TestKit, TestProbe }
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.producer.ProducerRecord
-import org.apache.kafka.common.serialization.Serializer
+import org.apache.kafka.common.serialization.{ Deserializer, Serializer }
 import org.scalatest.concurrent.Eventually
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Millis, Seconds, Span }
@@ -19,8 +19,8 @@ import org.scalatest.wordspec.AnyWordSpecLike
 import org.slf4j.LoggerFactory
 import surge.akka.streams.kafka.KafkaConsumer
 import surge.core.SurgeEventReadFormatting
+import surge.kafka.KafkaTopic
 import surge.kafka.streams.DefaultSerdes
-import surge.scala.core.kafka.KafkaTopic
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -32,6 +32,8 @@ class KafkaEventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with 
     PatienceConfig(timeout = scaled(Span(10, Seconds)), interval = scaled(Span(10, Millis)))
 
   private implicit val stringSer: Serializer[String] = DefaultSerdes.stringSerde.serializer()
+  private implicit val stringDeserializer: Deserializer[String] = DefaultSerdes.stringSerde.deserializer()
+  private implicit val byteArrayDeserializer: Deserializer[Array[Byte]] = DefaultSerdes.byteArraySerde.deserializer()
 
   private def testEventSource(topic: KafkaTopic, kafkaBrokers: String, groupId: String): KafkaEventSource[String] = {
     new KafkaEventSource[String] {
@@ -43,7 +45,7 @@ class KafkaEventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with 
   }
 
   private def testConsumerSettings(kafkaBrokers: String, groupId: String): ConsumerSettings[String, Array[Byte]] = {
-    KafkaConsumer.defaultConsumerSettings(system, groupId)
+    KafkaConsumer.consumerSettings[String, Array[Byte]](system, groupId)
       .withBootstrapServers(kafkaBrokers)
       .withProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
   }

@@ -7,8 +7,8 @@ import akka.pattern._
 import akka.util.Timeout
 import org.apache.kafka.streams.KafkaStreams
 import org.slf4j.LoggerFactory
-import surge.config.TimeoutConfig
-import surge.kafka.KafkaConsumerStateTrackingActor
+import surge.internal.akka.kafka.KafkaConsumerStateTrackingActor
+import surge.internal.config.TimeoutConfig
 
 class KafkaStreamsPartitionTrackerActorProvider(managementActor: ActorRef) extends KafkaStreamsPartitionTrackerProvider {
   override def create(streams: KafkaStreams): KafkaStreamsPartitionTracker = new KafkaStreamsPartitionTrackerActorImpl(streams, managementActor)
