@@ -12,7 +12,7 @@ import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
 import org.apache.kafka.clients.consumer.{ ConsumerConfig, ConsumerRebalanceListener, KafkaConsumer, OffsetAndMetadata }
 import org.apache.kafka.common.TopicPartition
-import surge.akka.streams.kafka.PartitionAssignorConfig
+import surge.internal.streams.PartitionAssignorConfig
 import surge.internal.utils.Logging
 import surge.kafka.{ KafkaBytesConsumer, UltiKafkaConsumerConfig }
 import surge.streams.replay.TopicResetActor._

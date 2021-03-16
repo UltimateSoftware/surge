@@ -1,13 +1,13 @@
 // Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
 
-package surge.akka.streams.kafka
+package surge.internal.streams
 
 import akka.actor.{ Actor, ActorRef, Address }
 import akka.pattern.pipe
 import org.apache.kafka.common.TopicPartition
-import surge.akka.streams.kafka.KafkaStreamManagerActor.{ StartConsuming, SuccessfullyStopped }
-import surge.akka.streams.kafka.ReplayCoordinator._
 import surge.internal.akka.cluster.{ ActorHostAwareness, ActorRegistry }
+import surge.internal.kafka.HostAssignmentTracker
+import surge.internal.streams.KafkaStreamManagerActor.{ StartConsuming, SuccessfullyStopped }
 import surge.internal.utils.InlineReceive
 import surge.kafka.HostPort
 import surge.streams.replay.EventReplayStrategy
@@ -38,18 +38,19 @@ class ReplayCoordinator(
     topicName: String,
     consumerGroup: String,
     replayStrategy: EventReplayStrategy) extends Actor with ActorHostAwareness with ActorRegistry {
+  import ReplayCoordinator._
 
   import context.dispatcher
 
   override def receive: Receive = uninitialized()
 
-  def uninitialized(): Receive = {
+  private def uninitialized(): Receive = {
     case StartReplay =>
       context.become(ready(ReplayState.init(sender())))
-      getTopicAssignments().map(assignments => TopicAssignmentsFound(assignments)).pipeTo(self)
+      getTopicAssignments.map(assignments => TopicAssignmentsFound(assignments)).pipeTo(self)
   }
 
-  def ready(replayState: ReplayState): Receive = InlineReceive {
+  private def ready(replayState: ReplayState): Receive = InlineReceive {
     case TopicAssignmentsFound(assignments) =>
       getTopicConsumers(assignments).map(actors => TopicConsumersFound(assignments, actors)).pipeTo(self)
     case TopicConsumersFound(topicAssignments, topicConsumerActors) =>
@@ -60,7 +61,7 @@ class ReplayCoordinator(
       }
   } orElse handleStopReplay(replayState)
 
-  def pausing(replayState: ReplayState): Receive = InlineReceive {
+  private def pausing(replayState: ReplayState): Receive = InlineReceive {
     case SuccessfullyStopped(address, ref) =>
       handleSuccessfullyStopped(replayState, address, ref)
     case PreReplayCompleted =>
@@ -69,7 +70,7 @@ class ReplayCoordinator(
       doPreReplay()
   } orElse handleStopReplay(replayState)
 
-  def replaying(replayState: ReplayState): Receive = InlineReceive {
+  private def replaying(replayState: ReplayState): Receive = InlineReceive {
     case failure: ReplayFailed =>
       startStoppedConsumers(replayState)
       replayState.replyTo ! failure
@@ -81,14 +82,14 @@ class ReplayCoordinator(
       context.become(uninitialized())
   } orElse handleStopReplay(replayState)
 
-  def handleStopReplay(replayState: ReplayState): Receive = {
+  private def handleStopReplay(replayState: ReplayState): Receive = {
     case ReplayCoordinator.StopReplay =>
       log.debug("StopReplay received, this is typically because a timeout of the ReplayCoordinator or an unexpected error")
       startStoppedConsumers(replayState)
       context.become(uninitialized())
   }
 
-  def handleSuccessfullyStopped(replayState: ReplayState, address: Address, ref: ActorRef): Unit = {
+  private def handleSuccessfullyStopped(replayState: ReplayState, address: Address, ref: ActorRef): Unit = {
     val path = ref.path.toStringWithAddress(address)
     val completed = replayState.stopped + path
     val waiting = replayState.running - path
@@ -98,7 +99,7 @@ class ReplayCoordinator(
     }
   }
 
-  def doPreReplay(): Unit = {
+  private def doPreReplay(): Unit = {
     replayStrategy.preReplay().onComplete {
       case Success(_) =>
         self ! PreReplayCompleted
@@ -109,7 +110,7 @@ class ReplayCoordinator(
     }
   }
 
-  def doReplay(replayState: ReplayCoordinator.ReplayState): Unit = {
+  private def doReplay(replayState: ReplayCoordinator.ReplayState): Unit = {
     val existingPartitions = replayState.assignments.map {
       case (topicPartition, _) =>
         topicPartition.partition()
@@ -124,14 +125,14 @@ class ReplayCoordinator(
     }.pipeTo(self)(sender())
   }
 
-  def startStoppedConsumers(state: ReplayState): Unit = {
+  private def startStoppedConsumers(state: ReplayState): Unit = {
     state.stopped.foreach { actorPath =>
       log.trace(s"Starting stream manager actor with path $actorPath")
       actorSystem.actorSelection(actorPath) ! StartConsuming
     }
   }
 
-  def getTopicAssignments(): Future[Map[TopicPartition, HostPort]] = {
+  private def getTopicAssignments: Future[Map[TopicPartition, HostPort]] = {
     HostAssignmentTracker.allAssignments.map { assignments =>
       assignments.filter {
         case (topicPartition, _) =>
@@ -144,7 +145,7 @@ class ReplayCoordinator(
     }
   }
 
-  def getTopicConsumers(assignments: Map[TopicPartition, HostPort]): Future[List[String]] = {
+  private def getTopicConsumers(assignments: Map[TopicPartition, HostPort]): Future[List[String]] = {
     val hostPorts = assignments.map { case (_, hostPort) => hostPort }.toList.distinct
     discoverActors(KafkaStreamManager.serviceIdentifier, hostPorts, List(topicName))
   }

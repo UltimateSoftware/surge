@@ -1,6 +1,6 @@
 // Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
 
-package surge.akka.streams.kafka
+package surge.internal.akka.kafka
 
 import java.util.Properties
 
@@ -14,7 +14,7 @@ import surge.kafka.KafkaSecurityConfiguration
 
 import scala.jdk.CollectionConverters._
 
-object KafkaConsumer extends KafkaSecurityConfiguration {
+object AkkaKafkaConsumer extends KafkaSecurityConfiguration {
   private val config: Config = ConfigFactory.load()
   private val defaultBrokers = config.getString("kafka.brokers")
   private val consumerSessionTimeout = config.getDuration("surge.kafka-event-source.consumer.session-timeout")

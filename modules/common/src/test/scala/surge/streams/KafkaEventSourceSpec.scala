@@ -17,8 +17,8 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Millis, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.slf4j.LoggerFactory
-import surge.akka.streams.kafka.KafkaConsumer
 import surge.core.SurgeEventReadFormatting
+import surge.internal.akka.kafka.AkkaKafkaConsumer
 import surge.kafka.KafkaTopic
 import surge.kafka.streams.DefaultSerdes
 
@@ -45,7 +45,7 @@ class KafkaEventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with 
   }
 
   private def testConsumerSettings(kafkaBrokers: String, groupId: String): ConsumerSettings[String, Array[Byte]] = {
-    KafkaConsumer.consumerSettings[String, Array[Byte]](system, groupId)
+    AkkaKafkaConsumer.consumerSettings[String, Array[Byte]](system, groupId)
       .withBootstrapServers(kafkaBrokers)
       .withProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
   }

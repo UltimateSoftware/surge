@@ -5,13 +5,12 @@ package surge.internal.streams
 import java.util.UUID
 
 import com.typesafe.config.ConfigFactory
-import surge.akka.streams.kafka.KafkaStreamManager
 import surge.metrics.Metrics
 import surge.streams.DataPipeline
 import surge.streams.DataPipeline.{ ReplayResult, ReplaySuccessfullyStarted }
 
-import scala.collection.JavaConverters._
 import scala.concurrent.Future
+import scala.jdk.CollectionConverters._
 
 private[surge] class ManagedDataPipeline(underlyingManager: KafkaStreamManager[_, _], metrics: Metrics) extends DataPipeline {
   private val kafkaConsumerMetricsName: String = s"kafka-consumer-metrics-${UUID.randomUUID()}"

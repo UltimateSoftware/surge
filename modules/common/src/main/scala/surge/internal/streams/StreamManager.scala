@@ -1,6 +1,6 @@
 // Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
 
-package surge.akka.streams.kafka
+package surge.internal.streams
 
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
@@ -19,7 +19,7 @@ import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.{ Metric, MetricName }
 import org.slf4j.LoggerFactory
 import surge.internal.akka.cluster.{ ActorHostAwareness, ActorRegistry, ActorSystemHostAwareness }
-import surge.internal.kafka.HeadersHelper
+import surge.internal.kafka.{ HeadersHelper, HostAwareCooperativeStickyAssignor, HostAwareRangeAssignor, HostAwarenessConfig }
 import surge.internal.utils.Logging
 import surge.kafka.KafkaTopic
 import surge.streams.DataPipeline._

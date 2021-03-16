@@ -8,8 +8,8 @@ import akka.actor.ActorSystem
 import akka.kafka.ConsumerSettings
 import com.typesafe.config.{ Config, ConfigFactory }
 import org.apache.kafka.common.serialization.Deserializer
-import surge.akka.streams.kafka.{ KafkaConsumer, KafkaStreamManager }
-import surge.internal.streams.ManagedDataPipeline
+import surge.internal.akka.kafka.AkkaKafkaConsumer
+import surge.internal.streams.{ KafkaStreamManager, ManagedDataPipeline }
 import surge.kafka.KafkaTopic
 import surge.metrics.Metrics
 import surge.streams.replay.{ DefaultEventReplaySettings, EventReplaySettings, EventReplayStrategy, NoOpEventReplayStrategy }
@@ -43,7 +43,7 @@ trait KafkaDataSource[Key, Value] extends DataSource {
   }
 
   def to(sink: DataHandler[Key, Value], consumerGroup: String, autoStart: Boolean): DataPipeline = {
-    val consumerSettings = KafkaConsumer.consumerSettings[Key, Value](actorSystem, groupId = consumerGroup,
+    val consumerSettings = AkkaKafkaConsumer.consumerSettings[Key, Value](actorSystem, groupId = consumerGroup,
       brokers = kafkaBrokers)(keyDeserializer, valueDeserializer)
       .withProperties(additionalKafkaProperties.asScala.toMap)
     to(consumerSettings)(sink, autoStart)

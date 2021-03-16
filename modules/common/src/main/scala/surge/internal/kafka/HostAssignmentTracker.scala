@@ -1,6 +1,6 @@
 // Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
 
-package surge.akka.streams.kafka
+package surge.internal.kafka
 
 import akka.actor.{ Actor, ActorSystem, BootstrapSetup, Props, ProviderSelection }
 import akka.pattern._

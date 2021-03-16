@@ -61,5 +61,4 @@ final case class PartitionAssignments(partitionAssignments: Map[HostPort, List[T
     val assignments = this.copy(partitionAssignments = newPartitionAssignments)
     PartitionAssignmentsWithChanges(assignments = assignments, changes = changes)
   }
-
 }

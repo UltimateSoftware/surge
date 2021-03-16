@@ -102,8 +102,8 @@ trait TestBoundedContext {
   object BusinessLogic extends BusinessLogicTrait
 
   private val kafkaConfig = SurgeCommandKafkaConfig(
-    stateTopic = KafkaTopic("testStateTopic", compacted = false, None),
-    eventsTopic = KafkaTopic("testEventsTopic", compacted = false, None),
+    stateTopic = KafkaTopic("testStateTopic"),
+    eventsTopic = KafkaTopic("testEventsTopic"),
     publishStateOnly = false)
 
   val readFormats: SurgeReadFormatting[State, BaseTestEvent] = new SurgeReadFormatting[State, BaseTestEvent] {

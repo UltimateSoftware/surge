@@ -15,7 +15,9 @@ import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatest.{ BeforeAndAfterAll, OptionValues }
-import surge.akka.streams.kafka.{ KafkaConsumer, KafkaStreamManager, KafkaStreamMeta }
+import surge.akka.streams.kafka.KafkaStreamManager
+import surge.internal.akka.kafka.AkkaKafkaConsumer
+import surge.internal.streams.{ KafkaStreamManager, KafkaStreamMeta }
 import surge.kafka.streams.DefaultSerdes
 import surge.streams.EventPlusStreamMeta
 import surge.streams.replay.{ DefaultEventReplaySettings, KafkaForeverReplaySettings, KafkaForeverReplayStrategy, NoOpEventReplayStrategy }
@@ -72,7 +74,7 @@ class StreamManagerSpecBase extends MultiNodeSpec(StreamManagerSpecConfig) with 
         }
       }
       val embeddedBroker = s"${node(node0).address.host.getOrElse("localhost")}:${config.kafkaPort}"
-      val consumerSettings = KafkaConsumer.consumerSettings[String, Array[Byte]](system, "replay-test").withBootstrapServers(embeddedBroker)
+      val consumerSettings = AkkaKafkaConsumer.consumerSettings[String, Array[Byte]](system, "replay-test").withBootstrapServers(embeddedBroker)
 
       runOn(node0) {
         withRunningKafka {

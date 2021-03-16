@@ -1,6 +1,6 @@
 // Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
 
-package surge.akka.streams.kafka
+package surge.internal.streams
 
 import akka.Done
 import akka.actor.ActorSystem
@@ -14,8 +14,8 @@ import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Millis, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
+import surge.internal.akka.kafka.AkkaKafkaConsumer
 import surge.internal.akka.streams.FlowConverter
-import surge.internal.streams.DefaultDataSinkExceptionHandler
 import surge.kafka.KafkaTopic
 import surge.kafka.streams.DefaultSerdes
 import surge.streams.DataPipeline._
@@ -48,7 +48,7 @@ class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec"))
   private def testStreamManager(topic: KafkaTopic, kafkaBrokers: String, groupId: String,
     businessLogic: (String, Array[Byte]) => Future[_], replayStrategy: EventReplayStrategy = NoOpEventReplayStrategy,
     replaySettings: EventReplaySettings = DefaultEventReplaySettings): KafkaStreamManager[String, Array[Byte]] = {
-    val consumerSettings = KafkaConsumer.consumerSettings[String, Array[Byte]](system, groupId)
+    val consumerSettings = AkkaKafkaConsumer.consumerSettings[String, Array[Byte]](system, groupId)
       .withBootstrapServers(kafkaBrokers)
 
     val parallelism = 16
