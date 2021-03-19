@@ -3,6 +3,7 @@
 package surge.scaladsl
 
 import akka.actor.ActorRef
+import io.opentracing.Tracer
 import surge.core.AggregateRefTrait
 import surge.internal.persistence.cqrs.CQRSPersistentActor
 
@@ -16,7 +17,8 @@ trait AggregateRef[Agg, Cmd, Event] {
 
 final class AggregateRefImpl[AggId, Agg, Cmd, Event](
     val aggregateId: AggId,
-    val region: ActorRef) extends AggregateRef[Agg, Cmd, Event]
+    val region: ActorRef,
+    val tracer: Tracer) extends AggregateRef[Agg, Cmd, Event]
   with AggregateRefTrait[AggId, Agg, Cmd, Event] {
 
   def ask(command: Cmd)(implicit ec: ExecutionContext): Future[CommandResult[Agg]] = {

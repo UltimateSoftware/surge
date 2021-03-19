@@ -3,6 +3,8 @@
 package surge.scaladsl
 
 import com.typesafe.config.ConfigFactory
+import io.opentracing.Tracer
+import io.opentracing.noop.NoopTracerFactory
 import surge.core.{ SurgeAggregateReadFormatting, SurgeCommandKafkaConfig, SurgeWriteFormatting }
 import surge.domain.AggregateCommandModel
 import surge.kafka.KafkaTopic
@@ -28,6 +30,8 @@ trait SurgeCommandBusinessLogic[AggId, Agg, Command, Event] {
   def aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) => Boolean = { (_, _, _) => true }
 
   def metrics: Metrics = Metrics.globalMetricRegistry
+
+  def tracer: Tracer = NoopTracerFactory.create()
 
   def aggregateIdToString: AggId => String
 
@@ -55,6 +59,7 @@ object SurgeCommandBusinessLogic {
       readFormatting = businessLogic.readFormatting,
       writeFormatting = businessLogic.writeFormatting,
       aggregateValidator = businessLogic.aggregateValidator,
-      metrics = businessLogic.metrics)
+      metrics = businessLogic.metrics,
+      tracer = businessLogic.tracer)
   }
 }

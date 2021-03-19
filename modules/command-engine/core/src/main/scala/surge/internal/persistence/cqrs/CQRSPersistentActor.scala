@@ -5,15 +5,18 @@ package surge.internal.persistence.cqrs
 import java.time.Instant
 import java.util.concurrent.Executors
 
-import akka.actor.{ Actor, NoSerializationVerificationNeeded, Props, ReceiveTimeout, Stash }
+import akka.actor.{ NoSerializationVerificationNeeded, Props, ReceiveTimeout, Stash }
 import akka.pattern._
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import com.typesafe.config.ConfigFactory
+import io.opentracing.{ Span, Tracer }
 import org.slf4j.LoggerFactory
 import surge.akka.cluster.{ JacksonSerializable, Passivate }
 import surge.core._
+import surge.internal.akka.ActorWithTracing
 import surge.internal.config.{ RetryConfig, TimeoutConfig }
 import surge.internal.kafka.HeadersHelper
+import surge.internal.utils.SpanExtensions._
 import surge.kafka.streams.AggregateStateStoreKafkaStreams
 import surge.metrics.{ MetricInfo, Metrics, Timer }
 
@@ -130,7 +133,7 @@ trait CQRSPersistentActorSupport[Agg, Command, Event] extends KTableInitializati
 private[surge] class CQRSPersistentActor[Agg, Command, Event](
     override val aggregateId: String,
     override val businessLogic: SurgeCommandBusinessLogic[Agg, Command, Event],
-    override val regionSharedResources: SurgeCQRSPersistentEntitySharedResources) extends Actor with Stash
+    override val regionSharedResources: SurgeCQRSPersistentEntitySharedResources) extends ActorWithTracing with Stash
   with CQRSPersistentActorSupport[Agg, Command, Event] {
 
   import CQRSPersistentActor._
@@ -145,7 +148,11 @@ private[surge] class CQRSPersistentActor[Agg, Command, Event](
       serializedState: KafkaProducerActor.MessageToPublish, startTime: Instant) extends Internal
   private case class EventPublishTimedOut(reason: Throwable, startTime: Instant) extends Internal
 
-  protected case class InternalActorState(stateOpt: Option[Agg])
+  protected case class InternalSpans(commandProcessingSpan: Option[Span] = None)
+  protected case class InternalActorState(stateOpt: Option[Agg], spans: InternalSpans = InternalSpans()) {
+    def withCommandProcessingSpan(span: Span): InternalActorState = copy(spans = spans.copy(commandProcessingSpan = Some(span)))
+    def completeCommandProcessingSpan(): Unit = spans.commandProcessingSpan.foreach(_.finish())
+  }
   override type ActorState = InternalActorState
 
   private val receiveTimeout = TimeoutConfig.AggregateActor.idleTimeout
@@ -204,6 +211,7 @@ private[surge] class CQRSPersistentActor[Agg, Command, Event](
   }
 
   override def onPersistenceSuccess(newState: InternalActorState): Unit = {
+    newState.completeCommandProcessingSpan()
     context.setReceiveTimeout(receiveTimeout)
     context.become(freeToProcess(newState))
 
@@ -213,14 +221,19 @@ private[surge] class CQRSPersistentActor[Agg, Command, Event](
   }
 
   override def onPersistenceFailure(state: InternalActorState, cause: Throwable): Unit = {
+    state.spans.commandProcessingSpan.foreach(_.error(cause))
+    state.completeCommandProcessingSpan()
     log.error(s"Error while trying to publish to Kafka, crashing actor for $aggregateName $aggregateId", cause)
     sender() ! CommandError(cause)
     context.stop(self)
   }
 
+  override val tracer: Tracer = businessLogic.tracer
+
   private def handle(state: InternalActorState, commandEnvelope: CommandEnvelope[Command]): Unit = {
+    val handleCommandSpan = createSpan("process_command").setTag("aggregateId", aggregateId)
     context.setReceiveTimeout(Duration.Inf)
-    context.become(persistingEvents(state))
+    context.become(persistingEvents(state.withCommandProcessingSpan(handleCommandSpan)))
 
     val futureEventsPersisted = processCommand(state, commandEnvelope) match {
       case Success(events) =>

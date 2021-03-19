@@ -2,6 +2,7 @@
 
 package surge.core
 
+import io.opentracing.Tracer
 import surge.domain.AggregateCommandModel
 import surge.kafka.{ KafkaPartitioner, KafkaTopic, PartitionStringUpToColon }
 import surge.metrics.Metrics
@@ -21,6 +22,7 @@ private[surge] case class SurgeCommandBusinessLogic[Agg, Command, Event](
     readFormatting: SurgeAggregateReadFormatting[Agg],
     writeFormatting: SurgeWriteFormatting[Agg, Event],
     aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) => Boolean,
-    metrics: Metrics) {
+    metrics: Metrics,
+    tracer: Tracer) {
   val partitioner: KafkaPartitioner[String] = PartitionStringUpToColon
 }

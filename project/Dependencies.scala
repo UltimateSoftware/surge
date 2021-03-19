@@ -32,12 +32,18 @@ object Dependencies extends AutoPlugin {
       val kafkaStreamsTestUtils = "org.apache.kafka" % "kafka-streams-test-utils" % kafkaVersion % Test
     }
 
-    object RabbitMq {
-      val embedded = "io.arivera.oss" % "embedded-rabbitmq" % "1.4.0" % Test
+    object OpenTracing {
+      val version = "0.33.0"
+      val api = "io.opentracing" % "opentracing-api" % version
+      val mock = "io.opentracing" % "opentracing-mock" % version % Test
+      val noop = "io.opentracing" % "opentracing-noop" % version
     }
-
     object PlayFramework {
       val json = "com.typesafe.play" %% "play-json" % "2.9.1"
+    }
+
+    object RabbitMq {
+      val embedded = "io.arivera.oss" % "embedded-rabbitmq" % "1.4.0" % Test
     }
 
     val scalaCollectionCompat = "org.scala-lang.modules" %% "scala-collection-compat" % "2.4.2"

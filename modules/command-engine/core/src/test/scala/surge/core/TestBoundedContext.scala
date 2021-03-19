@@ -2,6 +2,7 @@
 
 package surge.core
 
+import io.opentracing.mock.MockTracer
 import play.api.libs.json._
 import surge.domain.{ AggregateCommandModel, CommandProcessor }
 import surge.internal.utils.JsonFormats
@@ -136,5 +137,6 @@ trait TestBoundedContext {
       readFormatting = readFormats,
       writeFormatting = writeFormats,
       aggregateValidator = { (_, _, _) => true },
-      metrics = Metrics.globalMetricRegistry)
+      metrics = Metrics.globalMetricRegistry,
+      tracer = new MockTracer())
 }

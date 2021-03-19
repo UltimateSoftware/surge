@@ -6,6 +6,7 @@ import java.util.Optional
 import java.util.concurrent.CompletionStage
 
 import akka.actor.ActorRef
+import io.opentracing.Tracer
 import surge.core.AggregateRefTrait
 import surge.internal.persistence.cqrs.CQRSPersistentActor
 
@@ -21,7 +22,8 @@ trait AggregateRef[Agg, Cmd, Event] {
 
 final class AggregateRefImpl[AggId, Agg, Cmd, Event](
     val aggregateId: AggId,
-    val region: ActorRef) extends AggregateRef[Agg, Cmd, Event]
+    val region: ActorRef,
+    val tracer: Tracer) extends AggregateRef[Agg, Cmd, Event]
   with AggregateRefTrait[AggId, Agg, Cmd, Event] {
 
   private implicit val ec: ExecutionContext = ExecutionContext.global

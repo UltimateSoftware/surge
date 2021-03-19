@@ -2,12 +2,15 @@
 
 package surge.core
 
-import akka.actor.{ ActorRef, ActorSystem }
+import akka.actor.{ ActorRef, ActorSystem, Props }
 import akka.testkit.{ TestKit, TestProbe }
+import io.opentracing.Tracer
+import io.opentracing.mock.MockTracer
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AsyncWordSpecLike
 import surge.exceptions.SurgeUnexpectedException
+import surge.internal.akka.ProbeWithTraceSupport
 import surge.internal.persistence.cqrs.CQRSPersistentActor
 
 import scala.concurrent.Future
@@ -16,8 +19,10 @@ class AggregateRefTraitSpec extends TestKit(ActorSystem("AggregateRefTraitSpec")
 
   case class Person(name: String, favoriteColor: String)
 
+  private val mockTracer = new MockTracer()
   case class TestAggregateRef(aggregateId: String, regionTestProbe: TestProbe) extends AggregateRefTrait[String, Person, String, String] {
-    override val region: ActorRef = regionTestProbe.ref
+    override val region: ActorRef = system.actorOf(Props(new ProbeWithTraceSupport(regionTestProbe, mockTracer)))
+    override val tracer: Tracer = mockTracer
 
     def ask(command: String, retries: Int = 0): Future[Either[Throwable, Option[Person]]] = {
       val envelope = CQRSPersistentActor.CommandEnvelope(aggregateId, command)

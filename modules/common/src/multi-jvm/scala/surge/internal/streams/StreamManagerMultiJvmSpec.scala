@@ -1,6 +1,6 @@
 // Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
 
-package surge.kafka
+package surge.internal.streams
 
 import akka.NotUsed
 import akka.remote.testconductor.RoleName
@@ -15,9 +15,8 @@ import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatest.{ BeforeAndAfterAll, OptionValues }
-import surge.akka.streams.kafka.KafkaStreamManager
 import surge.internal.akka.kafka.AkkaKafkaConsumer
-import surge.internal.streams.{ KafkaStreamManager, KafkaStreamMeta }
+import surge.kafka.KafkaTopic
 import surge.kafka.streams.DefaultSerdes
 import surge.streams.EventPlusStreamMeta
 import surge.streams.replay.{ DefaultEventReplaySettings, KafkaForeverReplaySettings, KafkaForeverReplayStrategy, NoOpEventReplayStrategy }

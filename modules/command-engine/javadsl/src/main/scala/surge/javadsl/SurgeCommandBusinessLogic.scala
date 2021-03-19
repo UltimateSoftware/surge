@@ -5,6 +5,8 @@ package surge.javadsl
 import java.util.Optional
 
 import com.typesafe.config.ConfigFactory
+import io.opentracing.Tracer
+import io.opentracing.noop.NoopTracerFactory
 import surge.core.{ SurgeAggregateReadFormatting, SurgeCommandKafkaConfig, SurgeWriteFormatting }
 import surge.domain.AggregateCommandModel
 import surge.kafka.KafkaTopic
@@ -35,6 +37,8 @@ abstract class SurgeCommandBusinessLogic[AggId, Agg, Command, Event] {
 
   def metrics: Metrics = Metrics.globalMetricRegistry
 
+  def tracer: Tracer = NoopTracerFactory.create()
+
   private def kafkaConfig = SurgeCommandKafkaConfig(stateTopic = stateTopic, eventsTopic = eventsTopic,
     publishStateOnly = publishStateOnly, consumerGroup = consumerGroupBase, clientId = streamsClientId,
     transactionalIdPrefix = transactionalIdPrefix)
@@ -60,6 +64,7 @@ object SurgeCommandBusinessLogic {
       writeFormatting = businessLogic.writeFormatting,
       readFormatting = businessLogic.readFormatting,
       aggregateValidator = (key, agg, prevAgg) => businessLogic.aggregateValidator(key, agg, prevAgg.asJava),
-      metrics = businessLogic.metrics)
+      metrics = businessLogic.metrics,
+      tracer = businessLogic.tracer)
   }
 }

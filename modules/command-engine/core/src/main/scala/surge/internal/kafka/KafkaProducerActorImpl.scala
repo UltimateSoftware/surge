@@ -5,18 +5,20 @@ package surge.internal.kafka
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 
-import akka.actor.{ Actor, ActorRef, NoSerializationVerificationNeeded, Stash, Status, Timers }
+import akka.actor.{ ActorRef, NoSerializationVerificationNeeded, Stash, Status, Timers }
 import akka.pattern._
 import com.typesafe.config.ConfigFactory
+import io.opentracing.Tracer
 import org.apache.kafka.clients.producer.{ ProducerConfig, ProducerRecord }
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.ProducerFencedException
 import org.apache.kafka.streams.LagInfo
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.core.{ KafkaProducerActor, SurgeCommandBusinessLogic }
-import surge.kafka.{ KafkaBytesProducer, KafkaRecordMetadata }
-import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, HealthCheck, HealthCheckStatus }
+import surge.internal.akka.ActorWithTracing
 import surge.kafka.streams.HealthyActor.GetHealth
+import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, HealthCheck, HealthCheckStatus }
+import surge.kafka.{ KafkaBytesProducer, KafkaRecordMetadata }
 import surge.metrics.{ MetricInfo, Metrics, Rate, Timer }
 
 import scala.concurrent.Future
@@ -60,7 +62,7 @@ class KafkaProducerActorImpl(
     assignedPartition: TopicPartition, metrics: Metrics,
     businessLogic: SurgeCommandBusinessLogic[_, _, _],
     kStreams: AggregateStateStoreKafkaStreams[_],
-    kafkaProducerOverride: Option[KafkaBytesProducer] = None) extends Actor with Stash with Timers {
+    kafkaProducerOverride: Option[KafkaBytesProducer] = None) extends ActorWithTracing with Stash with Timers {
 
   import KafkaProducerActorImpl._
   import businessLogic._
@@ -84,6 +86,8 @@ class KafkaProducerActorImpl(
   private val kafkaPublisherMetricsName = transactionalId
 
   private var kafkaPublisher = getPublisher
+
+  override val tracer: Tracer = businessLogic.tracer
 
   private val kafkaPublisherTimer: Timer = metrics.timer(
     MetricInfo(
