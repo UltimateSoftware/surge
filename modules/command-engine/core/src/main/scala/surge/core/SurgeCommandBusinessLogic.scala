@@ -9,7 +9,10 @@ import surge.metrics.Metrics
 private[surge] case class SurgeCommandKafkaConfig(
     stateTopic: KafkaTopic,
     eventsTopic: KafkaTopic,
-    publishStateOnly: Boolean)
+    publishStateOnly: Boolean,
+    consumerGroup: String,
+    clientId: String,
+    transactionalIdPrefix: String)
 
 private[surge] case class SurgeCommandBusinessLogic[Agg, Command, Event](
     aggregateName: String,
@@ -18,8 +21,6 @@ private[surge] case class SurgeCommandBusinessLogic[Agg, Command, Event](
     readFormatting: SurgeAggregateReadFormatting[Agg],
     writeFormatting: SurgeWriteFormatting[Agg, Event],
     aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) => Boolean,
-    consumerGroup: String,
-    transactionalIdPrefix: String,
     metrics: Metrics) {
   val partitioner: KafkaPartitioner[String] = PartitionStringUpToColon
 }

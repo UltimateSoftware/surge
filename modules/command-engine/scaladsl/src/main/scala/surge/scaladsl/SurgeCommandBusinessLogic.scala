@@ -36,11 +36,13 @@ trait SurgeCommandBusinessLogic[AggId, Agg, Command, Event] {
     s"$aggregateName-$environment-command"
   }
 
+  def streamsClientId: String = ""
+
   def transactionalIdPrefix: String = "surge-transactional-event-producer-partition"
 
-  private def kafkaConfig: SurgeCommandKafkaConfig = SurgeCommandKafkaConfig(
-    stateTopic = stateTopic,
-    eventsTopic = eventsTopic, publishStateOnly = publishStateOnly)
+  private def kafkaConfig = SurgeCommandKafkaConfig(stateTopic = stateTopic, eventsTopic = eventsTopic,
+    publishStateOnly = publishStateOnly, consumerGroup = consumerGroupBase, clientId = streamsClientId,
+    transactionalIdPrefix = transactionalIdPrefix)
 }
 
 object SurgeCommandBusinessLogic {
@@ -53,8 +55,6 @@ object SurgeCommandBusinessLogic {
       readFormatting = businessLogic.readFormatting,
       writeFormatting = businessLogic.writeFormatting,
       aggregateValidator = businessLogic.aggregateValidator,
-      consumerGroup = businessLogic.consumerGroupBase,
-      transactionalIdPrefix = businessLogic.transactionalIdPrefix,
       metrics = businessLogic.metrics)
   }
 }

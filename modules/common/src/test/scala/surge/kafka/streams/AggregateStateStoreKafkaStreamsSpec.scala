@@ -101,10 +101,11 @@ class AggregateStateStoreKafkaStreamsSpec
           aggregateValidator = mockValidator,
           applicationHostPort = Some("localhost:1234"),
           consumerGroupName = testConsumerGroupName,
+          clientId = "",
           system,
           Metrics.globalMetricRegistry) {
           override lazy val settings: AggregateStateStoreKafkaStreamsImplSettings =
-            AggregateStateStoreKafkaStreamsImplSettings(testAggregateName, testConsumerGroupName)
+            AggregateStateStoreKafkaStreamsImplSettings(testAggregateName, testConsumerGroupName, "")
               .copy(brokers = Seq(s"localhost:${actualConfig.kafkaPort}"))
         }
 
@@ -139,10 +140,11 @@ class AggregateStateStoreKafkaStreamsSpec
           aggregateValidator = mockValidatorWithAnError,
           applicationHostPort = Some("localhost:1234"),
           consumerGroupName = testConsumerGroupName,
+          clientId = "",
           system,
           Metrics.globalMetricRegistry) {
           override lazy val settings: AggregateStateStoreKafkaStreamsImplSettings =
-            AggregateStateStoreKafkaStreamsImplSettings(testConsumerGroupName, testAggregateName)
+            AggregateStateStoreKafkaStreamsImplSettings(testConsumerGroupName, testAggregateName, "")
               .copy(brokers = Seq(s"localhost:${actualConfig.kafkaPort}"))
         }
 

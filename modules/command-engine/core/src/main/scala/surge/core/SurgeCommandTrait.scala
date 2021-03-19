@@ -28,14 +28,15 @@ abstract class SurgeCommandImpl[Agg, Command, Event](
 
   private val stateChangeActor = system.actorOf(KafkaConsumerStateTrackingActor.props)
   private val kafkaStreamsImpl = new AggregateStateStoreKafkaStreams[JsValue](
-    businessLogic.aggregateName,
-    businessLogic.kafka.stateTopic,
-    new KafkaStreamsPartitionTrackerActorProvider(stateChangeActor),
-    businessLogic.aggregateValidator,
-    applicationHostPort,
-    businessLogic.consumerGroup,
-    system,
-    businessLogic.metrics)
+    aggregateName = businessLogic.aggregateName,
+    stateTopic = businessLogic.kafka.stateTopic,
+    partitionTrackerProvider = new KafkaStreamsPartitionTrackerActorProvider(stateChangeActor),
+    aggregateValidator = businessLogic.aggregateValidator,
+    applicationHostPort = applicationHostPort,
+    consumerGroupName = businessLogic.kafka.consumerGroup,
+    clientId = businessLogic.kafka.clientId,
+    system = system,
+    metrics = businessLogic.metrics)
   private val cqrsRegionCreator = new CQRSPersistentActorRegionCreator[Agg, Command, Event](actorSystem, businessLogic,
     kafkaStreamsImpl, businessLogic.metrics)
   protected val actorRouter = new SurgePartitionRouter[Agg, Command, Event](actorSystem, stateChangeActor,

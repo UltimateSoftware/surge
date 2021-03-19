@@ -104,7 +104,10 @@ trait TestBoundedContext {
   private val kafkaConfig = SurgeCommandKafkaConfig(
     stateTopic = KafkaTopic("testStateTopic"),
     eventsTopic = KafkaTopic("testEventsTopic"),
-    publishStateOnly = false)
+    publishStateOnly = false,
+    consumerGroup = "count-aggregate-consumer-group-name",
+    clientId = "",
+    transactionalIdPrefix = "test-transaction-id-prefix")
 
   val readFormats: SurgeReadFormatting[State, BaseTestEvent] = new SurgeReadFormatting[State, BaseTestEvent] {
     override def readEvent(bytes: Array[Byte]): BaseTestEvent = {
@@ -133,7 +136,5 @@ trait TestBoundedContext {
       readFormatting = readFormats,
       writeFormatting = writeFormats,
       aggregateValidator = { (_, _, _) => true },
-      metrics = Metrics.globalMetricRegistry,
-      consumerGroup = "count-aggregate-consumer-group-name",
-      transactionalIdPrefix = "test-transaction-id-prefix")
+      metrics = Metrics.globalMetricRegistry)
 }

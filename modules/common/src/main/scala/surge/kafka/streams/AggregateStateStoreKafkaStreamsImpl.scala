@@ -49,6 +49,7 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
   val streamsConfig: Map[String, String] = baseStreamsConfig ++ Map(
     ConsumerConfig.ISOLATION_LEVEL_CONFIG -> "read_committed",
     ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG -> Integer.MAX_VALUE.toString,
+    StreamsConfig.CLIENT_ID_CONFIG -> settings.clientId,
     StreamsConfig.COMMIT_INTERVAL_MS_CONFIG -> settings.commitInterval.toString,
     StreamsConfig.NUM_STANDBY_REPLICAS_CONFIG -> settings.standByReplicas.toString,
     StreamsConfig.TOPOLOGY_OPTIMIZATION_CONFIG -> StreamsConfig.OPTIMIZE,
@@ -203,6 +204,7 @@ private[streams] object AggregateStateStoreKafkaStreamsImpl {
       brokers: Seq[String],
       consumerConfig: UltiKafkaConsumerConfig,
       applicationId: String,
+      clientId: String,
       cacheMemory: Long,
       standByReplicas: Int,
       commitInterval: Int,
@@ -210,7 +212,7 @@ private[streams] object AggregateStateStoreKafkaStreamsImpl {
       clearStateOnStartup: Boolean) extends KafkaStreamSettings
 
   object AggregateStateStoreKafkaStreamsImplSettings {
-    def apply(consumerGroupName: String, aggregateName: String): AggregateStateStoreKafkaStreamsImplSettings = {
+    def apply(consumerGroupName: String, aggregateName: String, clientId: String): AggregateStateStoreKafkaStreamsImplSettings = {
       val config = ConfigFactory.load()
       val aggregateStateStoreName: String = s"${aggregateName}AggregateStateStore"
       val brokers = config.getString("kafka.brokers").split(",").toVector
@@ -230,6 +232,7 @@ private[streams] object AggregateStateStoreKafkaStreamsImpl {
         brokers = brokers,
         consumerConfig = consumerConfig,
         applicationId = applicationId,
+        clientId = clientId,
         cacheMemory = cacheMemory,
         standByReplicas = standbyReplicas,
         commitInterval = commitInterval,

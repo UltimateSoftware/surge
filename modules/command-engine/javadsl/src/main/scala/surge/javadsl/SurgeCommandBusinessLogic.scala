@@ -35,12 +35,16 @@ abstract class SurgeCommandBusinessLogic[AggId, Agg, Command, Event] {
 
   def metrics: Metrics = Metrics.globalMetricRegistry
 
-  private def kafkaConfig = SurgeCommandKafkaConfig(stateTopic = stateTopic, eventsTopic = eventsTopic, publishStateOnly = publishStateOnly)
+  private def kafkaConfig = SurgeCommandKafkaConfig(stateTopic = stateTopic, eventsTopic = eventsTopic,
+    publishStateOnly = publishStateOnly, consumerGroup = consumerGroupBase, clientId = streamsClientId,
+    transactionalIdPrefix = transactionalIdPrefix)
 
   def consumerGroupBase: String = {
     val environment = config.getString("app.environment")
     s"$aggregateName-$environment-command"
   }
+
+  def streamsClientId: String = ""
 
   def transactionalIdPrefix: String = "surge-transactional-event-producer-partition"
 
@@ -56,8 +60,6 @@ object SurgeCommandBusinessLogic {
       writeFormatting = businessLogic.writeFormatting,
       readFormatting = businessLogic.readFormatting,
       aggregateValidator = (key, agg, prevAgg) => businessLogic.aggregateValidator(key, agg, prevAgg.asJava),
-      consumerGroup = businessLogic.consumerGroupBase,
-      transactionalIdPrefix = businessLogic.transactionalIdPrefix,
       metrics = businessLogic.metrics)
   }
 }
