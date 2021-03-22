@@ -4,7 +4,8 @@ package surge.core
 
 import io.opentracing.mock.MockTracer
 import play.api.libs.json._
-import surge.domain.{ AggregateCommandModel, CommandProcessor }
+import surge.internal.domain.CommandProcessor
+import surge.internal.domain.AggregateCommandModel
 import surge.internal.utils.JsonFormats
 import surge.kafka.KafkaTopic
 import surge.metrics.Metrics

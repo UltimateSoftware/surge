@@ -26,10 +26,6 @@ object Settings extends AutoPlugin {
   )
 
   val gearsToolsMavenRelease = "gears-tools-maven-release" at "https://artifactory.mia.ulti.io/artifactory/gt-maven-libs-release/"
-  private val nuLocalArtifactory = "ucartifactory.mia.ucloud.int" at "https://artifactory.mia.ulti.io/artifactory/ultimate-nu-local"
-  // Mulesoft resolver needed for org.everit.json.schema:1.9.2, which is pulled in by one of the mp libraries
-  private val mulesoft = "multsoft" at "https://repository.mulesoft.org/nexus/content/repositories/public/"
-  private val globalSecurityArtifactory = "globalsecurity-maven-prod" at "https://artifactory.mia.ulti.io/artifactory/globalsecurity-maven-prod"
 
   override def trigger: PluginTrigger = allRequirements
 
@@ -38,7 +34,7 @@ object Settings extends AutoPlugin {
       if (isSnapshot.value) {
         Some("artifactory.mia.ulti.io-gt-snapshots" at "https://artifactory.mia.ulti.io/artifactory/gt-maven-libs-snapshot")
       } else {
-        Some(gearsToolsMavenRelease)
+        Some("gears-tools-maven-release" at "https://artifactory.mia.ulti.io/artifactory/gt-maven-libs-release/")
       }
     },
     publishMavenStyle := true,
@@ -53,8 +49,6 @@ object Settings extends AutoPlugin {
       "-unchecked",
       "-deprecation",
       "-feature"
-    ),
-
-    resolvers ++= Seq(gearsToolsMavenRelease, nuLocalArtifactory, mulesoft, globalSecurityArtifactory)
+    )
   )
 }

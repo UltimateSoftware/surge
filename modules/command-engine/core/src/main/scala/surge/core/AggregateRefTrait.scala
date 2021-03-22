@@ -75,14 +75,14 @@ trait AggregateRefTrait[AggId, Agg, Cmd, Event] extends SpanSupport {
    *         state of the business logic aggregate after handling the command and applying any events
    *         that resulted from the command.
    */
-  protected def askWithRetries(
+  protected def sendCommandWithRetries(
     envelope: CQRSPersistentActor.CommandEnvelope[Cmd],
     retriesRemaining: Int = 0)(implicit ec: ExecutionContext): Future[Either[Throwable, Option[Agg]]] = {
     val askSpan = createSpan("send_command_to_aggregate").setTag("aggregateId", aggregateId.toString)
     (region ? TracedMessage(tracer, envelope, askSpan)).map(interpretActorResponse(askSpan)).recoverWith {
       case _: Throwable if retriesRemaining > 0 =>
         log.warn("Ask timed out to aggregate actor region, retrying request...")
-        askWithRetries(envelope, retriesRemaining - 1)
+        sendCommandWithRetries(envelope, retriesRemaining - 1)
       case a: AskTimeoutException =>
         val msg = s"Ask timed out after $askTimeoutDuration to aggregate actor with id ${envelope.aggregateId} executing command " +
           s"${envelope.command.getClass.getName}. This is typically a result of other parts of the engine performing incorrectly or " +

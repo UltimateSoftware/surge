@@ -8,7 +8,6 @@ import com.typesafe.config.ConfigFactory
 import io.opentracing.Tracer
 import io.opentracing.noop.NoopTracerFactory
 import surge.core.{ SurgeAggregateReadFormatting, SurgeCommandKafkaConfig, SurgeWriteFormatting }
-import surge.domain.AggregateCommandModel
 import surge.kafka.KafkaTopic
 import surge.metrics.Metrics
 
@@ -60,7 +59,7 @@ object SurgeCommandBusinessLogic {
     new surge.core.SurgeCommandBusinessLogic[Agg, Command, Event](
       aggregateName = businessLogic.aggregateName,
       kafka = businessLogic.kafkaConfig,
-      model = businessLogic.commandModel,
+      model = businessLogic.commandModel.toCore,
       writeFormatting = businessLogic.writeFormatting,
       readFormatting = businessLogic.readFormatting,
       aggregateValidator = (key, agg, prevAgg) => businessLogic.aggregateValidator(key, agg, prevAgg.asJava),

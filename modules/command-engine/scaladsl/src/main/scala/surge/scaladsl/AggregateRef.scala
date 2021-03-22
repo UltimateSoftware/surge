@@ -10,7 +10,7 @@ import surge.internal.persistence.cqrs.CQRSPersistentActor
 import scala.concurrent.{ ExecutionContext, Future }
 
 trait AggregateRef[Agg, Cmd, Event] {
-  def ask(command: Cmd)(implicit ec: ExecutionContext): Future[CommandResult[Agg]]
+  def sendCommand(command: Cmd)(implicit ec: ExecutionContext): Future[CommandResult[Agg]]
   def getState(implicit ec: ExecutionContext): Future[Option[Agg]]
   def applyEvent(event: Event)(implicit ec: ExecutionContext): Future[ApplyEventResult[Agg]]
 }
@@ -21,9 +21,9 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event](
     val tracer: Tracer) extends AggregateRef[Agg, Cmd, Event]
   with AggregateRefTrait[AggId, Agg, Cmd, Event] {
 
-  def ask(command: Cmd)(implicit ec: ExecutionContext): Future[CommandResult[Agg]] = {
+  def sendCommand(command: Cmd)(implicit ec: ExecutionContext): Future[CommandResult[Agg]] = {
     val envelope = CQRSPersistentActor.CommandEnvelope[Cmd](aggregateId.toString, command)
-    askWithRetries(envelope).map {
+    sendCommandWithRetries(envelope).map {
       case Left(error) =>
         CommandFailure(error)
       case Right(aggOpt) =>

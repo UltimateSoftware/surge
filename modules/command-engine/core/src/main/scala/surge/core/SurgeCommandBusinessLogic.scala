@@ -3,7 +3,7 @@
 package surge.core
 
 import io.opentracing.Tracer
-import surge.domain.AggregateCommandModel
+import surge.internal.domain.AggregateCommandModel
 import surge.kafka.{ KafkaPartitioner, KafkaTopic, PartitionStringUpToColon }
 import surge.metrics.Metrics
 

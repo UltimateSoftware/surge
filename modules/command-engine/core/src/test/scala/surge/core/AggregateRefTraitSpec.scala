@@ -24,9 +24,9 @@ class AggregateRefTraitSpec extends TestKit(ActorSystem("AggregateRefTraitSpec")
     override val region: ActorRef = system.actorOf(Props(new ProbeWithTraceSupport(regionTestProbe, mockTracer)))
     override val tracer: Tracer = mockTracer
 
-    def ask(command: String, retries: Int = 0): Future[Either[Throwable, Option[Person]]] = {
+    def sendCommand(command: String, retries: Int = 0): Future[Either[Throwable, Option[Person]]] = {
       val envelope = CQRSPersistentActor.CommandEnvelope(aggregateId, command)
-      askWithRetries(envelope, retries)
+      sendCommandWithRetries(envelope, retries)
     }
     def applyEvent(event: String, retries: Int = 0): Future[Option[Person]] = {
       val envelope = CQRSPersistentActor.ApplyEventEnvelope(aggregateId, event)
@@ -62,27 +62,27 @@ class AggregateRefTraitSpec extends TestKit(ActorSystem("AggregateRefTraitSpec")
       }
     }
 
-    "Handle asks to the underlying aggregate" in {
+    "Handle sending commands to the underlying aggregate" in {
       val testProbe1 = TestProbe()
       val aggregateRef1 = TestAggregateRef(testPerson1.name, testProbe1)
-      val testPerson1StateFut = aggregateRef1.ask("Command1")
+      val testPerson1StateFut = aggregateRef1.sendCommand("Command1")
       testProbe1.expectMsg(CQRSPersistentActor.CommandEnvelope(testPerson1.name, "Command1"))
       testProbe1.reply(CQRSPersistentActor.CommandSuccess(Some(testPerson1)))
 
       val testProbe2 = TestProbe()
       val aggregateRef2 = TestAggregateRef(testPerson2.name, testProbe2)
-      val testPerson2StateFut = aggregateRef2.ask("Command2")
+      val testPerson2StateFut = aggregateRef2.sendCommand("Command2")
       testProbe2.expectMsg(CQRSPersistentActor.CommandEnvelope(testPerson2.name, "Command2"))
       testProbe2.reply(CQRSPersistentActor.CommandSuccess(None))
 
       val errorProbe = TestProbe()
       val expectedException = new RuntimeException("This is expected")
-      val testErrorResponseFut = TestAggregateRef("error", errorProbe).ask("Command4")
+      val testErrorResponseFut = TestAggregateRef("error", errorProbe).sendCommand("Command4")
       errorProbe.expectMsg(CQRSPersistentActor.CommandEnvelope("error", "Command4"))
       errorProbe.reply(CQRSPersistentActor.CommandError(expectedException))
 
       val garbageProbe = TestProbe()
-      val testGarbageResponseFut = TestAggregateRef("foo", garbageProbe).ask("Command5")
+      val testGarbageResponseFut = TestAggregateRef("foo", garbageProbe).sendCommand("Command5")
       garbageProbe.expectMsg(CQRSPersistentActor.CommandEnvelope("foo", "Command5"))
       garbageProbe.reply("Not a person object")
 
