@@ -15,9 +15,11 @@ import akka.stream.scaladsl.{ Flow, RestartSource, Sink }
 import akka.util.Timeout
 import akka.{ Done, NotUsed }
 import com.typesafe.config.ConfigFactory
+import io.opentracing.Tracer
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.{ Metric, MetricName }
-import org.slf4j.LoggerFactory
+import org.slf4j.{ LoggerFactory, MDC }
+import surge.internal.akka.ActorWithTracing
 import surge.internal.akka.cluster.{ ActorHostAwareness, ActorRegistry, ActorSystemHostAwareness }
 import surge.internal.kafka.{ HeadersHelper, HostAwareCooperativeStickyAssignor, HostAwareRangeAssignor, HostAwarenessConfig }
 import surge.internal.utils.Logging
@@ -54,15 +56,29 @@ object KafkaStreamManager {
   def apply[Key, Value](topic: KafkaTopic, consumerSettings: ConsumerSettings[Key, Value],
     replayStrategy: EventReplayStrategy,
     replaySettings: EventReplaySettings,
-    business: Flow[EventPlusStreamMeta[Key, Value, KafkaStreamMeta], KafkaStreamMeta, NotUsed])(implicit
+    business: Flow[EventPlusStreamMeta[Key, Value, KafkaStreamMeta], KafkaStreamMeta, NotUsed], tracer: Tracer)(implicit
     actorSystem: ActorSystem,
     ec: ExecutionContext): KafkaStreamManager[Key, Value] = {
     val subscription = Subscriptions.topics(topic.name)
+    val contextToPropagate = MDC.getCopyOfContextMap
+
     val businessFlow = Flow[ConsumerMessage.CommittableMessage[Key, Value]].map { msg =>
+      Option(contextToPropagate).foreach(contextToPropagate => MDC.setContextMap(contextToPropagate))
+
       val kafkaMeta = KafkaStreamMeta(msg.record.topic(), msg.record.partition(), msg.record.offset(), msg.committableOffset)
+
+      // Set kafka bits
+      MDC.put("kafka.topic", kafkaMeta.topic)
+      MDC.put("kafka.partition", kafkaMeta.partition.toString)
+      MDC.put("kafka.offset", kafkaMeta.offset.toString)
       EventPlusStreamMeta(msg.record.key, msg.record.value, kafkaMeta, HeadersHelper.unapplyHeaders(msg.record.headers()))
-    }.via(business)
-    new KafkaStreamManager[Key, Value](subscription, topic.name, consumerSettings, replayStrategy, replaySettings, businessFlow)
+    }.via(business).map(meta => {
+      // Todo: Do we need to clear the context map here?
+      MDC.clear()
+      meta
+    })
+    new KafkaStreamManager[Key, Value](subscription, topic.name, consumerSettings,
+      replayStrategy, replaySettings, businessFlow, tracer)
   }
 }
 
@@ -70,13 +86,15 @@ class KafkaStreamManager[Key, Value](
     subscription: Subscription, topicName: String, consumerSettings: ConsumerSettings[Key, Value],
     replayStrategy: EventReplayStrategy,
     replaySettings: EventReplaySettings,
-    businessFlow: Flow[ConsumerMessage.CommittableMessage[Key, Value], KafkaStreamMeta, NotUsed])(implicit val actorSystem: ActorSystem)
-  extends ActorSystemHostAwareness with Logging {
+    businessFlow: Flow[ConsumerMessage.CommittableMessage[Key, Value], KafkaStreamMeta, NotUsed],
+    val tracer: Tracer)(implicit val actorSystem: ActorSystem)
+  extends ActorSystemHostAwareness
+  with Logging {
 
   private val config = ConfigFactory.load()
   private val metricFetchTimeout = config.getDuration("surge.kafka-event-source.kafka-metric-fetch-timeout").toMillis.milliseconds
   private val consumerGroup = consumerSettings.getProperty(ConsumerConfig.GROUP_ID_CONFIG)
-  private[streams] val managerActor = actorSystem.actorOf(Props(new KafkaStreamManagerActor(subscription, topicName, consumerSettings, businessFlow)))
+  private[streams] val managerActor = actorSystem.actorOf(Props(new KafkaStreamManagerActor(subscription, topicName, consumerSettings, businessFlow, tracer)))
   private[streams] val replayCoordinator = actorSystem.actorOf(Props(new ReplayCoordinator(topicName, consumerGroup, replayStrategy)))
 
   def start(): KafkaStreamManager[Key, Value] = {
@@ -129,7 +147,8 @@ object KafkaStreamManagerActor {
   case object SuccessfullyStarted extends KafkaStreamManagerActorEvent
 }
 class KafkaStreamManagerActor[Key, Value](subscription: Subscription, topicName: String, baseConsumerSettings: ConsumerSettings[Key, Value],
-    businessFlow: Flow[ConsumerMessage.CommittableMessage[Key, Value], KafkaStreamMeta, NotUsed]) extends Actor
+    businessFlow: Flow[ConsumerMessage.CommittableMessage[Key, Value], KafkaStreamMeta, NotUsed], val tracer: Tracer) extends Actor
+  with ActorWithTracing
   with ActorHostAwareness with Stash with ActorRegistry with Logging {
   import KafkaStreamManagerActor._
   import context.{ dispatcher, system }

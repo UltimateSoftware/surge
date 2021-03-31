@@ -8,6 +8,8 @@ import akka.Done
 import akka.actor.ActorSystem
 import akka.kafka.ConsumerSettings
 import akka.testkit.{ TestKit, TestProbe }
+import io.opentracing.Tracer
+import io.opentracing.noop.NoopTracerFactory
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.producer.ProducerRecord
@@ -41,6 +43,7 @@ class KafkaEventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with 
       override def kafkaTopic: KafkaTopic = topic
       override def formatting: SurgeEventReadFormatting[String] = bytes => new String(bytes)
       override def actorSystem: ActorSystem = system
+      override def tracer: Tracer = NoopTracerFactory.create()
     }
   }
 

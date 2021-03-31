@@ -7,7 +7,7 @@ import java.util.UUID
 import com.typesafe.config.ConfigFactory
 import surge.metrics.Metrics
 import surge.streams.DataPipeline
-import surge.streams.DataPipeline.{ ReplayResult, ReplaySuccessfullyStarted }
+import surge.streams.DataPipeline.ReplayResult
 
 import scala.concurrent.Future
 import scala.jdk.CollectionConverters._

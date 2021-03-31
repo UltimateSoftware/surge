@@ -7,6 +7,8 @@ import java.util.Properties
 import akka.actor.ActorSystem
 import akka.kafka.ConsumerSettings
 import com.typesafe.config.{ Config, ConfigFactory }
+import io.opentracing.Tracer
+import io.opentracing.noop.NoopTracerFactory
 import org.apache.kafka.common.serialization.Deserializer
 import surge.internal.akka.kafka.AkkaKafkaConsumer
 import surge.internal.streams.{ KafkaStreamManager, ManagedDataPipeline }
@@ -36,6 +38,8 @@ trait KafkaDataSource[Key, Value] extends DataSource {
 
   def metrics: Metrics = Metrics.globalMetricRegistry
 
+  def tracer: Tracer = NoopTracerFactory.create()
+
   def additionalKafkaProperties: Properties = new Properties()
 
   def to(sink: DataHandler[Key, Value], consumerGroup: String): DataPipeline = {
@@ -52,7 +56,7 @@ trait KafkaDataSource[Key, Value] extends DataSource {
   private[streams] def to(consumerSettings: ConsumerSettings[Key, Value])(sink: DataHandler[Key, Value], autoStart: Boolean): DataPipeline = {
     implicit val system: ActorSystem = actorSystem
     implicit val executionContext: ExecutionContext = ExecutionContext.global
-    val pipeline = new ManagedDataPipeline(KafkaStreamManager(kafkaTopic, consumerSettings, replayStrategy, replaySettings, sink.dataHandler), metrics)
+    val pipeline = new ManagedDataPipeline(KafkaStreamManager(kafkaTopic, consumerSettings, replayStrategy, replaySettings, sink.dataHandler, tracer), metrics)
     if (autoStart) {
       pipeline.start()
     }

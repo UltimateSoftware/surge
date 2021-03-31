@@ -18,7 +18,6 @@ import surge.streams.DataPipeline.ReplaySuccessfullyStarted
 import surge.core.SurgeEventReadFormatting
 import surge.streams.{ DataPipeline, EventSink }
 
-import scala.collection.mutable
 import scala.concurrent.duration._
 import scala.concurrent.{ Await, Future }
 import scala.jdk.CollectionConverters._
