@@ -49,6 +49,7 @@ object Settings extends AutoPlugin {
       "-unchecked",
       "-deprecation",
       "-feature"
-    )
+    ),
+    resolvers ++= Seq(gearsToolsMavenRelease)
   )
 }
