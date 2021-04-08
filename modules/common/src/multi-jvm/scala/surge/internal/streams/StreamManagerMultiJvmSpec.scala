@@ -20,6 +20,7 @@ import surge.kafka.KafkaTopic
 import surge.kafka.streams.DefaultSerdes
 import surge.streams.EventPlusStreamMeta
 import surge.streams.replay.{ DefaultEventReplaySettings, KafkaForeverReplaySettings, KafkaForeverReplayStrategy, NoOpEventReplayStrategy }
+import io.opentracing.noop.NoopTracerFactory
 
 import scala.concurrent.duration._
 
@@ -58,7 +59,7 @@ class StreamManagerSpecBase extends MultiNodeSpec(StreamManagerSpecConfig) with 
     "Replay a topic in a cluster environment" in {
       implicit val stringSerializer: Serializer[String] = DefaultSerdes.stringSerde.serializer()
       // FIXME: try to use dynamically allocated Embedded Kafka ports
-      implicit val config = EmbeddedKafkaConfig(kafkaPort = 9092, zooKeeperPort = 9093)
+      implicit val config: EmbeddedKafkaConfig = EmbeddedKafkaConfig(kafkaPort = 9092, zooKeeperPort = 9093)
       implicit val stringDeserializer: Deserializer[String] = DefaultSerdes.stringSerde.deserializer()
       implicit val byteDeserializer: Deserializer[Array[Byte]] = DefaultSerdes.byteArraySerde.deserializer()
       val topicName = "testTopic5"
@@ -93,7 +94,8 @@ class StreamManagerSpecBase extends MultiNodeSpec(StreamManagerSpecConfig) with 
 
           val probe = TestProbe()
           import probe.system.dispatcher
-          val consumer = KafkaStreamManager(topic, consumerSettings, kafkaForeverReplayStrategy, replaySettings, sendToTestProbe(probe))
+          val consumer = KafkaStreamManager(topic, consumerSettings, kafkaForeverReplayStrategy, replaySettings, sendToTestProbe(probe),
+            NoopTracerFactory.create())
           consumer.start()
           probe.expectMsgAnyOf(20.seconds, record1, record2)
           consumer.replay()
@@ -104,7 +106,8 @@ class StreamManagerSpecBase extends MultiNodeSpec(StreamManagerSpecConfig) with 
       runOn(node1) {
          val probe = TestProbe()
         import probe.system.dispatcher
-         val consumer = KafkaStreamManager(topic, consumerSettings, NoOpEventReplayStrategy, DefaultEventReplaySettings, sendToTestProbe(probe))
+         val consumer = KafkaStreamManager(topic, consumerSettings, NoOpEventReplayStrategy, DefaultEventReplaySettings, sendToTestProbe(probe),
+           NoopTracerFactory.create())
          consumer.start()
          probe.expectMsgAnyOf(20.seconds, record1, record2)
          enterBarrier("afterReplay")
