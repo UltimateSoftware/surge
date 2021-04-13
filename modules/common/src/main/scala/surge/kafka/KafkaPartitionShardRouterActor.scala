@@ -7,8 +7,10 @@ import java.time.Instant
 import akka.actor._
 import akka.pattern._
 import com.typesafe.config.{ Config, ConfigFactory }
+import io.opentracing.Tracer
 import org.apache.kafka.common.TopicPartition
 import org.slf4j.{ Logger, LoggerFactory }
+import surge.internal.akka.ActorWithTracing
 import surge.internal.akka.cluster.{ ActorHostAwareness, Shard }
 import surge.internal.akka.kafka.KafkaConsumerStateTrackingActor
 import surge.internal.config.TimeoutConfig
@@ -28,11 +30,12 @@ object KafkaPartitionShardRouterActor {
     partitioner: KafkaPartitioner[String],
     trackedTopic: KafkaTopic,
     regionCreator: PersistentActorRegionCreator[String],
-    extractEntityId: PartialFunction[Any, String]): Props = {
+    extractEntityId: PartialFunction[Any, String],
+    tracer: Tracer): Props = {
 
     // This producer is only used for determining partition assignments, not actually producing
     val producer = KafkaBytesProducer(brokers, trackedTopic, partitioner)
-    Props(new KafkaPartitionShardRouterActor(partitionTracker, producer, regionCreator, extractEntityId))
+    Props(new KafkaPartitionShardRouterActor(partitionTracker, producer, regionCreator, extractEntityId, tracer))
   }
   case object GetPartitionRegionAssignments
 }
@@ -68,7 +71,8 @@ class KafkaPartitionShardRouterActor(
     partitionTracker: ActorRef,
     kafkaStateProducer: KafkaProducerTrait[String, _],
     regionCreator: PersistentActorRegionCreator[String],
-    extractEntityId: PartialFunction[Any, String]) extends Actor with Stash with ActorHostAwareness {
+    extractEntityId: PartialFunction[Any, String],
+    override val tracer: Tracer) extends ActorWithTracing with Stash with ActorHostAwareness {
 
   import KafkaPartitionShardRouterActor._
   import context.dispatcher

@@ -4,6 +4,7 @@ package surge.kafka
 
 import akka.actor.{ Actor, ActorContext, ActorSystem, DeadLetter, Props }
 import akka.testkit.{ TestKit, TestProbe }
+import io.opentracing.noop.NoopTracerFactory
 import org.apache.kafka.common.TopicPartition
 import org.mockito.ArgumentMatchers.anyString
 import org.mockito.Mockito.when
@@ -15,6 +16,7 @@ import surge.akka.cluster.{ EntityPropsProvider, PerShardLogicProvider }
 import surge.internal.akka.cluster.ActorSystemHostAwareness
 import surge.internal.akka.kafka.KafkaConsumerStateTrackingActor
 import surge.kafka.streams.{ HealthCheck, HealthCheckStatus }
+import surge.tracing.TracedMessage
 
 import scala.concurrent.Future
 
@@ -43,7 +45,7 @@ trait KafkaPartitionShardRouterActorSpecLike extends MockitoSugar {
   implicit val system: ActorSystem
 
   val partitionAssignments: Map[HostPort, List[TopicPartition]]
-
+  private val tracer = NoopTracerFactory.create()
   private val trackedTopic = KafkaTopic("test")
 
   private val partitionMappings = Map(
@@ -77,7 +79,7 @@ trait KafkaPartitionShardRouterActorSpecLike extends MockitoSugar {
       partitionTracker = partitionProbe.ref,
       kafkaStateProducer = producer,
       regionCreator = new ProbeInterceptorRegionCreator(regionProbe),
-      extractEntityId = extractEntityId))
+      extractEntityId = extractEntityId, tracer))
 
     TestContext(partitionProbe = partitionProbe, regionProbe = regionProbe, shardRouterProps = shardRouterProps)
   }
@@ -102,6 +104,28 @@ class KafkaPartitionShardRouterActorSpec extends TestKit(ActorSystem("KafkaParti
     hostPort2 -> List(partition2))
 
   "KafkaPartitionShardRouterActor" should {
+    "Handle updates to partition assignments using TracedMessages" in {
+      val testContext = setupTestContext()
+      val probe = TestProbe()
+      import testContext._
+
+      val routerActor = system.actorOf(shardRouterProps, "TracedMessage_RouterActorUpdatedPartitionsTest")
+
+      initializePartitionAssignments(partitionProbe)
+
+      val newPartitionAssignments = Map[HostPort, List[TopicPartition]](
+        hostPort1 -> List(partition0, partition1, partition2),
+        hostPort2 -> List())
+
+      partitionProbe.send(routerActor, TracedMessage(PartitionAssignments(newPartitionAssignments), Map[String, String]()))
+
+      val command = Command("partition2")
+      probe.send(routerActor, TracedMessage(command, Map[String, String]()))
+      regionProbe.expectMsg(WrappedCmd(partition2, command))
+      regionProbe.reply(command)
+      probe.expectMsg(command)
+    }
+
     "Handle updates to partition assignments" in {
       val testContext = setupTestContext()
       val probe = TestProbe()
@@ -124,6 +148,24 @@ class KafkaPartitionShardRouterActorSpec extends TestKit(ActorSystem("KafkaParti
       probe.expectMsg(command)
     }
 
+    "Stash traced messages before initialized" in {
+      val testContext = setupTestContext()
+      val probe = TestProbe()
+      import testContext._
+      val routerActor = system.actorOf(shardRouterProps)
+
+      initializePartitionAssignments(partitionProbe, Map.empty)
+
+      val command0 = Command("partition0")
+      probe.send(routerActor, TracedMessage(command0, Map[String, String]()))
+
+      partitionProbe.send(routerActor, PartitionAssignments(partitionAssignments))
+
+      regionProbe.expectMsg(WrappedCmd(partition0, command0))
+      regionProbe.reply(command0)
+      probe.expectMsg(command0)
+    }
+
     "Stash messages before initialized" in {
       val testContext = setupTestContext()
       val probe = TestProbe()
@@ -140,6 +182,24 @@ class KafkaPartitionShardRouterActorSpec extends TestKit(ActorSystem("KafkaParti
       regionProbe.expectMsg(WrappedCmd(partition0, command0))
       regionProbe.reply(command0)
       probe.expectMsg(command0)
+    }
+
+    "Send traced messages that can't be routed to dead letters" in {
+      val testContext = setupTestContext()
+      import testContext._
+
+      val deadLetterProbe = TestProbe()
+      system.eventStream.subscribe(deadLetterProbe.ref, classOf[DeadLetter])
+      val routerActor = system.actorOf(shardRouterProps)
+
+      initializePartitionAssignments(partitionProbe)
+
+      routerActor ! TracedMessage(ThrowExceptionInExtractEntityId, Map[String, String]())
+
+      val dead = deadLetterProbe.expectMsgType[DeadLetter]
+      dead.message shouldEqual ThrowExceptionInExtractEntityId
+      dead.sender shouldEqual routerActor
+      dead.recipient shouldEqual system.deadLetters
     }
 
     "Send messages that can't be routed to dead letters" in {

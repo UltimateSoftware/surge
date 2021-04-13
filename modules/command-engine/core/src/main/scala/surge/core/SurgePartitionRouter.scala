@@ -21,7 +21,7 @@ private[surge] final class SurgePartitionRouter[Agg, Command, Event](
 
   val actorRegion: ActorRef = {
     val shardRouterProps = KafkaPartitionShardRouterActor.props(clusterStateTrackingActor, businessLogic.partitioner, businessLogic.kafka.stateTopic,
-      regionCreator, RoutableMessage.extractEntityId)
+      regionCreator, RoutableMessage.extractEntityId, businessLogic.tracer)
     val actorName = s"${businessLogic.aggregateName}RouterActor"
     system.actorOf(shardRouterProps, name = actorName)
   }

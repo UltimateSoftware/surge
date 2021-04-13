@@ -8,6 +8,7 @@ import akka.remote.testkit.{ MultiNodeConfig, MultiNodeSpec, MultiNodeSpecCallba
 import akka.stream.scaladsl.Flow
 import akka.testkit.TestProbe
 import com.typesafe.config.{ Config, ConfigFactory }
+import io.opentracing.Tracer
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.serialization.{ Deserializer, Serializer }
@@ -53,6 +54,7 @@ class StreamManagerSpecBase extends MultiNodeSpec(StreamManagerSpecConfig) with 
   with EmbeddedKafka with ScalaFutures with OptionValues {
   import StreamManagerSpecConfig._
 
+  val tracer: Tracer = NoopTracerFactory.create()
   override def initialParticipants: Int = roles.size
 
   "StreamManagerSpec" should {
@@ -94,8 +96,8 @@ class StreamManagerSpecBase extends MultiNodeSpec(StreamManagerSpecConfig) with 
 
           val probe = TestProbe()
           import probe.system.dispatcher
-          val consumer = KafkaStreamManager(topic, consumerSettings, kafkaForeverReplayStrategy, replaySettings, sendToTestProbe(probe),
-            NoopTracerFactory.create())
+          val consumer = KafkaStreamManager(topic, consumerSettings, kafkaForeverReplayStrategy, replaySettings, sendToTestProbe(probe), tracer)
+
           consumer.start()
           probe.expectMsgAnyOf(20.seconds, record1, record2)
           consumer.replay()
@@ -104,14 +106,14 @@ class StreamManagerSpecBase extends MultiNodeSpec(StreamManagerSpecConfig) with 
       }
 
       runOn(node1) {
-         val probe = TestProbe()
+        val probe = TestProbe()
         import probe.system.dispatcher
-         val consumer = KafkaStreamManager(topic, consumerSettings, NoOpEventReplayStrategy, DefaultEventReplaySettings, sendToTestProbe(probe),
-           NoopTracerFactory.create())
-         consumer.start()
-         probe.expectMsgAnyOf(20.seconds, record1, record2)
-         enterBarrier("afterReplay")
-         probe.expectMsgAnyOf(40.seconds, record1, record2)
+        val consumer = KafkaStreamManager(topic, consumerSettings, NoOpEventReplayStrategy, DefaultEventReplaySettings, sendToTestProbe(probe), tracer)
+
+        consumer.start()
+        probe.expectMsgAnyOf(20.seconds, record1, record2)
+        enterBarrier("afterReplay")
+        probe.expectMsgAnyOf(40.seconds, record1, record2)
       }
     }
   }
