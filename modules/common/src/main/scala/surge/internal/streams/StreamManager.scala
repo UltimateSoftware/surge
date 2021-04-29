@@ -20,7 +20,7 @@ import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.{ Metric, MetricName }
 import org.slf4j.{ LoggerFactory, MDC }
 import surge.internal.akka.ActorWithTracing
-import surge.internal.akka.cluster.{ ActorHostAwareness, ActorRegistry, ActorSystemHostAwareness }
+import surge.internal.akka.cluster.{ ActorHostAwareness, ActorRegistrySupport, ActorSystemHostAwareness }
 import surge.internal.kafka.{ HeadersHelper, HostAwareCooperativeStickyAssignor, HostAwareRangeAssignor, HostAwarenessConfig }
 import surge.internal.utils.Logging
 import surge.kafka.KafkaTopic
@@ -149,7 +149,7 @@ object KafkaStreamManagerActor {
 class KafkaStreamManagerActor[Key, Value](subscription: Subscription, topicName: String, baseConsumerSettings: ConsumerSettings[Key, Value],
     businessFlow: Flow[ConsumerMessage.CommittableMessage[Key, Value], KafkaStreamMeta, NotUsed], val tracer: Tracer) extends Actor
   with ActorWithTracing
-  with ActorHostAwareness with Stash with ActorRegistry with Logging {
+  with ActorHostAwareness with Stash with ActorRegistrySupport with Logging {
   import KafkaStreamManagerActor._
   import context.{ dispatcher, system }
 

@@ -7,7 +7,7 @@
         </layout>
     </appender>
 
-    <logger name="com.ultimatesoftware" level="DEBUG" />
+    <logger name="surge" level="DEBUG" />
 
     <logger name="org.apache.kafka" level="WARN" />
 

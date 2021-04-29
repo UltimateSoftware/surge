@@ -5,7 +5,7 @@ package surge.internal.streams
 import akka.actor.{ Actor, ActorRef, Address }
 import akka.pattern.pipe
 import org.apache.kafka.common.TopicPartition
-import surge.internal.akka.cluster.{ ActorHostAwareness, ActorRegistry }
+import surge.internal.akka.cluster.{ ActorHostAwareness, ActorRegistrySupport }
 import surge.internal.kafka.HostAssignmentTracker
 import surge.internal.streams.KafkaStreamManagerActor.{ StartConsuming, SuccessfullyStopped }
 import surge.internal.utils.InlineReceive
@@ -37,7 +37,7 @@ private[streams] object ReplayCoordinator {
 class ReplayCoordinator(
     topicName: String,
     consumerGroup: String,
-    replayStrategy: EventReplayStrategy) extends Actor with ActorHostAwareness with ActorRegistry {
+    replayStrategy: EventReplayStrategy) extends Actor with ActorHostAwareness with ActorRegistrySupport {
   import ReplayCoordinator._
 
   import context.dispatcher

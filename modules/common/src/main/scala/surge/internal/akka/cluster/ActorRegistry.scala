@@ -6,6 +6,7 @@ import akka.Done
 import akka.actor.{ Actor, ActorPath, ActorRef, ActorSystem, Address, Props, Terminated }
 import akka.pattern.ask
 import akka.util.Timeout
+import org.slf4j.LoggerFactory
 import surge.akka.cluster.JacksonSerializable
 import surge.internal.akka.cluster.Receptionist._
 import surge.internal.config.TimeoutConfig
@@ -15,19 +16,21 @@ import surge.kafka.HostPort
 import scala.concurrent.{ ExecutionContext, Future }
 
 object Receptionist {
-  sealed trait ReceptionistCommand extends JacksonSerializable
-  case class RegisterService(key: String, actor: ActorRef, tags: List[String]) extends ReceptionistCommand
-  case class GetServicesById(key: String) extends ReceptionistCommand
-  case class ServicesList(address: Address, records: List[Record]) extends ReceptionistCommand
-  sealed trait ReceptionistEvent extends JacksonSerializable
-  case object ServiceRegistered extends ReceptionistEvent
+  sealed trait ReceptionistRequest extends JacksonSerializable
+  case class RegisterService(key: String, actor: ActorRef, tags: List[String]) extends ReceptionistRequest
+  case class GetServicesById(key: String) extends ReceptionistRequest
+
+  sealed trait ReceptionistResponse extends JacksonSerializable
+  case class ServicesList(address: Address, records: List[Record]) extends ReceptionistResponse
+  case object ServiceRegistered extends ReceptionistResponse
 
   case class Record(actorPath: String, tags: List[String] = List())
 }
 class Receptionist(systemAddress: Address) extends Actor {
+  private val log = LoggerFactory.getLogger(getClass)
   override def receive: Receive = registry(Map())
 
-  def registry(inventory: Map[String, List[Record]]): Receive = {
+  private def registry(inventory: Map[String, List[Record]]): Receive = {
     case RegisterService(key, actor, tags) =>
       context.watch(actor)
       val record = Record(actor.path.toString, tags)
@@ -37,11 +40,12 @@ class Receptionist(systemAddress: Address) extends Actor {
     case GetServicesById(key) =>
       sender() ! ServicesList(systemAddress, inventory.getOrElse(key, List()))
     case Terminated(ref) =>
+      log.debug("Receptionist saw actor at path [{}] terminate. Removing it from the inventory", ref.path)
       val newInventory = removeFromInventory(inventory, ref)
       context.become(registry(newInventory))
   }
 
-  def removeFromInventory(inventory: Map[String, List[Record]], actorToRemove: ActorRef): Map[String, List[Record]] = {
+  private def removeFromInventory(inventory: Map[String, List[Record]], actorToRemove: ActorRef): Map[String, List[Record]] = {
     inventory.map {
       case (key, list) =>
         val newList = list.filterNot(record => record.actorPath.equals(actorToRemove.path.toString))
@@ -51,16 +55,16 @@ class Receptionist(systemAddress: Address) extends Actor {
   }
 }
 
-trait ActorRegistry extends Logging with ActorSystemHostAwareness {
+trait ActorRegistrySupport extends Logging with ActorSystemHostAwareness {
 
   def actorSystem: ActorSystem
 
-  val receptionistActorName = "actor-registry"
-  lazy val receptionistLocalPath = s"akka://${actorSystem.name}/user/$receptionistActorName"
+  private val receptionistActorName = "actor-registry"
+  private lazy val receptionistLocalPath = s"akka://${actorSystem.name}/user/$receptionistActorName"
 
   implicit val askTimeout: Timeout = TimeoutConfig.ActorRegistry.askTimeout
 
-  private[cluster] def findReceptionist(path: String = receptionistLocalPath)(implicit executionContext: ExecutionContext): Future[Option[ActorRef]] = {
+  private def findReceptionist(path: String = receptionistLocalPath)(implicit executionContext: ExecutionContext): Future[Option[ActorRef]] = {
     actorSystem.actorSelection(path).resolveOne(TimeoutConfig.ActorRegistry.resolveActorTimeout).map(Some(_)).recoverWith {
       case _ if path equals receptionistLocalPath =>
         ActorPath.fromString(path)
@@ -75,14 +79,17 @@ trait ActorRegistry extends Logging with ActorSystemHostAwareness {
   def registerService(key: String, actor: ActorRef, tags: List[String] = List())(implicit executionContext: ExecutionContext): Future[Done] = {
     findReceptionist(receptionistLocalPath).flatMap {
       case Some(receptionist) =>
-        receptionist.ask(Receptionist.RegisterService(key, actor, tags)).mapTo[Done]
+        receptionist.ask(Receptionist.RegisterService(key, actor, tags)).map { _ =>
+          log.debug("Successfully registered actor for key {}", key)
+          Done
+        }
       case _ =>
         log.error("Actor Registry is not available for local services")
         Future.successful(Done)
     }
   }
 
-  private[cluster] def discoverRecords(key: String, queryActorSystems: List[HostPort])(implicit executionContext: ExecutionContext): Future[List[Record]] = {
+  private def discoverRecords(key: String, queryActorSystems: List[HostPort])(implicit executionContext: ExecutionContext): Future[List[Record]] = {
     findAllReceptionists(queryActorSystems).flatMap { receptionists =>
       Future.sequence(
         receptionists.map { actorRef =>
@@ -110,7 +117,7 @@ trait ActorRegistry extends Logging with ActorSystemHostAwareness {
     }.map(records => records.map(_.actorPath))
   }
 
-  private[cluster] def findAllReceptionists(
+  private def findAllReceptionists(
     queryActorSystems: List[HostPort])(implicit executionContext: ExecutionContext): Future[List[ActorRef]] = Future.sequence {
     queryActorSystems.map {
       case hostPort if isHostPortThisNode(hostPort) =>
@@ -121,3 +128,5 @@ trait ActorRegistry extends Logging with ActorSystemHostAwareness {
     }
   }.map(_.flatten)
 }
+
+class ActorRegistry(val actorSystem: ActorSystem) extends ActorRegistrySupport
