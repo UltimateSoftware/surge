@@ -107,7 +107,7 @@ trait TestBoundedContext {
     stateTopic = KafkaTopic("testStateTopic"),
     eventsTopic = KafkaTopic("testEventsTopic"),
     publishStateOnly = false,
-    consumerGroup = "count-aggregate-consumer-group-name",
+    streamsApplicationId = "count-aggregate-consumer-group-name",
     clientId = "",
     transactionalIdPrefix = "test-transaction-id-prefix")
 

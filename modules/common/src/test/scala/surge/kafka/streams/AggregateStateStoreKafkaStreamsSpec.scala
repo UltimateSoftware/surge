@@ -2,6 +2,8 @@
 
 package surge.kafka.streams
 
+import java.util.UUID
+
 import akka.actor.ActorSystem
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.common.serialization.StringSerializer
@@ -93,19 +95,19 @@ class AggregateStateStoreKafkaStreamsSpec
         val stateTopic: KafkaTopic = KafkaTopic(topicName)
 
         val testAggregateName = "test"
-        val testConsumerGroupName = "test-aggregate-consumer-group-name"
+        val appId = s"aggregate-streams-spec-${UUID.randomUUID()}"
         val aggStoreKafkaStreams = new AggregateStateStoreKafkaStreams[MockState](
           aggregateName = testAggregateName,
           stateTopic = stateTopic,
           partitionTrackerProvider = new MockPartitionTrackerProvider,
           aggregateValidator = mockValidator,
           applicationHostPort = Some("localhost:1234"),
-          consumerGroupName = testConsumerGroupName,
+          applicationId = appId,
           clientId = "",
           system,
           Metrics.globalMetricRegistry) {
           override lazy val settings: AggregateStateStoreKafkaStreamsImplSettings =
-            AggregateStateStoreKafkaStreamsImplSettings(testAggregateName, testConsumerGroupName, "")
+            AggregateStateStoreKafkaStreamsImplSettings(appId, testAggregateName, "")
               .copy(brokers = Seq(s"localhost:${actualConfig.kafkaPort}"))
         }
 
@@ -132,19 +134,19 @@ class AggregateStateStoreKafkaStreamsSpec
         val stateTopic: KafkaTopic = KafkaTopic(topicName)
 
         val testAggregateName = "test"
-        val testConsumerGroupName = "test-aggregate-consumer-group-name"
+        val appId = s"aggregate-streams-spec-${UUID.randomUUID()}"
         val aggStoreKafkaStreams = new AggregateStateStoreKafkaStreams[MockState](
           aggregateName = testAggregateName,
           stateTopic = stateTopic,
           partitionTrackerProvider = new MockPartitionTrackerProvider,
           aggregateValidator = mockValidatorWithAnError,
           applicationHostPort = Some("localhost:1234"),
-          consumerGroupName = testConsumerGroupName,
+          applicationId = appId,
           clientId = "",
           system,
           Metrics.globalMetricRegistry) {
           override lazy val settings: AggregateStateStoreKafkaStreamsImplSettings =
-            AggregateStateStoreKafkaStreamsImplSettings(testConsumerGroupName, testAggregateName, "")
+            AggregateStateStoreKafkaStreamsImplSettings(appId, testAggregateName, "")
               .copy(brokers = Seq(s"localhost:${actualConfig.kafkaPort}"))
         }
 

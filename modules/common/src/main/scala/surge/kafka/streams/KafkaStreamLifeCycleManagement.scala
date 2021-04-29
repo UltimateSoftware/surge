@@ -8,7 +8,6 @@ import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.streams.{ KafkaStreams, StreamsConfig }
 import surge.internal.config.TimeoutConfig
 import surge.internal.utils.{ InlineReceive, Logging }
-import surge.kafka.UltiKafkaConsumerConfig
 import surge.kafka.streams.HealthyActor.GetHealth
 import surge.kafka.streams.KafkaStreamLifeCycleManagement._
 import surge.kafka.streams.KafkaStreamsUncaughtExceptionHandler.KafkaStreamsUncaughtException
@@ -224,7 +223,6 @@ private[streams] object KafkaStreamLifeCycleManagement {
 private[streams] trait KafkaStreamSettings {
   val storeName: String
   val brokers: Seq[String]
-  val consumerConfig: UltiKafkaConsumerConfig
   val applicationId: String
   val cacheMemory: Long
   val clearStateOnStartup: Boolean

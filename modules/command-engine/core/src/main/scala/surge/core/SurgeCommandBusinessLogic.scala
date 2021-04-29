@@ -11,7 +11,7 @@ private[surge] case class SurgeCommandKafkaConfig(
     stateTopic: KafkaTopic,
     eventsTopic: KafkaTopic,
     publishStateOnly: Boolean,
-    consumerGroup: String,
+    streamsApplicationId: String,
     clientId: String,
     transactionalIdPrefix: String)
 

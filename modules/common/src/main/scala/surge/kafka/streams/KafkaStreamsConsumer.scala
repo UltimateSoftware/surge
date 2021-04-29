@@ -11,13 +11,12 @@ import org.apache.kafka.streams.scala.ImplicitConversions._
 import org.apache.kafka.streams.scala._
 import org.apache.kafka.streams.scala.kstream._
 import org.apache.kafka.streams.{ KafkaStreams, StreamsConfig, Topology }
-import surge.kafka.{ KafkaSecurityConfiguration, KafkaTopic, UltiKafkaConsumerConfig }
+import surge.kafka.{ KafkaSecurityConfiguration, KafkaTopic }
 import surge.kafka.streams.DefaultSerdes._
 
 abstract class KafkaStreamsConsumer[K, V](implicit keySerde: Serde[K], valueSerde: Serde[V]) extends KafkaSecurityConfiguration {
   def brokers: Seq[String]
   def applicationId: String
-  def consumerConfig: UltiKafkaConsumerConfig
   def kafkaConfig: Map[String, String]
 
   def applicationServerConfig: Option[String]
@@ -57,7 +56,6 @@ abstract class KafkaStreamsConsumer[K, V](implicit keySerde: Serde[K], valueSerd
 case class GenericKafkaStreamsConsumer[Value](
     brokers: Seq[String],
     applicationId: String,
-    consumerConfig: UltiKafkaConsumerConfig,
     kafkaConfig: Map[String, String],
     applicationServerConfig: Option[String] = None,
     topologyProps: Option[Properties] = None)(implicit valueSerde: Serde[Value]) extends KafkaStreamsConsumer[String, Value]
@@ -65,7 +63,6 @@ case class GenericKafkaStreamsConsumer[Value](
 case class KafkaStringStreamsConsumer(
     brokers: Seq[String],
     applicationId: String,
-    consumerConfig: UltiKafkaConsumerConfig,
     kafkaConfig: Map[String, String],
     applicationServerConfig: Option[String] = None,
     topologyProps: Option[Properties] = None) extends KafkaStreamsConsumer[String, String]
@@ -73,7 +70,6 @@ case class KafkaStringStreamsConsumer(
 case class KafkaByteStreamsConsumer(
     brokers: Seq[String],
     applicationId: String,
-    consumerConfig: UltiKafkaConsumerConfig,
     kafkaConfig: Map[String, String],
     applicationServerConfig: Option[String] = None,
     topologyProps: Option[Properties] = None) extends KafkaStreamsConsumer[String, Array[Byte]]

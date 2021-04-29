@@ -49,12 +49,12 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
     partitionTrackerProvider: KafkaStreamsPartitionTrackerProvider,
     aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) => Boolean,
     applicationHostPort: Option[String],
-    consumerGroupName: String,
+    applicationId: String,
     clientId: String,
     system: ActorSystem,
     metrics: Metrics) extends HealthyComponent with Logging {
 
-  private[streams] lazy val settings = AggregateStateStoreKafkaStreamsImplSettings(consumerGroupName, aggregateName, clientId)
+  private[streams] lazy val settings = AggregateStateStoreKafkaStreamsImplSettings(applicationId, aggregateName, clientId)
 
   private[streams] val underlyingActor = createUnderlyingActorWithBackOff()
 

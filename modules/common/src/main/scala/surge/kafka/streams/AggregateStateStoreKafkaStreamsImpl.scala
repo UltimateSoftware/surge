@@ -14,7 +14,7 @@ import org.apache.kafka.streams.kstream.Materialized
 import org.apache.kafka.streams.kstream.internals.{ KTableImpl, KTableImplExtensions }
 import org.apache.kafka.streams.state.QueryableStoreTypes
 import org.apache.kafka.streams.{ LagInfo, StoreQueryParameters, StreamsConfig }
-import surge.kafka.{ KafkaTopic, UltiKafkaConsumerConfig }
+import surge.kafka.KafkaTopic
 import surge.kafka.streams.AggregateStateStoreKafkaStreamsImpl._
 import surge.kafka.streams.HealthyActor.GetHealth
 import surge.metrics.Metrics
@@ -103,7 +103,7 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
       None
     }
 
-    KafkaByteStreamsConsumer(brokers = settings.brokers, applicationId = settings.applicationId, consumerConfig = settings.consumerConfig,
+    KafkaByteStreamsConsumer(brokers = settings.brokers, applicationId = settings.applicationId,
       kafkaConfig = streamsConfig, applicationServerConfig = applicationHostPort, topologyProps = maybeOptimizeTopology)
   }
 
@@ -202,7 +202,6 @@ private[streams] object AggregateStateStoreKafkaStreamsImpl {
   case class AggregateStateStoreKafkaStreamsImplSettings(
       storeName: String,
       brokers: Seq[String],
-      consumerConfig: UltiKafkaConsumerConfig,
       applicationId: String,
       clientId: String,
       cacheMemory: Long,
@@ -212,13 +211,10 @@ private[streams] object AggregateStateStoreKafkaStreamsImpl {
       clearStateOnStartup: Boolean) extends KafkaStreamSettings
 
   object AggregateStateStoreKafkaStreamsImplSettings {
-    def apply(consumerGroupName: String, aggregateName: String, clientId: String): AggregateStateStoreKafkaStreamsImplSettings = {
+    def apply(applicationId: String, aggregateName: String, clientId: String): AggregateStateStoreKafkaStreamsImplSettings = {
       val config = ConfigFactory.load()
       val aggregateStateStoreName: String = s"${aggregateName}AggregateStateStore"
       val brokers = config.getString("kafka.brokers").split(",").toVector
-      val consumerConfig = UltiKafkaConsumerConfig(consumerGroupName)
-      val environment = config.getString("app.environment")
-      val applicationId = s"${consumerConfig.consumerGroup}-$aggregateName-$environment"
       val cacheHeapPercentage = config.getDouble("kafka.streams.cache-heap-percentage")
       val totalMemory = Runtime.getRuntime.maxMemory()
       val cacheMemory = (totalMemory * cacheHeapPercentage).longValue
@@ -230,7 +226,6 @@ private[streams] object AggregateStateStoreKafkaStreamsImpl {
       new AggregateStateStoreKafkaStreamsImplSettings(
         storeName = aggregateStateStoreName,
         brokers = brokers,
-        consumerConfig = consumerConfig,
         applicationId = applicationId,
         clientId = clientId,
         cacheMemory = cacheMemory,

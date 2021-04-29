@@ -33,7 +33,7 @@ abstract class SurgeCommandImpl[Agg, Command, Event](
     partitionTrackerProvider = new KafkaStreamsPartitionTrackerActorProvider(stateChangeActor),
     aggregateValidator = businessLogic.aggregateValidator,
     applicationHostPort = applicationHostPort,
-    consumerGroupName = businessLogic.kafka.consumerGroup,
+    applicationId = businessLogic.kafka.streamsApplicationId,
     clientId = businessLogic.kafka.clientId,
     system = system,
     metrics = businessLogic.metrics)

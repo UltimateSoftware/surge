@@ -39,12 +39,25 @@ trait SurgeCommandBusinessLogic[AggId, Agg, Command, Event] {
     s"$aggregateName-$environment-command"
   }
 
+  /**
+   * A unique identifier for this application. For scaling, different instances of the same application should have the same application id.
+   *
+   * It should be noted that two engines with the same streamsApplicationId within a Kafka cluster will form an application cluster. It is therefore very
+   * important to ensure that the application environment (development, production, etc...) ends up in the application id somewhere to ensure different
+   * environments remain isolated. It is also recommended to add a unique name for your particular aggregate to the application id as well so that different
+   * Surge services within the same environment are also completely isolated.
+   */
+  def streamsApplicationId: String = {
+    val environment = config.getString("app.environment")
+    s"$consumerGroupBase-$aggregateName-$environment"
+  }
+
   def streamsClientId: String = ""
 
   def transactionalIdPrefix: String = "surge-transactional-event-producer-partition"
 
   private def kafkaConfig = SurgeCommandKafkaConfig(stateTopic = stateTopic, eventsTopic = eventsTopic,
-    publishStateOnly = publishStateOnly, consumerGroup = consumerGroupBase, clientId = streamsClientId,
+    publishStateOnly = publishStateOnly, streamsApplicationId = streamsApplicationId, clientId = streamsClientId,
     transactionalIdPrefix = transactionalIdPrefix)
 }
 
