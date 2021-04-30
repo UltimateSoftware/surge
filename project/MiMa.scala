@@ -19,11 +19,9 @@ object MiMa extends AutoPlugin {
     )
   )
 
-  // TODO When we release and actually enable this, we'll need to set the patch version to 0
-  //  For now we can just experiment with and get used to the plugin
   private def previousArtifacts(projectName: String, organization: String): Set[sbt.ModuleID] = {
     val versions: Seq[String] = {
-      val firstPatchVersion = "0-RC12"
+      val firstPatchVersion = "1"
       Seq(s"0.5.$firstPatchVersion")
     }
 
