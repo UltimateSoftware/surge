@@ -2,14 +2,13 @@
 
 package surge.core
 
-import java.util.UUID
-
 import akka.actor.{ ActorSystem, NoSerializationVerificationNeeded }
 import akka.testkit.{ TestKit, TestProbe }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import surge.streams.sink.TestEventSource
 
+import java.util.UUID
 import scala.concurrent.{ ExecutionContext, Future }
 
 class SurgeCommandServiceSinkSpec extends TestKit(ActorSystem("SurgeCommandServiceSinkSpec")) with AnyWordSpecLike with Matchers {

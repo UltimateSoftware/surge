@@ -1,9 +1,10 @@
 // Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
 
-package surge.core
+package surge.internal.persistence
 
 import akka.actor.ActorContext
 import org.slf4j.LoggerFactory
+import surge.core.KafkaProducerActor
 import surge.exceptions.{ AggregateInitializationException, AggregateStateNotCurrentInKTableException }
 import surge.internal.config.RetryConfig
 import surge.kafka.streams.AggregateStateStoreKafkaStreams
@@ -56,7 +57,7 @@ trait KTableInitializationSupport[Model] {
   }
 
   private def fetchState(initializationAttempts: Int)(implicit ec: ExecutionContext): Unit = {
-    val fetchedStateFut = initializationMetrics.stateInitializationTimer.time(kafkaStreamsCommand.getAggregateBytes(aggregateId.toString))
+    val fetchedStateFut = initializationMetrics.stateInitializationTimer.time(kafkaStreamsCommand.getAggregateBytes(aggregateId))
 
     fetchedStateFut.map { state =>
       log.trace("Fetched state from KTable for {}", aggregateId)

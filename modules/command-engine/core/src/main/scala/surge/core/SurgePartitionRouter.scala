@@ -6,15 +6,16 @@ import akka.actor._
 import akka.pattern.ask
 import org.slf4j.LoggerFactory
 import surge.internal.config.TimeoutConfig
+import surge.internal.persistence.RoutableMessage
 import surge.kafka.streams._
 import surge.kafka.{ KafkaPartitionShardRouterActor, PersistentActorRegionCreator }
 
 import scala.concurrent.{ ExecutionContext, Future }
 
-private[surge] final class SurgePartitionRouter[Agg, Command, Event](
+private[surge] final class SurgePartitionRouter(
     system: ActorSystem,
     clusterStateTrackingActor: ActorRef,
-    businessLogic: SurgeCommandBusinessLogic[Agg, Command, Event],
+    businessLogic: SurgeModel[_, _],
     regionCreator: PersistentActorRegionCreator[String]) extends HealthyComponent {
 
   private val log = LoggerFactory.getLogger(getClass)

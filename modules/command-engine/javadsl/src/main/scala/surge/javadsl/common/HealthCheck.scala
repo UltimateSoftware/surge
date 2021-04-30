@@ -1,14 +1,11 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
-
-package surge.javadsl
-
-import java.util
-import java.util.concurrent.CompletionStage
+//
+package surge.javadsl.common
 
 import play.api.libs.json.Writes
 import surge.internal.utils.JsonFormats
 import surge.kafka.streams.{ HealthCheck => ScalaHealthCheck }
 
+import java.util
 import scala.jdk.CollectionConverters._
 
 class HealthCheck(
@@ -34,8 +31,4 @@ object HealthCheck {
         scalaHealthCheck.details.map(_.asJava).getOrElse(new util.HashMap()))
     }
   }
-}
-
-trait HealthCheckTrait {
-  def getHealthCheck(): CompletionStage[HealthCheck]
 }

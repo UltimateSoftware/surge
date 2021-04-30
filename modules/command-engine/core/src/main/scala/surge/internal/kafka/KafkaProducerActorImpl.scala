@@ -2,9 +2,6 @@
 
 package surge.internal.kafka
 
-import java.time.Instant
-import java.util.concurrent.TimeUnit
-
 import akka.actor.{ ActorRef, NoSerializationVerificationNeeded, Stash, Status, Timers }
 import akka.pattern._
 import com.typesafe.config.ConfigFactory
@@ -14,13 +11,15 @@ import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.ProducerFencedException
 import org.apache.kafka.streams.LagInfo
 import org.slf4j.{ Logger, LoggerFactory }
-import surge.core.{ KafkaProducerActor, SurgeCommandBusinessLogic }
+import surge.core.KafkaProducerActor
 import surge.internal.akka.ActorWithTracing
 import surge.kafka.streams.HealthyActor.GetHealth
 import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, HealthCheck, HealthCheckStatus }
 import surge.kafka.{ KafkaBytesProducer, KafkaRecordMetadata }
 import surge.metrics.{ MetricInfo, Metrics, Rate, Timer }
 
+import java.time.Instant
+import java.util.concurrent.TimeUnit
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.{ Failure, Success, Try }
@@ -60,12 +59,12 @@ object KafkaProducerActorImpl {
 }
 class KafkaProducerActorImpl(
     assignedPartition: TopicPartition, metrics: Metrics,
-    businessLogic: SurgeCommandBusinessLogic[_, _, _],
+    producerContext: ProducerActorContext,
     kStreams: AggregateStateStoreKafkaStreams[_],
     kafkaProducerOverride: Option[KafkaBytesProducer] = None) extends ActorWithTracing with Stash with Timers {
 
   import KafkaProducerActorImpl._
-  import businessLogic._
+  import producerContext._
   import context.dispatcher
   import kafka._
 
@@ -85,9 +84,10 @@ class KafkaProducerActorImpl(
   private val transactionalId = s"$transactionalIdPrefix-${assignedPartition.topic()}-${assignedPartition.partition()}"
   private val kafkaPublisherMetricsName = transactionalId
 
+  //noinspection ActorMutableStateInspection
   private var kafkaPublisher = getPublisher
 
-  override val tracer: Tracer = businessLogic.tracer
+  override val tracer: Tracer = producerContext.tracer
 
   private val kafkaPublisherTimer: Timer = metrics.timer(
     MetricInfo(
@@ -110,7 +110,7 @@ class KafkaProducerActorImpl(
       ProducerConfig.BATCH_SIZE_CONFIG -> publisherBatchSize.toString,
       ProducerConfig.LINGER_MS_CONFIG -> publisherLingerMs.toString,
       ProducerConfig.COMPRESSION_TYPE_CONFIG -> publisherCompression,
-      ProducerConfig.TRANSACTION_TIMEOUT_CONFIG -> publisherTransactionTimeoutMs.toString,
+      ProducerConfig.TRANSACTION_TIMEOUT_CONFIG -> publisherTransactionTimeoutMs,
       ProducerConfig.TRANSACTIONAL_ID_CONFIG -> transactionalId)
 
     // Set up the producer on the events topic so the partitioner can partition automatically on the events topic since we manually set the partition for the
@@ -218,6 +218,7 @@ class KafkaProducerActorImpl(
     msg.originalSenders.foreach(_ ! KafkaProducerActor.PublishFailure(msg.reason))
   }
 
+  // the warning below is covered by https://github.com/UltimateSoftware/surge-kafka-streams/issues/339
   private var lastTransactionInProgressWarningTime: Instant = Instant.ofEpochMilli(0L)
   private val transactionTimeWarningThreshold = flushInterval.toMillis * 4
   private val eventsPublishedRate: Rate = metrics.rate(
@@ -420,7 +421,7 @@ private[internal] case class KafkaProducerActorState(
 
     if (processedRecordsFromPartition.nonEmpty) {
       val processedOffsets = processedRecordsFromPartition.map(_.wrapped.offset())
-      log.trace(s"${topicPartition.topic}:${topicPartition.partition} processed up to offset ${kTableCurrentOffset}. " +
+      log.trace(s"${topicPartition.topic}:${topicPartition.partition} processed up to offset $kTableCurrentOffset. " +
         s"Outstanding offsets that were processed are [${processedOffsets.min} -> ${processedOffsets.max}]")
     }
     val newInFlight = inFlight.filterNot(processedRecordsFromPartition.contains)
@@ -431,7 +432,7 @@ private[internal] case class KafkaProducerActorState(
       }
       if (processedAggregates.nonEmpty) {
         processedAggregates.foreach { pending =>
-          pending.actor ! true
+          pending.actor ! true // scalastyle:ignore simplify.boolean.expression
         }
         rates.current.mark(processedAggregates.length)
       }
@@ -443,7 +444,7 @@ private[internal] case class KafkaProducerActorState(
       if (expiredAggregates.nonEmpty) {
         expiredAggregates.foreach { pending =>
           log.debug(s"Aggregate ${pending.key} expiring since it is past ${pending.expiration}")
-          pending.actor ! false
+          pending.actor ! false // scalastyle:ignore simplify.boolean.expression
         }
         rates.notCurrent.mark(expiredAggregates.length)
       }

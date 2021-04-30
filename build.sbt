@@ -2,7 +2,7 @@
 
 import sbt.Keys._
 
-scalaVersion in ThisBuild := "2.12.12"
+scalaVersion in ThisBuild := "2.13.5"
 
 ThisBuild / crossScalaVersions := Seq("2.13.5", "2.12.12")
 

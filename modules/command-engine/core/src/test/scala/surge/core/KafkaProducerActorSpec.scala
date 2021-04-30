@@ -18,8 +18,8 @@ import surge.internal.kafka.KafkaProducerActorImpl
 import surge.kafka.streams.{ HealthCheck, HealthCheckStatus, HealthyActor }
 import surge.metrics.Metrics
 
-import scala.concurrent.{ Await, ExecutionContext }
 import scala.concurrent.duration._
+import scala.concurrent.{ Await, ExecutionContext }
 
 class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec")) with AnyWordSpecLike with Matchers with BeforeAndAfterAll
   with TestBoundedContext with MockitoSugar with ScalaFutures with PatienceConfiguration {

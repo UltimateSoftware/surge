@@ -3,26 +3,20 @@
 package surge.core
 
 import akka.actor.ActorSystem
+import com.typesafe.config.Config
 import play.api.libs.json.JsValue
 import surge.internal.akka.cluster.ActorSystemHostAwareness
 import surge.internal.akka.kafka.KafkaConsumerStateTrackingActor
-import surge.internal.persistence.cqrs.CQRSPersistentActorRegionCreator
+import surge.internal.persistence.PersistentActorRegionCreator
 import surge.kafka.streams._
 
 import scala.concurrent.{ ExecutionContext, Future }
 
-trait SurgeCommandTrait[Agg, Command, Event] {
-  def start(): Unit
-  def restart(): Unit
-  def stop(): Unit
-  val businessLogic: SurgeCommandBusinessLogic[Agg, Command, Event]
-  def actorSystem: ActorSystem
-}
-
-abstract class SurgeCommandImpl[Agg, Command, Event](
+abstract class SurgeCommandImpl[Agg, Command, +Rej, Event](
     actorSystem: ActorSystem,
-    override val businessLogic: SurgeCommandBusinessLogic[Agg, Command, Event])
-  extends SurgeCommandTrait[Agg, Command, Event] with ActorSystemHostAwareness {
+    override val businessLogic: SurgeCommandModel[Agg, Command, Rej, Event],
+    override val config: Config)
+  extends SurgeProcessingTrait[Agg, Command, Rej, Event] with ActorSystemHostAwareness {
 
   private implicit val system: ActorSystem = actorSystem
 
@@ -37,9 +31,10 @@ abstract class SurgeCommandImpl[Agg, Command, Event](
     clientId = businessLogic.kafka.clientId,
     system = system,
     metrics = businessLogic.metrics)
-  private val cqrsRegionCreator = new CQRSPersistentActorRegionCreator[Agg, Command, Event](actorSystem, businessLogic,
-    kafkaStreamsImpl, businessLogic.metrics)
-  protected val actorRouter = new SurgePartitionRouter[Agg, Command, Event](actorSystem, stateChangeActor,
+
+  private val cqrsRegionCreator = new PersistentActorRegionCreator[Command](actorSystem, businessLogic,
+    kafkaStreamsImpl, businessLogic.metrics, config)
+  protected val actorRouter = new SurgePartitionRouter(actorSystem, stateChangeActor,
     businessLogic, cqrsRegionCreator)
 
   protected val surgeHealthCheck = new SurgeHealthCheck(
@@ -47,7 +42,7 @@ abstract class SurgeCommandImpl[Agg, Command, Event](
     kafkaStreamsImpl,
     actorRouter)(ExecutionContext.global)
 
-  def healthCheck(): Future[HealthCheck] = {
+  def healthCheck: Future[HealthCheck] = {
     surgeHealthCheck.healthCheck()
   }
 

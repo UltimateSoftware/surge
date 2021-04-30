@@ -11,9 +11,10 @@ import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.hashing.MurmurHash3
 
 object FlowConverter {
+  type Headers = Map[String, Array[Byte]]
   def flowFor[K, V, Meta](
-    businessLogic: (K, V, Map[String, Array[Byte]]) => Future[Any],
-    partitionBy: (K, V, Map[String, Array[Byte]]) => String,
+    businessLogic: (K, V, Headers) => Future[Any],
+    partitionBy: (K, V, Headers) => String,
     exceptionHandler: DataSinkExceptionHandler[K, V],
     parallelism: Int)(implicit ec: ExecutionContext): Flow[EventPlusStreamMeta[K, V, Meta], Meta, NotUsed] = {
 

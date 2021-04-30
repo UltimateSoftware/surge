@@ -1,6 +1,5 @@
 // Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
-
-package surge.core
+package surge.internal.persistence
 
 import akka.actor.ActorRef
 import akka.pattern._
@@ -9,9 +8,8 @@ import io.opentracing.{ Span, Tracer }
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.exceptions.{ SurgeTimeoutException, SurgeUnexpectedException }
 import surge.internal.config.TimeoutConfig
-import surge.internal.persistence.cqrs.CQRSPersistentActor
-import surge.internal.utils.SpanSupport
 import surge.internal.utils.SpanExtensions._
+import surge.internal.utils.SpanSupport
 import surge.tracing.TracedMessage
 
 import scala.concurrent.{ ExecutionContext, Future }
@@ -24,11 +22,11 @@ import scala.concurrent.{ ExecutionContext, Future }
  * as the AggregateRef is responsible for.
  *
  * @tparam AggId The type of the aggregate id for the underlying business logic aggregate
- * @tparam Agg The type of the business logic aggregate being proxied to
- * @tparam Cmd The command type that the business logic aggregate handles
+ * @tparam Agg   The type of the business logic aggregate being proxied to
+ * @tparam Cmd   The command type that the business logic aggregate handles
  * @tparam Event The event type that the business logic aggregate generates and can handle to update state
  */
-trait AggregateRefTrait[AggId, Agg, Cmd, Event] extends SpanSupport {
+private[surge] trait AggregateRefTrait[AggId, Agg, Cmd, Event] extends SpanSupport {
 
   val aggregateId: AggId
   val region: ActorRef
@@ -40,10 +38,10 @@ trait AggregateRefTrait[AggId, Agg, Cmd, Event] extends SpanSupport {
   private val log: Logger = LoggerFactory.getLogger(getClass)
 
   private def interpretActorResponse(span: Span): Any => Either[Throwable, Option[Agg]] = {
-    case success: CQRSPersistentActor.CommandSuccess[Agg] =>
+    case success: PersistentActor.ACKSuccess[Agg] =>
       span.finish()
       Right(success.aggregateState)
-    case error: CQRSPersistentActor.CommandError =>
+    case error: PersistentActor.ACKError =>
       span.error(error.exception)
       span.finish()
       Left(error.exception)
@@ -55,11 +53,12 @@ trait AggregateRefTrait[AggId, Agg, Cmd, Event] extends SpanSupport {
 
   /**
    * Asynchronously fetch the current state of the aggregate that this reference is proxying to.
+   *
    * @return A future of either None (the aggregate has no state) or some aggregate state for the
    *         aggregate with the aggregate id of this reference
    */
   protected def queryState(implicit ec: ExecutionContext): Future[Option[Agg]] = {
-    (region ? CQRSPersistentActor.GetState(aggregateId.toString)).mapTo[CQRSPersistentActor.StateResponse[Agg]].map(_.aggregateState)
+    (region ? PersistentActor.GetState(aggregateId.toString)).mapTo[PersistentActor.StateResponse[Agg]].map(_.aggregateState)
   }
 
   /**
@@ -67,16 +66,16 @@ trait AggregateRefTrait[AggId, Agg, Cmd, Event] extends SpanSupport {
    * talking to. Retries a given number of times if sending the command envelope to the business logic
    * actor fails.
    *
-   * @param envelope The command envelope to send to this aggregate actor
+   * @param envelope         The command envelope to send to this aggregate actor
    * @param retriesRemaining Number of retry attempts remaining, defaults to 0 for no retries.
-   * @param ec Implicit execution context to use for transforming the raw actor response into a
-   *           better typed response.
+   * @param ec               Implicit execution context to use for transforming the raw actor response into a
+   *                         better typed response.
    * @return A future of either validation errors from the business logic aggregate or the updated
    *         state of the business logic aggregate after handling the command and applying any events
    *         that resulted from the command.
    */
   protected def sendCommandWithRetries(
-    envelope: CQRSPersistentActor.CommandEnvelope[Cmd],
+    envelope: PersistentActor.ProcessMessage[Cmd],
     retriesRemaining: Int = 0)(implicit ec: ExecutionContext): Future[Either[Throwable, Option[Agg]]] = {
     val askSpan = createSpan("send_command_to_aggregate").setTag("aggregateId", aggregateId.toString)
     (region ? TracedMessage(tracer, envelope, askSpan)).map(interpretActorResponse(askSpan)).recoverWith {
@@ -85,7 +84,7 @@ trait AggregateRefTrait[AggId, Agg, Cmd, Event] extends SpanSupport {
         sendCommandWithRetries(envelope, retriesRemaining - 1)
       case a: AskTimeoutException =>
         val msg = s"Ask timed out after $askTimeoutDuration to aggregate actor with id ${envelope.aggregateId} executing command " +
-          s"${envelope.command.getClass.getName}. This is typically a result of other parts of the engine performing incorrectly or " +
+          s"${envelope.message.getClass.getName}. This is typically a result of other parts of the engine performing incorrectly or " +
           s"hitting exceptions"
         askSpan.error(a)
         askSpan.finish()
@@ -98,7 +97,7 @@ trait AggregateRefTrait[AggId, Agg, Cmd, Event] extends SpanSupport {
   }
 
   protected def applyEventsWithRetries(
-    envelope: CQRSPersistentActor.ApplyEventEnvelope[Event],
+    envelope: PersistentActor.ApplyEvent[Event],
     retriesRemaining: Int = 0)(implicit ec: ExecutionContext): Future[Option[Agg]] = {
     val askSpan = createSpan("send_events_to_aggregate").setTag("aggregateId", aggregateId.toString)
     (region ? TracedMessage(tracer, envelope, askSpan)).map(interpretActorResponse(askSpan)).flatMap {

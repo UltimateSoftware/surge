@@ -2,8 +2,6 @@
 
 package surge.internal.kafka
 
-import java.time.Instant
-
 import akka.actor.{ ActorRef, ActorSystem, Props }
 import akka.pattern._
 import akka.testkit.{ TestKit, TestProbe }
@@ -24,13 +22,14 @@ import org.scalatestplus.mockito.MockitoSugar
 import surge.core.KafkaProducerActor.{ PublishFailure, PublishSuccess }
 import surge.core.{ KafkaProducerActor, TestBoundedContext }
 import surge.internal.kafka.KafkaProducerActorImpl.{ AggregateStateRates, KTableProgressUpdate }
-import surge.kafka.{ KafkaBytesProducer, KafkaRecordMetadata }
 import surge.kafka.streams.AggregateStateStoreKafkaStreams
+import surge.kafka.{ KafkaBytesProducer, KafkaRecordMetadata }
 import surge.metrics.Metrics
 
+import java.time.Instant
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{ Await, ExecutionContext, Future }
-import scala.concurrent.ExecutionContext.Implicits.global
 
 class KafkaProducerActorImplSpec extends TestKit(ActorSystem("KafkaProducerActorImplSpec")) with AnyWordSpecLike with Matchers with BeforeAndAfterAll
   with TestBoundedContext with MockitoSugar with ScalaFutures with PatienceConfiguration {

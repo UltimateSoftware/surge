@@ -4,13 +4,12 @@ package surge.core
 
 import io.opentracing.mock.MockTracer
 import play.api.libs.json._
-import surge.internal.domain.CommandProcessor
-import surge.internal.domain.AggregateCommandModel
+import surge.internal.domain.CommandHandler
 import surge.internal.utils.JsonFormats
 import surge.kafka.KafkaTopic
 import surge.metrics.Metrics
 
-import scala.util.{ Failure, Success }
+import scala.concurrent.{ ExecutionContext, Future }
 
 object TestBoundedContext {
   case class State(aggregateId: String, count: Int, version: Int)
@@ -65,9 +64,11 @@ trait TestBoundedContext {
   implicit val countIncrementedFormat: Format[CountIncremented] = Json.format
   implicit val countDecrementedFormat: Format[CountDecremented] = Json.format
 
-  trait BusinessLogicTrait extends AggregateCommandModel[State, BaseTestCommand, BaseTestEvent] {
+  trait BusinessLogicTrait extends CommandHandler[State, BaseTestCommand, Nothing, BaseTestEvent] {
 
-    override def handleEvent: (Option[State], BaseTestEvent) => Option[State] = { (agg, evt) =>
+    override def apply(ctx: Context, agg: Option[State], evt: BaseTestEvent): Option[State] = handleEvent(agg, evt)
+    def handleEvent(agg: Option[State], evt: BaseTestEvent): Option[State] = {
+
       val current = agg.getOrElse(State(evt.aggregateId, 0, 0))
 
       val newState = evt match {
@@ -81,20 +82,20 @@ trait TestBoundedContext {
       Some(newState)
     }
 
-    override def processCommand: CommandProcessor[State, BaseTestCommand, BaseTestEvent] = { (agg, cmd) =>
+    override def processCommand(ctx: Context, agg: Option[State], cmd: BaseTestCommand): Future[CommandResult] = {
       val newSequenceNumber = agg.map(_.version).getOrElse(0) + 1
 
       cmd match {
-        case Increment(aggregateId) => Success(Seq(CountIncremented(aggregateId, incrementBy = 1,
-          sequenceNumber = newSequenceNumber)))
-        case Decrement(aggregateId) => Success(Seq(CountDecremented(aggregateId, decrementBy = 1,
-          sequenceNumber = newSequenceNumber)))
-        case CreateNoOpEvent(aggregateId) => Success(Seq(NoOpEvent(aggregateId, newSequenceNumber)))
-        case _: DoNothing                 => Success(Seq.empty)
+        case Increment(aggregateId) => Future.successful(Right(Seq(CountIncremented(aggregateId, incrementBy = 1,
+          sequenceNumber = newSequenceNumber))))
+        case Decrement(aggregateId) => Future.successful(Right(Seq(CountDecremented(aggregateId, decrementBy = 1,
+          sequenceNumber = newSequenceNumber))))
+        case CreateNoOpEvent(aggregateId) => Future.successful(Right(Seq(NoOpEvent(aggregateId, newSequenceNumber))))
+        case _: DoNothing                 => Future.successful(Right(Seq.empty))
         case fail: FailCommandProcessing =>
-          Failure(fail.withError)
+          Future.failed(fail.withError)
         case createExceptionEvent: CreateExceptionThrowingEvent =>
-          Success(Seq(ExceptionThrowingEvent(createExceptionEvent.aggregateId, newSequenceNumber, createExceptionEvent.throwable)))
+          Future.successful(Right((Seq(ExceptionThrowingEvent(createExceptionEvent.aggregateId, newSequenceNumber, createExceptionEvent.throwable)))))
         case _ =>
           throw new RuntimeException("Received unexpected message in command handler! This should not happen and indicates a bad test")
       }
@@ -130,8 +131,8 @@ trait TestBoundedContext {
 
     override def writeState(agg: State): SerializedAggregate = SerializedAggregate(Json.toJson(agg).toString().getBytes(), Map.empty)
   }
-  val businessLogic: SurgeCommandBusinessLogic[State, BaseTestCommand, BaseTestEvent] =
-    SurgeCommandBusinessLogic(
+  val businessLogic: SurgeCommandModel[State, BaseTestCommand, Nothing, BaseTestEvent] =
+    SurgeCommandModel(
       aggregateName = "CountAggregate",
       kafka = kafkaConfig,
       model = BusinessLogic,

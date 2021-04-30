@@ -1,15 +1,13 @@
 // Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
 
-package surge.javadsl
-
-import java.util.Optional
-import java.util.concurrent.CompletionStage
+package surge.javadsl.command
 
 import akka.actor.ActorRef
 import io.opentracing.Tracer
-import surge.core.AggregateRefTrait
-import surge.internal.persistence.cqrs.CQRSPersistentActor
+import surge.internal.persistence.{ AggregateRefTrait, PersistentActor }
 
+import java.util.Optional
+import java.util.concurrent.CompletionStage
 import scala.compat.java8.FutureConverters
 import scala.compat.java8.OptionConverters._
 import scala.concurrent.ExecutionContext
@@ -33,7 +31,7 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event](
   }
 
   def sendCommand(command: Cmd): CompletionStage[CommandResult[Agg]] = {
-    val envelope = CQRSPersistentActor.CommandEnvelope[Cmd](aggregateId.toString, command)
+    val envelope = PersistentActor.ProcessMessage[Cmd](aggregateId.toString, command)
     val result = sendCommandWithRetries(envelope).map {
       case Left(error) =>
         CommandFailure[Agg](error)
@@ -44,7 +42,7 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event](
   }
 
   def applyEvent(event: Event): CompletionStage[ApplyEventResult[Agg]] = {
-    val envelope = CQRSPersistentActor.ApplyEventEnvelope[Event](aggregateId.toString, event)
+    val envelope = PersistentActor.ApplyEvent[Event](aggregateId.toString, event)
     val result = applyEventsWithRetries(envelope)
       .map(aggOpt => ApplyEventsSuccess[Agg](aggOpt.asJava))
       .recover {

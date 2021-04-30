@@ -1,17 +1,17 @@
 // Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
 
-package surge.core
-
-import java.time.Instant
+package surge.internal.persistence
 
 import akka.actor.Actor.Receive
 import akka.actor.{ ActorContext, ActorRef, NoSerializationVerificationNeeded }
 import akka.pattern._
 import com.typesafe.config.ConfigFactory
 import org.slf4j.LoggerFactory
+import surge.core.KafkaProducerActor
 import surge.exceptions.KafkaPublishTimeoutException
 import surge.metrics.Timer
 
+import java.time.Instant
 import scala.concurrent.{ ExecutionContext, Future }
 
 trait KTablePersistenceMetrics {
@@ -19,18 +19,18 @@ trait KTablePersistenceMetrics {
 }
 
 trait KTablePersistenceSupport[Agg, Event] {
-  def aggregateId: String
-  def aggregateName: String
-  def kafkaProducerActor: KafkaProducerActor
-  def context: ActorContext
-  def ktablePersistenceMetrics: KTablePersistenceMetrics
-  def self: ActorRef
-  def sender(): ActorRef
+  protected def aggregateId: String
+  protected def aggregateName: String
+  protected def kafkaProducerActor: KafkaProducerActor
+  protected def context: ActorContext
+  protected def ktablePersistenceMetrics: KTablePersistenceMetrics
+  protected def self: ActorRef
+  protected def sender(): ActorRef
 
   protected type ActorState
-  def receiveWhilePersistingEvents(state: ActorState): Receive
-  def onPersistenceSuccess(newState: ActorState): Unit
-  def onPersistenceFailure(state: ActorState, cause: Throwable): Unit
+  protected def receiveWhilePersistingEvents(state: ActorState): Receive
+  protected def onPersistenceSuccess(newState: ActorState): Unit
+  protected def onPersistenceFailure(state: ActorState, cause: Throwable): Unit
 
   private val log = LoggerFactory.getLogger(getClass)
   private val config = ConfigFactory.load()

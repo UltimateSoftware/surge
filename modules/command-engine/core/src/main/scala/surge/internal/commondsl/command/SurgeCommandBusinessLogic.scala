@@ -1,19 +1,18 @@
 // Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
 
-package surge.javadsl
-
-import java.util.Optional
+package surge.internal.commondsl.command
 
 import com.typesafe.config.ConfigFactory
 import io.opentracing.Tracer
 import io.opentracing.noop.NoopTracerFactory
-import surge.core.{ SurgeAggregateReadFormatting, SurgeCommandKafkaConfig, SurgeWriteFormatting }
+import surge.core.{ SurgeAggregateReadFormatting, SurgeCommandKafkaConfig, SurgeCommandModel, SurgeWriteFormatting }
 import surge.kafka.KafkaTopic
 import surge.metrics.Metrics
 
+import java.util.Optional
 import scala.compat.java8.OptionConverters._
 
-abstract class SurgeCommandBusinessLogic[AggId, Agg, Command, Event] {
+abstract class SurgeBaseCommandBusinessLogic[AggId, Agg, Command, Rej, Event] {
 
   private val config = ConfigFactory.load()
 
@@ -23,8 +22,6 @@ abstract class SurgeCommandBusinessLogic[AggId, Agg, Command, Event] {
 
   def eventsTopic: KafkaTopic
   def publishStateOnly: Boolean = false
-
-  def commandModel: AggregateCommandModel[Agg, Command, Event]
 
   def readFormatting: SurgeAggregateReadFormatting[Agg]
 
@@ -38,7 +35,7 @@ abstract class SurgeCommandBusinessLogic[AggId, Agg, Command, Event] {
 
   def tracer: Tracer = NoopTracerFactory.create()
 
-  private def kafkaConfig = SurgeCommandKafkaConfig(stateTopic = stateTopic, eventsTopic = eventsTopic,
+  def kafkaConfig: SurgeCommandKafkaConfig = SurgeCommandKafkaConfig(stateTopic = stateTopic, eventsTopic = eventsTopic,
     publishStateOnly = publishStateOnly, streamsApplicationId = streamsApplicationId, clientId = streamsClientId,
     transactionalIdPrefix = transactionalIdPrefix)
 
@@ -64,12 +61,37 @@ abstract class SurgeCommandBusinessLogic[AggId, Agg, Command, Event] {
 
   def transactionalIdPrefix: String = "surge-transactional-event-producer-partition"
 
+  def commandModel: AggregateCommandModelBase[Agg, Command, Rej, Event]
+
+}
+
+abstract class SurgeCommandBusinessLogic[AggId, Agg, Command, Event] extends SurgeBaseCommandBusinessLogic[AggId, Agg, Command, Nothing, Event] {
+  def commandModel: AggregateCommandModelBase[Agg, Command, Nothing, Event]
 }
 
 object SurgeCommandBusinessLogic {
   def toCore[Agg, Command, Event](
-    businessLogic: SurgeCommandBusinessLogic[_, Agg, Command, Event]): surge.core.SurgeCommandBusinessLogic[Agg, Command, Event] = {
-    new surge.core.SurgeCommandBusinessLogic[Agg, Command, Event](
+    businessLogic: SurgeCommandBusinessLogic[_, Agg, Command, Event]): SurgeCommandModel[Agg, Command, Nothing, Event] = {
+    new SurgeCommandModel[Agg, Command, Nothing, Event](
+      aggregateName = businessLogic.aggregateName,
+      kafka = businessLogic.kafkaConfig,
+      model = businessLogic.commandModel.toCore,
+      writeFormatting = businessLogic.writeFormatting,
+      readFormatting = businessLogic.readFormatting,
+      aggregateValidator = (key, agg, prevAgg) => businessLogic.aggregateValidator(key, agg, prevAgg.asJava),
+      metrics = businessLogic.metrics,
+      tracer = businessLogic.tracer)
+  }
+}
+
+abstract class SurgeRejectableCommandBusinessLogic[AggId, Agg, Command, Rej, Event] extends SurgeBaseCommandBusinessLogic[AggId, Agg, Command, Rej, Event] {
+  def commandModel: AggregateCommandModelBase[Agg, Command, Rej, Event]
+}
+
+object SurgeRejectableCommandBusinessLogic {
+  def toCore[Agg, Command, Rej, Event](
+    businessLogic: SurgeRejectableCommandBusinessLogic[_, Agg, Command, Rej, Event]): SurgeCommandModel[Agg, Command, Rej, Event] = {
+    new SurgeCommandModel[Agg, Command, Rej, Event](
       aggregateName = businessLogic.aggregateName,
       kafka = businessLogic.kafkaConfig,
       model = businessLogic.commandModel.toCore,

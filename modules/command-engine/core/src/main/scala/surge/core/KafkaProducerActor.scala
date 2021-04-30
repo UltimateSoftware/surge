@@ -2,8 +2,6 @@
 
 package surge.core
 
-import java.time.Instant
-
 import akka.actor.{ ActorRef, ActorSystem, PoisonPill, Props }
 import akka.pattern._
 import akka.util.Timeout
@@ -15,6 +13,7 @@ import surge.internal.kafka.KafkaProducerActorImpl
 import surge.kafka.streams._
 import surge.metrics.{ MetricInfo, Metrics, Timer }
 
+import java.time.Instant
 import scala.concurrent.{ ExecutionContext, Future }
 
 /**
@@ -99,7 +98,7 @@ object KafkaProducerActor {
     actorSystem: ActorSystem,
     assignedPartition: TopicPartition,
     metrics: Metrics,
-    businessLogic: SurgeCommandBusinessLogic[_, _, _],
+    businessLogic: SurgeModel[_, _],
     kStreams: AggregateStateStoreKafkaStreams[_]): KafkaProducerActor = {
     val publisherActor = actorSystem.actorOf(
       Props(new KafkaProducerActorImpl(

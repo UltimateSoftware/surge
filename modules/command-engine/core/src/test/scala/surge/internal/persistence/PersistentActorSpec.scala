@@ -1,14 +1,13 @@
 // Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
 
-package surge.internal.persistence.cqrs
-
-import java.util.UUID
+package surge.internal.persistence
 
 import akka.actor.{ ActorRef, ActorSystem, NoSerializationVerificationNeeded, Props, ReceiveTimeout }
 import akka.pattern._
 import akka.serialization.Serializers
 import akka.testkit.{ TestKit, TestProbe }
 import akka.util.Timeout
+import com.typesafe.config.ConfigFactory
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.header.internals.RecordHeaders
 import org.mockito.Mockito._
@@ -20,20 +19,21 @@ import org.scalatest.{ BeforeAndAfterAll, PartialFunctionValues }
 import org.scalatestplus.mockito.MockitoSugar
 import play.api.libs.json.{ JsValue, Json }
 import surge.akka.cluster.Passivate
-import surge.core.{ KafkaProducerActor, RoutableMessage, TestBoundedContext }
+import surge.core.{ KafkaProducerActor, TestBoundedContext }
 import surge.exceptions.{ AggregateInitializationException, KafkaPublishTimeoutException }
 import surge.internal.kafka.HeadersHelper
-import surge.internal.persistence.cqrs.CQRSPersistentActor.{ ApplyEventEnvelope, CommandError, Stop }
+import surge.internal.persistence.PersistentActor.{ ACKError, ApplyEvent, Stop }
 import surge.kafka.streams.AggregateStateStoreKafkaStreams
 import surge.metrics.Metrics
 
+import java.util.UUID
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
 class IsAtLeastOneElementSeq extends ArgumentMatcher[Seq[KafkaProducerActor.MessageToPublish]] {
   def matches(seq: Seq[KafkaProducerActor.MessageToPublish]): Boolean = seq.nonEmpty
 }
 
-class CQRSPersistentActorSpec extends TestKit(ActorSystem("CQRSPersistentActorSpec")) with AnyWordSpecLike with Matchers
+class PersistentActorSpec extends TestKit(ActorSystem("PersistentActorSpec")) with AnyWordSpecLike with Matchers
   with BeforeAndAfterAll with MockitoSugar with TestBoundedContext with PartialFunctionValues {
   import ArgumentMatchers.{ any, anyString, eq => argEquals }
   import TestBoundedContext._
@@ -55,18 +55,18 @@ class CQRSPersistentActorSpec extends TestKit(ActorSystem("CQRSPersistentActorSp
   private def testActorProps(aggregateId: String = randomUUID, producerActor: KafkaProducerActor,
     aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue],
     publishStateOnly: Boolean = false): Props = {
-    val metrics = CQRSPersistentActor.createMetrics(Metrics.globalMetricRegistry, "testAggregate")
-    val sharedResources = SurgeCQRSPersistentEntitySharedResources(producerActor, metrics, aggregateKafkaStreamsImpl)
-
-    CQRSPersistentActor.props(aggregateId, businessLogic.copy(kafka = businessLogic.kafka.copy(publishStateOnly = publishStateOnly)), sharedResources)
+    val metrics = PersistentActor.createMetrics(Metrics.globalMetricRegistry, "testAggregate")
+    val sharedResources = PersistentEntitySharedResources(producerActor, metrics, aggregateKafkaStreamsImpl)
+    PersistentActor.props(aggregateId, businessLogic.copy(kafka = businessLogic.kafka.copy(publishStateOnly = publishStateOnly)),
+      sharedResources, ConfigFactory.load())
   }
 
-  private def envelope(cmd: BaseTestCommand): CQRSPersistentActor.CommandEnvelope[BaseTestCommand] = {
-    CQRSPersistentActor.CommandEnvelope(cmd.aggregateId, cmd)
+  private def envelope(cmd: BaseTestCommand): PersistentActor.ProcessMessage[BaseTestCommand] = {
+    PersistentActor.ProcessMessage(cmd.aggregateId, cmd)
   }
 
-  private def eventEnvelope(event: BaseTestEvent): CQRSPersistentActor.ApplyEventEnvelope[BaseTestEvent] = {
-    CQRSPersistentActor.ApplyEventEnvelope[BaseTestEvent](event.aggregateId, event)
+  private def eventEnvelope(event: BaseTestEvent): PersistentActor.ApplyEvent[BaseTestEvent] = {
+    PersistentActor.ApplyEvent[BaseTestEvent](event.aggregateId, event)
   }
 
   private def mockKafkaStreams(state: State): AggregateStateStoreKafkaStreams[JsValue] = {
@@ -111,11 +111,11 @@ class CQRSPersistentActorSpec extends TestKit(ActorSystem("CQRSPersistentActorSp
 
     val expectedState = BusinessLogic.handleEvent(Some(state), expectedEvent)
 
-    probe.expectMsg(CQRSPersistentActor.CommandSuccess(expectedState))
+    probe.expectMsg(PersistentActor.ACKSuccess(expectedState))
 
     val serializedEvent = businessLogic.writeFormatting.writeEvent(expectedEvent)
     val serializedAgg = expectedState.map(businessLogic.writeFormatting.writeState)
-    val expectedStateSerialized = KafkaProducerActor.MessageToPublish(state.aggregateId.toString, serializedAgg.map(_.value).orNull, new RecordHeaders())
+    val expectedStateSerialized = KafkaProducerActor.MessageToPublish(state.aggregateId, serializedAgg.map(_.value).orNull, new RecordHeaders())
     val headers = HeadersHelper.createHeaders(serializedEvent.headers)
     val expectedEventSerialized = KafkaProducerActor.MessageToPublish(serializedEvent.key, serializedEvent.value, headers)
 
@@ -155,13 +155,13 @@ class CQRSPersistentActorSpec extends TestKit(ActorSystem("CQRSPersistentActorSp
     val testAggregateId: String = baseState.aggregateId
   }
 
-  "CQRSPersistentActor" should {
+  "PersistentActor" should {
     "Properly initialize from Kafka streams" in {
       val testContext = TestContext.setupDefault
       import testContext._
 
-      probe.send(actor, CQRSPersistentActor.GetState(testAggregateId))
-      probe.expectMsg(CQRSPersistentActor.StateResponse(Some(baseState)))
+      probe.send(actor, PersistentActor.GetState(testAggregateId))
+      probe.expectMsg(PersistentActor.StateResponse(Some(baseState)))
 
       processIncrementCommand(actor, baseState, mockProducer)
     }
@@ -177,7 +177,7 @@ class CQRSPersistentActorSpec extends TestKit(ActorSystem("CQRSPersistentActorSp
         val testEnvelope = envelope(doNothingCmd)
         probe.send(actor, testEnvelope)
 
-        probe.expectMsg(CQRSPersistentActor.CommandSuccess(Some(baseState)))
+        probe.expectMsg(PersistentActor.ACKSuccess(Some(baseState)))
 
         verify(testContext.mockProducer, never()).publish(
           ArgumentMatchers.eq(testAggregateId),
@@ -196,7 +196,7 @@ class CQRSPersistentActorSpec extends TestKit(ActorSystem("CQRSPersistentActorSp
         val testEnvelope = envelope(doNothingCmd)
         probe.send(actor, testEnvelope)
 
-        probe.expectMsg(CQRSPersistentActor.CommandSuccess(Some(baseState)))
+        probe.expectMsg(PersistentActor.ACKSuccess(Some(baseState)))
 
         verify(testContext.mockProducer, never()).publish(
           ArgumentMatchers.eq(testAggregateId),
@@ -212,7 +212,7 @@ class CQRSPersistentActorSpec extends TestKit(ActorSystem("CQRSPersistentActorSp
         val testEnvelope = envelope(DoNothing(testAggregateId))
 
         probe.send(actor, testEnvelope)
-        probe.expectMsg(CQRSPersistentActor.CommandSuccess(Some(baseState)))
+        probe.expectMsg(PersistentActor.ACKSuccess(Some(baseState)))
 
         verify(mockProducer, never()).publish(
           any[String],
@@ -226,11 +226,11 @@ class CQRSPersistentActorSpec extends TestKit(ActorSystem("CQRSPersistentActorSp
         val testContext = TestContext.setupDefault(mockProducer = probeBackedMockProducer(producerProbe))
         import testContext._
 
-        val testEnvelope: ApplyEventEnvelope[CountIncremented] =
-          ApplyEventEnvelope[CountIncremented](testAggregateId, CountIncremented(testAggregateId, 0, 3))
+        val testEnvelope: ApplyEvent[CountIncremented] =
+          ApplyEvent[CountIncremented](testAggregateId, CountIncremented(testAggregateId, 0, 3))
 
         probe.send(actor, testEnvelope)
-        probe.expectMsg(CQRSPersistentActor.CommandSuccess(Some(baseState)))
+        probe.expectMsg(PersistentActor.ACKSuccess(Some(baseState)))
 
         verify(mockProducer, never()).publish(
           ArgumentMatchers.eq(testAggregateId),
@@ -254,7 +254,7 @@ class CQRSPersistentActorSpec extends TestKit(ActorSystem("CQRSPersistentActorSp
           count = baseState.count + 1,
           version = baseState.version + 1)
 
-        probe.expectMsg(CQRSPersistentActor.CommandSuccess(Some(publishedState)))
+        probe.expectMsg(PersistentActor.ACKSuccess(Some(publishedState)))
 
         verify(testContext.mockProducer, times(1)).publish(
           ArgumentMatchers.eq(testAggregateId),
@@ -276,7 +276,7 @@ class CQRSPersistentActorSpec extends TestKit(ActorSystem("CQRSPersistentActorSp
           count = baseState.count + 1,
           version = baseState.version + 1)
 
-        probe.expectMsg(CQRSPersistentActor.CommandSuccess(Some(publishedState)))
+        probe.expectMsg(PersistentActor.ACKSuccess(Some(publishedState)))
 
         verify(testContext.mockProducer, times(1)).publish(
           ArgumentMatchers.eq(testAggregateId),
@@ -302,8 +302,8 @@ class CQRSPersistentActorSpec extends TestKit(ActorSystem("CQRSPersistentActorSp
 
         val actor = testActor(testAggregateId, mockProducer, mockStreams)
 
-        probe.send(actor, CQRSPersistentActor.GetState(testAggregateId))
-        probe.expectMsg(CQRSPersistentActor.StateResponse(Some(baseState)))
+        probe.send(actor, PersistentActor.GetState(testAggregateId))
+        probe.expectMsg(PersistentActor.StateResponse(Some(baseState)))
       }
 
       "if up to date check fails" in {
@@ -322,8 +322,8 @@ class CQRSPersistentActorSpec extends TestKit(ActorSystem("CQRSPersistentActorSp
 
         val actor = testActor(testAggregateId, mockProducer, mockStreams)
 
-        probe.send(actor, CQRSPersistentActor.GetState(testAggregateId))
-        probe.expectMsg(6.seconds, CQRSPersistentActor.StateResponse(Some(baseState)))
+        probe.send(actor, PersistentActor.GetState(testAggregateId))
+        probe.expectMsg(6.seconds, PersistentActor.StateResponse(Some(baseState)))
       }
 
       "on a failure to read from the KTable" in {
@@ -341,8 +341,8 @@ class CQRSPersistentActorSpec extends TestKit(ActorSystem("CQRSPersistentActorSp
 
         val actor = testActor(testAggregateId, mockProducer, mockStreams)
 
-        probe.send(actor, CQRSPersistentActor.GetState(testAggregateId))
-        probe.expectMsg(5.seconds, CQRSPersistentActor.StateResponse(Some(baseState)))
+        probe.send(actor, PersistentActor.GetState(testAggregateId))
+        probe.expectMsg(5.seconds, PersistentActor.StateResponse(Some(baseState)))
       }
 
       "Return an error and stop the actor on persistent failures" in {
@@ -359,16 +359,16 @@ class CQRSPersistentActorSpec extends TestKit(ActorSystem("CQRSPersistentActorSp
         terminationWatcherProbe.watch(actor1)
         val cmdEnvelope = envelope(Increment(testAggregateId))
         probe1.send(actor1, cmdEnvelope)
-        val cmdError1 = probe1.expectMsgType[CommandError](20.seconds)
+        val cmdError1 = probe1.expectMsgType[ACKError](20.seconds)
         cmdError1.exception shouldBe a[AggregateInitializationException]
         terminationWatcherProbe.expectTerminated(actor1)
 
         val probe2 = TestProbe()
         val actor2 = testActor(testAggregateId, mockProducer, mockStreams)
         terminationWatcherProbe.watch(actor2)
-        val applyEventEnvelope = CQRSPersistentActor.ApplyEventEnvelope(testAggregateId, CountIncremented(testAggregateId, 1, 1))
-        probe2.send(actor2, applyEventEnvelope)
-        val cmdError2 = probe2.expectMsgType[CommandError](20.seconds)
+        val applyEvent = PersistentActor.ApplyEvent(testAggregateId, CountIncremented(testAggregateId, 1, 1))
+        probe2.send(actor2, applyEvent)
+        val cmdError2 = probe2.expectMsgType[ACKError](20.seconds)
         cmdError2.exception shouldBe a[AggregateInitializationException]
         terminationWatcherProbe.expectTerminated(actor2)
       }
@@ -381,7 +381,7 @@ class CQRSPersistentActorSpec extends TestKit(ActorSystem("CQRSPersistentActorSp
       val testEnvelope = envelope(DoNothing(testAggregateId))
 
       probe.send(actor, testEnvelope)
-      probe.expectMsg(CQRSPersistentActor.CommandSuccess(Some(baseState)))
+      probe.expectMsg(PersistentActor.ACKSuccess(Some(baseState)))
 
       verify(mockProducer, never()).publish(
         anyString,
@@ -389,7 +389,7 @@ class CQRSPersistentActorSpec extends TestKit(ActorSystem("CQRSPersistentActorSp
         any[Seq[KafkaProducerActor.MessageToPublish]])
     }
 
-    "handle exceptions from the domain by returning a CommandError" in {
+    "handle exceptions from the domain by returning a AckError" in {
       val testContext = TestContext.setupDefault
       import testContext._
 
@@ -397,19 +397,19 @@ class CQRSPersistentActorSpec extends TestKit(ActorSystem("CQRSPersistentActorSp
       val testEnvelope = envelope(FailCommandProcessing(testAggregateId, testException))
 
       probe.send(actor, testEnvelope)
-      val commandError = probe.expectMsgClass(classOf[CQRSPersistentActor.CommandError])
+      val commandError = probe.expectMsgClass(classOf[PersistentActor.ACKError])
       // Fuzzy matching because serializing and deserializing gets a different object and messes up .equals even though the two are identical
       commandError.exception.getMessage shouldEqual testException.getMessage
 
       val testEnvelope2 = envelope(CreateExceptionThrowingEvent(testAggregateId, testException))
       probe.send(actor, testEnvelope2)
-      val eventError = probe.expectMsgClass(classOf[CQRSPersistentActor.CommandError])
+      val eventError = probe.expectMsgClass(classOf[PersistentActor.ACKError])
       // Fuzzy matching because serializing and deserializing gets a different object and messes up .equals even though the two are identical
       eventError.exception.getMessage shouldEqual testException.getMessage
 
-      val applyEventEnvelope = CQRSPersistentActor.ApplyEventEnvelope(testAggregateId, ExceptionThrowingEvent(testAggregateId, 1, testException))
-      probe.send(actor, applyEventEnvelope)
-      val applyEventError = probe.expectMsgClass(classOf[CQRSPersistentActor.CommandError])
+      val applyEvent = PersistentActor.ApplyEvent(testAggregateId, ExceptionThrowingEvent(testAggregateId, 1, testException))
+      probe.send(actor, applyEvent)
+      val applyEventError = probe.expectMsgClass(classOf[PersistentActor.ACKError])
       // Fuzzy matching because serializing and deserializing gets a different object and messes up .equals even though the two are identical
       applyEventError.exception.getMessage shouldEqual testException.getMessage
     }
@@ -436,11 +436,11 @@ class CQRSPersistentActorSpec extends TestKit(ActorSystem("CQRSPersistentActorSp
 
       producerProbe.expectMsg(Publish(testAggregateId))
       producerProbe.reply(KafkaProducerActor.PublishSuccess)
-      probe.expectMsg(CQRSPersistentActor.CommandSuccess(expectedState1))
+      probe.expectMsg(PersistentActor.ACKSuccess(expectedState1))
 
       producerProbe.expectMsg(Publish(testAggregateId))
       producerProbe.reply(KafkaProducerActor.PublishSuccess)
-      probe.expectMsg(CQRSPersistentActor.CommandSuccess(expectedState2))
+      probe.expectMsg(PersistentActor.ACKSuccess(expectedState2))
     }
 
     "Publish events even if they don't update the state" in {
@@ -455,10 +455,10 @@ class CQRSPersistentActorSpec extends TestKit(ActorSystem("CQRSPersistentActorSp
       probe.send(actor, testEnvelope)
       producerProbe.expectMsg(Publish(testAggregateId))
       producerProbe.reply(KafkaProducerActor.PublishSuccess)
-      probe.expectMsg(CQRSPersistentActor.CommandSuccess(Some(baseState)))
+      probe.expectMsg(PersistentActor.ACKSuccess(Some(baseState)))
     }
 
-    "Handle ApplyEventEnvelope requests" in {
+    "Handle ApplyEvent requests" in {
       val testContext = TestContext.setupDefault
       import testContext._
 
@@ -468,11 +468,11 @@ class CQRSPersistentActorSpec extends TestKit(ActorSystem("CQRSPersistentActorSp
       val event2 = CountIncremented(expectedState1.get.aggregateId, 1, expectedState1.get.version + 1)
       val expectedState2 = BusinessLogic.handleEvent(expectedState1, event2)
 
-      probe.send(actor, CQRSPersistentActor.ApplyEventEnvelope(testAggregateId, event1))
-      probe.send(actor, CQRSPersistentActor.ApplyEventEnvelope(testAggregateId, event2))
+      probe.send(actor, PersistentActor.ApplyEvent(testAggregateId, event1))
+      probe.send(actor, PersistentActor.ApplyEvent(testAggregateId, event2))
 
-      probe.expectMsg(CQRSPersistentActor.CommandSuccess(expectedState1))
-      probe.expectMsg(CQRSPersistentActor.CommandSuccess(expectedState2))
+      probe.expectMsg(PersistentActor.ACKSuccess(expectedState1))
+      probe.expectMsg(PersistentActor.ACKSuccess(expectedState2))
 
       verify(mockProducer, times(2)).publish(
         any[String],
@@ -496,7 +496,7 @@ class CQRSPersistentActorSpec extends TestKit(ActorSystem("CQRSPersistentActorSp
       val incrementCmd = Increment(baseState.aggregateId)
       val testEnvelope = envelope(incrementCmd)
       probe.send(actor, testEnvelope)
-      probe.expectMsg(CommandError(KafkaPublishTimeoutException(testAggregateId, expectedException)))
+      probe.expectMsg(ACKError(KafkaPublishTimeoutException(testAggregateId, expectedException)))
       probe.expectTerminated(actor)
     }
 
@@ -515,7 +515,7 @@ class CQRSPersistentActorSpec extends TestKit(ActorSystem("CQRSPersistentActorSp
       val incrementCmd = Increment(baseState.aggregateId)
       val testEnvelope = envelope(incrementCmd)
       probe.send(actor, testEnvelope)
-      probe.expectMsg(CommandError(expectedException))
+      probe.expectMsg(ACKError(expectedException))
       probe.expectTerminated(actor)
     }
 
@@ -536,18 +536,18 @@ class CQRSPersistentActorSpec extends TestKit(ActorSystem("CQRSPersistentActorSp
       val expectedState = BusinessLogic.handleEvent(Some(baseState), expectedEvent)
 
       probe.send(actor, testEnvelope)
-      probe.expectMsg(CQRSPersistentActor.CommandSuccess(expectedState))
+      probe.expectMsg(PersistentActor.ACKSuccess(expectedState))
     }
 
     "Be able to correctly extract the correct aggregate ID from messages" in {
-      val command1 = CQRSPersistentActor.CommandEnvelope(
+      val command1 = PersistentActor.ProcessMessage(
         aggregateId = "foobarbaz",
-        command = "unused")
-      val command2 = CQRSPersistentActor.CommandEnvelope(
-        aggregateId = randomUUID, command = "unused")
+        message = "unused")
+      val command2 = PersistentActor.ProcessMessage(
+        aggregateId = randomUUID, message = "unused")
 
-      val getState1 = CQRSPersistentActor.GetState(aggregateId = "foobarbaz")
-      val getState2 = CQRSPersistentActor.GetState(aggregateId = randomUUID)
+      val getState1 = PersistentActor.GetState(aggregateId = "foobarbaz")
+      val getState2 = PersistentActor.GetState(aggregateId = randomUUID)
 
       RoutableMessage.extractEntityId(command1) shouldEqual command1.aggregateId
       RoutableMessage.extractEntityId(command2) shouldEqual command2.aggregateId
@@ -576,7 +576,7 @@ class CQRSPersistentActorSpec extends TestKit(ActorSystem("CQRSPersistentActorSp
 
     "Serialize/Deserialize a CommandEnvelope from Akka" in {
       import akka.serialization.SerializationExtension
-      def doSerde[A](envelope: CQRSPersistentActor.CommandEnvelope[A]): Unit = {
+      def doSerde[A](envelope: PersistentActor.ProcessMessage[A]): Unit = {
         val serialization = SerializationExtension.get(system)
         val serializer = serialization.findSerializerFor(envelope)
         val serialized = serialization.serialize(envelope).get
@@ -584,14 +584,14 @@ class CQRSPersistentActorSpec extends TestKit(ActorSystem("CQRSPersistentActorSp
         val deserialized = serialization.deserialize(serialized, serializer.identifier, manifest).get
         deserialized shouldEqual envelope
       }
-      doSerde(CQRSPersistentActor.CommandEnvelope[String]("hello", "test2"))
+      doSerde(PersistentActor.ProcessMessage[String]("hello", "test2"))
       doSerde(envelope(Increment(UUID.randomUUID().toString)))
     }
 
-    "Serialize/Deserialize an ApplyEventEnvelope from Akka" in {
+    "Serialize/Deserialize an ApplyEvent from Akka" in {
       import akka.serialization.SerializationExtension
 
-      def doSerde[A](envelope: ApplyEventEnvelope[A]): Unit = {
+      def doSerde[A](envelope: ApplyEvent[A]): Unit = {
         val serialization = SerializationExtension.get(system)
         val serializer = serialization.findSerializerFor(envelope)
         val serialized = serialization.serialize(envelope).get
@@ -600,7 +600,7 @@ class CQRSPersistentActorSpec extends TestKit(ActorSystem("CQRSPersistentActorSp
         deserialized shouldEqual envelope
       }
 
-      doSerde(CQRSPersistentActor.ApplyEventEnvelope[String](UUID.randomUUID().toString, "test2"))
+      doSerde(PersistentActor.ApplyEvent[String](UUID.randomUUID().toString, "test2"))
       doSerde(eventEnvelope(CountIncremented(UUID.randomUUID().toString, 1, 1)))
     }
   }
