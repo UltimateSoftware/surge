@@ -2,17 +2,16 @@
 
 package surge.internal.akka.cluster
 
-import akka.Done
 import akka.actor.{ Actor, ActorSystem, PoisonPill, Props }
 import akka.testkit.TestKit
 import org.scalatest.concurrent.{ Eventually, PatienceConfiguration, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Millis, Seconds, Span }
-import org.scalatest.wordspec.{ AnyWordSpec, AnyWordSpecLike }
+import org.scalatest.wordspec.AnyWordSpecLike
 import surge.internal.utils.Logging
 import surge.kafka.HostPort
 
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.ExecutionContext
 
 class ActorRegistrySpec extends TestKit(ActorSystem("ActorRegistrySpec")) with AnyWordSpecLike
   with Matchers with Eventually with ScalaFutures with PatienceConfiguration {
@@ -22,8 +21,7 @@ class ActorRegistrySpec extends TestKit(ActorSystem("ActorRegistrySpec")) with A
   override implicit val patienceConfig: PatienceConfig = PatienceConfig(
     timeout = Span(10, Seconds), interval = Span(10, Millis))
 
-  class RegisteredActor(registeredKey: String, tags: List[String] = List.empty) extends Actor with ActorRegistrySupport with Logging {
-    override val actorSystem: ActorSystem = system
+  class RegisteredActor(registry: ActorRegistry, registeredKey: String, tags: List[String] = List.empty) extends Actor with Logging {
     implicit val executionContext: ExecutionContext = context.dispatcher
 
     private case object RegisterSelf
@@ -33,7 +31,7 @@ class ActorRegistrySpec extends TestKit(ActorSystem("ActorRegistrySpec")) with A
 
     private def registerSelf(): Unit = {
       log.debug(s"Registering actor ${self.path}")
-      registerService(registeredKey, self, tags).recover {
+      registry.registerService(registeredKey, self, tags).recover {
         case _ => self ! RegisterSelf
       }
     }
@@ -47,16 +45,26 @@ class ActorRegistrySpec extends TestKit(ActorSystem("ActorRegistrySpec")) with A
   "ActorRegistry" should {
     "Retrieve from inventory an actor recently created" in {
       val key = "TestKey"
-      val ref = system.actorOf(Props(new RegisteredActor(key)))
       val registry = new ActorRegistry(system)
+      val ref = system.actorOf(Props(new RegisteredActor(registry, key)))
       eventually {
         registry.discoverActors(key, List(HostPort("localhost", 0))).futureValue shouldEqual List(ref.path.toString)
       }
     }
+    "Keep multiple records for a particular key" in {
+      val key = "TestMultiKey"
+      val registry = new ActorRegistry(system)
+      val ref1 = system.actorOf(Props(new RegisteredActor(registry, key)))
+      val ref2 = system.actorOf(Props(new RegisteredActor(registry, key)))
+
+      eventually {
+        registry.discoverActors(key, List(HostPort("localhost", 0))).futureValue shouldEqual List(ref1.path.toString, ref2.path.toString)
+      }
+    }
     "Retrieve from inventory an actor by tag" in {
       val key = "TagTestKey"
-      val ref = system.actorOf(Props(new RegisteredActor(key, List("someTag"))))
       val registry = new ActorRegistry(system)
+      val ref = system.actorOf(Props(new RegisteredActor(registry, key, List("someTag"))))
       eventually {
         registry.discoverActors(key, List(HostPort("localhost", 0)), List("someTag")).futureValue shouldEqual List(ref.path.toString)
         registry.discoverActors(key, List(HostPort("localhost", 0)), List("NonExistingTag")).futureValue shouldBe empty
@@ -64,8 +72,8 @@ class ActorRegistrySpec extends TestKit(ActorSystem("ActorRegistrySpec")) with A
     }
     "Automatically remove an actor who dies" in {
       val key = "TerminatingActorKey"
-      val ref = system.actorOf(Props(new RegisteredActor(key)))
       val registry = new ActorRegistry(system)
+      val ref = system.actorOf(Props(new RegisteredActor(registry, key)))
       eventually {
         registry.discoverActors(key, List(HostPort("localhost", 0))).futureValue shouldEqual List(ref.path.toString)
       }

@@ -35,7 +35,6 @@ trait KafkaStreamLifeCycleManagement[K, V, T <: KafkaStreamsConsumer[K, V], SV] 
    * Ex: override val streamsConfig = baseStreamsConfig ++ Map[String, String](... stream specific config ...)
    */
   val baseStreamsConfig: Map[String, String] = Map[String, String](
-    ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG -> TimeoutConfig.Kafka.consumerSessionTimeout.toMillis.toString,
     StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG -> settings.cacheMemory.toString)
 
   protected val stateChangeListener = new KafkaStreamsNotifyOnStateChangeListener(settings.storeName, List(receiveKafkaStreamStateChange))

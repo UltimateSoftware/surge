@@ -49,7 +49,8 @@ lazy val `surge-common` = (project in file("modules/common"))
       scalatest,
       scalatestPlusMockito,
       mockitoCore,
-      jacksonKotlin
+      jacksonKotlin,
+      jacksonScala
     )
   )
   .enablePlugins(MultiJvmPlugin)

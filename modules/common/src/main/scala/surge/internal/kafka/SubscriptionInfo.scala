@@ -5,8 +5,9 @@ package surge.internal.kafka
 import java.nio.ByteBuffer
 
 import org.apache.kafka.common.TopicPartition
-import play.api.libs.json.{ Format, JsValue, Json }
-import surge.internal.utils.JsonFormats
+import play.api.libs.json.{ Format, JsNumber, JsObject, JsPath, JsString, JsValue, Json, Reads, Writes }
+import play.api.libs.json.Reads._
+import play.api.libs.functional.syntax._
 import surge.kafka.HostPort
 
 private object ByteBufferUtils {
@@ -30,7 +31,12 @@ case class SubscriptionInfo(hostPort: Option[HostPort]) {
 }
 
 object AssignmentInfo {
-  implicit val topicPartitionFormat: Format[TopicPartition] = JsonFormats.jsonFormatterFromJackson[TopicPartition]
+  implicit val topicPartitionReads: Reads[TopicPartition] = ((JsPath \ "topic").read[String] and
+    (JsPath \ "partition").read[Int])(new TopicPartition(_, _))
+  implicit val topicPartitionWrites: Writes[TopicPartition] = (o: TopicPartition) =>
+    JsObject(Map("topic" -> JsString(o.topic()), "partition" -> JsNumber(o.partition())))
+  implicit val topicPartitionFormat: Format[TopicPartition] = Format(topicPartitionReads, topicPartitionWrites)
+
   implicit val format: Format[AssignmentInfo] = Json.format
   def decode(byteBuffer: ByteBuffer): Option[AssignmentInfo] = {
     val jsonString = ByteBufferUtils.toString(byteBuffer)

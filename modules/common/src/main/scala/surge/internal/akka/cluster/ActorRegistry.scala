@@ -34,7 +34,8 @@ class Receptionist(systemAddress: Address) extends Actor {
     case RegisterService(key, actor, tags) =>
       context.watch(actor)
       val record = Record(actor.path.toString, tags)
-      val newInventory = inventory ++ Map(key -> List(record))
+      val newRecords = inventory.getOrElse(key, List.empty) :+ record
+      val newInventory = inventory ++ Map(key -> newRecords)
       context.become(registry(newInventory))
       sender() ! ServiceRegistered
     case GetServicesById(key) =>
@@ -55,10 +56,7 @@ class Receptionist(systemAddress: Address) extends Actor {
   }
 }
 
-trait ActorRegistrySupport extends Logging with ActorSystemHostAwareness {
-
-  def actorSystem: ActorSystem
-
+class ActorRegistry(val actorSystem: ActorSystem) extends Logging with ActorSystemHostAwareness {
   private val receptionistActorName = "actor-registry"
   private lazy val receptionistLocalPath = s"akka://${actorSystem.name}/user/$receptionistActorName"
 
@@ -128,5 +126,3 @@ trait ActorRegistrySupport extends Logging with ActorSystemHostAwareness {
     }
   }.map(_.flatten)
 }
-
-class ActorRegistry(val actorSystem: ActorSystem) extends ActorRegistrySupport

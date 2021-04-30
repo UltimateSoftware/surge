@@ -5,7 +5,6 @@ package surge.internal.config
 import java.util.concurrent.TimeUnit
 
 import com.typesafe.config.ConfigFactory
-import org.apache.kafka.clients.consumer.ConsumerConfig
 
 import scala.concurrent.duration._
 
@@ -28,24 +27,20 @@ object TimeoutConfig {
     val actorAskTimeout: FiniteDuration = 10.seconds
   }
 
-  object Kafka {
-    // TODO is there a good way to get this default from the Kafka client libraries?
-    val consumerSessionTimeout: FiniteDuration = 10.seconds
-  }
-
   object PartitionTracker {
     val updateTimeout: FiniteDuration = 20.seconds
   }
 
   object ActorRegistry {
-    val askTimeout: FiniteDuration = 3.seconds
-    val resolveActorTimeout: FiniteDuration = 3.seconds
+    val askTimeout: FiniteDuration = config.getDuration("surge.actor-registry.ask-timeout", TimeUnit.MILLISECONDS).milliseconds
+    val resolveActorTimeout: FiniteDuration = config.getDuration("surge.actor-registry.resolve-actor-timeout", TimeUnit.MILLISECONDS).milliseconds
   }
 
   object PublisherActor {
     val publishTimeout: FiniteDuration =
       config.getDuration("surge.producer.publish-timeout", TimeUnit.MILLISECONDS).milliseconds
-    val aggregateStateCurrentTimeout: FiniteDuration = 10.seconds
+    val aggregateStateCurrentTimeout: FiniteDuration =
+      config.getDuration("surge.producer.aggregate-state-current-timeout", TimeUnit.MILLISECONDS).milliseconds
   }
 
 }

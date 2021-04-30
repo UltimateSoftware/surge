@@ -7,9 +7,9 @@ import java.util.concurrent.atomic.AtomicReference
 
 import akka.actor.{ Actor, ActorRef, ActorSystem, Address, Props, Stash }
 import akka.kafka.ConsumerMessage.CommittableOffset
-import akka.kafka.{ ConsumerMessage, _ }
 import akka.kafka.scaladsl.Consumer
 import akka.kafka.scaladsl.Consumer.DrainingControl
+import akka.kafka.{ ConsumerMessage, _ }
 import akka.pattern._
 import akka.stream.scaladsl.{ Flow, RestartSource, Sink }
 import akka.util.Timeout
@@ -20,10 +20,9 @@ import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.{ Metric, MetricName }
 import org.slf4j.{ LoggerFactory, MDC }
 import surge.internal.akka.ActorWithTracing
-import surge.internal.akka.cluster.{ ActorHostAwareness, ActorRegistrySupport, ActorSystemHostAwareness }
-import surge.internal.kafka.{ HeadersHelper, HostAwareCooperativeStickyAssignor, HostAwareRangeAssignor, HostAwarenessConfig }
+import surge.internal.akka.cluster.{ ActorHostAwareness, ActorRegistry, ActorSystemHostAwareness }
+import surge.internal.kafka.{ HeadersHelper, HostAwareCooperativeStickyAssignor, HostAwareRangeAssignor }
 import surge.internal.utils.Logging
-import surge.kafka.KafkaTopic
 import surge.streams.DataPipeline._
 import surge.streams.EventPlusStreamMeta
 import surge.streams.replay.{ EventReplaySettings, EventReplayStrategy }
@@ -86,8 +85,9 @@ class KafkaStreamManager[Key, Value](
   private val config = ConfigFactory.load()
   private val metricFetchTimeout = config.getDuration("surge.kafka-event-source.kafka-metric-fetch-timeout").toMillis.milliseconds
   private val consumerGroup = consumerSettings.getProperty(ConsumerConfig.GROUP_ID_CONFIG)
-  private[streams] val managerActor = actorSystem.actorOf(Props(new KafkaStreamManagerActor(topicName, subscriptionProvider, tracer)))
-  private[streams] val replayCoordinator = actorSystem.actorOf(Props(new ReplayCoordinator(topicName, consumerGroup, replayStrategy)))
+  private val actorRegistry = new ActorRegistry(actorSystem)
+  private val managerActor = actorSystem.actorOf(Props(new KafkaStreamManagerActor(topicName, subscriptionProvider, tracer, actorRegistry)))
+  private val replayCoordinator = actorSystem.actorOf(Props(new ReplayCoordinator(topicName, consumerGroup, replayStrategy, actorRegistry)))
 
   def start(): KafkaStreamManager[Key, Value] = {
     managerActor ! KafkaStreamManagerActor.StartConsuming
@@ -130,18 +130,20 @@ class KafkaStreamManager[Key, Value](
 object KafkaStreamManagerActor {
   type OnReplayComplete = (String, Long) => Unit
 
-  sealed trait KafkaStreamManagerActorCommand
-  case object StartConsuming extends KafkaStreamManagerActorCommand
-  case object StopConsuming extends KafkaStreamManagerActorCommand
-  case object GetMetrics extends KafkaStreamManagerActorCommand
-  sealed trait KafkaStreamManagerActorEvent
-  case class SuccessfullyStopped(address: Address, actor: ActorRef) extends KafkaStreamManagerActorEvent
-  case object SuccessfullyStarted extends KafkaStreamManagerActorEvent
+  sealed trait KafkaStreamManagerActorRequest
+  case object StartConsuming extends KafkaStreamManagerActorRequest
+  case object StopConsuming extends KafkaStreamManagerActorRequest
+  case object GetMetrics extends KafkaStreamManagerActorRequest
+
+  sealed trait KafkaStreamManagerActorResponse
+  case class SuccessfullyStopped(address: Address, actor: ActorRef) extends KafkaStreamManagerActorResponse
+  case object SuccessfullyStarted extends KafkaStreamManagerActorResponse
 }
 
-class KafkaStreamManagerActor[Key, Value](topicName: String, subscriptionProvider: KafkaSubscriptionProvider, val tracer: Tracer) extends Actor
+class KafkaStreamManagerActor[Key, Value](topicName: String, subscriptionProvider: KafkaSubscriptionProvider,
+    val tracer: Tracer, registry: ActorRegistry) extends Actor
   with ActorWithTracing
-  with ActorHostAwareness with Stash with ActorRegistrySupport with Logging {
+  with ActorHostAwareness with Stash with Logging {
   import KafkaStreamManagerActor._
   import context.{ dispatcher, system }
 
@@ -154,6 +156,9 @@ class KafkaStreamManagerActor[Key, Value](topicName: String, subscriptionProvide
   private val backoffMax = config.getDuration("surge.kafka-event-source.backoff.max").toMillis.millis
   private val randomFactor = config.getDouble("surge.kafka-event-source.backoff.random-factor")
 
+  private sealed trait InternalMessage
+  private case object RegisterSelf extends InternalMessage
+
   private case class InternalState(control: AtomicReference[Consumer.Control], streamCompletion: Future[Done])
 
   override def receive: Receive = stopped
@@ -162,19 +167,22 @@ class KafkaStreamManagerActor[Key, Value](topicName: String, subscriptionProvide
     case StartConsuming => startConsumer()
     case StopConsuming  => sender() ! SuccessfullyStopped(localAddress, self)
     case GetMetrics     => sender() ! Map.empty
+    case RegisterSelf   => registerSelf()
   }
 
   private def consuming(state: InternalState): Receive = {
     case SuccessfullyStarted => sender() ! SuccessfullyStarted
     case StopConsuming       => handleStopConsuming(state)
     case GetMetrics          => handleGetMetrics(state)
+    case RegisterSelf        => registerSelf()
   }
 
   private def stopping(state: InternalState): Receive = {
     case msg: SuccessfullyStopped =>
       handleSuccessfullyStopped()
       sender() ! msg
-    case _ => stash()
+    case RegisterSelf => registerSelf()
+    case _            => stash()
   }
 
   private def startConsumer(): Unit = {
@@ -214,8 +222,15 @@ class KafkaStreamManagerActor[Key, Value](topicName: String, subscriptionProvide
     control.metrics pipeTo sender()
   }
 
+  private def registerSelf(): Unit = {
+    log.debug(s"Registering StreamManager at [{}] to the ActorRegistry", self.path)
+    registry.registerService(KafkaStreamManager.serviceIdentifier, self, List(topicName)).recover {
+      case _ => self ! RegisterSelf
+    }
+  }
+
   override def preStart(): Unit = {
-    registerService(KafkaStreamManager.serviceIdentifier, self, List(topicName))
+    registerSelf()
     super.preStart()
   }
 }
