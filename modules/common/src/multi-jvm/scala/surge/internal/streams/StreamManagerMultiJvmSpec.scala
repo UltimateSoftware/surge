@@ -3,6 +3,7 @@
 package surge.internal.streams
 
 import akka.NotUsed
+import akka.kafka.Subscriptions
 import akka.remote.testconductor.RoleName
 import akka.remote.testkit.{ MultiNodeConfig, MultiNodeSpec, MultiNodeSpecCallbacks }
 import akka.stream.scaladsl.Flow
@@ -95,8 +96,9 @@ class StreamManagerSpecBase extends MultiNodeSpec(StreamManagerSpecConfig) with 
           )
 
           val probe = TestProbe()
-          import probe.system.dispatcher
-          val consumer = KafkaStreamManager(topic, consumerSettings, kafkaForeverReplayStrategy, replaySettings, sendToTestProbe(probe), tracer)
+          val subscriptionProvider = new KafkaOffsetManagementSubscriptionProvider(topic.name, Subscriptions.topics(topic.name),
+            consumerSettings, KafkaStreamManager.wrapBusinessFlow(sendToTestProbe(probe)))
+          val consumer = new KafkaStreamManager(topic.name, consumerSettings, subscriptionProvider, kafkaForeverReplayStrategy, replaySettings, tracer)
 
           consumer.start()
           probe.expectMsgAnyOf(20.seconds, record1, record2)
@@ -107,8 +109,9 @@ class StreamManagerSpecBase extends MultiNodeSpec(StreamManagerSpecConfig) with 
 
       runOn(node1) {
         val probe = TestProbe()
-        import probe.system.dispatcher
-        val consumer = KafkaStreamManager(topic, consumerSettings, NoOpEventReplayStrategy, DefaultEventReplaySettings, sendToTestProbe(probe), tracer)
+        val subscriptionProvider = new KafkaOffsetManagementSubscriptionProvider(topic.name, Subscriptions.topics(topic.name),
+          consumerSettings, KafkaStreamManager.wrapBusinessFlow(sendToTestProbe(probe)))
+        val consumer = new KafkaStreamManager(topic.name, consumerSettings, subscriptionProvider, NoOpEventReplayStrategy, DefaultEventReplaySettings, tracer)
 
         consumer.start()
         probe.expectMsgAnyOf(20.seconds, record1, record2)

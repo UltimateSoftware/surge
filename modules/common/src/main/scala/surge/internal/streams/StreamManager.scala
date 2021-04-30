@@ -7,9 +7,9 @@ import java.util.concurrent.atomic.AtomicReference
 
 import akka.actor.{ Actor, ActorRef, ActorSystem, Address, Props, Stash }
 import akka.kafka.ConsumerMessage.CommittableOffset
-import akka.kafka._
+import akka.kafka.{ ConsumerMessage, _ }
+import akka.kafka.scaladsl.Consumer
 import akka.kafka.scaladsl.Consumer.DrainingControl
-import akka.kafka.scaladsl.{ Committer, Consumer }
 import akka.pattern._
 import akka.stream.scaladsl.{ Flow, RestartSource, Sink }
 import akka.util.Timeout
@@ -53,40 +53,32 @@ case class KafkaStreamMeta(topic: String, partition: Int, offset: Long, committa
 object KafkaStreamManager {
   val serviceIdentifier = "StreamManager"
 
-  def apply[Key, Value](topic: KafkaTopic, consumerSettings: ConsumerSettings[Key, Value],
-    replayStrategy: EventReplayStrategy,
-    replaySettings: EventReplaySettings,
-    business: Flow[EventPlusStreamMeta[Key, Value, KafkaStreamMeta], KafkaStreamMeta, NotUsed], tracer: Tracer)(implicit
-    actorSystem: ActorSystem,
-    ec: ExecutionContext): KafkaStreamManager[Key, Value] = {
-    val subscription = Subscriptions.topics(topic.name)
+  def wrapBusinessFlow[Key, Value](
+    business: Flow[EventPlusStreamMeta[Key, Value, KafkaStreamMeta], KafkaStreamMeta, NotUsed]): Flow[ConsumerMessage.CommittableMessage[Key, Value], KafkaStreamMeta, NotUsed] = {
     val contextToPropagate = MDC.getCopyOfContextMap
 
-    val businessFlow = Flow[ConsumerMessage.CommittableMessage[Key, Value]].map { msg =>
+    Flow[ConsumerMessage.CommittableMessage[Key, Value]].map { msg =>
       Option(contextToPropagate).foreach(contextToPropagate => MDC.setContextMap(contextToPropagate))
 
       val kafkaMeta = KafkaStreamMeta(msg.record.topic(), msg.record.partition(), msg.record.offset(), msg.committableOffset)
 
-      // Set kafka bits
       MDC.put("kafka.topic", kafkaMeta.topic)
       MDC.put("kafka.partition", kafkaMeta.partition.toString)
       MDC.put("kafka.offset", kafkaMeta.offset.toString)
       EventPlusStreamMeta(msg.record.key, msg.record.value, kafkaMeta, HeadersHelper.unapplyHeaders(msg.record.headers()))
-    }.via(business).map(meta => {
-      // Todo: Do we need to clear the context map here?
+    }.via(business).map { meta =>
       MDC.clear()
       meta
-    })
-    new KafkaStreamManager[Key, Value](subscription, topic.name, consumerSettings,
-      replayStrategy, replaySettings, businessFlow, tracer)
+    }
   }
 }
 
 class KafkaStreamManager[Key, Value](
-    subscription: Subscription, topicName: String, consumerSettings: ConsumerSettings[Key, Value],
+    topicName: String,
+    consumerSettings: ConsumerSettings[Key, Value],
+    subscriptionProvider: KafkaSubscriptionProvider,
     replayStrategy: EventReplayStrategy,
     replaySettings: EventReplaySettings,
-    businessFlow: Flow[ConsumerMessage.CommittableMessage[Key, Value], KafkaStreamMeta, NotUsed],
     val tracer: Tracer)(implicit val actorSystem: ActorSystem)
   extends ActorSystemHostAwareness
   with Logging {
@@ -94,7 +86,7 @@ class KafkaStreamManager[Key, Value](
   private val config = ConfigFactory.load()
   private val metricFetchTimeout = config.getDuration("surge.kafka-event-source.kafka-metric-fetch-timeout").toMillis.milliseconds
   private val consumerGroup = consumerSettings.getProperty(ConsumerConfig.GROUP_ID_CONFIG)
-  private[streams] val managerActor = actorSystem.actorOf(Props(new KafkaStreamManagerActor(subscription, topicName, consumerSettings, businessFlow, tracer)))
+  private[streams] val managerActor = actorSystem.actorOf(Props(new KafkaStreamManagerActor(topicName, subscriptionProvider, tracer)))
   private[streams] val replayCoordinator = actorSystem.actorOf(Props(new ReplayCoordinator(topicName, consumerGroup, replayStrategy)))
 
   def start(): KafkaStreamManager[Key, Value] = {
@@ -146,8 +138,8 @@ object KafkaStreamManagerActor {
   case class SuccessfullyStopped(address: Address, actor: ActorRef) extends KafkaStreamManagerActorEvent
   case object SuccessfullyStarted extends KafkaStreamManagerActorEvent
 }
-class KafkaStreamManagerActor[Key, Value](subscription: Subscription, topicName: String, baseConsumerSettings: ConsumerSettings[Key, Value],
-    businessFlow: Flow[ConsumerMessage.CommittableMessage[Key, Value], KafkaStreamMeta, NotUsed], val tracer: Tracer) extends Actor
+
+class KafkaStreamManagerActor[Key, Value](topicName: String, subscriptionProvider: KafkaSubscriptionProvider, val tracer: Tracer) extends Actor
   with ActorWithTracing
   with ActorHostAwareness with Stash with ActorRegistrySupport with Logging {
   import KafkaStreamManagerActor._
@@ -161,28 +153,6 @@ class KafkaStreamManagerActor[Key, Value](subscription: Subscription, topicName:
   private val backoffMin = config.getDuration("surge.kafka-event-source.backoff.min").toMillis.millis
   private val backoffMax = config.getDuration("surge.kafka-event-source.backoff.max").toMillis.millis
   private val randomFactor = config.getDouble("surge.kafka-event-source.backoff.random-factor")
-
-  private val committerMaxBatch = config.getLong("surge.kafka-event-source.committer.max-batch")
-  private val committerMaxInterval = config.getDuration("surge.kafka-event-source.committer.max-interval")
-  private val committerParallelism = config.getInt("surge.kafka-event-source.committer.parallelism")
-  private val committerSettings = CommitterSettings(context.system)
-    .withMaxBatch(committerMaxBatch)
-    .withMaxInterval(committerMaxInterval)
-    .withParallelism(committerParallelism)
-
-  private lazy val consumerSettingsWithHost = baseConsumerSettings
-    .withProperty(ConsumerConfig.PARTITION_ASSIGNMENT_STRATEGY_CONFIG, PartitionAssignorConfig.assignorClassName)
-    .withProperty(HostAwarenessConfig.HOST_CONFIG, localHostname)
-    .withProperty(HostAwarenessConfig.PORT_CONFIG, localPort.toString)
-    .withStopTimeout(Duration.Zero)
-
-  private lazy val consumerSettings = if (reuseConsumerId) {
-    consumerSettingsWithHost
-      .withClientId(clientId)
-      .withGroupInstanceId(clientId)
-  } else {
-    consumerSettingsWithHost
-  }
 
   private case class InternalState(control: AtomicReference[Consumer.Control], streamCompletion: Future[Done])
 
@@ -216,13 +186,8 @@ class KafkaStreamManagerActor[Key, Value](subscription: Subscription, topicName:
         minBackoff = backoffMin,
         maxBackoff = backoffMax,
         randomFactor = randomFactor) { () =>
-        log.debug("Creating Kafka source for topic {} with client id {}", Seq(topicName, clientId): _*)
-        Consumer
-          .committableSource(consumerSettings, subscription)
+        subscriptionProvider.createSubscription(context.system)
           .mapMaterializedValue(c => control.set(c))
-          .via(businessFlow)
-          .map(_.committableOffset)
-          .via(Committer.flow(committerSettings))
       }.runWith(Sink.ignore)
 
     val state = InternalState(control, result)

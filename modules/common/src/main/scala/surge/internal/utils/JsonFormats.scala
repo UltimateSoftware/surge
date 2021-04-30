@@ -66,6 +66,7 @@ object JsonFormats {
     m.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
     m.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
     m.setSerializationInclusion(Include.NON_NULL)
+    m.setSerializationInclusion(Include.NON_ABSENT)
     m.setTimeZone(TimeZone.getTimeZone("UTC"))
     m
   }

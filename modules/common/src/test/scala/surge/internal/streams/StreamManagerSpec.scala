@@ -4,6 +4,7 @@ package surge.internal.streams
 
 import akka.Done
 import akka.actor.ActorSystem
+import akka.kafka.Subscriptions
 import akka.testkit.{ TestKit, TestProbe }
 import io.opentracing.noop.NoopTracerFactory
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
@@ -56,7 +57,9 @@ class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec"))
     val tupleFlow: (String, Array[Byte], Map[String, Array[Byte]]) => Future[_] = { (k, v, _) => businessLogic(k, v) }
     val partitionBy: (String, Array[Byte], Map[String, Array[Byte]]) => String = { (k, _, _) => k }
     val businessFlow = FlowConverter.flowFor[String, Array[Byte], KafkaStreamMeta](tupleFlow, partitionBy, new DefaultDataSinkExceptionHandler, parallelism)
-    KafkaStreamManager(topic, consumerSettings, replayStrategy, replaySettings, businessFlow, NoopTracerFactory.create())
+    val subscriptionProvider = new KafkaOffsetManagementSubscriptionProvider(topic.name, Subscriptions.topics(topic.name),
+      consumerSettings, KafkaStreamManager.wrapBusinessFlow(businessFlow))
+    new KafkaStreamManager(topic.name, consumerSettings, subscriptionProvider, replayStrategy, replaySettings, NoopTracerFactory.create())
   }
 
   "StreamManager" should {
