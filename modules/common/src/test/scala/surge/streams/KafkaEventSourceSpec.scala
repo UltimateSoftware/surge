@@ -21,6 +21,7 @@ import org.scalatest.wordspec.AnyWordSpecLike
 import org.slf4j.LoggerFactory
 import surge.core.SurgeEventReadFormatting
 import surge.internal.akka.kafka.AkkaKafkaConsumer
+import surge.internal.kafka.HeadersHelper
 import surge.kafka.KafkaTopic
 import surge.kafka.streams.DefaultSerdes
 
@@ -162,6 +163,42 @@ class KafkaEventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with 
         consumer1.to(consumerSettings)(testSink, autoStart = true)
 
         probe.expectMsgAllOf(10.seconds, record1, s"DELETE $record1")
+      }
+    }
+
+    "Not deserialize a message if shouldParseMessage returns false" in {
+      val userDefinedConfig = EmbeddedKafkaConfig(kafkaPort = 0, zooKeeperPort = 0)
+      withRunningKafkaOnFoundPort(userDefinedConfig) { implicit actualConfig =>
+        val topic = KafkaTopic("testTopic")
+        createCustomTopic(topic.name, partitions = 3)
+        val embeddedBroker = s"localhost:${actualConfig.kafkaPort}"
+
+        val groupId = "skip-messages-test"
+        val skipMessagesWithThisHeader = "Skip me!"
+        val testSource = new KafkaEventSource[String] {
+          override def baseEventName: String = "TestAggregateEvent"
+          override def kafkaTopic: KafkaTopic = topic
+          override def formatting: SurgeEventReadFormatting[String] = bytes => new String(bytes)
+          override def actorSystem: ActorSystem = system
+          override def tracer: Tracer = NoopTracerFactory.create()
+          override def shouldParseMessage(key: String, headers: Map[String, Array[Byte]]): Boolean = !headers.contains(skipMessagesWithThisHeader)
+        }
+        val probe = TestProbe()
+        val testSink = testEventSink(probe)
+
+        val skippedRecord = "skipped record"
+        val handledRecord = "expected record"
+        val skipHeaders = HeadersHelper.createHeaders(Map(skipMessagesWithThisHeader -> "Should be skipped!"))
+        publishToKafka(new ProducerRecord[String, String](topic.name, 0, skippedRecord, skippedRecord, skipHeaders))
+        publishToKafka(new ProducerRecord[String, String](topic.name, 1, skippedRecord, skippedRecord, skipHeaders))
+        publishToKafka(new ProducerRecord[String, String](topic.name, 2, skippedRecord, skippedRecord, skipHeaders))
+        publishToKafka(new ProducerRecord[String, String](topic.name, 0, handledRecord, handledRecord))
+
+        val consumerSettings = testConsumerSettings(embeddedBroker, groupId)
+
+        testSource.to(consumerSettings)(testSink, autoStart = true)
+
+        probe.expectMsg(10.seconds, handledRecord)
       }
     }
 

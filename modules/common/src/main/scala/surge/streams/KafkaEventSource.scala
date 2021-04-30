@@ -32,6 +32,8 @@ trait EventSourceDeserialization[Event] {
         tags = metricTags))
   }
 
+  def shouldParseMessage(key: String, headers: Map[String, Array[Byte]]): Boolean = true
+
   protected def onDeserializationFailure(key: String, value: Array[Byte], exception: Throwable): Unit = {
     log.error("Unable to read event from byte array", exception)
   }
@@ -43,12 +45,16 @@ trait EventSourceDeserialization[Event] {
           val key = eventPlusOffset.messageKey
           Option(eventPlusOffset.messageBody) match {
             case Some(value) =>
-              Try(eventDeserializationTimer.time(formatting.readEvent(value))) match {
-                case Failure(exception) =>
-                  onDeserializationFailure(key, value, exception)
-                  Left(eventPlusOffset.streamMeta)
-                case Success(event) =>
-                  Right(EventPlusStreamMeta(key, event, eventPlusOffset.streamMeta, eventPlusOffset.headers))
+              if (shouldParseMessage(key, eventPlusOffset.headers)) {
+                Try(eventDeserializationTimer.time(formatting.readEvent(value))) match {
+                  case Failure(exception) =>
+                    onDeserializationFailure(key, value, exception)
+                    Left(eventPlusOffset.streamMeta)
+                  case Success(event) =>
+                    Right(EventPlusStreamMeta(key, event, eventPlusOffset.streamMeta, eventPlusOffset.headers))
+                }
+              } else {
+                Left(eventPlusOffset.streamMeta)
               }
             case _ =>
               eventHandler.nullEventFactory(key, eventPlusOffset.headers).map { event =>

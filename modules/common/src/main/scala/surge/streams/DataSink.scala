@@ -9,7 +9,7 @@ import surge.internal.akka.streams.FlowConverter
 import scala.concurrent.{ ExecutionContext, Future }
 
 trait DataSinkExceptionHandler[K, V] {
-  def handleException[Meta](key: K, value: V, streamMeta: Meta, exception: Throwable)
+  def handleException[Meta](key: K, value: V, streamMeta: Meta, exception: Throwable): Unit
 }
 
 trait DataHandler[Key, Value] {
