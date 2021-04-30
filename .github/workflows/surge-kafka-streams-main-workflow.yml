@@ -45,7 +45,7 @@ jobs:
       - name: sonar
         run: |-
           fnd tanagra:build:sonar \
-            --sonar_host=https://sonar.ulti.io \
+            --sonar_host=https://sonar.mia.ucloud.int \
             --sonar_token=secrets.prod::sonar:token \
             --sonar_project_key=GEARS_Tools \
             --sonar_quality_gate_id=
