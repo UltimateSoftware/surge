@@ -50,6 +50,6 @@ object Settings extends AutoPlugin {
       "-deprecation",
       "-feature"
     ),
-    resolvers ++= Seq(gearsToolsMavenRelease)
-  )
+    resolvers ++= Seq(gearsToolsMavenRelease),
+    testOptions in Test += Tests.Argument(TestFrameworks.ScalaTest, "-oD", "-u", "target/test-reports"))
 }

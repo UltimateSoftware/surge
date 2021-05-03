@@ -50,6 +50,11 @@ jobs:
             --sonar_token=secrets.prod::sonar:token \
             --sonar_project_key=GEARS_Tools \
             --sonar_quality_gate_id=
+      - name: publish test report
+        uses: mikepenz/action-junit-report@v2
+        if: 'always()'
+        with:
+          report_paths: 'target/test-reports/*.xml'
       - name: succeeded
         run: 'fnd tanagra:status:report --pipeline_status=SUCCEEDED'
         if: '${{ success() }}'
