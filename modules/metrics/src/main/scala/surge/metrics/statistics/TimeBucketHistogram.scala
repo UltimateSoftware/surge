@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.metrics.statistics
 
@@ -9,20 +9,24 @@ import surge.metrics.MetricValueProvider
 import scala.collection.mutable
 
 /**
- * Trait that records sensor readings into buckets calculated from the timestamp of the reading. Expires buckets with timestamps
- * that are older than the implemented bucket expiration.  The metric recorded from this is the average value across all non-expired buckets.
+ * Trait that records sensor readings into buckets calculated from the timestamp of the reading. Expires buckets with timestamps that are older than the
+ * implemented bucket expiration. The metric recorded from this is the average value across all non-expired buckets.
  */
 trait TimeBucketHistogram extends MetricValueProvider {
+
   /**
    * Calculate a bucket for a given timestamp
-   * @param timestampMs The timstamp of the recorded sensor reading
-   * @return A long value representing the bucket that the reading for a sensor with the given timestamp should be added to
+   * @param timestampMs
+   *   The timstamp of the recorded sensor reading
+   * @return
+   *   A long value representing the bucket that the reading for a sensor with the given timestamp should be added to
    */
   def getBucket(timestampMs: Long): Long
 
   /**
-   * The total number of buckets to keep.  Any buckets older than getBucket(currentTime) - numberOfBuckets will be cleared from the histogram.
-   * @return The number of buckets that should be kept
+   * The total number of buckets to keep. Any buckets older than getBucket(currentTime) - numberOfBuckets will be cleared from the histogram.
+   * @return
+   *   The number of buckets that should be kept
    */
   def numberOfBuckets: Long
 

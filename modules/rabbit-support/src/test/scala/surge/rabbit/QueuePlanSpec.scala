@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.rabbit
 
@@ -9,8 +9,7 @@ import org.scalatest.wordspec.AnyWordSpecLike
 class QueuePlanSpec extends AnyWordSpecLike with Matchers {
   "QueuePlan" should {
     "Create declaration with durable true" in {
-      val declaration: Declaration = QueuePlan("queue", durable = true, exclusive = false, autoDelete = false)
-        .declaration()
+      val declaration: Declaration = QueuePlan("queue", durable = true, exclusive = false, autoDelete = false).declaration()
 
       declaration shouldBe a[QueueDeclaration]
       declaration.asInstanceOf[QueueDeclaration].name shouldEqual "queue"
@@ -18,8 +17,7 @@ class QueuePlanSpec extends AnyWordSpecLike with Matchers {
     }
 
     "Create declaration with exclusive true" in {
-      val declaration: Declaration = QueuePlan("queue", durable = false, exclusive = true, autoDelete = false)
-        .declaration()
+      val declaration: Declaration = QueuePlan("queue", durable = false, exclusive = true, autoDelete = false).declaration()
 
       declaration shouldBe a[QueueDeclaration]
       declaration.asInstanceOf[QueueDeclaration].name shouldEqual "queue"
@@ -27,8 +25,7 @@ class QueuePlanSpec extends AnyWordSpecLike with Matchers {
     }
 
     "Create declaration with autoDelete true" in {
-      val declaration: Declaration = QueuePlan("queue", durable = false, exclusive = false, autoDelete = true)
-        .declaration()
+      val declaration: Declaration = QueuePlan("queue", durable = false, exclusive = false, autoDelete = true).declaration()
 
       declaration shouldBe a[QueueDeclaration]
       declaration.asInstanceOf[QueueDeclaration].name shouldEqual "queue"

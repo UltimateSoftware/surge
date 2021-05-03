@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.internal.akka.cluster
 
@@ -47,11 +47,11 @@ class Receptionist(systemAddress: Address) extends Actor {
   }
 
   private def removeFromInventory(inventory: Map[String, List[Record]], actorToRemove: ActorRef): Map[String, List[Record]] = {
-    inventory.map {
-      case (key, list) =>
+    inventory
+      .map { case (key, list) =>
         val newList = list.filterNot(record => record.actorPath.equals(actorToRemove.path.toString))
         key -> newList
-    }
+      }
       .filter { case (_, list) => list.nonEmpty }
   }
 }
@@ -64,7 +64,7 @@ class ActorRegistry(val actorSystem: ActorSystem) extends Logging with ActorSyst
 
   private def findReceptionist(path: String = receptionistLocalPath)(implicit executionContext: ExecutionContext): Future[Option[ActorRef]] = {
     actorSystem.actorSelection(path).resolveOne(TimeoutConfig.ActorRegistry.resolveActorTimeout).map(Some(_)).recoverWith {
-      case _ if path equals receptionistLocalPath =>
+      case _ if path.equals(receptionistLocalPath) =>
         ActorPath.fromString(path)
         log.debug(s"Receptionist not found for path $path, initializing local ActorRegistry")
         val receptionistActor: ActorRef = actorSystem.actorOf(Props(new Receptionist(localAddress)), receptionistActorName)
@@ -89,16 +89,15 @@ class ActorRegistry(val actorSystem: ActorSystem) extends Logging with ActorSyst
 
   private def discoverRecords(key: String, queryActorSystems: List[HostPort])(implicit executionContext: ExecutionContext): Future[List[Record]] = {
     findAllReceptionists(queryActorSystems).flatMap { receptionists =>
-      Future.sequence(
-        receptionists.map { actorRef =>
-          actorRef.ask(Receptionist.GetServicesById(key))
-            .mapTo[Receptionist.ServicesList]
-            .map { servicesList =>
-              servicesList.records.map { record =>
-                record.copy(actorPath = remotePath(record.actorPath, servicesList.address))
-              }
+      Future
+        .sequence(receptionists.map { actorRef =>
+          actorRef.ask(Receptionist.GetServicesById(key)).mapTo[Receptionist.ServicesList].map { servicesList =>
+            servicesList.records.map { record =>
+              record.copy(actorPath = remotePath(record.actorPath, servicesList.address))
             }
-        }).map(listOfLists => listOfLists.flatten)
+          }
+        })
+        .map(listOfLists => listOfLists.flatten)
     }
   }
 
@@ -106,23 +105,23 @@ class ActorRegistry(val actorSystem: ActorSystem) extends Logging with ActorSyst
     discoverRecords(key, queryActorSystems).map(records => records.map(_.actorPath))
   }
 
-  def discoverActors(
-    key: String,
-    queryActorSystems: List[HostPort],
-    tags: List[String])(implicit executionContext: ExecutionContext): Future[List[String]] = {
-    discoverRecords(key, queryActorSystems).map { records =>
-      records.filter(_.tags.intersect(tags).nonEmpty)
-    }.map(records => records.map(_.actorPath))
+  def discoverActors(key: String, queryActorSystems: List[HostPort], tags: List[String])(implicit executionContext: ExecutionContext): Future[List[String]] = {
+    discoverRecords(key, queryActorSystems)
+      .map { records =>
+        records.filter(_.tags.intersect(tags).nonEmpty)
+      }
+      .map(records => records.map(_.actorPath))
   }
 
-  private def findAllReceptionists(
-    queryActorSystems: List[HostPort])(implicit executionContext: ExecutionContext): Future[List[ActorRef]] = Future.sequence {
-    queryActorSystems.map {
-      case hostPort if isHostPortThisNode(hostPort) =>
-        findReceptionist()
-      case hostPort =>
-        val path = remotePath(receptionistLocalPath, hostPort)
-        findReceptionist(path)
+  private def findAllReceptionists(queryActorSystems: List[HostPort])(implicit executionContext: ExecutionContext): Future[List[ActorRef]] = Future
+    .sequence {
+      queryActorSystems.map {
+        case hostPort if isHostPortThisNode(hostPort) =>
+          findReceptionist()
+        case hostPort =>
+          val path = remotePath(receptionistLocalPath, hostPort)
+          findReceptionist(path)
+      }
     }
-  }.map(_.flatten)
+    .map(_.flatten)
 }

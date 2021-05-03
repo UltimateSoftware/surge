@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.internal.kafka
 
@@ -46,22 +46,20 @@ trait HostAwarenessConfig extends Configurable {
   }
 
   protected def addMetadataToAssignment(
-    groupAssignment: ConsumerPartitionAssignor.GroupAssignment,
-    groupSubscription: ConsumerPartitionAssignor.GroupSubscription): Map[String, Assignment] = {
+      groupAssignment: ConsumerPartitionAssignor.GroupAssignment,
+      groupSubscription: ConsumerPartitionAssignor.GroupSubscription): Map[String, Assignment] = {
 
-    val hostPortMappings = groupSubscription.groupSubscription().asScala.flatMap {
-      case (key, subscription) =>
-        SubscriptionInfo.decode(subscription.userData()).flatMap(_.hostPort).toList.flatMap { hostPort =>
-          val assignedPartitions = Option(groupAssignment.groupAssignment().get(key)).map(_.partitions().asScala.toSet).getOrElse(Set.empty)
-          assignedPartitions.map(_ -> hostPort)
-        }
+    val hostPortMappings = groupSubscription.groupSubscription().asScala.flatMap { case (key, subscription) =>
+      SubscriptionInfo.decode(subscription.userData()).flatMap(_.hostPort).toList.flatMap { hostPort =>
+        val assignedPartitions = Option(groupAssignment.groupAssignment().get(key)).map(_.partitions().asScala.toSet).getOrElse(Set.empty)
+        assignedPartitions.map(_ -> hostPort)
+      }
     }
     val assignmentInfo = AssignmentInfo(hostPortMappings.toList)
     val assignmentUserData = assignmentInfo.encode
 
-    val assignmentsWithMetadata = groupAssignment.groupAssignment().asScala.map {
-      case (key, assignment) =>
-        key -> new Assignment(assignment.partitions(), assignmentUserData)
+    val assignmentsWithMetadata = groupAssignment.groupAssignment().asScala.map { case (key, assignment) =>
+      key -> new Assignment(assignment.partitions(), assignmentUserData)
     }
     assignmentsWithMetadata.toMap
   }

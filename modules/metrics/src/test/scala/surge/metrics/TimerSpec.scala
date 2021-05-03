@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.metrics
 
@@ -37,7 +37,7 @@ class TimerSpec extends MetricsSpecLike with Eventually {
     "Properly time method completion time" in {
       val testTimerName = "method-timer-test"
       val timer = metrics.timer(MetricInfo(testTimerName, "Test timer description"))
-      timer.time({ Thread.sleep(10L) })
+      timer.time { Thread.sleep(10L) }
       metricValue(testTimerName) shouldEqual 10.0 +- 4 // Give it a little wiggle room
     }
   }

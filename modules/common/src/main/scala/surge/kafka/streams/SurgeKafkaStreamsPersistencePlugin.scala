@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.kafka.streams
 
@@ -31,9 +31,10 @@ object SurgeKafkaStreamsPersistencePluginLoader {
   def load(): SurgeKafkaStreamsPersistencePlugin = {
     Try(config.getString(s"$persistencePluginName.plugin-class")) match {
       case Failure(_) =>
-        log.error(s"Unable to find a config setting for $persistencePluginName.plugin-class. " +
-          s"This means you've configured a Kafka Streams persistence plugin that does not exist or is not configured correctly. " +
-          s"Falling back to the default setting of $defaultPersistencePluginName")
+        log.error(
+          s"Unable to find a config setting for $persistencePluginName.plugin-class. " +
+            s"This means you've configured a Kafka Streams persistence plugin that does not exist or is not configured correctly. " +
+            s"Falling back to the default setting of $defaultPersistencePluginName")
         defaultPersistencePlugin
       case Success(pluginClass) =>
         Try(Class.forName(pluginClass).newInstance()) match {

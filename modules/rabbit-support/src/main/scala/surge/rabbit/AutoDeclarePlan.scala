@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.rabbit
 
@@ -8,47 +8,53 @@ sealed trait Declarable {
   def declaration(): Declaration
 }
 
-class IllegalPlanException(message: String) extends RuntimeException(message)
+class IllegalPlanException(message: String)
+    extends RuntimeException(message)
 
-/**
- * Plan for queue declaration
- * @param name          String
- * @param exclusive     Boolean
- * @param durable       Boolean
- * @param autoDelete    Boolean
- * @param arguments     Map
- */
+    /**
+     * Plan for queue declaration
+     * @param name
+     *   String
+     * @param exclusive
+     *   Boolean
+     * @param durable
+     *   Boolean
+     * @param autoDelete
+     *   Boolean
+     * @param arguments
+     *   Map
+     */
 case class QueuePlan(name: String, exclusive: Boolean, durable: Boolean, autoDelete: Boolean, arguments: Map[String, AnyRef] = Map.empty) extends Declarable {
   override def declaration(): Declaration = {
-    QueueDeclaration(name)
-      .withDurable(durable)
-      .withExclusive(exclusive)
-      .withAutoDelete(autoDelete)
-      .withArguments(arguments)
+    QueueDeclaration(name).withDurable(durable).withExclusive(exclusive).withAutoDelete(autoDelete).withArguments(arguments)
   }
 }
 
 /**
  * Plan for Exchange Declaration
- * @param name          String
- * @param durable       Boolean
- * @param autoDelete    Boolean
- * @param arguments     Map
+ * @param name
+ *   String
+ * @param durable
+ *   Boolean
+ * @param autoDelete
+ *   Boolean
+ * @param arguments
+ *   Map
  */
 case class ExchangePlan(name: String, durable: Boolean, autoDelete: Boolean, arguments: Map[String, AnyRef] = Map.empty) extends Declarable {
   override def declaration(): Declaration = {
-    ExchangeDeclaration(name, "topic")
-      .withDurable(durable)
-      .withAutoDelete(autoDelete)
-      .withArguments(arguments)
+    ExchangeDeclaration(name, "topic").withDurable(durable).withAutoDelete(autoDelete).withArguments(arguments)
   }
 }
 
 /**
  * Binding
- * @param queueName       String
- * @param exchangeName    String
- * @param routingKey      Option[String]
+ * @param queueName
+ *   String
+ * @param exchangeName
+ *   String
+ * @param routingKey
+ *   Option[String]
  */
 case class Binding(queueName: String, exchangeName: String, routingKey: Option[String]) extends Declarable {
   override def declaration(): Declaration = {
@@ -63,9 +69,12 @@ case class Binding(queueName: String, exchangeName: String, routingKey: Option[S
 
 /**
  * AutoDeclarePlan
- * @param queuePlan     QueuePlan
- * @param exchangePlan  ExchangePlan
- * @param binding       Binding
+ * @param queuePlan
+ *   QueuePlan
+ * @param exchangePlan
+ *   ExchangePlan
+ * @param binding
+ *   Binding
  */
 case class AutoDeclarePlan(queuePlan: QueuePlan, exchangePlan: ExchangePlan, binding: Binding) {
 

@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.metrics
 
@@ -7,10 +7,7 @@ import org.scalatest.wordspec.AnyWordSpecLike
 
 object MetricsSpecLike {
   def metricValue(metrics: Metrics, metricName: String): Double = {
-    metrics.getMetrics
-      .find(metric => metric.info.name == metricName)
-      .getOrElse(throw new AssertionError(s"Could not find a metric named $metricName"))
-      .getValue
+    metrics.getMetrics.find(metric => metric.info.name == metricName).getOrElse(throw new AssertionError(s"Could not find a metric named $metricName")).getValue
   }
 }
 trait MetricsSpecLike extends AnyWordSpecLike with Matchers {

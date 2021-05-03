@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.metrics
 
@@ -52,19 +52,16 @@ final case class Metrics(config: MetricsConfig) {
   def rate(metricInfo: MetricInfo, recordingLevel: RecordingLevel = RecordingLevel.Info): Rate = {
     val rateSensor = sensor(metricInfo.name, recordingLevel)
 
-    val oneMinuteAverage = metricInfo.copy(
-      name = s"${metricInfo.name}.one-minute-average",
-      description = s"${metricInfo.description} averaged over the past minute")
+    val oneMinuteAverage =
+      metricInfo.copy(name = s"${metricInfo.name}.one-minute-average", description = s"${metricInfo.description} averaged over the past minute")
     rateSensor.addMetric(oneMinuteAverage, new RateHistogram(1.minute.toSeconds), recordingLevel)
 
-    val fiveMinuteAverage = metricInfo.copy(
-      name = s"${metricInfo.name}.five-minute-average",
-      description = s"${metricInfo.description} averaged over the past 5 minutes")
+    val fiveMinuteAverage =
+      metricInfo.copy(name = s"${metricInfo.name}.five-minute-average", description = s"${metricInfo.description} averaged over the past 5 minutes")
     rateSensor.addMetric(fiveMinuteAverage, new RateHistogram(5.minutes.toSeconds), recordingLevel)
 
-    val fifteenMinuteAverage = metricInfo.copy(
-      name = s"${metricInfo.name}.fifteen-minute-average",
-      description = s"${metricInfo.description} averaged over the past 15 minutes")
+    val fifteenMinuteAverage =
+      metricInfo.copy(name = s"${metricInfo.name}.fifteen-minute-average", description = s"${metricInfo.description} averaged over the past 15 minutes")
     rateSensor.addMetric(fifteenMinuteAverage, new RateHistogram(15.minutes.toSeconds), recordingLevel)
     new RateImpl(rateSensor)
   }

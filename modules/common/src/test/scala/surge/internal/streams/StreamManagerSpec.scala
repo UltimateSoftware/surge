@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.internal.streams
 
@@ -26,8 +26,14 @@ import surge.streams.replay._
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
 
-class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec"))
-  with AnyWordSpecLike with Matchers with EmbeddedKafka with Eventually with BeforeAndAfterAll with ScalaFutures {
+class StreamManagerSpec
+    extends TestKit(ActorSystem("StreamManagerSpec"))
+    with AnyWordSpecLike
+    with Matchers
+    with EmbeddedKafka
+    with Eventually
+    with BeforeAndAfterAll
+    with ScalaFutures {
   implicit override val patienceConfig: PatienceConfig =
     PatienceConfig(timeout = scaled(Span(30, Seconds)), interval = scaled(Span(50, Millis)))
 
@@ -47,18 +53,24 @@ class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec"))
     Future.successful(Done)
   }
 
-  private def testStreamManager(topic: KafkaTopic, kafkaBrokers: String, groupId: String,
-    businessLogic: (String, Array[Byte]) => Future[_], replayStrategy: EventReplayStrategy = NoOpEventReplayStrategy,
-    replaySettings: EventReplaySettings = DefaultEventReplaySettings): KafkaStreamManager[String, Array[Byte]] = {
-    val consumerSettings = AkkaKafkaConsumer.consumerSettings[String, Array[Byte]](system, groupId)
-      .withBootstrapServers(kafkaBrokers)
+  private def testStreamManager(
+      topic: KafkaTopic,
+      kafkaBrokers: String,
+      groupId: String,
+      businessLogic: (String, Array[Byte]) => Future[_],
+      replayStrategy: EventReplayStrategy = NoOpEventReplayStrategy,
+      replaySettings: EventReplaySettings = DefaultEventReplaySettings): KafkaStreamManager[String, Array[Byte]] = {
+    val consumerSettings = AkkaKafkaConsumer.consumerSettings[String, Array[Byte]](system, groupId).withBootstrapServers(kafkaBrokers)
 
     val parallelism = 16
     val tupleFlow: (String, Array[Byte], Map[String, Array[Byte]]) => Future[_] = { (k, v, _) => businessLogic(k, v) }
     val partitionBy: (String, Array[Byte], Map[String, Array[Byte]]) => String = { (k, _, _) => k }
     val businessFlow = FlowConverter.flowFor[String, Array[Byte], KafkaStreamMeta](tupleFlow, partitionBy, new DefaultDataSinkExceptionHandler, parallelism)
-    val subscriptionProvider = new KafkaOffsetManagementSubscriptionProvider(topic.name, Subscriptions.topics(topic.name),
-      consumerSettings, KafkaStreamManager.wrapBusinessFlow(businessFlow))
+    val subscriptionProvider = new KafkaOffsetManagementSubscriptionProvider(
+      topic.name,
+      Subscriptions.topics(topic.name),
+      consumerSettings,
+      KafkaStreamManager.wrapBusinessFlow(businessFlow))
     new KafkaStreamManager(topic.name, consumerSettings, subscriptionProvider, replayStrategy, replaySettings, NoopTracerFactory.create())
   }
 
@@ -104,8 +116,8 @@ class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec"))
 
         // Returning null here when the future completes gets us the same result as converting from a Java Future that completes with null,
         // which is typical in cases where the future is just used to signal completion and doesn't care about the return value
-        def handler(key: String, value: Array[Byte]): Future[Any] = sendToTestProbe(probe)(key, value)
-          .flatMap(_ => Future.successful(null)) // scalastyle:ignore null
+        def handler(key: String, value: Array[Byte]): Future[Any] =
+          sendToTestProbe(probe)(key, value).flatMap(_ => Future.successful(null)) // scalastyle:ignore null
 
         val record1 = "record 1"
         val record2 = "record 2"
@@ -208,8 +220,8 @@ class StreamManagerSpec extends TestKit(ActorSystem("StreamManagerSpec"))
 
         val settings = KafkaForeverReplaySettings(topic.name).copy(brokers = List(embeddedBroker))
         val kafkaForeverReplayStrategy = KafkaForeverReplayStrategy.create(system, settings)
-        val consumer = testStreamManager(topic, kafkaBrokers = embeddedBroker, groupId = "replay-test",
-          sendToTestProbe(probe), kafkaForeverReplayStrategy, settings)
+        val consumer =
+          testStreamManager(topic, kafkaBrokers = embeddedBroker, groupId = "replay-test", sendToTestProbe(probe), kafkaForeverReplayStrategy, settings)
 
         consumer.start()
         probe.expectMsgAllOf(20.seconds, record1, record2, record3)

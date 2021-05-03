@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.internal.kafka
 
@@ -31,8 +31,7 @@ case class SubscriptionInfo(hostPort: Option[HostPort]) {
 }
 
 object AssignmentInfo {
-  implicit val topicPartitionReads: Reads[TopicPartition] = ((JsPath \ "topic").read[String] and
-    (JsPath \ "partition").read[Int])(new TopicPartition(_, _))
+  implicit val topicPartitionReads: Reads[TopicPartition] = ((JsPath \ "topic").read[String].and((JsPath \ "partition").read[Int]))(new TopicPartition(_, _))
   implicit val topicPartitionWrites: Writes[TopicPartition] = (o: TopicPartition) =>
     JsObject(Map("topic" -> JsString(o.topic()), "partition" -> JsNumber(o.partition())))
   implicit val topicPartitionFormat: Format[TopicPartition] = Format(topicPartitionReads, topicPartitionWrites)

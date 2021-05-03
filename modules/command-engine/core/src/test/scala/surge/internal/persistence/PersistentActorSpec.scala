@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.internal.persistence
 
@@ -33,8 +33,14 @@ class IsAtLeastOneElementSeq extends ArgumentMatcher[Seq[KafkaProducerActor.Mess
   def matches(seq: Seq[KafkaProducerActor.MessageToPublish]): Boolean = seq.nonEmpty
 }
 
-class PersistentActorSpec extends TestKit(ActorSystem("PersistentActorSpec")) with AnyWordSpecLike with Matchers
-  with BeforeAndAfterAll with MockitoSugar with TestBoundedContext with PartialFunctionValues {
+class PersistentActorSpec
+    extends TestKit(ActorSystem("PersistentActorSpec"))
+    with AnyWordSpecLike
+    with Matchers
+    with BeforeAndAfterAll
+    with MockitoSugar
+    with TestBoundedContext
+    with PartialFunctionValues {
   import ArgumentMatchers.{ any, anyString, eq => argEquals }
   import TestBoundedContext._
 
@@ -45,20 +51,28 @@ class PersistentActorSpec extends TestKit(ActorSystem("PersistentActorSpec")) wi
 
   def randomUUID: String = UUID.randomUUID().toString
 
-  private def testActor(aggregateId: String = randomUUID, producerActor: KafkaProducerActor,
-    aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue], publishStateOnly: Boolean = false): ActorRef = {
+  private def testActor(
+      aggregateId: String = randomUUID,
+      producerActor: KafkaProducerActor,
+      aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue],
+      publishStateOnly: Boolean = false): ActorRef = {
 
     val props = testActorProps(aggregateId, producerActor, aggregateKafkaStreamsImpl, publishStateOnly)
     system.actorOf(props)
   }
 
-  private def testActorProps(aggregateId: String = randomUUID, producerActor: KafkaProducerActor,
-    aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue],
-    publishStateOnly: Boolean = false): Props = {
+  private def testActorProps(
+      aggregateId: String = randomUUID,
+      producerActor: KafkaProducerActor,
+      aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue],
+      publishStateOnly: Boolean = false): Props = {
     val metrics = PersistentActor.createMetrics(Metrics.globalMetricRegistry, "testAggregate")
     val sharedResources = PersistentEntitySharedResources(producerActor, metrics, aggregateKafkaStreamsImpl)
-    PersistentActor.props(aggregateId, businessLogic.copy(kafka = businessLogic.kafka.copy(publishStateOnly = publishStateOnly)),
-      sharedResources, ConfigFactory.load())
+    PersistentActor.props(
+      aggregateId,
+      businessLogic.copy(kafka = businessLogic.kafka.copy(publishStateOnly = publishStateOnly)),
+      sharedResources,
+      ConfigFactory.load())
   }
 
   private def envelope(cmd: BaseTestCommand): PersistentActor.ProcessMessage[BaseTestCommand] = {
@@ -91,8 +105,8 @@ class PersistentActorSpec extends TestKit(ActorSystem("PersistentActorSpec")) wi
   private def probeBackedMockProducer(probe: TestProbe): KafkaProducerActor = {
     val mockProducer = mock[KafkaProducerActor]
     when(mockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.successful(true))
-    when(mockProducer.publish(anyString, any[KafkaProducerActor.MessageToPublish], any[Seq[KafkaProducerActor.MessageToPublish]]))
-      .thenAnswer((invocation: InvocationOnMock) => {
+    when(mockProducer.publish(anyString, any[KafkaProducerActor.MessageToPublish], any[Seq[KafkaProducerActor.MessageToPublish]])).thenAnswer(
+      (invocation: InvocationOnMock) => {
         val aggregateId = invocation.getArgument[String](0)
         (probe.ref ? Publish(aggregateId)).map(_ => KafkaProducerActor.PublishSuccess)(ExecutionContext.global)
       })
@@ -138,9 +152,9 @@ class PersistentActorSpec extends TestKit(ActorSystem("PersistentActorSpec")) wi
     }
 
     def setupDefault(
-      testAggregateId: String = randomUUID,
-      mockProducer: KafkaProducerActor = defaultMockProducer,
-      publishStateOnly: Boolean = false): TestContext = {
+        testAggregateId: String = randomUUID,
+        mockProducer: KafkaProducerActor = defaultMockProducer,
+        publishStateOnly: Boolean = false): TestContext = {
       val probe = TestProbe()
 
       val baseState = State(testAggregateId, 3, 3)
@@ -150,8 +164,7 @@ class PersistentActorSpec extends TestKit(ActorSystem("PersistentActorSpec")) wi
       TestContext(probe, baseState, mockProducer, actor, publishStateOnly)
     }
   }
-  case class TestContext(probe: TestProbe, baseState: State, mockProducer: KafkaProducerActor, actor: ActorRef,
-      publishStateOnly: Boolean) {
+  case class TestContext(probe: TestProbe, baseState: State, mockProducer: KafkaProducerActor, actor: ActorRef, publishStateOnly: Boolean) {
     val testAggregateId: String = baseState.aggregateId
   }
 
@@ -214,10 +227,7 @@ class PersistentActorSpec extends TestKit(ActorSystem("PersistentActorSpec")) wi
         probe.send(actor, testEnvelope)
         probe.expectMsg(PersistentActor.ACKSuccess(Some(baseState)))
 
-        verify(mockProducer, never()).publish(
-          any[String],
-          any[KafkaProducerActor.MessageToPublish],
-          any[Seq[KafkaProducerActor.MessageToPublish]])
+        verify(mockProducer, never()).publish(any[String], any[KafkaProducerActor.MessageToPublish], any[Seq[KafkaProducerActor.MessageToPublish]])
       }
 
       "Anything when state has not changed and publishStateOnly is false" in {
@@ -250,9 +260,7 @@ class PersistentActorSpec extends TestKit(ActorSystem("PersistentActorSpec")) wi
         val testEnvelope = envelope(incrementCmd)
         probe.send(actor, testEnvelope)
 
-        val publishedState = baseState.copy(
-          count = baseState.count + 1,
-          version = baseState.version + 1)
+        val publishedState = baseState.copy(count = baseState.count + 1, version = baseState.version + 1)
 
         probe.expectMsg(PersistentActor.ACKSuccess(Some(publishedState)))
 
@@ -272,9 +280,7 @@ class PersistentActorSpec extends TestKit(ActorSystem("PersistentActorSpec")) wi
         val testEnvelope = envelope(incrementCmd)
         probe.send(actor, testEnvelope)
 
-        val publishedState = baseState.copy(
-          count = baseState.count + 1,
-          version = baseState.version + 1)
+        val publishedState = baseState.copy(count = baseState.count + 1, version = baseState.version + 1)
 
         probe.expectMsg(PersistentActor.ACKSuccess(Some(publishedState)))
 
@@ -295,8 +301,8 @@ class PersistentActorSpec extends TestKit(ActorSystem("PersistentActorSpec")) wi
         val mockProducer = mock[KafkaProducerActor]
         when(mockProducer.assignedPartition).thenReturn(new TopicPartition("TestTopic", 1))
         when(mockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.successful(false), Future.successful(true))
-        when(mockProducer.publish(anyString, any[KafkaProducerActor.MessageToPublish],
-          any[Seq[KafkaProducerActor.MessageToPublish]])).thenReturn(Future.successful(KafkaProducerActor.PublishSuccess))
+        when(mockProducer.publish(anyString, any[KafkaProducerActor.MessageToPublish], any[Seq[KafkaProducerActor.MessageToPublish]]))
+          .thenReturn(Future.successful(KafkaProducerActor.PublishSuccess))
 
         val mockStreams = mockKafkaStreams(baseState)
 
@@ -315,8 +321,8 @@ class PersistentActorSpec extends TestKit(ActorSystem("PersistentActorSpec")) wi
         val mockProducer = mock[KafkaProducerActor]
         when(mockProducer.assignedPartition).thenReturn(new TopicPartition("TestTopic", 1))
         when(mockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.failed(new RuntimeException("This is expected")), Future.successful(true))
-        when(mockProducer.publish(anyString, any[KafkaProducerActor.MessageToPublish],
-          any[Seq[KafkaProducerActor.MessageToPublish]])).thenReturn(Future.successful(KafkaProducerActor.PublishSuccess))
+        when(mockProducer.publish(anyString, any[KafkaProducerActor.MessageToPublish], any[Seq[KafkaProducerActor.MessageToPublish]]))
+          .thenReturn(Future.successful(KafkaProducerActor.PublishSuccess))
 
         val mockStreams = mockKafkaStreams(baseState)
 
@@ -383,10 +389,7 @@ class PersistentActorSpec extends TestKit(ActorSystem("PersistentActorSpec")) wi
       probe.send(actor, testEnvelope)
       probe.expectMsg(PersistentActor.ACKSuccess(Some(baseState)))
 
-      verify(mockProducer, never()).publish(
-        anyString,
-        any[KafkaProducerActor.MessageToPublish],
-        any[Seq[KafkaProducerActor.MessageToPublish]])
+      verify(mockProducer, never()).publish(anyString, any[KafkaProducerActor.MessageToPublish], any[Seq[KafkaProducerActor.MessageToPublish]])
     }
 
     "handle exceptions from the domain by returning a AckError" in {
@@ -474,10 +477,7 @@ class PersistentActorSpec extends TestKit(ActorSystem("PersistentActorSpec")) wi
       probe.expectMsg(PersistentActor.ACKSuccess(expectedState1))
       probe.expectMsg(PersistentActor.ACKSuccess(expectedState2))
 
-      verify(mockProducer, times(2)).publish(
-        any[String],
-        any[KafkaProducerActor.MessageToPublish],
-        argEquals(Seq[KafkaProducerActor.MessageToPublish]()))
+      verify(mockProducer, times(2)).publish(any[String], any[KafkaProducerActor.MessageToPublish], argEquals(Seq[KafkaProducerActor.MessageToPublish]()))
     }
 
     "Crash the actor to force reinitialization if publishing events times out" in {
@@ -540,11 +540,8 @@ class PersistentActorSpec extends TestKit(ActorSystem("PersistentActorSpec")) wi
     }
 
     "Be able to correctly extract the correct aggregate ID from messages" in {
-      val command1 = PersistentActor.ProcessMessage(
-        aggregateId = "foobarbaz",
-        message = "unused")
-      val command2 = PersistentActor.ProcessMessage(
-        aggregateId = randomUUID, message = "unused")
+      val command1 = PersistentActor.ProcessMessage(aggregateId = "foobarbaz", message = "unused")
+      val command2 = PersistentActor.ProcessMessage(aggregateId = randomUUID, message = "unused")
 
       val getState1 = PersistentActor.GetState(aggregateId = "foobarbaz")
       val getState2 = PersistentActor.GetState(aggregateId = randomUUID)

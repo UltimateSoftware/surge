@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.streams
 
@@ -49,15 +49,14 @@ trait KafkaDataSource[Key, Value] extends DataSource {
   }
 
   def to(sink: DataHandler[Key, Value], consumerGroup: String, autoStart: Boolean): DataPipeline = {
-    val consumerSettings = AkkaKafkaConsumer.consumerSettings[Key, Value](actorSystem, groupId = consumerGroup,
-      brokers = kafkaBrokers)(keyDeserializer, valueDeserializer)
+    val consumerSettings = AkkaKafkaConsumer
+      .consumerSettings[Key, Value](actorSystem, groupId = consumerGroup, brokers = kafkaBrokers)(keyDeserializer, valueDeserializer)
       .withProperties(additionalKafkaProperties.asScala.toMap)
     to(consumerSettings)(sink, autoStart)
   }
 
-  private def getStreamManager(
-    consumerSettings: ConsumerSettings[Key, Value],
-    sink: DataHandler[Key, Value])(implicit actorSystem: ActorSystem): KafkaStreamManager[Key, Value] = {
+  private def getStreamManager(consumerSettings: ConsumerSettings[Key, Value], sink: DataHandler[Key, Value])(
+      implicit actorSystem: ActorSystem): KafkaStreamManager[Key, Value] = {
     val topicName = kafkaTopic.name
     val subscription = Subscriptions.topics(topicName)
     val processingFlow = KafkaStreamManager.wrapBusinessFlow(sink.dataHandler)

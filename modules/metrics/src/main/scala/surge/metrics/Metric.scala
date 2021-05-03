@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.metrics
 
@@ -13,9 +13,12 @@ trait MetricValueProvider {
 /**
  * Basic Information about a metric
  *
- * @param name The name of the metric
- * @param description A human readable description of the metric
- * @param tags Additional key/value attributes to associate to the metric
+ * @param name
+ *   The name of the metric
+ * @param description
+ *   A human readable description of the metric
+ * @param tags
+ *   Additional key/value attributes to associate to the metric
  */
 case class MetricInfo(name: String, description: String, tags: Map[String, String] = Map.empty)
 

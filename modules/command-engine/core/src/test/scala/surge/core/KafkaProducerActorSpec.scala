@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.core
 
@@ -21,11 +21,17 @@ import surge.metrics.Metrics
 import scala.concurrent.duration._
 import scala.concurrent.{ Await, ExecutionContext }
 
-class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec")) with AnyWordSpecLike with Matchers with BeforeAndAfterAll
-  with TestBoundedContext with MockitoSugar with ScalaFutures with PatienceConfiguration {
+class KafkaProducerActorSpec
+    extends TestKit(ActorSystem("KafkaProducerActorSpec"))
+    with AnyWordSpecLike
+    with Matchers
+    with BeforeAndAfterAll
+    with TestBoundedContext
+    with MockitoSugar
+    with ScalaFutures
+    with PatienceConfiguration {
 
-  override implicit val patienceConfig: PatienceConfig = PatienceConfig(
-    timeout = Span(3, Seconds), interval = Span(10, Millis))
+  override implicit val patienceConfig: PatienceConfig = PatienceConfig(timeout = Span(3, Seconds), interval = Span(10, Millis))
 
   override def afterAll(): Unit = {
     system.terminate()
@@ -95,11 +101,14 @@ class KafkaProducerActorSpec extends TestKit(ActorSystem("KafkaProducerActorSpec
       val errorWatchProbe = TestProbe()
       val stateToPublish = KafkaProducerActor.MessageToPublish("test", "test".getBytes(), new RecordHeaders())
       val eventsToPublish = Seq(KafkaProducerActor.MessageToPublish("test", "test".getBytes(), new RecordHeaders()))
-      producer.publish("test", stateToPublish, eventsToPublish).map { msg =>
-        fail(s"Expected a failed future but received successful future with message [$msg]")
-      }.recover {
-        case e => errorWatchProbe.ref ! e
-      }
+      producer
+        .publish("test", stateToPublish, eventsToPublish)
+        .map { msg =>
+          fail(s"Expected a failed future but received successful future with message [$msg]")
+        }
+        .recover { case e =>
+          errorWatchProbe.ref ! e
+        }
       probe.expectMsg(KafkaProducerActorImpl.Publish(eventsToPublish = eventsToPublish, state = stateToPublish))
       errorWatchProbe.expectMsgType[AskTimeoutException](10.seconds)
     }

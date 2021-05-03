@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.kafka.streams
 
@@ -11,8 +11,8 @@ class ValidationProcessor[Agg](aggregateName: String, aggregateValidator: (Strin
 
   private val log: Logger = LoggerFactory.getLogger(getClass)
 
-  val supplier: ValueTransformerWithKeySupplier[String, Change[Array[Byte]], KafkaPartitionMetadata] = {
-    () => new StateProcessorImpl
+  val supplier: ValueTransformerWithKeySupplier[String, Change[Array[Byte]], KafkaPartitionMetadata] = { () =>
+    new StateProcessorImpl
   }
 
   private class StateProcessorImpl extends ValueTransformerWithKey[String, Change[Array[Byte]], KafkaPartitionMetadata] {
@@ -34,7 +34,6 @@ class ValidationProcessor[Agg](aggregateName: String, aggregateValidator: (Strin
       stateMeta
     }
 
-    override def close(): Unit = {
-    }
+    override def close(): Unit = {}
   }
 }

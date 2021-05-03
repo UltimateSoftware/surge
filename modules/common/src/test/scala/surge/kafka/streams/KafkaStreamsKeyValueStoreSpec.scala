@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.kafka.streams
 
@@ -19,19 +19,13 @@ class KafkaStreamsKeyValueStoreSpec extends AsyncWordSpec with BeforeAndAfterAll
   props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "")
   private val context = new MockProcessorContext(props)
   private val keyValueStore =
-    Stores.keyValueStoreBuilder(
-      Stores.inMemoryKeyValueStore("myStore"),
-      Serdes.String(),
-      Serdes.String()).withLoggingDisabled() // Changelog is not supported by MockProcessorContext.
+    Stores
+      .keyValueStoreBuilder(Stores.inMemoryKeyValueStore("myStore"), Serdes.String(), Serdes.String())
+      .withLoggingDisabled() // Changelog is not supported by MockProcessorContext.
       .build()
 
   override def beforeAll(): Unit = {
-    val dataMap = Map(
-      "Dwight" -> "Dwight",
-      "Jim" -> "Jim",
-      "Kevin" -> "Kevin",
-      "Michael" -> "Michael",
-      "Pam" -> "Pam")
+    val dataMap = Map("Dwight" -> "Dwight", "Jim" -> "Jim", "Kevin" -> "Kevin", "Michael" -> "Michael", "Pam" -> "Pam")
 
     keyValueStore.init(context, keyValueStore)
     context.register(keyValueStore, mock[StateRestoreCallback])

@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.internal.persistence
 
@@ -18,17 +18,16 @@ import surge.metrics.Metrics
 import scala.concurrent.Future
 
 trait PersistentActorPropsFactory[M] extends {
-  def props(
-    aggregateId: String,
-    businessLogic: BusinessLogic,
-    resources: PersistentEntitySharedResources): Props
+  def props(aggregateId: String, businessLogic: BusinessLogic, resources: PersistentEntitySharedResources): Props
 }
 
 class PersistentActorRegionCreator[M](
     system: ActorSystem,
     businessLogic: BusinessLogic,
     kafkaStreamsCommand: AggregateStateStoreKafkaStreams[JsValue],
-    metrics: Metrics, config: Config) extends KafkaPersistentActorRegionCreator[String] {
+    metrics: Metrics,
+    config: Config)
+    extends KafkaPersistentActorRegionCreator[String] {
   override def regionFromTopicPartition(topicPartition: TopicPartition): PerShardLogicProvider[String] =
     new PersistentActorRegion[M](system, topicPartition, businessLogic, kafkaStreamsCommand, metrics, config)
 }
@@ -38,8 +37,10 @@ class PersistentActorRegion[M](
     assignedPartition: TopicPartition,
     businessLogic: BusinessLogic,
     aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue],
-    metrics: Metrics, val config: Config)
-  extends PerShardLogicProvider[String] with Logging {
+    metrics: Metrics,
+    val config: Config)
+    extends PerShardLogicProvider[String]
+    with Logging {
 
   private val kafkaProducerActor: KafkaProducerActor = KafkaProducerActor(
     actorSystem = system,

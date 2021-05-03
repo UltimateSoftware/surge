@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.rabbit
 
@@ -9,8 +9,7 @@ import org.scalatest.wordspec.AnyWordSpecLike
 class ExchangePlanSpec extends AnyWordSpecLike with Matchers {
   "ExchangePlan" should {
     "Create declaration with durable true" in {
-      val declaration: Declaration = ExchangePlan("exchange", durable = true, autoDelete = false)
-        .declaration()
+      val declaration: Declaration = ExchangePlan("exchange", durable = true, autoDelete = false).declaration()
 
       declaration shouldBe a[ExchangeDeclaration]
       declaration.asInstanceOf[ExchangeDeclaration].name shouldEqual "exchange"
@@ -18,8 +17,7 @@ class ExchangePlanSpec extends AnyWordSpecLike with Matchers {
     }
 
     "Create declaration with autoDelete true" in {
-      val declaration: Declaration = ExchangePlan("exchange", durable = false, autoDelete = true)
-        .declaration()
+      val declaration: Declaration = ExchangePlan("exchange", durable = false, autoDelete = true).declaration()
 
       declaration shouldBe a[ExchangeDeclaration]
       declaration.asInstanceOf[ExchangeDeclaration].name shouldEqual "exchange"

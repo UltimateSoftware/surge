@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.rabbit
 
@@ -40,14 +40,15 @@ trait RabbitDataSource[Key, Value] extends DataSource {
   private val connectionProvider: AmqpConnectionProvider = AmqpUriConnectionProvider(rabbitMqUri)
 
   private def businessFlow(sink: DataHandler[Key, Value]): Flow[CommittableReadResult, CommittableReadResult, NotUsed] = {
-    val handleEventFlow = Flow[CommittableReadResult].map { crr =>
-      val key = readResultToKey(interceptReadResult(crr))
-      val value = readResultToValue(crr.message.bytes)
-      val headers = Option(crr.message.properties.getHeaders).getOrElse(Collections.emptyMap()).asScala
-        .map(tup => tup._1 -> tup._2.toString.getBytes()).toMap
-      val eventPlusMeta = EventPlusStreamMeta(key, value, streamMeta = None, headers)
-      eventPlusMeta
-    }.via(sink.dataHandler)
+    val handleEventFlow = Flow[CommittableReadResult]
+      .map { crr =>
+        val key = readResultToKey(interceptReadResult(crr))
+        val value = readResultToValue(crr.message.bytes)
+        val headers = Option(crr.message.properties.getHeaders).getOrElse(Collections.emptyMap()).asScala.map(tup => tup._1 -> tup._2.toString.getBytes()).toMap
+        val eventPlusMeta = EventPlusStreamMeta(key, value, streamMeta = None, headers)
+        eventPlusMeta
+      }
+      .via(sink.dataHandler)
 
     Flow[CommittableReadResult].via(PassThroughFlow(handleEventFlow, Keep.right))
   }
@@ -58,12 +59,10 @@ trait RabbitDataSource[Key, Value] extends DataSource {
     val source = autoDeclarePlan match {
       // If plan defined, perform declarations.
       case Some(plan) =>
-        AmqpSource.committableSource(settings.withDeclarations(declarations(plan)), bufferSize)
-          .via(businessFlow(sink))
+        AmqpSource.committableSource(settings.withDeclarations(declarations(plan)), bufferSize).via(businessFlow(sink))
       // If no plan defined, don't perform declarations.
       case None =>
-        AmqpSource.committableSource(settings, bufferSize)
-          .via(businessFlow(sink))
+        AmqpSource.committableSource(settings, bufferSize).via(businessFlow(sink))
     }
 
     new RabbitDataPipeline(source, actorSystem, restartBackoff)
@@ -87,4 +86,3 @@ trait RabbitDataSource[Key, Value] extends DataSource {
     result
   }
 }
-

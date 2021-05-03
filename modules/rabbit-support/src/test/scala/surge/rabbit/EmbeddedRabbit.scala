@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.rabbit
 
@@ -23,11 +23,13 @@ trait EmbeddedRabbit {
   def user(): String = "tester"
   def timeout(): FiniteDuration = 10.seconds
 
-  def rabbitMqConfig: EmbeddedRabbitMqConfig = new EmbeddedRabbitMqConfig.Builder().port(port())
+  def rabbitMqConfig: EmbeddedRabbitMqConfig = new EmbeddedRabbitMqConfig.Builder()
+    .port(port())
     .downloadConnectionTimeoutInMillis(Duration.ofSeconds(timeout().toSeconds).toMillis)
     .defaultRabbitMqCtlTimeoutInMillis(Duration.ofSeconds(timeout().toSeconds).toMillis)
     .version(PredefinedVersion.V3_7_18)
-    .rabbitMqServerInitializationTimeoutInMillis(Duration.ofSeconds(timeout().toSeconds).toMillis).build()
+    .rabbitMqServerInitializationTimeoutInMillis(Duration.ofSeconds(timeout().toSeconds).toMillis)
+    .build()
 
   val rabbitMq: EmbeddedRabbitMq = new EmbeddedRabbitMq(rabbitMqConfig)
 

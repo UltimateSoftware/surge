@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.internal.streams
 
@@ -33,11 +33,9 @@ private[streams] object ReplayCoordinator {
   }
 }
 
-class ReplayCoordinator(
-    topicName: String,
-    consumerGroup: String,
-    replayStrategy: EventReplayStrategy,
-    registry: ActorRegistry) extends Actor with ActorHostAwareness {
+class ReplayCoordinator(topicName: String, consumerGroup: String, replayStrategy: EventReplayStrategy, registry: ActorRegistry)
+    extends Actor
+    with ActorHostAwareness {
 
   import ReplayCoordinator._
   import context.dispatcher
@@ -51,17 +49,16 @@ class ReplayCoordinator(
 
   override def receive: Receive = uninitialized()
 
-  private def uninitialized(): Receive = {
-    case StartReplay =>
-      context.become(ready(ReplayState.init(sender())))
-      getTopicAssignments.map(assignments => TopicAssignmentsFound(assignments)).pipeTo(self)
+  private def uninitialized(): Receive = { case StartReplay =>
+    context.become(ready(ReplayState.init(sender())))
+    getTopicAssignments.map(assignments => TopicAssignmentsFound(assignments)).pipeTo(self)
   }
 
   private def ready(replayState: ReplayState): Receive = InlineReceive {
     case TopicAssignmentsFound(assignments) =>
       getTopicConsumers(assignments).map(actors => TopicConsumersFound(assignments, actors)).pipeTo(self)
     case msg: TopicConsumersFound => handleTopicConsumersFound(replayState, msg)
-  } orElse handleStopReplay(replayState)
+  }.orElse(handleStopReplay(replayState))
 
   private def pausing(replayState: ReplayState): Receive = InlineReceive {
     case SuccessfullyStopped(address, ref) =>
@@ -70,7 +67,7 @@ class ReplayCoordinator(
       doReplay(replayState)
     case DoPreReplay =>
       doPreReplay()
-  } orElse handleStopReplay(replayState)
+  }.orElse(handleStopReplay(replayState))
 
   private def replaying(replayState: ReplayState): Receive = InlineReceive {
     case failure: ReplayFailed =>
@@ -82,13 +79,12 @@ class ReplayCoordinator(
       startStoppedConsumers(replayState)
       replayState.replyTo ! ReplayCompleted
       context.become(uninitialized())
-  } orElse handleStopReplay(replayState)
+  }.orElse(handleStopReplay(replayState))
 
-  private def handleStopReplay(replayState: ReplayState): Receive = {
-    case ReplayCoordinator.StopReplay =>
-      log.debug("StopReplay received, this is typically because a timeout of the ReplayCoordinator or an unexpected error")
-      startStoppedConsumers(replayState)
-      context.become(uninitialized())
+  private def handleStopReplay(replayState: ReplayState): Receive = { case ReplayCoordinator.StopReplay =>
+    log.debug("StopReplay received, this is typically because a timeout of the ReplayCoordinator or an unexpected error")
+    startStoppedConsumers(replayState)
+    context.become(uninitialized())
   }
 
   private def handleSuccessfullyStopped(replayState: ReplayState, address: Address, ref: ActorRef): Unit = {
@@ -108,26 +104,30 @@ class ReplayCoordinator(
       case Success(_) =>
         self ! PreReplayCompleted
       case Failure(e) =>
-        log.error(s"An unexpected error happened running replaying $consumerGroup, " +
-          s"please try again, if the problem persists, reach out Surge team for support", e)
+        log.error(
+          s"An unexpected error happened running replaying $consumerGroup, " +
+            s"please try again, if the problem persists, reach out Surge team for support",
+          e)
         self ! ReplayFailed(e)
     }
   }
 
   private def doReplay(replayState: ReplayCoordinator.ReplayState): Unit = {
     log.trace("ReplayCoordinator kicking off replay")
-    val existingPartitions = replayState.assignments.map {
-      case (topicPartition, _) =>
-        topicPartition.partition()
+    val existingPartitions = replayState.assignments.map { case (topicPartition, _) =>
+      topicPartition.partition()
     }
     context.become(replaying(replayState))
-    replayStrategy.replay(consumerGroup, existingPartitions).map { _ =>
-      ReplayCompleted
-    }.recover {
-      case err: Throwable =>
+    replayStrategy
+      .replay(consumerGroup, existingPartitions)
+      .map { _ =>
+        ReplayCompleted
+      }
+      .recover { case err: Throwable =>
         log.error("Replay failed", err)
         ReplayFailed(err)
-    }.pipeTo(self)(sender())
+      }
+      .pipeTo(self)(sender())
   }
 
   private def startStoppedConsumers(state: ReplayState): Unit = {
@@ -153,16 +153,16 @@ class ReplayCoordinator(
   }
 
   private def getTopicAssignments: Future[Map[TopicPartition, HostPort]] = {
-    HostAssignmentTracker.allAssignments.map { assignments =>
-      assignments.filter {
-        case (topicPartition, _) =>
-          topicPartition.topic() equals topicName
+    HostAssignmentTracker.allAssignments
+      .map { assignments =>
+        assignments.filter { case (topicPartition, _) =>
+          topicPartition.topic().equals(topicName)
+        }
       }
-    }.recoverWith {
-      case err: Throwable =>
+      .recoverWith { case err: Throwable =>
         log.error(s"Failed getting all topic consumers for topic $topicName", err)
         throw err
-    }
+      }
   }
 
   private def getTopicConsumers(assignments: Map[TopicPartition, HostPort]): Future[List[String]] = {
@@ -170,4 +170,3 @@ class ReplayCoordinator(
     registry.discoverActors(KafkaStreamManager.serviceIdentifier, hostPorts, List(topicName))
   }
 }
-

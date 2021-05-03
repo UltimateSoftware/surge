@@ -1,7 +1,7 @@
 // Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
 
-// Scalariform - Scala code formatting
-addSbtPlugin("org.scalariform" % "sbt-scalariform" % "1.8.3")
+// Scala code formatting
+addSbtPlugin("org.scalameta" % "sbt-scalafmt" % "2.4.2")
 
 // Git Commands - Access to Git repo information
 addSbtPlugin("com.typesafe.sbt" % "sbt-git" % "1.0.0")

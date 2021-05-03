@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.kafka.streams
 
@@ -13,13 +13,12 @@ class SurgeHealthCheckSpec extends AnyWordSpec with Matchers with PrivateMethodT
   val surgeHealthCheck = new SurgeHealthCheck("surge")
 
   /**
-   * Builds the following tree
-   * node11
+   * Builds the following tree node11
    * |____ node21
-   *        |____ node31
-   *        |____ node32
+   * |____ node31
+   * |____ node32
    * |____ node22
-   *        |____ node33
+   * |____ node33
    */
   private def buildTree(statusMap: Map[String, String] = Map()): HealthCheck = {
     val node31 = HealthCheck("3.1", "3.1", statusMap.getOrElse("3.1", HealthCheckStatus.UP))
@@ -45,7 +44,7 @@ class SurgeHealthCheckSpec extends AnyWordSpec with Matchers with PrivateMethodT
     "Calculate correctly isHealthy parameter and status if a leaf is DOWN" in {
       val root = buildTree(Map("3.1" -> HealthCheckStatus.DOWN))
       val healthyTree = PrivateMethod[HealthCheck](Symbol("healthyTree"))
-      val healthyNode = surgeHealthCheck invokePrivate healthyTree(root)
+      val healthyNode = surgeHealthCheck.invokePrivate(healthyTree(root))
 
       assert(healthyNode.isHealthy.contains(false))
       healthyNode.status shouldEqual HealthCheckStatus.DOWN
@@ -74,7 +73,7 @@ class SurgeHealthCheckSpec extends AnyWordSpec with Matchers with PrivateMethodT
     "Calculate correctly isHealthy parameter if a middle level node is DOWN" in {
       val root = buildTree(Map("2.2" -> HealthCheckStatus.DOWN))
       val healthyTree = PrivateMethod[HealthCheck](Symbol("healthyTree"))
-      val healthyNode = surgeHealthCheck invokePrivate healthyTree(root)
+      val healthyNode = surgeHealthCheck.invokePrivate(healthyTree(root))
 
       assert(healthyNode.isHealthy.contains(false))
       val modifiedNode21 = findNode(healthyNode, "2.1")
@@ -92,7 +91,7 @@ class SurgeHealthCheckSpec extends AnyWordSpec with Matchers with PrivateMethodT
     "Calculate correctly isHealthy parameter if all nodes are UP" in {
       val root = buildTree()
       val healthyTree = PrivateMethod[HealthCheck](Symbol("healthyTree"))
-      val healthyNode = surgeHealthCheck invokePrivate healthyTree(root)
+      val healthyNode = surgeHealthCheck.invokePrivate(healthyTree(root))
 
       assert(healthyNode.isHealthy.contains(true))
       val modifiedNode21 = findNode(healthyNode, "2.1")

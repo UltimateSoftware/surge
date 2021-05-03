@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.internal.akka.cluster
 
@@ -13,26 +13,30 @@ import surge.kafka.HostPort
 
 import scala.concurrent.ExecutionContext
 
-class ActorRegistrySpec extends TestKit(ActorSystem("ActorRegistrySpec")) with AnyWordSpecLike
-  with Matchers with Eventually with ScalaFutures with PatienceConfiguration {
+class ActorRegistrySpec
+    extends TestKit(ActorSystem("ActorRegistrySpec"))
+    with AnyWordSpecLike
+    with Matchers
+    with Eventually
+    with ScalaFutures
+    with PatienceConfiguration {
 
   private implicit val executionContext: ExecutionContext = ExecutionContext.global
 
-  override implicit val patienceConfig: PatienceConfig = PatienceConfig(
-    timeout = Span(10, Seconds), interval = Span(10, Millis))
+  override implicit val patienceConfig: PatienceConfig = PatienceConfig(timeout = Span(10, Seconds), interval = Span(10, Millis))
 
   class RegisteredActor(registry: ActorRegistry, registeredKey: String, tags: List[String] = List.empty) extends Actor with Logging {
     implicit val executionContext: ExecutionContext = context.dispatcher
 
     private case object RegisterSelf
-    override def receive: Receive = {
-      case RegisterSelf => registerSelf()
+    override def receive: Receive = { case RegisterSelf =>
+      registerSelf()
     }
 
     private def registerSelf(): Unit = {
       log.debug(s"Registering actor ${self.path}")
-      registry.registerService(registeredKey, self, tags).recover {
-        case _ => self ! RegisterSelf
+      registry.registerService(registeredKey, self, tags).recover { case _ =>
+        self ! RegisterSelf
       }
     }
 

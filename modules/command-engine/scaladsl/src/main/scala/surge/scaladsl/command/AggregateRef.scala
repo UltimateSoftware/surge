@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.scaladsl.command
 
@@ -14,11 +14,9 @@ trait AggregateRef[Agg, Cmd, Event] {
   def applyEvent(event: Event)(implicit ec: ExecutionContext): Future[ApplyEventResult[Agg]]
 }
 
-final class AggregateRefImpl[AggId, Agg, Cmd, Event](
-    val aggregateId: AggId,
-    val region: ActorRef,
-    val tracer: Tracer) extends AggregateRef[Agg, Cmd, Event]
-  with AggregateRefTrait[AggId, Agg, Cmd, Event] {
+final class AggregateRefImpl[AggId, Agg, Cmd, Event](val aggregateId: AggId, val region: ActorRef, val tracer: Tracer)
+    extends AggregateRef[Agg, Cmd, Event]
+    with AggregateRefTrait[AggId, Agg, Cmd, Event] {
 
   def sendCommand(command: Cmd)(implicit ec: ExecutionContext): Future[CommandResult[Agg]] = {
     val envelope = PersistentActor.ProcessMessage[Cmd](aggregateId.toString, command)
@@ -34,11 +32,8 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event](
 
   def applyEvent(event: Event)(implicit ec: ExecutionContext): Future[ApplyEventResult[Agg]] = {
     val envelope = PersistentActor.ApplyEvent[Event](aggregateId.toString, event)
-    applyEventsWithRetries(envelope)
-      .map(aggOpt => ApplyEventsSuccess[Agg](aggOpt))
-      .recover {
-        case e =>
-          ApplyEventsFailure[Agg](e)
-      }
+    applyEventsWithRetries(envelope).map(aggOpt => ApplyEventsSuccess[Agg](aggOpt)).recover { case e =>
+      ApplyEventsFailure[Agg](e)
+    }
   }
 }

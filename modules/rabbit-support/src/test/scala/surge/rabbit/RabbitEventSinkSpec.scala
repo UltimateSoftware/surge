@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.rabbit
 
@@ -22,16 +22,15 @@ object RabbitEventSinkSpec {
   val SERVICE_PORT: Int = 5672
 }
 
-class RabbitEventSinkSpec extends TestKit(ActorSystem("RabbitEventSinkSpec"))
-  with EmbeddedRabbit
-  with AnyWordSpecLike with Matchers with BeforeAndAfterAll {
+class RabbitEventSinkSpec extends TestKit(ActorSystem("RabbitEventSinkSpec")) with EmbeddedRabbit with AnyWordSpecLike with Matchers with BeforeAndAfterAll {
   class TestRabbitEventSink(
       val rabbitMqUri: String,
       val queueName: String,
       val probe: TestProbe,
       override val bufferSize: Int = 10,
       override val writeRoute: String,
-      override val autoDeclarePlan: Option[AutoDeclarePlan]) extends RabbitEventSink[String] {
+      override val autoDeclarePlan: Option[AutoDeclarePlan])
+      extends RabbitEventSink[String] {
     override def formatting: SurgeEventWriteFormatting[String] = (event: String) => SerializedMessage("message", event.getBytes(), Map.empty)
 
     override def interceptWriteMessage(writeMessage: WriteMessage): WriteMessage = {
@@ -70,27 +69,34 @@ class RabbitEventSinkSpec extends TestKit(ActorSystem("RabbitEventSinkSpec"))
       val testProbe = TestProbe()
 
       // Create Sink
-      val sink: RabbitEventSink[String] = spy(new TestRabbitEventSink(
-        uriInfo.uri,
-        probe = testProbe,
-        queueName = "apply-declarations-queue-name", writeRoute = "route", autoDeclarePlan = Some(AutoDeclarePlan(
-          QueuePlan("apply-declarations-queue-name", durable = false, autoDelete = false, exclusive = false),
-          ExchangePlan("apply-declarations-exchange", durable = false, autoDelete = false),
-          Binding("apply-declarations-queue-name", "apply-declarations-exchange", Some("route"))))))
+      val sink: RabbitEventSink[String] = spy(
+        new TestRabbitEventSink(
+          uriInfo.uri,
+          probe = testProbe,
+          queueName = "apply-declarations-queue-name",
+          writeRoute = "route",
+          autoDeclarePlan = Some(AutoDeclarePlan(
+            QueuePlan("apply-declarations-queue-name", durable = false, autoDelete = false, exclusive = false),
+            ExchangePlan("apply-declarations-exchange", durable = false, autoDelete = false),
+            Binding("apply-declarations-queue-name", "apply-declarations-exchange", Some("route"))))))
 
       // Read from queue
       val declarations: Vector[Declaration] = Seq(
         sink.autoDeclarePlan.get.queuePlan.declaration(),
         sink.autoDeclarePlan.get.exchangePlan.declaration(),
         sink.autoDeclarePlan.get.binding.declaration()).toVector
-      AmqpSource.committableSource(
-        NamedQueueSourceSettings(AmqpUriConnectionProvider(uriInfo.uri), "apply-declarations-queue-name")
-          .withDeclarations(declarations), bufferSize = 10)
+      AmqpSource
+        .committableSource(
+          NamedQueueSourceSettings(AmqpUriConnectionProvider(uriInfo.uri), "apply-declarations-queue-name").withDeclarations(declarations),
+          bufferSize = 10)
         .runWith(Sink.ignore)
 
       // Write to sink
-      Source.single("test message").map(m => EventPlusStreamMeta[String, String, NotUsed](
-        messageKey = m, m, NotUsed.notUsed(), Map.empty)).viaMat(sink.eventHandler[NotUsed])(Keep.both).to(Sink.ignore)
+      Source
+        .single("test message")
+        .map(m => EventPlusStreamMeta[String, String, NotUsed](messageKey = m, m, NotUsed.notUsed(), Map.empty))
+        .viaMat(sink.eventHandler[NotUsed])(Keep.both)
+        .to(Sink.ignore)
         .run()
 
       // Check if declarations applied
@@ -102,30 +108,36 @@ class RabbitEventSinkSpec extends TestKit(ActorSystem("RabbitEventSinkSpec"))
       declarationsCaptor.getValue.exists(d => d.isInstanceOf[BindingDeclaration]) shouldEqual true
 
       // Check Queue Declaration matches QueuePlan
-      declarationsCaptor.getValue.find(d => d.isInstanceOf[QueueDeclaration])
-        .get.asInstanceOf[QueueDeclaration].name shouldEqual "apply-declarations-queue-name"
-      declarationsCaptor.getValue.find(d => d.isInstanceOf[QueueDeclaration])
-        .get.asInstanceOf[QueueDeclaration].exclusive shouldEqual false
-      declarationsCaptor.getValue.find(d => d.isInstanceOf[QueueDeclaration])
-        .get.asInstanceOf[QueueDeclaration].durable shouldEqual false
-      declarationsCaptor.getValue.find(d => d.isInstanceOf[QueueDeclaration])
-        .get.asInstanceOf[QueueDeclaration].autoDelete shouldEqual false
+      declarationsCaptor.getValue
+        .find(d => d.isInstanceOf[QueueDeclaration])
+        .get
+        .asInstanceOf[QueueDeclaration]
+        .name shouldEqual "apply-declarations-queue-name"
+      declarationsCaptor.getValue.find(d => d.isInstanceOf[QueueDeclaration]).get.asInstanceOf[QueueDeclaration].exclusive shouldEqual false
+      declarationsCaptor.getValue.find(d => d.isInstanceOf[QueueDeclaration]).get.asInstanceOf[QueueDeclaration].durable shouldEqual false
+      declarationsCaptor.getValue.find(d => d.isInstanceOf[QueueDeclaration]).get.asInstanceOf[QueueDeclaration].autoDelete shouldEqual false
 
       // Check Exchange Declaration matches ExchangePlan
-      declarationsCaptor.getValue.find(d => d.isInstanceOf[ExchangeDeclaration])
-        .get.asInstanceOf[ExchangeDeclaration].name shouldEqual "apply-declarations-exchange"
-      declarationsCaptor.getValue.find(d => d.isInstanceOf[ExchangeDeclaration])
-        .get.asInstanceOf[ExchangeDeclaration].durable shouldEqual false
-      declarationsCaptor.getValue.find(d => d.isInstanceOf[ExchangeDeclaration])
-        .get.asInstanceOf[ExchangeDeclaration].autoDelete shouldEqual false
+      declarationsCaptor.getValue
+        .find(d => d.isInstanceOf[ExchangeDeclaration])
+        .get
+        .asInstanceOf[ExchangeDeclaration]
+        .name shouldEqual "apply-declarations-exchange"
+      declarationsCaptor.getValue.find(d => d.isInstanceOf[ExchangeDeclaration]).get.asInstanceOf[ExchangeDeclaration].durable shouldEqual false
+      declarationsCaptor.getValue.find(d => d.isInstanceOf[ExchangeDeclaration]).get.asInstanceOf[ExchangeDeclaration].autoDelete shouldEqual false
 
       // Check Binding Declaration matches Binding
-      declarationsCaptor.getValue.find(d => d.isInstanceOf[BindingDeclaration])
-        .get.asInstanceOf[BindingDeclaration].queue shouldEqual "apply-declarations-queue-name"
-      declarationsCaptor.getValue.find(d => d.isInstanceOf[BindingDeclaration])
-        .get.asInstanceOf[BindingDeclaration].exchange shouldEqual "apply-declarations-exchange"
-      declarationsCaptor.getValue.find(d => d.isInstanceOf[BindingDeclaration])
-        .get.asInstanceOf[BindingDeclaration].routingKey shouldEqual Some("route")
+      declarationsCaptor.getValue
+        .find(d => d.isInstanceOf[BindingDeclaration])
+        .get
+        .asInstanceOf[BindingDeclaration]
+        .queue shouldEqual "apply-declarations-queue-name"
+      declarationsCaptor.getValue
+        .find(d => d.isInstanceOf[BindingDeclaration])
+        .get
+        .asInstanceOf[BindingDeclaration]
+        .exchange shouldEqual "apply-declarations-exchange"
+      declarationsCaptor.getValue.find(d => d.isInstanceOf[BindingDeclaration]).get.asInstanceOf[BindingDeclaration].routingKey shouldEqual Some("route")
 
       verify(sink, times(1)).declarations(ArgumentMatchers.any(classOf[AutoDeclarePlan]))
     }
@@ -135,23 +147,31 @@ class RabbitEventSinkSpec extends TestKit(ActorSystem("RabbitEventSinkSpec"))
       val testProbe = TestProbe()
 
       // Create Sink
-      val sink: RabbitEventSink[String] = spy(new TestRabbitEventSink(
-        uriInfo.uri,
-        probe = testProbe,
-        queueName = "publish-auto-declare-queue-name", writeRoute = "route", autoDeclarePlan = Some(AutoDeclarePlan(
-          QueuePlan("publish-auto-declare-queue-name", durable = false, autoDelete = false, exclusive = false),
-          ExchangePlan("publish-auto-declare-exchange", durable = false, autoDelete = false),
-          Binding("publish-auto-declare-queue-name", "publish-auto-declare-exchange", Some("route"))))))
+      val sink: RabbitEventSink[String] = spy(
+        new TestRabbitEventSink(
+          uriInfo.uri,
+          probe = testProbe,
+          queueName = "publish-auto-declare-queue-name",
+          writeRoute = "route",
+          autoDeclarePlan = Some(AutoDeclarePlan(
+            QueuePlan("publish-auto-declare-queue-name", durable = false, autoDelete = false, exclusive = false),
+            ExchangePlan("publish-auto-declare-exchange", durable = false, autoDelete = false),
+            Binding("publish-auto-declare-queue-name", "publish-auto-declare-exchange", Some("route"))))))
 
       // Read from queue and expect message
-      AmqpSource.committableSource(
-        NamedQueueSourceSettings(AmqpUriConnectionProvider(uriInfo.uri), "publish-auto-declare-queue-name")
-          .withDeclarations(sink.autoDeclarePlan.get.declarations().toVector), bufferSize = 10)
+      AmqpSource
+        .committableSource(
+          NamedQueueSourceSettings(AmqpUriConnectionProvider(uriInfo.uri), "publish-auto-declare-queue-name")
+            .withDeclarations(sink.autoDeclarePlan.get.declarations().toVector),
+          bufferSize = 10)
         .runWith(Sink.ignore)
 
       // Write to sink
-      Source.single(element = "test message").map(m => EventPlusStreamMeta[String, String, NotUsed](
-        messageKey = m, m, NotUsed.notUsed(), Map.empty)).viaMat(sink.eventHandler[NotUsed])(Keep.both).to(Sink.ignore)
+      Source
+        .single(element = "test message")
+        .map(m => EventPlusStreamMeta[String, String, NotUsed](messageKey = m, m, NotUsed.notUsed(), Map.empty))
+        .viaMat(sink.eventHandler[NotUsed])(Keep.both)
+        .to(Sink.ignore)
         .run()
 
       testProbe.expectMsg(10.seconds, obj = "test message")

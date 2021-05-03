@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.core
 
@@ -23,16 +23,14 @@ trait SurgeMultiCommandServiceSink[AggId, Command, Event] extends EventSink[Even
     if (aggregateCommands.isEmpty) {
       log.info(s"Skipping event with class ${event.getClass} since it was not converted into a command")
     }
-    val appliedCommands = aggregateCommands.map {
-      case (aggregateId, command) =>
-        sendToAggregate(aggregateId, command)
+    val appliedCommands = aggregateCommands.map { case (aggregateId, command) =>
+      sendToAggregate(aggregateId, command)
     }
     Future.sequence(appliedCommands)
   }
 }
 
-trait SurgeCommandServiceSink[AggId, Command, Event]
-  extends SurgeMultiCommandServiceSink[AggId, Command, Event] {
+trait SurgeCommandServiceSink[AggId, Command, Event] extends SurgeMultiCommandServiceSink[AggId, Command, Event] {
   def eventToCommand: Event => Option[Command]
   override def eventToCommands: Event => Seq[Command] = eventToCommand.andThen(_.toSeq)
 }

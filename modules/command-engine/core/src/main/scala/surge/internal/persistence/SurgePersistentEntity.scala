@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.internal.persistence
 
@@ -8,8 +8,8 @@ trait RoutableMessage extends JacksonSerializable {
   def aggregateId: String
 }
 object RoutableMessage {
-  def extractEntityId: PartialFunction[Any, String] = {
-    case routableMessage: RoutableMessage => routableMessage.aggregateId
+  def extractEntityId: PartialFunction[Any, String] = { case routableMessage: RoutableMessage =>
+    routableMessage.aggregateId
   }
 }
 

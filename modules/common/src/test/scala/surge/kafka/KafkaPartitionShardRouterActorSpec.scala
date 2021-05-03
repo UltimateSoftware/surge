@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.kafka
 
@@ -25,8 +25,8 @@ object KafkaPartitionShardRouterActorSpecModels {
   case class WrappedCmd(topicPartition: TopicPartition, cmd: Command)
 
   class ProbeInterceptorActor(topicPartition: TopicPartition, probe: TestProbe) extends Actor {
-    override def receive: Receive = {
-      case cmd: Command => probe.ref.forward(WrappedCmd(topicPartition, cmd))
+    override def receive: Receive = { case cmd: Command =>
+      probe.ref.forward(WrappedCmd(topicPartition, cmd))
     }
   }
 
@@ -48,11 +48,7 @@ trait KafkaPartitionShardRouterActorSpecLike extends MockitoSugar {
   private val tracer = NoopTracerFactory.create()
   private val trackedTopic = KafkaTopic("test")
 
-  private val partitionMappings = Map(
-    "partition0" -> 0,
-    "partition1" -> 1,
-    "partition2" -> 2,
-    "partition1Again" -> 1)
+  private val partitionMappings = Map("partition0" -> 0, "partition1" -> 1, "partition2" -> 2, "partition1Again" -> 1)
   val partition0 = new TopicPartition(trackedTopic.name, 0)
   val partition1 = new TopicPartition(trackedTopic.name, 1)
   val partition2 = new TopicPartition(trackedTopic.name, 2)
@@ -75,11 +71,13 @@ trait KafkaPartitionShardRouterActorSpecLike extends MockitoSugar {
       case cmd: Command                    => cmd.id
       case ThrowExceptionInExtractEntityId => throw new RuntimeException("Received ThrowExceptionInExtractEntityId in extractEntityId function")
     }
-    val shardRouterProps = Props(new KafkaPartitionShardRouterActor(
-      partitionTracker = partitionProbe.ref,
-      kafkaStateProducer = producer,
-      regionCreator = new ProbeInterceptorRegionCreator(regionProbe),
-      extractEntityId = extractEntityId, tracer))
+    val shardRouterProps = Props(
+      new KafkaPartitionShardRouterActor(
+        partitionTracker = partitionProbe.ref,
+        kafkaStateProducer = producer,
+        regionCreator = new ProbeInterceptorRegionCreator(regionProbe),
+        extractEntityId = extractEntityId,
+        tracer))
 
     TestContext(partitionProbe = partitionProbe, regionProbe = regionProbe, shardRouterProps = shardRouterProps)
   }
@@ -90,8 +88,12 @@ trait KafkaPartitionShardRouterActorSpecLike extends MockitoSugar {
   }
 }
 
-class KafkaPartitionShardRouterActorSpec extends TestKit(ActorSystem("KafkaPartitionShardRouterActorSpec")) with AnyWordSpecLike with Matchers
-  with KafkaPartitionShardRouterActorSpecLike with ActorSystemHostAwareness {
+class KafkaPartitionShardRouterActorSpec
+    extends TestKit(ActorSystem("KafkaPartitionShardRouterActorSpec"))
+    with AnyWordSpecLike
+    with Matchers
+    with KafkaPartitionShardRouterActorSpecLike
+    with ActorSystemHostAwareness {
   import KafkaPartitionShardRouterActorSpecModels._
 
   override val actorSystem: ActorSystem = system
@@ -99,9 +101,8 @@ class KafkaPartitionShardRouterActorSpec extends TestKit(ActorSystem("KafkaParti
   private val hostPort1 = HostPort(localHostname, localPort)
   private val hostPort2 = HostPort("not-localhost", 1234)
 
-  val partitionAssignments: Map[HostPort, List[TopicPartition]] = Map[HostPort, List[TopicPartition]](
-    hostPort1 -> List(partition0, partition1),
-    hostPort2 -> List(partition2))
+  val partitionAssignments: Map[HostPort, List[TopicPartition]] =
+    Map[HostPort, List[TopicPartition]](hostPort1 -> List(partition0, partition1), hostPort2 -> List(partition2))
 
   "KafkaPartitionShardRouterActor" should {
     "Handle updates to partition assignments using TracedMessages" in {
@@ -113,9 +114,7 @@ class KafkaPartitionShardRouterActorSpec extends TestKit(ActorSystem("KafkaParti
 
       initializePartitionAssignments(partitionProbe)
 
-      val newPartitionAssignments = Map[HostPort, List[TopicPartition]](
-        hostPort1 -> List(partition0, partition1, partition2),
-        hostPort2 -> List())
+      val newPartitionAssignments = Map[HostPort, List[TopicPartition]](hostPort1 -> List(partition0, partition1, partition2), hostPort2 -> List())
 
       partitionProbe.send(routerActor, TracedMessage(PartitionAssignments(newPartitionAssignments), Map[String, String]()))
 
@@ -135,9 +134,7 @@ class KafkaPartitionShardRouterActorSpec extends TestKit(ActorSystem("KafkaParti
 
       initializePartitionAssignments(partitionProbe)
 
-      val newPartitionAssignments = Map[HostPort, List[TopicPartition]](
-        hostPort1 -> List(partition0, partition1, partition2),
-        hostPort2 -> List())
+      val newPartitionAssignments = Map[HostPort, List[TopicPartition]](hostPort1 -> List(partition0, partition1, partition2), hostPort2 -> List())
 
       partitionProbe.send(routerActor, PartitionAssignments(newPartitionAssignments))
 

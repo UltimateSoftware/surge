@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.kafka.streams
 
@@ -9,10 +9,8 @@ import org.apache.kafka.streams.kstream._
 import scala.language.implicitConversions
 
 /**
- * These come from a lightbend library - https://github.com/lightbend/kafka-streams-scala
- * and are just implicit conversions provided as library functions for convenience.
- * We only needed a few things from there and decided to pull these in manually rather
- * than pulling in the whole library for just a couple things.
+ * These come from a lightbend library - https://github.com/lightbend/kafka-streams-scala and are just implicit conversions provided as library functions for
+ * convenience. We only needed a few things from there and decided to pull these in manually rather than pulling in the whole library for just a couple things.
  */
 
 object ImplicitConversions {
@@ -28,7 +26,6 @@ object ImplicitConversions {
   implicit def groupedFromSerde[K, V](implicit keySerde: Serde[K], valueSerde: Serde[V]): Grouped[K, V] =
     Grouped.`with`(keySerde, valueSerde)
 
-  implicit def joinedFromKVOSerde[K, V, VO](implicit keySerde: Serde[K], valueSerde: Serde[V],
-    otherValueSerde: Serde[VO]): Joined[K, V, VO] =
+  implicit def joinedFromKVOSerde[K, V, VO](implicit keySerde: Serde[K], valueSerde: Serde[V], otherValueSerde: Serde[VO]): Joined[K, V, VO] =
     Joined.`with`(keySerde, valueSerde, otherValueSerde)
 }

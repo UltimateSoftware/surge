@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.core
 
@@ -16,7 +16,8 @@ abstract class SurgeCommandImpl[Agg, Command, +Rej, Event](
     actorSystem: ActorSystem,
     override val businessLogic: SurgeCommandModel[Agg, Command, Rej, Event],
     override val config: Config)
-  extends SurgeProcessingTrait[Agg, Command, Rej, Event] with ActorSystemHostAwareness {
+    extends SurgeProcessingTrait[Agg, Command, Rej, Event]
+    with ActorSystemHostAwareness {
 
   private implicit val system: ActorSystem = actorSystem
 
@@ -32,15 +33,10 @@ abstract class SurgeCommandImpl[Agg, Command, +Rej, Event](
     system = system,
     metrics = businessLogic.metrics)
 
-  private val cqrsRegionCreator = new PersistentActorRegionCreator[Command](actorSystem, businessLogic,
-    kafkaStreamsImpl, businessLogic.metrics, config)
-  protected val actorRouter = new SurgePartitionRouter(actorSystem, stateChangeActor,
-    businessLogic, cqrsRegionCreator)
+  private val cqrsRegionCreator = new PersistentActorRegionCreator[Command](actorSystem, businessLogic, kafkaStreamsImpl, businessLogic.metrics, config)
+  protected val actorRouter = new SurgePartitionRouter(actorSystem, stateChangeActor, businessLogic, cqrsRegionCreator)
 
-  protected val surgeHealthCheck = new SurgeHealthCheck(
-    businessLogic.aggregateName,
-    kafkaStreamsImpl,
-    actorRouter)(ExecutionContext.global)
+  protected val surgeHealthCheck = new SurgeHealthCheck(businessLogic.aggregateName, kafkaStreamsImpl, actorRouter)(ExecutionContext.global)
 
   def healthCheck: Future[HealthCheck] = {
     surgeHealthCheck.healthCheck()

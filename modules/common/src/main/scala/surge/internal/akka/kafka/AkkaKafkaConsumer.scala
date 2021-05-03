@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.internal.akka.kafka
 
@@ -20,10 +20,9 @@ object AkkaKafkaConsumer extends KafkaSecurityConfiguration {
   private val consumerSessionTimeout = config.getDuration("surge.kafka-event-source.consumer.session-timeout")
   private val autoOffsetReset = config.getString("surge.kafka-event-source.consumer.auto-offset-reset")
 
-  def consumerSettings[Key, Value](
-    actorSystem: ActorSystem,
-    groupId: String,
-    brokers: String = defaultBrokers)(implicit keyDeserializer: Deserializer[Key], valueDeserializer: Deserializer[Value]): ConsumerSettings[Key, Value] = {
+  def consumerSettings[Key, Value](actorSystem: ActorSystem, groupId: String, brokers: String = defaultBrokers)(
+      implicit keyDeserializer: Deserializer[Key],
+      valueDeserializer: Deserializer[Value]): ConsumerSettings[Key, Value] = {
 
     val baseSettings = ConsumerSettings[Key, Value](actorSystem, Some(keyDeserializer), Some(valueDeserializer))
 

@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.kafka.streams
 
@@ -29,21 +29,17 @@ object CustomRocksDBConfigSetter {
 }
 
 /**
- * By default, RocksDB is used as the backing for a Kafka Streams KTable.  This class can be used to configure
- * settings used by the embedded RocksDB instance responsible for storing the data.  This class additionally
- * pulls in config settings for additional RocksDB configuration.  See the `kafka.streams.rocks-db` section
- * of reference.conf for a complete list of settings this class looks at.
- * This should be extended by another class and configured in the Kafka Streams settings, ex:
- * class MyCustomRocksDBSettings extends CustomRocksDbConfigSetter(..., ...)
+ * By default, RocksDB is used as the backing for a Kafka Streams KTable. This class can be used to configure settings used by the embedded RocksDB instance
+ * responsible for storing the data. This class additionally pulls in config settings for additional RocksDB configuration. See the `kafka.streams.rocks-db`
+ * section of reference.conf for a complete list of settings this class looks at. This should be extended by another class and configured in the Kafka Streams
+ * settings, ex: class MyCustomRocksDBSettings extends CustomRocksDbConfigSetter(..., ...)
  *
- * val streamsSettings = Map(
- *   ...
- *   StreamsConfig.ROCKSDB_CONFIG_SETTER_CLASS_CONFIG -> classOf[MyCustomRocksDBSettings].getName
- *   ...
- * )
+ * val streamsSettings = Map( ... StreamsConfig.ROCKSDB_CONFIG_SETTER_CLASS_CONFIG -> classOf[MyCustomRocksDBSettings].getName ... )
  *
- * @param blockCacheSettings Settings for the RocksDB block cache
- * @param writeBufferSettings Settings for the RocksDB write buffer
+ * @param blockCacheSettings
+ *   Settings for the RocksDB block cache
+ * @param writeBufferSettings
+ *   Settings for the RocksDB write buffer
  */
 abstract class CustomRocksDBConfigSetter(blockCacheSettings: BlockCacheSettings, writeBufferSettings: WriteBufferSettings) extends RocksDBConfigSetter {
   import CustomRocksDBConfigSetter._
@@ -57,8 +53,9 @@ abstract class CustomRocksDBConfigSetter(blockCacheSettings: BlockCacheSettings,
         tableConfig.setCacheIndexAndFilterBlocks(blockCacheSettings.cacheIndexAndFilterBlocks)
         tableConfig.setPinL0FilterAndIndexBlocksInCache(true)
       case _ =>
-        log.warn("RocksDB tableFormatConfig was not of type BlockBasedTableConfig. " +
-          "Ignoring any configured block cache settings since they wouldn't impact anything.")
+        log.warn(
+          "RocksDB tableFormatConfig was not of type BlockBasedTableConfig. " +
+            "Ignoring any configured block cache settings since they wouldn't impact anything.")
     }
 
     options.setMaxWriteBufferNumber(writeBufferSettings.maxWriteBufferNumber)
@@ -78,6 +75,5 @@ abstract class CustomRocksDBConfigSetter(blockCacheSettings: BlockCacheSettings,
     }
   }
 
-  override def close(storeName: String, options: Options): Unit = {
-  }
+  override def close(storeName: String, options: Options): Unit = {}
 }

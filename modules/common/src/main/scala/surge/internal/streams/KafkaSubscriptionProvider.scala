@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.internal.streams
 
@@ -38,9 +38,7 @@ trait KafkaSubscriptionProvider {
       .withStopTimeout(Duration.Zero)
 
     if (reuseConsumerId) {
-      consumerSettingsWithHost
-        .withClientId(clientId)
-        .withGroupInstanceId(clientId)
+      consumerSettingsWithHost.withClientId(clientId).withGroupInstanceId(clientId)
     } else {
       consumerSettingsWithHost
     }
@@ -53,7 +51,8 @@ class KafkaOffsetManagementSubscriptionProvider[Key, Value](
     topicName: String,
     subscription: Subscription,
     baseConsumerSettings: ConsumerSettings[Key, Value],
-    businessFlow: Flow[ConsumerMessage.CommittableMessage[Key, Value], KafkaStreamMeta, NotUsed]) extends KafkaSubscriptionProvider {
+    businessFlow: Flow[ConsumerMessage.CommittableMessage[Key, Value], KafkaStreamMeta, NotUsed])
+    extends KafkaSubscriptionProvider {
 
   private val log = LoggerFactory.getLogger(getClass)
   private val config = ConfigFactory.load()
@@ -62,17 +61,11 @@ class KafkaOffsetManagementSubscriptionProvider[Key, Value](
   private val committerParallelism = config.getInt("surge.kafka-event-source.committer.parallelism")
 
   override def createSubscription(actorSystem: ActorSystem): Source[Done, Consumer.Control] = {
-    val committerSettings = CommitterSettings(actorSystem)
-      .withMaxBatch(committerMaxBatch)
-      .withMaxInterval(committerMaxInterval)
-      .withParallelism(committerParallelism)
+    val committerSettings =
+      CommitterSettings(actorSystem).withMaxBatch(committerMaxBatch).withMaxInterval(committerMaxInterval).withParallelism(committerParallelism)
     val consumerSettings = createConsumerSettings(actorSystem, baseConsumerSettings)
     log.debug("Creating Kafka source for topic {} with client id {}", Seq(topicName, clientId): _*)
-    Consumer
-      .committableSource(consumerSettings, subscription)
-      .via(businessFlow)
-      .map(_.committableOffset)
-      .via(Committer.flow(committerSettings))
+    Consumer.committableSource(consumerSettings, subscription).via(businessFlow).map(_.committableOffset).via(Committer.flow(committerSettings))
   }
 }
 
@@ -82,7 +75,8 @@ class ManualOffsetManagementSubscriptionProvider[Key, Value](
     baseConsumerSettings: ConsumerSettings[Key, Value],
     businessFlow: Flow[ConsumerMessage.CommittableMessage[Key, Value], KafkaStreamMeta, NotUsed],
     offsetManager: OffsetManager,
-    maxPartitions: Int = 10) extends KafkaSubscriptionProvider {
+    maxPartitions: Int = 10)
+    extends KafkaSubscriptionProvider {
   private val log = LoggerFactory.getLogger(getClass)
   override def createSubscription(actorSystem: ActorSystem): Source[Done, Consumer.Control] = {
     val consumerSettings = createConsumerSettings(actorSystem, baseConsumerSettings)

@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.internal.akka
 
@@ -24,7 +24,7 @@ class ProbeWithTraceSupport(probe: TestProbe, val tracer: Tracer) extends ActorW
       sender() ! ProbeWithTraceSupport.MostRecentSpan(mostRecentSpan)
     case msg =>
       mostRecentSpan = Option(tracer.activeSpan())
-      probe.ref forward msg
+      probe.ref.forward(msg)
   }
 }
 

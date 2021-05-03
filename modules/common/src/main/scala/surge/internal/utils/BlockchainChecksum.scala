@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.internal.utils
 
@@ -8,9 +8,11 @@ import scala.util.hashing.MurmurHash3
 
 object BlockchainChecksum {
   def calculateChecksum[A](obj: Option[A], previousChecksumOpt: Option[String])(implicit format: Format[A]): String = {
-    previousChecksumOpt.map { checksum =>
-      calculateChecksum(obj, checksum)
-    }.getOrElse(calculateNewChecksum(obj))
+    previousChecksumOpt
+      .map { checksum =>
+        calculateChecksum(obj, checksum)
+      }
+      .getOrElse(calculateNewChecksum(obj))
   }
 
   def calculateChecksum[A](obj: Option[A], previousChecksum: String)(implicit format: Format[A]): String = {

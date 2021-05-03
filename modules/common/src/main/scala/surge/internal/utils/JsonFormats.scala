@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.internal.utils
 
@@ -19,8 +19,9 @@ import scala.util.{ Failure, Success, Try }
 object JsonFormats {
 
   def singletonReads[O](singleton: O): Reads[O] = {
-    (__ \ "value").read[String].collect(
-      JsonValidationError(s"Expected a JSON object with a single field with key 'value' and value '${singleton.getClass.getSimpleName}'")) {
+    (__ \ "value")
+      .read[String]
+      .collect(JsonValidationError(s"Expected a JSON object with a single field with key 'value' and value '${singleton.getClass.getSimpleName}'")) {
         case s if s == singleton.getClass.getSimpleName => singleton
       }
   }
@@ -31,10 +32,9 @@ object JsonFormats {
     Format(singletonReads(singleton), singletonWrites)
   }
 
-  implicit val uuidReads: Reads[UUID] = implicitly[Reads[String]]
-    .collect(JsonValidationError("Invalid UUID"))(Function.unlift { str =>
-      Try(UUID.fromString(str)).toOption
-    })
+  implicit val uuidReads: Reads[UUID] = implicitly[Reads[String]].collect(JsonValidationError("Invalid UUID"))(Function.unlift { str =>
+    Try(UUID.fromString(str)).toOption
+  })
   implicit val uuidWrites: Writes[UUID] = Writes { uuid =>
     JsString(uuid.toString)
   }
@@ -42,17 +42,15 @@ object JsonFormats {
   implicit val currencyFormat: Format[Currency] = new Format[Currency] {
     override def reads(json: JsValue): JsResult[Currency] = json.validate[String] match {
       case JsSuccess(value, _) =>
-        Try(Currency.getInstance(value)).map(currency => JsSuccess(currency))
-          .getOrElse(JsError("Unknown currency code"))
+        Try(Currency.getInstance(value)).map(currency => JsSuccess(currency)).getOrElse(JsError("Unknown currency code"))
       case JsError(_) => JsError("Expected currency code string, but got something else")
     }
     override def writes(o: Currency): JsValue = JsString(o.getCurrencyCode)
   }
 
-  implicit val durationReads: Reads[FiniteDuration] = implicitly[Reads[String]]
-    .collect(JsonValidationError("Invalid duration"))(Function.unlift { str =>
-      Some(Duration(str)).collect { case fd: FiniteDuration => fd }
-    })
+  implicit val durationReads: Reads[FiniteDuration] = implicitly[Reads[String]].collect(JsonValidationError("Invalid duration"))(Function.unlift { str =>
+    Some(Duration(str)).collect { case fd: FiniteDuration => fd }
+  })
 
   implicit val durationWrites: Writes[FiniteDuration] = Writes { duration =>
     JsString(duration.toString)
@@ -90,12 +88,14 @@ object JsonFormats {
   }
 
   /**
-   * Creates a play json formatter that just leverages an underlying jackson json formatter.
-   * This is useful for providing a json serializer for some of the underlying java libraries
-   * that we're leveraging that already have a jackson json formatter.
-   * @param classTag implicit ClassTag for the type T to be serialized
-   * @tparam T The class with jackson formatting to create a play json formatter for
-   * @return A new json formatter for type T
+   * Creates a play json formatter that just leverages an underlying jackson json formatter. This is useful for providing a json serializer for some of the
+   * underlying java libraries that we're leveraging that already have a jackson json formatter.
+   * @param classTag
+   *   implicit ClassTag for the type T to be serialized
+   * @tparam T
+   *   The class with jackson formatting to create a play json formatter for
+   * @return
+   *   A new json formatter for type T
    */
   def jsonFormatterFromJackson[T](implicit classTag: ClassTag[T]): Format[T] = new Format[T] {
     override def writes(o: T): JsValue = jacksonWriter[T].writes(o)

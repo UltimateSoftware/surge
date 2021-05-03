@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.javadsl.command
 
@@ -18,11 +18,9 @@ trait AggregateRef[Agg, Cmd, Event] {
   def applyEvent(event: Event): CompletionStage[ApplyEventResult[Agg]]
 }
 
-final class AggregateRefImpl[AggId, Agg, Cmd, Event](
-    val aggregateId: AggId,
-    val region: ActorRef,
-    val tracer: Tracer) extends AggregateRef[Agg, Cmd, Event]
-  with AggregateRefTrait[AggId, Agg, Cmd, Event] {
+final class AggregateRefImpl[AggId, Agg, Cmd, Event](val aggregateId: AggId, val region: ActorRef, val tracer: Tracer)
+    extends AggregateRef[Agg, Cmd, Event]
+    with AggregateRefTrait[AggId, Agg, Cmd, Event] {
 
   private implicit val ec: ExecutionContext = ExecutionContext.global
 
@@ -43,12 +41,9 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event](
 
   def applyEvent(event: Event): CompletionStage[ApplyEventResult[Agg]] = {
     val envelope = PersistentActor.ApplyEvent[Event](aggregateId.toString, event)
-    val result = applyEventsWithRetries(envelope)
-      .map(aggOpt => ApplyEventsSuccess[Agg](aggOpt.asJava))
-      .recover {
-        case e =>
-          ApplyEventsFailure[Agg](e)
-      }
+    val result = applyEventsWithRetries(envelope).map(aggOpt => ApplyEventsSuccess[Agg](aggOpt.asJava)).recover { case e =>
+      ApplyEventsFailure[Agg](e)
+    }
     FutureConverters.toJava(result)
   }
 }

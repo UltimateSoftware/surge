@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.rabbit
 
@@ -10,24 +10,21 @@ class BindingSpec extends AnyWordSpecLike with Matchers {
 
   "Binding" should {
     "Create declaration with routingKey" in {
-      val declaration: Declaration = Binding("queue", "exchange", Some("route"))
-        .declaration()
+      val declaration: Declaration = Binding("queue", "exchange", Some("route")).declaration()
 
       declaration shouldBe a[BindingDeclaration]
       declaration.asInstanceOf[BindingDeclaration].routingKey shouldEqual Some("route")
     }
 
     "Create declaration without routingKey" in {
-      val declaration: Declaration = Binding("queue", "exchange", None)
-        .declaration()
+      val declaration: Declaration = Binding("queue", "exchange", None).declaration()
 
       declaration shouldBe a[BindingDeclaration]
       declaration.asInstanceOf[BindingDeclaration].routingKey shouldEqual None
     }
 
     "Create declaration with queue and exchange" in {
-      val declaration: Declaration = Binding("queue", "exchange", Some("route"))
-        .declaration()
+      val declaration: Declaration = Binding("queue", "exchange", Some("route")).declaration()
 
       declaration shouldBe a[BindingDeclaration]
       declaration.asInstanceOf[BindingDeclaration].queue shouldEqual "queue"

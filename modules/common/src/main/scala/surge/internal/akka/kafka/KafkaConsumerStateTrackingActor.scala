@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.internal.akka.kafka
 
@@ -22,10 +22,9 @@ object KafkaConsumerStateTrackingActor {
 }
 
 /**
- * The Kafka consumer state tracking actor is used to follow topic/partition assignment updates.
- * This actor must be updated with topic/partition assignments by something upstream, but provides
- * a single place where other interested actors can ask for updates and register to be notified if
- * the state of assignments changes at all.
+ * The Kafka consumer state tracking actor is used to follow topic/partition assignment updates. This actor must be updated with topic/partition assignments by
+ * something upstream, but provides a single place where other interested actors can ask for updates and register to be notified if the state of assignments
+ * changes at all.
  */
 class KafkaConsumerStateTrackingActor extends Actor {
   import KafkaConsumerStateTrackingActor._
@@ -74,11 +73,12 @@ class KafkaConsumerStateTrackingActor extends Actor {
   }
 
   private def stringifyClusterState(clusterState: Map[HostPort, List[TopicPartition]]): String = {
-    clusterState.map {
-      case (hostPort, listTopicPartition) =>
+    clusterState
+      .map { case (hostPort, listTopicPartition) =>
         val topicsInOneLine = listTopicPartition.map(topic => topic.toString).mkString("", ", ", "")
         s"${hostPort.toString()} - $topicsInOneLine"
-    }.mkString("", "; ", "")
+      }
+      .mkString("", "; ", "")
   }
 
   private def doHealthCheck(actorState: ActorState): Unit = {
@@ -86,8 +86,6 @@ class KafkaConsumerStateTrackingActor extends Actor {
       name = "partition-tracker-actor",
       id = s"partition-tracker-actor-${hashCode()}",
       status = HealthCheckStatus.UP,
-      details = Some(Map(
-        "state" -> stringifyClusterState(actorState.clusterState),
-        "listeners" -> actorState.registeredListeners.size.toString)))
+      details = Some(Map("state" -> stringifyClusterState(actorState.clusterState), "listeners" -> actorState.registeredListeners.size.toString)))
   }
 }

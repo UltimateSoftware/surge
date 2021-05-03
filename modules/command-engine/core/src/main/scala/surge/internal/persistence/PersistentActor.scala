@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.internal.persistence
 
@@ -32,27 +32,31 @@ object PersistentActor {
 
   case class ProcessMessage[M](
       aggregateId: String,
-      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "msgType", visible = true) message: M) extends RoutableActorMessage
+      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "msgType", visible = true) message: M)
+      extends RoutableActorMessage
 
   case class GetState(aggregateId: String) extends RoutableActorMessage
 
   case class ApplyEvent[E](
       aggregateId: String,
-      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "eventType", visible = true) event: E) extends RoutableActorMessage
+      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "eventType", visible = true) event: E)
+      extends RoutableActorMessage
 
   case class StateResponse[S](
       @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "aggregateType", visible = true) aggregateState: Option[S])
-    extends JacksonSerializable
+      extends JacksonSerializable
 
   sealed trait ACK extends ActorMessage with JacksonSerializable
 
   case class ACKSuccess[S](
-      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "aggregateType", visible = true) aggregateState: Option[S]) extends ACK
+      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "aggregateType", visible = true) aggregateState: Option[S])
+      extends ACK
 
   case class ACKError(exception: Throwable) extends ACK with NoSerializationVerificationNeeded
 
   case class ACKRejection[R](
-      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "rejectionType", visible = true) rejection: R) extends ACK
+      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "rejectionType", visible = true) rejection: R)
+      extends ACK
 
   case object Stop extends ActorMessage
 
@@ -64,7 +68,9 @@ object PersistentActor {
       eventHandlingTimer: Timer,
       serializeStateTimer: Timer,
       serializeEventTimer: Timer,
-      eventPublishTimer: Timer) extends KTableInitializationMetrics with KTablePersistenceMetrics
+      eventPublishTimer: Timer)
+      extends KTableInitializationMetrics
+      with KTablePersistenceMetrics
 
   private[internal] def createMetrics(metrics: Metrics, aggregateName: String): MetricsQuiver = {
     MetricsQuiver(
@@ -112,11 +118,11 @@ object PersistentActor {
   }
 
   def props[S, M, R, E](
-    aggregateId: String,
-    businessLogic: SurgeCommandModel[S, M, R, E],
-    regionSharedResources: PersistentEntitySharedResources, config: Config): Props = {
-    Props(new PersistentActor(aggregateId, businessLogic, regionSharedResources, config))
-      .withDispatcher("surge-persistence-actor-dispatcher")
+      aggregateId: String,
+      businessLogic: SurgeCommandModel[S, M, R, E],
+      regionSharedResources: PersistentEntitySharedResources,
+      config: Config): Props = {
+    Props(new PersistentActor(aggregateId, businessLogic, regionSharedResources, config)).withDispatcher("surge-persistence-actor-dispatcher")
   }
 
   val serializationThreadPoolSize: Int = ConfigFactory.load().getInt("surge.serialization.thread-pool-size")
@@ -129,9 +135,10 @@ class PersistentActor[S, M, R, E](
     val businessLogic: SurgeCommandModel[S, M, R, E],
     val regionSharedResources: PersistentEntitySharedResources,
     implicit val config: Config)
-  extends ActorWithTracing with Stash
-  with KTablePersistenceSupport[S, E]
-  with KTableInitializationSupport[S] {
+    extends ActorWithTracing
+    with Stash
+    with KTablePersistenceSupport[S, E]
+    with KTableInitializationSupport[S] {
 
   import PersistentActor._
   import context.dispatcher
@@ -142,9 +149,14 @@ class PersistentActor[S, M, R, E](
 
   private case class PersistenceSuccess(newState: InternalActorState, startTime: Instant) extends Internal
 
-  private case class PersistenceFailure(newState: InternalActorState, reason: Throwable, numberOfFailures: Int,
+  private case class PersistenceFailure(
+      newState: InternalActorState,
+      reason: Throwable,
+      numberOfFailures: Int,
       serializedEvents: Seq[KafkaProducerActor.MessageToPublish],
-      serializedState: KafkaProducerActor.MessageToPublish, startTime: Instant) extends Internal
+      serializedState: KafkaProducerActor.MessageToPublish,
+      startTime: Instant)
+      extends Internal
 
   private case class EventPublishTimedOut(reason: Throwable, startTime: Instant) extends Internal
 
@@ -198,8 +210,7 @@ class PersistentActor[S, M, R, E](
     log.debug(s"Actor state for aggregate $aggregateId successfully initialized")
     unstashAll()
 
-    val internalActorState = InternalActorState(
-      stateOpt = initializeWithState.stateOpt)
+    val internalActorState = InternalActorState(stateOpt = initializeWithState.stateOpt)
 
     context.setReceiveTimeout(receiveTimeout)
     context.become(freeToProcess(internalActorState))
@@ -210,27 +221,33 @@ class PersistentActor[S, M, R, E](
     context.setReceiveTimeout(Duration.Inf)
     context.become(persistingEvents(state.withMessageProcessingSpan(ProcessMessageSpan)))
 
-    processMessage(state, msg).map {
-      case Left(r) => Future.successful(ACKRejection(r))
-      case Right(handled) =>
-        val serializingFut = if (publishStateOnly) {
-          Future.successful(Seq.empty)
-        } else {
-          serializeEvents(handled.eventsToLog)
-        }
-        for {
-          serializedState <- serializeState(handled.resultingState)
-          serializedEvents <- serializingFut
-          publishResult <- doPublish(state.copy(stateOpt = handled.resultingState), serializedEvents, serializedState,
-            startTime = Instant.now, didStateChange = state.stateOpt != handled.resultingState)
-        } yield {
-          publishResult
-        }
-    }
-      .recover {
-        case e => Future.successful(ACKError(e))
+    processMessage(state, msg)
+      .map {
+        case Left(r) => Future.successful(ACKRejection(r))
+        case Right(handled) =>
+          val serializingFut = if (publishStateOnly) {
+            Future.successful(Seq.empty)
+          } else {
+            serializeEvents(handled.eventsToLog)
+          }
+          for {
+            serializedState <- serializeState(handled.resultingState)
+            serializedEvents <- serializingFut
+            publishResult <- doPublish(
+              state.copy(stateOpt = handled.resultingState),
+              serializedEvents,
+              serializedState,
+              startTime = Instant.now,
+              didStateChange = state.stateOpt != handled.resultingState)
+          } yield {
+            publishResult
+          }
       }
-      .flatten.pipeTo(self)(sender())
+      .recover { case e =>
+        Future.successful(ACKError(e))
+      }
+      .flatten
+      .pipeTo(self)(sender())
   }
 
   private def processMessage(state: InternalActorState, ProcessMessage: ProcessMessage[M]): Future[Either[R, HandledMessageResult[S, E]]] = {
@@ -243,8 +260,12 @@ class PersistentActor[S, M, R, E](
         context.setReceiveTimeout(Duration.Inf)
         context.become(persistingEvents(state))
         val futureStatePersisted = serializeState(newState).flatMap { serializedState =>
-          doPublish(state.copy(stateOpt = newState), serializedEvents = Seq.empty,
-            serializedState = serializedState, startTime = Instant.now, didStateChange = state.stateOpt != newState)
+          doPublish(
+            state.copy(stateOpt = newState),
+            serializedEvents = Seq.empty,
+            serializedState = serializedState,
+            startTime = Instant.now,
+            didStateChange = state.stateOpt != newState)
         }
         futureStatePersisted.pipeTo(self)(sender())
       case Failure(e) =>
@@ -260,10 +281,11 @@ class PersistentActor[S, M, R, E](
 
   private def uninitialized: Receive = {
     case msg: InitializeWithState => handle(msg)
-    case ReceiveTimeout =>
+    case ReceiveTimeout           =>
       // Ignore and drop ReceiveTimeout messages from this state
-      log.warn(s"Aggregate actor for $aggregateId received a ReceiveTimeout message in uninitialized state. " +
-        "This should not happen and is likely a logic error. Dropping the ReceiveTimeout message.")
+      log.warn(
+        s"Aggregate actor for $aggregateId received a ReceiveTimeout message in uninitialized state. " +
+          "This should not happen and is likely a logic error. Dropping the ReceiveTimeout message.")
     case other =>
       log.debug(s"PersistentActor actor for $aggregateId stashing a message with class [{}] from the 'uninitialized' state", other.getClass)
       stash()

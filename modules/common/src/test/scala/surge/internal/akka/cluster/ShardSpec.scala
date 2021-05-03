@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.internal.akka.cluster
 
@@ -26,8 +26,8 @@ object TestActor {
   case class StopActor(originalSender: ActorRef)
   case class Crash(actorIdentifier: String, exception: Exception) extends Message
 
-  def idExtractor: PartialFunction[Any, String] = {
-    case m: Message => m.actorIdentifier
+  def idExtractor: PartialFunction[Any, String] = { case m: Message =>
+    m.actorIdentifier
   }
 
   class RegionLogicProvider(onShardTerminatedCallback: () => Unit = () => {}) extends PerShardLogicProvider[String] {

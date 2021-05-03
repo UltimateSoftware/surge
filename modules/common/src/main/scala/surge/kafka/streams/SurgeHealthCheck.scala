@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.kafka.streams
 
@@ -12,25 +12,23 @@ class SurgeHealthCheck(healthCheckId: String, components: HealthyComponent*)(imp
   private val log = LoggerFactory.getLogger(getClass)
 
   def healthCheck(): Future[HealthCheck] = {
-    Future.sequence(components.map { healthyComponent =>
-      healthyComponent.healthCheck()
-    }).map { healthyComponentChecks =>
-      val isUp = healthyComponentChecks.forall(_.status.equals(HealthCheckStatus.UP))
-      val baseHealthTree = HealthCheck(
-        name = "surge",
-        id = healthCheckId,
-        status = if (isUp) HealthCheckStatus.UP else HealthCheckStatus.DOWN,
-        components = Some(healthyComponentChecks))
-      healthyTree(baseHealthTree)
-    }.recoverWith {
-      case err: Throwable =>
+    Future
+      .sequence(components.map { healthyComponent =>
+        healthyComponent.healthCheck()
+      })
+      .map { healthyComponentChecks =>
+        val isUp = healthyComponentChecks.forall(_.status.equals(HealthCheckStatus.UP))
+        val baseHealthTree = HealthCheck(
+          name = "surge",
+          id = healthCheckId,
+          status = if (isUp) HealthCheckStatus.UP else HealthCheckStatus.DOWN,
+          components = Some(healthyComponentChecks))
+        healthyTree(baseHealthTree)
+      }
+      .recoverWith { case err: Throwable =>
         log.error(s"Fail to get surge health check", err)
-        Future.successful(
-          HealthCheck(
-            name = "surge",
-            id = healthCheckId,
-            status = HealthCheckStatus.DOWN))
-    }
+        Future.successful(HealthCheck(name = "surge", id = healthCheckId, status = HealthCheckStatus.DOWN))
+      }
   }
 
   private def healthyTree(node: HealthCheck): HealthCheck = {
@@ -42,10 +40,7 @@ class SurgeHealthCheck(healthCheckId: String, components: HealthyComponent*)(imp
       HealthCheckStatus.DOWN
     }
 
-    node.copy(
-      components = childs,
-      status = newStatus,
-      isHealthy = Some(isHealthy))
+    node.copy(components = childs, status = newStatus, isHealthy = Some(isHealthy))
   }
 }
 

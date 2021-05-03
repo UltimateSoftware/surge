@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.internal.commondsl.command
 
@@ -35,8 +35,12 @@ abstract class SurgeBaseCommandBusinessLogic[AggId, Agg, Command, Rej, Event] {
 
   def tracer: Tracer = NoopTracerFactory.create()
 
-  def kafkaConfig: SurgeCommandKafkaConfig = SurgeCommandKafkaConfig(stateTopic = stateTopic, eventsTopic = eventsTopic,
-    publishStateOnly = publishStateOnly, streamsApplicationId = streamsApplicationId, clientId = streamsClientId,
+  def kafkaConfig: SurgeCommandKafkaConfig = SurgeCommandKafkaConfig(
+    stateTopic = stateTopic,
+    eventsTopic = eventsTopic,
+    publishStateOnly = publishStateOnly,
+    streamsApplicationId = streamsApplicationId,
+    clientId = streamsClientId,
     transactionalIdPrefix = transactionalIdPrefix)
 
   def consumerGroupBase: String = {
@@ -70,8 +74,7 @@ abstract class SurgeCommandBusinessLogic[AggId, Agg, Command, Event] extends Sur
 }
 
 object SurgeCommandBusinessLogic {
-  def toCore[Agg, Command, Event](
-    businessLogic: SurgeCommandBusinessLogic[_, Agg, Command, Event]): SurgeCommandModel[Agg, Command, Nothing, Event] = {
+  def toCore[Agg, Command, Event](businessLogic: SurgeCommandBusinessLogic[_, Agg, Command, Event]): SurgeCommandModel[Agg, Command, Nothing, Event] = {
     new SurgeCommandModel[Agg, Command, Nothing, Event](
       aggregateName = businessLogic.aggregateName,
       kafka = businessLogic.kafkaConfig,
@@ -90,7 +93,7 @@ abstract class SurgeRejectableCommandBusinessLogic[AggId, Agg, Command, Rej, Eve
 
 object SurgeRejectableCommandBusinessLogic {
   def toCore[Agg, Command, Rej, Event](
-    businessLogic: SurgeRejectableCommandBusinessLogic[_, Agg, Command, Rej, Event]): SurgeCommandModel[Agg, Command, Rej, Event] = {
+      businessLogic: SurgeRejectableCommandBusinessLogic[_, Agg, Command, Rej, Event]): SurgeCommandModel[Agg, Command, Rej, Event] = {
     new SurgeCommandModel[Agg, Command, Rej, Event](
       aggregateName = businessLogic.aggregateName,
       kafka = businessLogic.kafkaConfig,

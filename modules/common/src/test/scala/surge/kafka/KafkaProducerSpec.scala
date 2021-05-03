@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.kafka
 
@@ -20,9 +20,7 @@ class KafkaProducerSpec extends AnyWordSpec with Matchers {
     override def partitioner: KafkaPartitionerBase[String] = NoPartitioner[String]
   }
   private def createRecordMeta(topic: String, partition: Int, offset: Int): RecordMetadata = {
-    new RecordMetadata(
-      new TopicPartition(topic, partition), 0, offset, Instant.now.toEpochMilli,
-      0L, 0, 0)
+    new RecordMetadata(new TopicPartition(topic, partition), 0, offset, Instant.now.toEpochMilli, 0L, 0, 0)
   }
   "KafkaProducer" should {
     "Configure correctly" in {
@@ -38,9 +36,7 @@ class KafkaProducerSpec extends AnyWordSpec with Matchers {
       val mockRecordMetadata = createRecordMeta("topic", 1, 0)
       when(mockProducer.send(any[ProducerRecord[String, String]], any(classOf[Callback]))).thenReturn(CompletableFuture.completedFuture(mockRecordMetadata))
 
-      val testHeaders = new RecordHeaders()
-        .add(new RecordHeader("test", "header".getBytes()))
-        .add(new RecordHeader("second", "value".getBytes()))
+      val testHeaders = new RecordHeaders().add(new RecordHeader("test", "header".getBytes())).add(new RecordHeader("second", "value".getBytes()))
 
       val newRecord = new ProducerRecord("topic", 1, Instant.now.toEpochMilli, "key", "value", testHeaders)
 

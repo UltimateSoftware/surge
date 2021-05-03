@@ -1,3 +1,5 @@
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
+
 //
 package surge.javadsl.common
 
@@ -25,9 +27,9 @@ object HealthCheck {
         scalaHealthCheck.id,
         scalaHealthCheck.status,
         scalaHealthCheck.isHealthy.getOrElse(false),
-        scalaHealthCheck.components.map(scalaHealthCheckList =>
-          scalaHealthCheckList.map(scalaHealthCheck =>
-            scalaHealthCheck.asJava).asJava).getOrElse(new util.ArrayList()),
+        scalaHealthCheck.components
+          .map(scalaHealthCheckList => scalaHealthCheckList.map(scalaHealthCheck => scalaHealthCheck.asJava).asJava)
+          .getOrElse(new util.ArrayList()),
         scalaHealthCheck.details.map(_.asJava).getOrElse(new util.HashMap()))
     }
   }

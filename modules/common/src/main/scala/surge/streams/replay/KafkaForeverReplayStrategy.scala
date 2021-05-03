@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.streams.replay
 
@@ -25,7 +25,9 @@ class KafkaForeverReplayStrategy(
     actorSystem: ActorSystem,
     settings: KafkaForeverReplaySettings,
     override val preReplay: () => Future[Any] = { () => Future.successful(true) },
-    override val postReplay: () => Unit = { () => () })(implicit executionContext: ExecutionContext) extends EventReplayStrategy with Logging {
+    override val postReplay: () => Unit = { () => () })(implicit executionContext: ExecutionContext)
+    extends EventReplayStrategy
+    with Logging {
 
   private val underlyingActor = actorSystem.actorOf(Props(new TopicResetActor(settings.brokers, settings.topic)))
 
@@ -42,11 +44,8 @@ trait EventReplaySettings {
   val entireReplayTimeout: FiniteDuration
 }
 
-case class KafkaForeverReplaySettings(
-    brokers: List[String],
-    resetTopicTimeout: FiniteDuration,
-    entireReplayTimeout: FiniteDuration,
-    topic: String) extends EventReplaySettings
+case class KafkaForeverReplaySettings(brokers: List[String], resetTopicTimeout: FiniteDuration, entireReplayTimeout: FiniteDuration, topic: String)
+    extends EventReplaySettings
 
 object KafkaForeverReplaySettings {
   private val config = ConfigFactory.load()
@@ -64,26 +63,24 @@ object KafkaForeverReplaySettings {
 object KafkaForeverReplayStrategy {
 
   def create(
-    actorSystem: ActorSystem,
-    settings: KafkaForeverReplaySettings,
-    preReplay: () => Future[Any] = { () => Future.successful(true) },
-    postReplay: () => Unit = { () => () }): EventReplayStrategy = {
-    new KafkaForeverReplayStrategy(
-      actorSystem, settings, preReplay, postReplay)(ExecutionContext.global)
+      actorSystem: ActorSystem,
+      settings: KafkaForeverReplaySettings,
+      preReplay: () => Future[Any] = { () => Future.successful(true) },
+      postReplay: () => Unit = { () => () }): EventReplayStrategy = {
+    new KafkaForeverReplayStrategy(actorSystem, settings, preReplay, postReplay)(ExecutionContext.global)
   }
 
 }
 
 class TopicResetActor(brokers: List[String], kafkaTopic: String) extends Actor with Stash with Logging {
 
-  def ready: Receive = {
-    case ResetTopic(consumerGroup, partitions) =>
-      try {
-        initialize(consumerGroup, partitions)
-      } catch {
-        case err: Throwable =>
-          handleError(err, sender())
-      }
+  def ready: Receive = { case ResetTopic(consumerGroup, partitions) =>
+    try {
+      initialize(consumerGroup, partitions)
+    } catch {
+      case err: Throwable =>
+        handleError(err, sender())
+    }
   }
 
   def initializing(replyTo: ActorRef, consumer: KafkaConsumer[String, Array[Byte]], kafkaTopic: String, topicPartitions: List[TopicPartition]): Receive = {
@@ -121,16 +118,19 @@ class TopicResetActor(brokers: List[String], kafkaTopic: String) extends Actor w
       Map(
         ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG -> "60000",
         ConsumerConfig.PARTITION_ASSIGNMENT_STRATEGY_CONFIG -> PartitionAssignorConfig.assignorClassName)).consumer
-    consumer.subscribe(List(kafkaTopic).asJava, new ConsumerRebalanceListener() {
-      override def onPartitionsAssigned(partitions: util.Collection[TopicPartition]): Unit = {
-        if (partitions.size != topicPartitions.size) {
-          throw new IllegalStateException(s"There are (${topicPartitions.size - partitions.size})" +
-            s" active consumers for topic $kafkaTopic we can't proceed with replaying")
+    consumer.subscribe(
+      List(kafkaTopic).asJava,
+      new ConsumerRebalanceListener() {
+        override def onPartitionsAssigned(partitions: util.Collection[TopicPartition]): Unit = {
+          if (partitions.size != topicPartitions.size) {
+            throw new IllegalStateException(
+              s"There are (${topicPartitions.size - partitions.size})" +
+                s" active consumers for topic $kafkaTopic we can't proceed with replaying")
+          }
+          self ! PartitionsAssigned
         }
-        self ! PartitionsAssigned
-      }
-      override def onPartitionsRevoked(partitions: util.Collection[TopicPartition]): Unit = {}
-    })
+        override def onPartitionsRevoked(partitions: util.Collection[TopicPartition]): Unit = {}
+      })
     // NOTE: non-deprecated #poll(Duration) method doesn't work because it includesMetadataInTimeout opposite to this one
     consumer.poll(1000)
     context.become(initializing(sender(), consumer, kafkaTopic, topicPartitions))

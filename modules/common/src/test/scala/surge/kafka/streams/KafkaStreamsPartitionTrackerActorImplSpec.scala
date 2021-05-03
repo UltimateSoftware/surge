@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.kafka.streams
 
@@ -17,8 +17,11 @@ import surge.kafka.HostPort
 
 import scala.jdk.CollectionConverters._
 
-class KafkaStreamsPartitionTrackerActorImplSpec extends TestKit(ActorSystem("KafkaStreamsPartitionTrackerActorImplSpec")) with AnyWordSpecLike
-  with Matchers with MockitoSugar {
+class KafkaStreamsPartitionTrackerActorImplSpec
+    extends TestKit(ActorSystem("KafkaStreamsPartitionTrackerActorImplSpec"))
+    with AnyWordSpecLike
+    with Matchers
+    with MockitoSugar {
 
   private val tp0 = new TopicPartition("testTopic", 0)
   private val tp1 = new TopicPartition("testTopic", 1)
@@ -36,10 +39,18 @@ class KafkaStreamsPartitionTrackerActorImplSpec extends TestKit(ActorSystem("Kaf
       val partitionAssignments = Map(hostPort1 -> assignedPartitions1, hostPort2 -> assignedPartitions2)
 
       val testStreamsMeta = List(
-        new StreamsMetadata(new HostInfo(hostPort1.host, hostPort1.port), Set("store1", "store2").asJava, assignedPartitions1.toSet.asJava,
-          Set.empty[String].asJava, Set.empty[TopicPartition].asJava),
-        new StreamsMetadata(new HostInfo(hostPort2.host, hostPort2.port), Set("store1").asJava, assignedPartitions2.toSet.asJava,
-          Set.empty[String].asJava, Set.empty[TopicPartition].asJava))
+        new StreamsMetadata(
+          new HostInfo(hostPort1.host, hostPort1.port),
+          Set("store1", "store2").asJava,
+          assignedPartitions1.toSet.asJava,
+          Set.empty[String].asJava,
+          Set.empty[TopicPartition].asJava),
+        new StreamsMetadata(
+          new HostInfo(hostPort2.host, hostPort2.port),
+          Set("store1").asJava,
+          assignedPartitions2.toSet.asJava,
+          Set.empty[String].asJava,
+          Set.empty[TopicPartition].asJava))
 
       val mockStreams = mock[KafkaStreams]
       when(mockStreams.allMetadata()).thenReturn(testStreamsMeta.asJava)

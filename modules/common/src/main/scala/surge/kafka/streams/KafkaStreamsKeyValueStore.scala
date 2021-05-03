@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.kafka.streams
 
@@ -8,13 +8,15 @@ import scala.concurrent.{ ExecutionContext, Future }
 import scala.jdk.CollectionConverters._
 
 /**
- * Asynchronous wrapper for a Kafka Streams ReadOnlyKeyValueStore.  Just wraps calls
- * the underlying key value store in a scala Future run in a separate thread pool. This
- * helps other calling code be more non-blocking and greatly improves efficiency.
+ * Asynchronous wrapper for a Kafka Streams ReadOnlyKeyValueStore. Just wraps calls the underlying key value store in a scala Future run in a separate thread
+ * pool. This helps other calling code be more non-blocking and greatly improves efficiency.
  *
- * @param underlying The underlying Kafka Streams ReadOnlyKeyValueStore used to fetch data from.
- * @tparam Key Generic key type for the Key/Value store
- * @tparam Value Generic value type for the Key/Value store
+ * @param underlying
+ *   The underlying Kafka Streams ReadOnlyKeyValueStore used to fetch data from.
+ * @tparam Key
+ *   Generic key type for the Key/Value store
+ * @tparam Value
+ *   Generic value type for the Key/Value store
  */
 class KafkaStreamsKeyValueStore[Key, Value](underlying: ReadOnlyKeyValueStore[Key, Value]) {
   private implicit val executionContext: ExecutionContext = ThreadPools.ioBoundContext

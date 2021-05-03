@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.rabbit
 
@@ -17,22 +17,27 @@ class QueueDeclarationExtensionImplicitsSpec extends AnyFlatSpec with Matchers {
   }
 
   "DeadLetterExchange" should "match" in {
-    QueueDeclarationExtensionImplicits.QueueDeclarationExtension(QueueDeclaration("queue")).withDeadLetterExchange("foo")
+    QueueDeclarationExtensionImplicits
+      .QueueDeclarationExtension(QueueDeclaration("queue"))
+      .withDeadLetterExchange("foo")
       .arguments(QueueDeclarationExtensionImplicits.deadLetterExchangeKey) shouldEqual "foo"
   }
 
   "DeadLetterRoutingKey" should "match" in {
-    QueueDeclarationExtensionImplicits.QueueDeclarationExtension(QueueDeclaration("queue")).withDeadLetterRoutingKey("foo")
+    QueueDeclarationExtensionImplicits
+      .QueueDeclarationExtension(QueueDeclaration("queue"))
+      .withDeadLetterRoutingKey("foo")
       .arguments(QueueDeclarationExtensionImplicits.deadLetterRoutingKeyKey) shouldEqual "foo"
   }
 
   "Argument" should "be added" in {
-    QueueDeclarationExtensionImplicits.QueueDeclarationExtension(QueueDeclaration("queue")).addArgument("foo", "bar")
-      .arguments("foo") shouldEqual "bar"
+    QueueDeclarationExtensionImplicits.QueueDeclarationExtension(QueueDeclaration("queue")).addArgument("foo", "bar").arguments("foo") shouldEqual "bar"
   }
 
   "Arguments" should "be added" in {
-    QueueDeclarationExtensionImplicits.QueueDeclarationExtension(QueueDeclaration("queue")).addArguments(Map[String, AnyRef]("foo" -> "bar"))
+    QueueDeclarationExtensionImplicits
+      .QueueDeclarationExtension(QueueDeclaration("queue"))
+      .addArguments(Map[String, AnyRef]("foo" -> "bar"))
       .arguments("foo") shouldEqual "bar"
   }
 }

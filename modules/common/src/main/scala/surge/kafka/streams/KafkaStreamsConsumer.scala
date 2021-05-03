@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.kafka.streams
 
@@ -58,18 +58,21 @@ case class GenericKafkaStreamsConsumer[Value](
     applicationId: String,
     kafkaConfig: Map[String, String],
     applicationServerConfig: Option[String] = None,
-    topologyProps: Option[Properties] = None)(implicit valueSerde: Serde[Value]) extends KafkaStreamsConsumer[String, Value]
+    topologyProps: Option[Properties] = None)(implicit valueSerde: Serde[Value])
+    extends KafkaStreamsConsumer[String, Value]
 
 case class KafkaStringStreamsConsumer(
     brokers: Seq[String],
     applicationId: String,
     kafkaConfig: Map[String, String],
     applicationServerConfig: Option[String] = None,
-    topologyProps: Option[Properties] = None) extends KafkaStreamsConsumer[String, String]
+    topologyProps: Option[Properties] = None)
+    extends KafkaStreamsConsumer[String, String]
 
 case class KafkaByteStreamsConsumer(
     brokers: Seq[String],
     applicationId: String,
     kafkaConfig: Map[String, String],
     applicationServerConfig: Option[String] = None,
-    topologyProps: Option[Properties] = None) extends KafkaStreamsConsumer[String, Array[Byte]]
+    topologyProps: Option[Properties] = None)
+    extends KafkaStreamsConsumer[String, Array[Byte]]

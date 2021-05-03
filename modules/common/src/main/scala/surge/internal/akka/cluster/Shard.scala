@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.internal.akka.cluster
 
@@ -16,18 +16,16 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
 /**
- * A shard is a building block for scaling that is responsible for tracking & managing many child actors underneath.  The child
- * actors are what would actually run business logic, while the shard actor is responsible for lifecycle management of and
- * message routing for any created child actors.  There can be many shards across an application instance or instances, each
- * operating independently of one another.  Using a shard as a unit of scale allows for easily moving groups of actors to
- * different application nodes as a service scales up or down.
+ * A shard is a building block for scaling that is responsible for tracking & managing many child actors underneath. The child actors are what would actually
+ * run business logic, while the shard actor is responsible for lifecycle management of and message routing for any created child actors. There can be many
+ * shards across an application instance or instances, each operating independently of one another. Using a shard as a unit of scale allows for easily moving
+ * groups of actors to different application nodes as a service scales up or down.
  *
- * When a child actor wants to stop cleanly, it must send a Passivate message to the shard.  This message includes a stop message
- * that is forwarded back to the child actor as an acknowledgement that it may begin shutting down.  When the shard receives a
- * Passivate message, it adds the sender of the message to the list of known children who are shutting down.  If new messages for
- * any child on this list are received, they are buffered (up to 1000 messages per child) until the child finishes shutting down.
- * Once the child actually terminates, if there are any buffered messages for the child, it will be immediately restarted and any messages
- * buffered will be forwarded to it in the order they were received by the shard.
+ * When a child actor wants to stop cleanly, it must send a Passivate message to the shard. This message includes a stop message that is forwarded back to the
+ * child actor as an acknowledgement that it may begin shutting down. When the shard receives a Passivate message, it adds the sender of the message to the list
+ * of known children who are shutting down. If new messages for any child on this list are received, they are buffered (up to 1000 messages per child) until the
+ * child finishes shutting down. Once the child actually terminates, if there are any buffered messages for the child, it will be immediately restarted and any
+ * messages buffered will be forwarded to it in the order they were received by the shard.
  */
 object Shard {
   sealed trait ShardMessage
@@ -37,10 +35,7 @@ object Shard {
   }
 }
 
-class Shard[IdType](
-    shardId: String,
-    regionLogicProvider: PerShardLogicProvider[IdType],
-    extractEntityId: PartialFunction[Any, IdType]) extends Actor {
+class Shard[IdType](shardId: String, regionLogicProvider: PerShardLogicProvider[IdType], extractEntityId: PartialFunction[Any, IdType]) extends Actor {
 
   private val log: Logger = LoggerFactory.getLogger(getClass)
   private val bufferSize = 1000
@@ -138,8 +133,8 @@ class Shard[IdType](
       getOrCreateEntity(entityId)
       // Now there is no deliveryBuffer we can try to redeliver
       // and as the child exists, the message will be directly forwarded
-      messages.foreach {
-        case (msg, snd) => deliverMessage(msg, snd)
+      messages.foreach { case (msg, snd) =>
+        deliverMessage(msg, snd)
       }
     }
   }
@@ -162,15 +157,17 @@ class Shard[IdType](
   }
 
   private def getHealthCheck: Future[HealthCheck] = {
-    regionLogicProvider.healthCheck().map { regionProviderHealth =>
-      HealthCheck(
-        name = s"shard",
-        id = shardId,
-        status = HealthCheckStatus.UP,
-        components = Some(Seq(regionProviderHealth)),
-        details = Some(Map(
-          "liveAggregates" -> refById.size.toString)))
-    }.pipeTo(sender())
+    regionLogicProvider
+      .healthCheck()
+      .map { regionProviderHealth =>
+        HealthCheck(
+          name = s"shard",
+          id = shardId,
+          status = HealthCheckStatus.UP,
+          components = Some(Seq(regionProviderHealth)),
+          details = Some(Map("liveAggregates" -> refById.size.toString)))
+      }
+      .pipeTo(sender())
   }
 
   override def postStop(): Unit = {

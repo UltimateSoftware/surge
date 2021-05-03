@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.streams
 
@@ -41,29 +41,32 @@ trait EventSourceDeserialization[Event] {
   protected def dataHandler(eventHandler: EventHandler[Event]): DataHandler[String, Array[Byte]] = {
     new DataHandler[String, Array[Byte]] {
       override def dataHandler[Meta]: Flow[EventPlusStreamMeta[String, Array[Byte], Meta], Meta, NotUsed] = {
-        Flow[EventPlusStreamMeta[String, Array[Byte], Meta]].map { eventPlusOffset =>
-          val key = eventPlusOffset.messageKey
-          Option(eventPlusOffset.messageBody) match {
-            case Some(value) =>
-              if (shouldParseMessage(key, eventPlusOffset.headers)) {
-                Try(eventDeserializationTimer.time(formatting.readEvent(value))) match {
-                  case Failure(exception) =>
-                    onDeserializationFailure(key, value, exception)
-                    Left(eventPlusOffset.streamMeta)
-                  case Success(event) =>
-                    Right(EventPlusStreamMeta(key, event, eventPlusOffset.streamMeta, eventPlusOffset.headers))
+        Flow[EventPlusStreamMeta[String, Array[Byte], Meta]]
+          .map { eventPlusOffset =>
+            val key = eventPlusOffset.messageKey
+            Option(eventPlusOffset.messageBody) match {
+              case Some(value) =>
+                if (shouldParseMessage(key, eventPlusOffset.headers)) {
+                  Try(eventDeserializationTimer.time(formatting.readEvent(value))) match {
+                    case Failure(exception) =>
+                      onDeserializationFailure(key, value, exception)
+                      Left(eventPlusOffset.streamMeta)
+                    case Success(event) =>
+                      Right(EventPlusStreamMeta(key, event, eventPlusOffset.streamMeta, eventPlusOffset.headers))
+                  }
+                } else {
+                  Left(eventPlusOffset.streamMeta)
                 }
-              } else {
-                Left(eventPlusOffset.streamMeta)
-              }
-            case _ =>
-              eventHandler.nullEventFactory(key, eventPlusOffset.headers).map { event =>
-                Right(EventPlusStreamMeta(key, event, eventPlusOffset.streamMeta, eventPlusOffset.headers))
-              }.getOrElse(Left(eventPlusOffset.streamMeta))
+              case _ =>
+                eventHandler
+                  .nullEventFactory(key, eventPlusOffset.headers)
+                  .map { event =>
+                    Right(EventPlusStreamMeta(key, event, eventPlusOffset.streamMeta, eventPlusOffset.headers))
+                  }
+                  .getOrElse(Left(eventPlusOffset.streamMeta))
+            }
           }
-        }.via(EitherFlow(
-          rightFlow = eventHandler.eventHandler,
-          leftFlow = Flow[Meta].map(identity)))
+          .via(EitherFlow(rightFlow = eventHandler.eventHandler, leftFlow = Flow[Meta].map(identity)))
       }
     }
   }

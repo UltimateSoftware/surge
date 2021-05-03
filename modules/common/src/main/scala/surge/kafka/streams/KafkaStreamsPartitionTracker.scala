@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.kafka.streams
 
@@ -11,9 +11,8 @@ import scala.jdk.CollectionConverters._
 
 abstract class KafkaStreamsPartitionTracker(kafkaStreams: KafkaStreams) {
   protected def allMetadata(): Iterable[StreamsMetadata] = kafkaStreams.allMetadata().asScala
-  protected def metadataByInstance(): Map[HostPort, List[TopicPartition]] = allMetadata()
-    .groupBy(meta => HostPort(meta.host(), meta.port()))
-    .map { case (key, meta) => key -> meta.toList.flatMap(_.topicPartitions().asScala) }
+  protected def metadataByInstance(): Map[HostPort, List[TopicPartition]] =
+    allMetadata().groupBy(meta => HostPort(meta.host(), meta.port())).map { case (key, meta) => key -> meta.toList.flatMap(_.topicPartitions().asScala) }
 
   def update(): Unit
 }

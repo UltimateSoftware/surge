@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.metrics
 
@@ -43,7 +43,7 @@ class MetricsSpec extends AnyWordSpec with Matchers with MockitoSugar {
       val sensorMax = MetricInfo("cool-sensor-max", "The maximum value we've seen for this sensor")
       sensor.addMetric(sensorMax, new Max)
 
-      metrics.metricDescriptions should have length 1
+      (metrics.metricDescriptions should have).length(1)
       metrics.metricDescriptions.head shouldEqual MetricDescription(sensorMax.name, sensorMax.description, Map.empty, RecordingLevel.Info)
     }
 
@@ -54,7 +54,7 @@ class MetricsSpec extends AnyWordSpec with Matchers with MockitoSugar {
       sensor.addMetric(sensorMax, new Max)
       sensor.record(10.0)
 
-      metrics.metricValues should have length 1
+      (metrics.metricValues should have).length(1)
       metrics.metricValues.head shouldEqual MetricValue(sensorMax.name, Map.empty, 10.0)
     }
 
@@ -65,7 +65,7 @@ class MetricsSpec extends AnyWordSpec with Matchers with MockitoSugar {
       sensor.addMetric(sensorMax, new Max)
       sensor.record(10.0)
 
-      metrics.getMetrics should have length 1
+      (metrics.getMetrics should have).length(1)
       val metric = metrics.getMetrics.head
       metric.getValue shouldEqual 10.0
 

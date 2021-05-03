@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.core
 
@@ -20,7 +20,8 @@ private[surge] case class SurgeCommandKafkaConfig(
     publishStateOnly: Boolean,
     streamsApplicationId: String,
     clientId: String,
-    transactionalIdPrefix: String) extends SurgeKafkaConfig
+    transactionalIdPrefix: String)
+    extends SurgeKafkaConfig
 
 private[surge] case class SurgeCommandModel[Agg, Command, +Rej, Event](
     override val aggregateName: String,
@@ -30,5 +31,5 @@ private[surge] case class SurgeCommandModel[Agg, Command, +Rej, Event](
     override val writeFormatting: SurgeWriteFormatting[Agg, Event],
     override val aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) => Boolean,
     override val metrics: Metrics,
-    override val tracer: Tracer) extends SurgeModel[Agg, Event] {
-}
+    override val tracer: Tracer)
+    extends SurgeModel[Agg, Event] {}

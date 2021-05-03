@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.internal.persistence
 
@@ -37,41 +37,44 @@ trait KTableInitializationSupport[Model] {
       val reasonForFailure = retryCause.getOrElse(new RuntimeException(s"Aggregate $aggregateId could not be initialized"))
       onInitializationFailed(reasonForFailure)
     } else {
-      kafkaProducerActor.isAggregateStateCurrent(aggregateId).map { isStateCurrent =>
-        if (isStateCurrent) {
-          fetchState(initializationAttempts)
-        } else {
-          val retryIn = RetryConfig.AggregateActor.initializeStateInterval
-          log.warn("State for {} is not up to date in Kafka streams, retrying initialization in {}", Seq(aggregateId, retryIn): _*)
-          val failureReason = AggregateStateNotCurrentInKTableException(aggregateId, kafkaProducerActor.assignedPartition)
-          context.system.scheduler.scheduleOnce(retryIn)(initializeState(initializationAttempts + 1, Some(failureReason)))
+      kafkaProducerActor
+        .isAggregateStateCurrent(aggregateId)
+        .map { isStateCurrent =>
+          if (isStateCurrent) {
+            fetchState(initializationAttempts)
+          } else {
+            val retryIn = RetryConfig.AggregateActor.initializeStateInterval
+            log.warn("State for {} is not up to date in Kafka streams, retrying initialization in {}", Seq(aggregateId, retryIn): _*)
+            val failureReason = AggregateStateNotCurrentInKTableException(aggregateId, kafkaProducerActor.assignedPartition)
+            context.system.scheduler.scheduleOnce(retryIn)(initializeState(initializationAttempts + 1, Some(failureReason)))
+          }
         }
-      }.recover {
-        case exception =>
+        .recover { case exception =>
           val retryIn = RetryConfig.AggregateActor.fetchStateRetryInterval
           log.error(s"Failed to check if $aggregateName aggregate was up to date for id $aggregateId, retrying in $retryIn", exception)
           val failureReason = AggregateStateNotCurrentInKTableException(aggregateId, kafkaProducerActor.assignedPartition)
           context.system.scheduler.scheduleOnce(retryIn)(initializeState(initializationAttempts + 1, Some(failureReason)))
-      }
+        }
     }
   }
 
   private def fetchState(initializationAttempts: Int)(implicit ec: ExecutionContext): Unit = {
     val fetchedStateFut = initializationMetrics.stateInitializationTimer.time(kafkaStreamsCommand.getAggregateBytes(aggregateId))
 
-    fetchedStateFut.map { state =>
-      log.trace("Fetched state from KTable for {}", aggregateId)
-      val stateOpt = state.flatMap { bodyBytes =>
-        initializationMetrics.aggregateDeserializationTimer.time(deserializeState(bodyBytes))
-      }
+    fetchedStateFut
+      .map { state =>
+        log.trace("Fetched state from KTable for {}", aggregateId)
+        val stateOpt = state.flatMap { bodyBytes =>
+          initializationMetrics.aggregateDeserializationTimer.time(deserializeState(bodyBytes))
+        }
 
-      onInitializationSuccess(stateOpt)
-    }.recover {
-      case exception =>
+        onInitializationSuccess(stateOpt)
+      }
+      .recover { case exception =>
         val retryIn = RetryConfig.AggregateActor.fetchStateRetryInterval
         log.error(s"Failed to initialize $aggregateName actor for aggregate $aggregateId, retrying in $retryIn", exception)
         val failureReason = AggregateInitializationException(aggregateId, exception)
         context.system.scheduler.scheduleOnce(retryIn)(initializeState(initializationAttempts + 1, Some(failureReason)))
-    }
+      }
   }
 }

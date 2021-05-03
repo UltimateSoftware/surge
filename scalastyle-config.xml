@@ -8,7 +8,7 @@
  </check>
  <check level="warning" class="org.scalastyle.file.HeaderMatchesChecker" enabled="true">
   <parameters>
-   <parameter name="header"><![CDATA[// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>]]></parameter>
+   <parameter name="header"><![CDATA[// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>]]></parameter>
   </parameters>
  </check>
  <check level="warning" class="org.scalastyle.scalariform.SpacesAfterPlusChecker" enabled="true"></check>

@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.kafka
 
@@ -18,12 +18,11 @@ final case class UltiKafkaConsumerConfig(consumerGroup: String, offsetReset: Str
 
 private[kafka] object KafkaPollThread {
   private val threadNumberCount: AtomicLong = new AtomicLong(0)
-  def createNewPollThread: ExecutorService = Executors.newSingleThreadExecutor(
-    (r: Runnable) => {
-      val thread = new Thread(r, s"kafka-poll-${threadNumberCount.getAndIncrement()}")
-      thread.setDaemon(true)
-      thread
-    })
+  def createNewPollThread: ExecutorService = Executors.newSingleThreadExecutor((r: Runnable) => {
+    val thread = new Thread(r, s"kafka-poll-${threadNumberCount.getAndIncrement()}")
+    thread.setDaemon(true)
+    thread
+  })
 }
 
 abstract class KafkaConsumerTrait[K, V] extends KafkaSecurityConfiguration {
@@ -100,10 +99,8 @@ abstract class KafkaConsumerTrait[K, V] extends KafkaSecurityConfiguration {
   }
 }
 
-final case class KafkaStringConsumer(
-    override val brokers: Seq[String],
-    override val consumerConfig: UltiKafkaConsumerConfig,
-    kafkaConfig: Map[String, String]) extends KafkaConsumerTrait[String, String] {
+final case class KafkaStringConsumer(override val brokers: Seq[String], override val consumerConfig: UltiKafkaConsumerConfig, kafkaConfig: Map[String, String])
+    extends KafkaConsumerTrait[String, String] {
   val props: Properties = {
     val p = defaultProps
     kafkaConfig.foreach(propPair => p.put(propPair._1, propPair._2))
@@ -114,10 +111,8 @@ final case class KafkaStringConsumer(
   override val consumer: KafkaConsumer[String, String] = new KafkaConsumer[String, String](props)
 }
 
-final case class KafkaBytesConsumer(
-    override val brokers: Seq[String],
-    override val consumerConfig: UltiKafkaConsumerConfig,
-    kafkaConfig: Map[String, String]) extends KafkaConsumerTrait[String, Array[Byte]] {
+final case class KafkaBytesConsumer(override val brokers: Seq[String], override val consumerConfig: UltiKafkaConsumerConfig, kafkaConfig: Map[String, String])
+    extends KafkaConsumerTrait[String, Array[Byte]] {
   val props: Properties = {
     val p = defaultProps
     kafkaConfig.foreach(propPair => p.put(propPair._1, propPair._2))

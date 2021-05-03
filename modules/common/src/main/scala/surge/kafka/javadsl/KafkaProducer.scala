@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.kafka.javadsl
 
@@ -46,7 +46,8 @@ class KafkaBytesProducer(
     brokers: java.util.Collection[String],
     override val topic: KafkaTopic,
     override val partitioner: KafkaPartitionerBase[String],
-    kafkaConfig: java.util.Map[String, String]) extends AbstractKafkaProducer[String, Array[Byte]] {
+    kafkaConfig: java.util.Map[String, String])
+    extends AbstractKafkaProducer[String, Array[Byte]] {
   val props: Properties = {
     val p = new Properties()
     kafkaConfig.asScala.foreach(propPair => p.put(propPair._1, propPair._2))

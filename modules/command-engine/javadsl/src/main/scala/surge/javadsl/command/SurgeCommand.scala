@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.javadsl.command
 
@@ -21,24 +21,23 @@ trait SurgeCommand[AggId, Agg, Command, +Rej, Evt] extends core.SurgeProcessingT
 }
 
 object SurgeCommand {
-  def create[AggId, Agg, Command, Evt](
-    businessLogic: SurgeCommandBusinessLogic[AggId, Agg, Command, Evt]): SurgeCommand[AggId, Agg, Command, Nothing, Evt] = {
+  def create[AggId, Agg, Command, Evt](businessLogic: SurgeCommandBusinessLogic[AggId, Agg, Command, Evt]): SurgeCommand[AggId, Agg, Command, Nothing, Evt] = {
     val actorSystem = ActorSystem(s"${businessLogic.aggregateName}ActorSystem")
     val config = ConfigFactory.load()
     create(actorSystem, businessLogic, config)
   }
 
   def create[AggId, Agg, Command, Evt](
-    actorSystem: ActorSystem,
-    businessLogic: SurgeCommandBusinessLogic[AggId, Agg, Command, Evt],
-    config: Config): SurgeCommand[AggId, Agg, Command, Nothing, Evt] = {
+      actorSystem: ActorSystem,
+      businessLogic: SurgeCommandBusinessLogic[AggId, Agg, Command, Evt],
+      config: Config): SurgeCommand[AggId, Agg, Command, Nothing, Evt] = {
     new SurgeCommandImpl(actorSystem, SurgeCommandBusinessLogic.toCore(businessLogic), businessLogic.aggregateIdToString, config)
   }
 
   def create[AggId, Agg, Command, Rej, Evt](
-    actorSystem: ActorSystem,
-    businessLogic: SurgeRejectableCommandBusinessLogic[AggId, Agg, Command, Rej, Evt],
-    config: Config): SurgeCommand[AggId, Agg, Command, Rej, Evt] = {
+      actorSystem: ActorSystem,
+      businessLogic: SurgeRejectableCommandBusinessLogic[AggId, Agg, Command, Rej, Evt],
+      config: Config): SurgeCommand[AggId, Agg, Command, Rej, Evt] = {
     new SurgeCommandImpl(actorSystem, SurgeRejectableCommandBusinessLogic.toCore(businessLogic), businessLogic.aggregateIdToString, config)
   }
 }
@@ -48,8 +47,8 @@ private[javadsl] class SurgeCommandImpl[AggId, Agg, Command, +Rej, Evt](
     override val businessLogic: CoreBusinessLogic[Agg, Command, Rej, Evt],
     aggIdToString: AggId => String,
     config: Config)
-  extends core.SurgeCommandImpl[Agg, Command, Rej, Evt](actorSystem, businessLogic, config)
-  with SurgeCommand[AggId, Agg, Command, Rej, Evt] {
+    extends core.SurgeCommandImpl[Agg, Command, Rej, Evt](actorSystem, businessLogic, config)
+    with SurgeCommand[AggId, Agg, Command, Rej, Evt] {
 
   import surge.javadsl.common.HealthCheck._
   def getHealthCheck: CompletionStage[HealthCheck] = {

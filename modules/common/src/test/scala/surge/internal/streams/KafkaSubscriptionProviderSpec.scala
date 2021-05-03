@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.internal.streams
 
@@ -40,16 +40,22 @@ class KafkaSubscriptionProviderSpec extends TestKit(ActorSystem("StreamManagerSp
     def offsetFor(topicPartition: TopicPartition): Option[Long] = offsetMappings.get(topicPartition)
   }
 
-  private def testManualSubscriptionProvider(topic: KafkaTopic, kafkaBrokers: String, groupId: String,
-    businessLogic: (String, Array[Byte]) => Future[_],
-    offsetManager: OffsetManager): ManualOffsetManagementSubscriptionProvider[String, Array[Byte]] = {
-    val consumerSettings = AkkaKafkaConsumer.consumerSettings[String, Array[Byte]](system, groupId)
-      .withBootstrapServers(kafkaBrokers)
+  private def testManualSubscriptionProvider(
+      topic: KafkaTopic,
+      kafkaBrokers: String,
+      groupId: String,
+      businessLogic: (String, Array[Byte]) => Future[_],
+      offsetManager: OffsetManager): ManualOffsetManagementSubscriptionProvider[String, Array[Byte]] = {
+    val consumerSettings = AkkaKafkaConsumer.consumerSettings[String, Array[Byte]](system, groupId).withBootstrapServers(kafkaBrokers)
     val tupleFlow: (String, Array[Byte], Map[String, Array[Byte]]) => Future[_] = { (k, v, _) => businessLogic(k, v) }
     val partitionBy: (String, Array[Byte], Map[String, Array[Byte]]) => String = { (k, _, _) => k }
     val businessFlow = FlowConverter.flowFor[String, Array[Byte], KafkaStreamMeta](tupleFlow, partitionBy, new DefaultDataSinkExceptionHandler, 16)
-    new ManualOffsetManagementSubscriptionProvider(topic.name, Subscriptions.topics(topic.name),
-      consumerSettings, KafkaStreamManager.wrapBusinessFlow(businessFlow), offsetManager)
+    new ManualOffsetManagementSubscriptionProvider(
+      topic.name,
+      Subscriptions.topics(topic.name),
+      consumerSettings,
+      KafkaStreamManager.wrapBusinessFlow(businessFlow),
+      offsetManager)
   }
 
   private def sendToTestProbe(testProbe: TestProbe)(key: String, value: Array[Byte]): Future[Done] = {

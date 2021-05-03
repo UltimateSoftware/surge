@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.kafka.streams
 
@@ -30,7 +30,7 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
     applicationHostPort: Option[String],
     override val settings: AggregateStateStoreKafkaStreamsImplSettings,
     override val metrics: Metrics)
-  extends KafkaStreamLifeCycleManagement[String, Array[Byte], KafkaByteStreamsConsumer, Array[Byte]] {
+    extends KafkaStreamLifeCycleManagement[String, Array[Byte], KafkaByteStreamsConsumer, Array[Byte]] {
 
   import DefaultSerdes._
   import ImplicitConversions._
@@ -60,16 +60,16 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
 
   override def subscribeListeners(consumer: KafkaByteStreamsConsumer): Unit = {
     // In addition to the listener added by the KafkaStreamLifeCycleManagement we need to also subscribe this one
-    val partitionTrackerListener = new KafkaStreamsUpdatePartitionsOnStateChangeListener(aggregateStateStoreName, partitionTrackerProvider.create(consumer.streams), false)
-    consumer.streams.setStateListener(
-      new KafkaStreamsStateChangeWithMultipleListeners(stateChangeListener, partitionTrackerListener))
+    val partitionTrackerListener =
+      new KafkaStreamsUpdatePartitionsOnStateChangeListener(aggregateStateStoreName, partitionTrackerProvider.create(consumer.streams), false)
+    consumer.streams.setStateListener(new KafkaStreamsStateChangeWithMultipleListeners(stateChangeListener, partitionTrackerListener))
     consumer.streams.setGlobalStateRestoreListener(stateRestoreListener)
     consumer.streams.setUncaughtExceptionHandler(uncaughtExceptionListener)
   }
 
   override def initialize(consumer: KafkaByteStreamsConsumer): Unit = {
-    val aggregateStoreMaterializedBase = Materialized.as[String, Array[Byte]](persistencePlugin.createSupplier(aggregateStateStoreName))
-      .withValueSerde(new ByteArraySerde())
+    val aggregateStoreMaterializedBase =
+      Materialized.as[String, Array[Byte]](persistencePlugin.createSupplier(aggregateStateStoreName)).withValueSerde(new ByteArraySerde())
 
     val aggregateStoreMaterialized = if (!persistencePlugin.enableLogging) {
       aggregateStoreMaterializedBase.withLoggingDisabled()
@@ -103,17 +103,19 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
       None
     }
 
-    KafkaByteStreamsConsumer(brokers = settings.brokers, applicationId = settings.applicationId,
-      kafkaConfig = streamsConfig, applicationServerConfig = applicationHostPort, topologyProps = maybeOptimizeTopology)
+    KafkaByteStreamsConsumer(
+      brokers = settings.brokers,
+      applicationId = settings.applicationId,
+      kafkaConfig = streamsConfig,
+      applicationServerConfig = applicationHostPort,
+      topologyProps = maybeOptimizeTopology)
   }
 
   override def uninitialized: Receive = stashIt
 
   override def created(consumer: KafkaByteStreamsConsumer): Receive = stashIt
 
-  override def running(
-    consumer: KafkaByteStreamsConsumer,
-    aggregateQueryableStateStore: KafkaStreamsKeyValueStore[String, Array[Byte]]): Receive = {
+  override def running(consumer: KafkaByteStreamsConsumer, aggregateQueryableStateStore: KafkaStreamsKeyValueStore[String, Array[Byte]]): Receive = {
     case GetSubstatesForAggregate(aggregateId) =>
       getSubstatesForAggregate(aggregateQueryableStateStore, aggregateId).pipeTo(sender())
     case GetAggregateBytes(aggregateId) =>
@@ -128,23 +130,22 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
       sender() ! getHealth(status)
   }
 
-  def stashIt: Receive = {
-    case _: GetAggregateBytes | _: GetSubstatesForAggregate | GetTopology =>
-      stash()
+  def stashIt: Receive = { case _: GetAggregateBytes | _: GetSubstatesForAggregate | GetTopology =>
+    stash()
   }
 
   def getSubstatesForAggregate(
-    aggregateQueryableStateStore: KafkaStreamsKeyValueStore[String, Array[Byte]],
-    aggregateId: String): Future[List[(String, Array[Byte])]] = {
+      aggregateQueryableStateStore: KafkaStreamsKeyValueStore[String, Array[Byte]],
+      aggregateId: String): Future[List[(String, Array[Byte])]] = {
     aggregateQueryableStateStore
       .range(aggregateId, s"$aggregateId:~")
       .map { result =>
-        result.filter {
-          case (key, _) =>
-            val keyBeforeColon = key.takeWhile(_ != ':')
-            keyBeforeColon == aggregateId
+        result.filter { case (key, _) =>
+          val keyBeforeColon = key.takeWhile(_ != ':')
+          keyBeforeColon == aggregateId
         }
-      }.recoverWith {
+      }
+      .recoverWith {
         case err: InvalidStateStoreException =>
           handleInvalidStateStore(err)
         case err: Throwable =>
@@ -164,8 +165,9 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
   }
 
   private def handleInvalidStateStore[T](err: InvalidStateStoreException): Future[T] = {
-    log.warn(s"State store ${settings.storeName} saw InvalidStateStoreException: ${err.getMessage}. " +
-      s"This error is typically caused by a consumer group rebalance.")
+    log.warn(
+      s"State store ${settings.storeName} saw InvalidStateStoreException: ${err.getMessage}. " +
+        s"This error is typically caused by a consumer group rebalance.")
     Future.failed(err)
   }
 }
@@ -181,22 +183,15 @@ private[streams] object AggregateStateStoreKafkaStreamsImpl {
   case class LocalStorePartitionLags(lags: Map[String, Map[java.lang.Integer, LagInfo]])
 
   def props(
-    aggregateName: String,
-    stateTopic: KafkaTopic,
-    partitionTrackerProvider: KafkaStreamsPartitionTrackerProvider,
-    aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) => Boolean,
-    applicationHostPort: Option[String],
-    settings: AggregateStateStoreKafkaStreamsImplSettings,
-    metrics: Metrics): Props = {
+      aggregateName: String,
+      stateTopic: KafkaTopic,
+      partitionTrackerProvider: KafkaStreamsPartitionTrackerProvider,
+      aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) => Boolean,
+      applicationHostPort: Option[String],
+      settings: AggregateStateStoreKafkaStreamsImplSettings,
+      metrics: Metrics): Props = {
     Props(
-      new AggregateStateStoreKafkaStreamsImpl(
-        aggregateName,
-        stateTopic,
-        partitionTrackerProvider,
-        aggregateValidator,
-        applicationHostPort,
-        settings,
-        metrics))
+      new AggregateStateStoreKafkaStreamsImpl(aggregateName, stateTopic, partitionTrackerProvider, aggregateValidator, applicationHostPort, settings, metrics))
   }
 
   case class AggregateStateStoreKafkaStreamsImplSettings(
@@ -208,7 +203,8 @@ private[streams] object AggregateStateStoreKafkaStreamsImpl {
       standByReplicas: Int,
       commitInterval: Int,
       stateDirectory: String,
-      clearStateOnStartup: Boolean) extends KafkaStreamSettings
+      clearStateOnStartup: Boolean)
+      extends KafkaStreamSettings
 
   object AggregateStateStoreKafkaStreamsImplSettings {
     def apply(applicationId: String, aggregateName: String, clientId: String): AggregateStateStoreKafkaStreamsImplSettings = {

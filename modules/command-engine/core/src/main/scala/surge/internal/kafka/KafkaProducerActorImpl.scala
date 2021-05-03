@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.internal.kafka
 
@@ -58,10 +58,14 @@ object KafkaProducerActorImpl {
   case class KTableProgressUpdate(topicPartition: TopicPartition, lagInfo: LagInfo) extends InternalMessage
 }
 class KafkaProducerActorImpl(
-    assignedPartition: TopicPartition, metrics: Metrics,
+    assignedPartition: TopicPartition,
+    metrics: Metrics,
     producerContext: ProducerActorContext,
     kStreams: AggregateStateStoreKafkaStreams[_],
-    kafkaProducerOverride: Option[KafkaBytesProducer] = None) extends ActorWithTracing with Stash with Timers {
+    kafkaProducerOverride: Option[KafkaBytesProducer] = None)
+    extends ActorWithTracing
+    with Stash
+    with Timers {
 
   import KafkaProducerActorImpl._
   import producerContext._
@@ -168,15 +172,17 @@ class KafkaProducerActorImpl(
   }
 
   private def initializeTransactions(): Unit = {
-    kafkaPublisher.initTransactions().map { _ =>
-      log.debug(s"KafkaPublisherActor transactions successfully initialized: $assignedPartition")
-      self ! InitTransactionSuccess
-    }.recover {
-      case err: Throwable =>
+    kafkaPublisher
+      .initTransactions()
+      .map { _ =>
+        log.debug(s"KafkaPublisherActor transactions successfully initialized: $assignedPartition")
+        self ! InitTransactionSuccess
+      }
+      .recover { case err: Throwable =>
         log.error(s"KafkaPublisherActor failed to initialize kafka transactions, retrying in 3 seconds: $assignedPartition", err)
         closeAndRecreatePublisher()
         context.system.scheduler.scheduleOnce(3.seconds, self, InitTransactions)
-    }
+      }
   }
 
   private def closeAndRecreatePublisher(): Unit = {
@@ -232,9 +238,12 @@ class KafkaProducerActorImpl(
         lastTransactionInProgressWarningTime.plusSeconds(1L).isBefore(Instant.now())) {
 
         lastTransactionInProgressWarningTime = Instant.now
-        log.warn(s"KafkaPublisherActor partition {} tried to flush, but another transaction is already in progress. " +
-          s"The previous transaction has been in progress for {} milliseconds. If the time to complete the previous transaction continues to grow " +
-          s"that typically indicates slowness in the Kafka brokers.", assignedPartition, state.currentTransactionTimeMillis)
+        log.warn(
+          s"KafkaPublisherActor partition {} tried to flush, but another transaction is already in progress. " +
+            s"The previous transaction has been in progress for {} milliseconds. If the time to complete the previous transaction continues to grow " +
+            s"that typically indicates slowness in the Kafka brokers.",
+          assignedPartition,
+          state.currentTransactionTimeMillis)
       }
     } else if (state.pendingWrites.nonEmpty) {
       val eventMessages = state.pendingWrites.flatMap(_.publish.eventsToPublish)
@@ -267,22 +276,25 @@ class KafkaProducerActorImpl(
           log.error(s"KafkaPublisherActor partition $assignedPartition there was an error beginning transaction", err)
           Future.successful(EventsFailedToPublish(senders, err))
         case _ =>
-          Future.sequence(kafkaPublisher.putRecords(records)).map { recordMeta =>
-            log.debug(s"KafkaPublisherActor partition {} committing transaction", assignedPartition)
-            kafkaPublisher.commitTransaction()
-            EventsPublished(senders, recordMeta.filter(_.wrapped.topic() == stateTopic.name))
-          } recover {
-            case _: ProducerFencedException =>
-              producerFenced()
-            case e =>
-              log.error(s"KafkaPublisherActor partition $assignedPartition got error while trying to publish to Kafka", e)
-              Try(kafkaPublisher.abortTransaction()) match {
-                case Success(_) =>
-                  EventsFailedToPublish(senders, e)
-                case Failure(exception) =>
-                  AbortTransactionFailed(senders, abortTransactionException = exception, originalException = e)
-              }
-          }
+          Future
+            .sequence(kafkaPublisher.putRecords(records))
+            .map { recordMeta =>
+              log.debug(s"KafkaPublisherActor partition {} committing transaction", assignedPartition)
+              kafkaPublisher.commitTransaction()
+              EventsPublished(senders, recordMeta.filter(_.wrapped.topic() == stateTopic.name))
+            }
+            .recover {
+              case _: ProducerFencedException =>
+                producerFenced()
+              case e =>
+                log.error(s"KafkaPublisherActor partition $assignedPartition got error while trying to publish to Kafka", e)
+                Try(kafkaPublisher.abortTransaction()) match {
+                  case Success(_) =>
+                    EventsFailedToPublish(senders, e)
+                  case Failure(exception) =>
+                    AbortTransactionFailed(senders, abortTransactionException = exception, originalException = e)
+                }
+            }
       }
     }
     context.become(processing(state.flushWrites().startTransaction()))
@@ -321,10 +333,7 @@ class KafkaProducerActorImpl(
   }
 
   private def doHealthCheck(): Unit = {
-    val healthCheck = HealthCheck(
-      name = "producer-actor",
-      id = assignedTopicPartitionKey,
-      status = HealthCheckStatus.UP)
+    val healthCheck = HealthCheck(name = "producer-actor", id = assignedTopicPartitionKey, status = HealthCheckStatus.UP)
     sender() ! healthCheck
   }
 
@@ -341,11 +350,12 @@ class KafkaProducerActorImpl(
       name = "producer-actor",
       id = assignedTopicPartitionKey,
       status = healthStatus,
-      details = Some(Map(
-        "inFlight" -> state.inFlight.size.toString,
-        "pendingInitializations" -> state.pendingInitializations.size.toString,
-        "pendingWrites" -> state.pendingWrites.size.toString,
-        "currentTransactionTimeMillis" -> state.currentTransactionTimeMillis.toString)))
+      details = Some(
+        Map(
+          "inFlight" -> state.inFlight.size.toString,
+          "pendingInitializations" -> state.pendingInitializations.size.toString,
+          "pendingWrites" -> state.pendingWrites.size.toString,
+          "currentTransactionTimeMillis" -> state.currentTransactionTimeMillis.toString)))
     sender() ! healthCheck
   }
 }
@@ -362,7 +372,8 @@ private[internal] case class KafkaProducerActorState(
     pendingWrites: Seq[KafkaProducerActorImpl.PublishWithSender],
     pendingInitializations: Seq[KafkaProducerActorImpl.PendingInitialization],
     transactionInProgressSince: Option[Instant],
-    sender: ActorRef, rates: KafkaProducerActorImpl.AggregateStateRates) {
+    sender: ActorRef,
+    rates: KafkaProducerActorImpl.AggregateStateRates) {
 
   import KafkaProducerActorImpl._
 
@@ -383,9 +394,7 @@ private[internal] case class KafkaProducerActorState(
   }
 
   def addPendingInitialization(sender: ActorRef, isAggregateStateCurrent: IsAggregateStateCurrent): KafkaProducerActorState = {
-    val pendingInitialization = PendingInitialization(
-      sender,
-      isAggregateStateCurrent.aggregateId, isAggregateStateCurrent.expirationTime)
+    val pendingInitialization = PendingInitialization(sender, isAggregateStateCurrent.aggregateId, isAggregateStateCurrent.expirationTime)
 
     this.copy(pendingInitializations = pendingInitializations :+ pendingInitialization)
   }
@@ -421,8 +430,9 @@ private[internal] case class KafkaProducerActorState(
 
     if (processedRecordsFromPartition.nonEmpty) {
       val processedOffsets = processedRecordsFromPartition.map(_.wrapped.offset())
-      log.trace(s"${topicPartition.topic}:${topicPartition.partition} processed up to offset $kTableCurrentOffset. " +
-        s"Outstanding offsets that were processed are [${processedOffsets.min} -> ${processedOffsets.max}]")
+      log.trace(
+        s"${topicPartition.topic}:${topicPartition.partition} processed up to offset $kTableCurrentOffset. " +
+          s"Outstanding offsets that were processed are [${processedOffsets.min} -> ${processedOffsets.max}]")
     }
     val newInFlight = inFlight.filterNot(processedRecordsFromPartition.contains)
 
@@ -437,9 +447,7 @@ private[internal] case class KafkaProducerActorState(
         rates.current.mark(processedAggregates.length)
       }
 
-      val expiredAggregates = pendingInitializations
-        .filter(pending => Instant.now().isAfter(pending.expiration))
-        .filterNot(processedAggregates.contains)
+      val expiredAggregates = pendingInitializations.filter(pending => Instant.now().isAfter(pending.expiration)).filterNot(processedAggregates.contains)
 
       if (expiredAggregates.nonEmpty) {
         expiredAggregates.foreach { pending =>

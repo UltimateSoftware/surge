@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.metrics.statistics
 
@@ -17,9 +17,10 @@ class RateHistogramSpec extends StatisticsSpec {
     }
 
     "Handle multiple different instances" in {
-      testMultipleStatisticInstances(Seq(
-        ProviderTestData(new RateHistogram(10L), recordedValues = Seq(5.0, 5.0), expectedValue = 1.0),
-        ProviderTestData(new RateHistogram(2L), recordedValues = Seq(3.0, 2.0), expectedValue = 2.5)))
+      testMultipleStatisticInstances(
+        Seq(
+          ProviderTestData(new RateHistogram(10L), recordedValues = Seq(5.0, 5.0), expectedValue = 1.0),
+          ProviderTestData(new RateHistogram(2L), recordedValues = Seq(3.0, 2.0), expectedValue = 2.5)))
     }
   }
 }

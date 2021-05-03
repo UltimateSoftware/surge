@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.internal.persistence
 
@@ -38,9 +38,14 @@ trait KTablePersistenceSupport[Agg, Event] {
 
   private sealed trait Internal extends NoSerializationVerificationNeeded
   private case class PersistenceSuccess(newState: ActorState, startTime: Instant) extends Internal
-  private case class PersistenceFailure(newState: ActorState, reason: Throwable, numberOfFailures: Int,
+  private case class PersistenceFailure(
+      newState: ActorState,
+      reason: Throwable,
+      numberOfFailures: Int,
       serializedEvents: Seq[KafkaProducerActor.MessageToPublish],
-      serializedState: KafkaProducerActor.MessageToPublish, startTime: Instant) extends Internal
+      serializedState: KafkaProducerActor.MessageToPublish,
+      startTime: Instant)
+      extends Internal
   private case class EventPublishTimedOut(reason: Throwable, startTime: Instant) extends Internal
 
   private def handleInternal(state: ActorState): Receive = {
@@ -48,21 +53,28 @@ trait KTablePersistenceSupport[Agg, Event] {
     case msg: PersistenceFailure   => handleFailedToPersist(state, msg)
     case msg: EventPublishTimedOut => handlePersistenceTimedOut(state, msg)
   }
-  protected def persistingEvents(state: ActorState): Receive = handleInternal(state) orElse receiveWhilePersistingEvents(state)
+  protected def persistingEvents(state: ActorState): Receive = handleInternal(state).orElse(receiveWhilePersistingEvents(state))
 
-  protected def doPublish(state: ActorState, serializedEvents: Seq[KafkaProducerActor.MessageToPublish],
-    serializedState: KafkaProducerActor.MessageToPublish, currentFailureCount: Int = 0, startTime: Instant,
-    didStateChange: Boolean)(implicit ec: ExecutionContext): Future[Any] = {
+  protected def doPublish(
+      state: ActorState,
+      serializedEvents: Seq[KafkaProducerActor.MessageToPublish],
+      serializedState: KafkaProducerActor.MessageToPublish,
+      currentFailureCount: Int = 0,
+      startTime: Instant,
+      didStateChange: Boolean)(implicit ec: ExecutionContext): Future[Any] = {
     log.trace("Publishing messages for {}", aggregateId)
     if (serializedEvents.isEmpty && !didStateChange) {
       Future.successful(PersistenceSuccess(state, startTime))
     } else {
-      kafkaProducerActor.publish(aggregateId = aggregateId, state = serializedState, events = serializedEvents).map {
-        case KafkaProducerActor.PublishSuccess    => PersistenceSuccess(state, startTime)
-        case KafkaProducerActor.PublishFailure(t) => PersistenceFailure(state, t, currentFailureCount + 1, serializedEvents, serializedState, startTime)
-      }.recover {
-        case t => EventPublishTimedOut(t, startTime)
-      }
+      kafkaProducerActor
+        .publish(aggregateId = aggregateId, state = serializedState, events = serializedEvents)
+        .map {
+          case KafkaProducerActor.PublishSuccess    => PersistenceSuccess(state, startTime)
+          case KafkaProducerActor.PublishFailure(t) => PersistenceFailure(state, t, currentFailureCount + 1, serializedEvents, serializedState, startTime)
+        }
+        .recover { case t =>
+          EventPublishTimedOut(t, startTime)
+        }
     }
   }
 
@@ -83,8 +95,13 @@ trait KTablePersistenceSupport[Agg, Event] {
       log.warn(
         s"Failed to publish to Kafka after try #${eventsFailedToPersist.numberOfFailures}, retrying for $aggregateName $aggregateId",
         eventsFailedToPersist.reason)
-      doPublish(eventsFailedToPersist.newState, eventsFailedToPersist.serializedEvents, eventsFailedToPersist.serializedState,
-        eventsFailedToPersist.numberOfFailures, eventsFailedToPersist.startTime, didStateChange = true).pipeTo(self)(sender())
+      doPublish(
+        eventsFailedToPersist.newState,
+        eventsFailedToPersist.serializedEvents,
+        eventsFailedToPersist.serializedState,
+        eventsFailedToPersist.numberOfFailures,
+        eventsFailedToPersist.startTime,
+        didStateChange = true).pipeTo(self)(sender())
     }
   }
 

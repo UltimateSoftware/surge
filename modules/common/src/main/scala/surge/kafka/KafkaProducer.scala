@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.kafka
 
@@ -40,10 +40,12 @@ trait KafkaProducerHelperCommon[K, V] {
 
   private def recordWithPartition(record: ProducerRecord[K, V]): ProducerRecord[K, V] = {
     // If the record is already partitioned, don't change the partitioning
-    val partitionOpt = Option(record.partition()).map(_.intValue()) orElse getPartitionFor(record.key())
-    partitionOpt.map { partitionNum =>
-      new ProducerRecord(record.topic, partitionNum, record.timestamp, record.key, record.value, record.headers)
-    }.getOrElse(record)
+    val partitionOpt = Option(record.partition()).map(_.intValue()).orElse(getPartitionFor(record.key()))
+    partitionOpt
+      .map { partitionNum =>
+        new ProducerRecord(record.topic, partitionNum, record.timestamp, record.key, record.value, record.headers)
+      }
+      .getOrElse(record)
   }
 
   private def producerCallback(record: ProducerRecord[K, V], promise: Promise[KafkaRecordMetadata[K]]): Callback = {
@@ -135,7 +137,8 @@ case class KafkaStringProducer(
     brokers: Seq[String],
     override val topic: KafkaTopic,
     override val partitioner: KafkaPartitionerBase[String] = NoPartitioner[String],
-    kafkaConfig: Map[String, String] = Map.empty) extends KafkaProducerTrait[String, String] {
+    kafkaConfig: Map[String, String] = Map.empty)
+    extends KafkaProducerTrait[String, String] {
   val props: Properties = {
     val p = new Properties()
     p.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, brokers.mkString(","))
@@ -153,7 +156,8 @@ case class KafkaBytesProducer(
     brokers: Seq[String],
     override val topic: KafkaTopic,
     override val partitioner: KafkaPartitionerBase[String] = NoPartitioner[String],
-    kafkaConfig: Map[String, String] = Map.empty) extends KafkaProducerTrait[String, Array[Byte]] {
+    kafkaConfig: Map[String, String] = Map.empty)
+    extends KafkaProducerTrait[String, Array[Byte]] {
 
   val props: Properties = {
     val p = new Properties()

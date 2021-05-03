@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.kafka.streams
 
@@ -25,8 +25,7 @@ class MockPartitionTrackerProvider extends KafkaStreamsPartitionTrackerProvider 
 }
 
 class MockPartitionTracker(streams: KafkaStreams) extends KafkaStreamsPartitionTracker(streams: KafkaStreams) {
-  override def update(): Unit = {
-  }
+  override def update(): Unit = {}
 }
 
 object MockState {
@@ -35,17 +34,17 @@ object MockState {
 
 case class MockState(string: String, int: Int)
 class AggregateStateStoreKafkaStreamsSpec
-  extends AnyWordSpec
-  with Matchers
-  with BeforeAndAfterAll
-  with KafkaStreamsTestHelpers
-  with ScalaFutures
-  with EmbeddedKafka
-  with MockitoSugar
-  with PatienceConfiguration {
+    extends AnyWordSpec
+    with Matchers
+    with BeforeAndAfterAll
+    with KafkaStreamsTestHelpers
+    with ScalaFutures
+    with EmbeddedKafka
+    with MockitoSugar
+    with PatienceConfiguration {
 
-  override implicit val patienceConfig: PatienceConfig = PatienceConfig(
-    timeout = Span(30, Seconds), interval = Span(10, Millis)) // scalastyle:ignore magic.number
+  override implicit val patienceConfig: PatienceConfig =
+    PatienceConfig(timeout = Span(30, Seconds), interval = Span(10, Millis)) // scalastyle:ignore magic.number
 
   private val system = ActorSystem("test-actor-system")
 
@@ -63,9 +62,9 @@ class AggregateStateStoreKafkaStreamsSpec
 
   "AggregateStateStoreKafkaStreams" should {
     def assertStoreKeyValue(
-      testDriver: TopologyTestDriver,
-      stateTopic: KafkaTopic,
-      aggStoreKafkaStreams: AggregateStateStoreKafkaStreams[MockState]): Assertion = {
+        testDriver: TopologyTestDriver,
+        stateTopic: KafkaTopic,
+        aggStoreKafkaStreams: AggregateStateStoreKafkaStreams[MockState]): Assertion = {
       val state1 = MockState("state1", 1)
       val state2 = MockState("state2", 2)
       val state3 = MockState("state3", 3)
@@ -107,8 +106,7 @@ class AggregateStateStoreKafkaStreamsSpec
           system,
           Metrics.globalMetricRegistry) {
           override lazy val settings: AggregateStateStoreKafkaStreamsImplSettings =
-            AggregateStateStoreKafkaStreamsImplSettings(appId, testAggregateName, "")
-              .copy(brokers = Seq(s"localhost:${actualConfig.kafkaPort}"))
+            AggregateStateStoreKafkaStreamsImplSettings(appId, testAggregateName, "").copy(brokers = Seq(s"localhost:${actualConfig.kafkaPort}"))
         }
 
         val topology = aggStoreKafkaStreams.getTopology.futureValue
@@ -146,8 +144,7 @@ class AggregateStateStoreKafkaStreamsSpec
           system,
           Metrics.globalMetricRegistry) {
           override lazy val settings: AggregateStateStoreKafkaStreamsImplSettings =
-            AggregateStateStoreKafkaStreamsImplSettings(appId, testAggregateName, "")
-              .copy(brokers = Seq(s"localhost:${actualConfig.kafkaPort}"))
+            AggregateStateStoreKafkaStreamsImplSettings(appId, testAggregateName, "").copy(brokers = Seq(s"localhost:${actualConfig.kafkaPort}"))
         }
 
         val topology = aggStoreKafkaStreams.getTopology.futureValue

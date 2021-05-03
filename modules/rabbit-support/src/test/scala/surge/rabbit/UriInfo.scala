@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.rabbit
 
@@ -14,4 +14,3 @@ object UriInfo {
 }
 
 case class UriInfo(uri: String, host: String, port: Int)
-

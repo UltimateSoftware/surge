@@ -122,3 +122,5 @@ lazy val `surge` = project.in(file("."))
     ReleaseSettings.settings,
     paradoxTheme := Some(builtinParadoxTheme("generic"))
   ).disablePlugins(MimaPlugin)
+
+addCommandAlias("codeFormat", ";headerCreate;test:headerCreate;scalafmtAll")

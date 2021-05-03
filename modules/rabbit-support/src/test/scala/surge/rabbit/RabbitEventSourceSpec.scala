@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.rabbit
 
@@ -26,13 +26,20 @@ object RabbitEventSourceSpec {
   val SERVICE_PORT: Int = 5672
 }
 
-class RabbitEventSourceSpec extends TestKit(ActorSystem("RabbitEventSourceSpec"))
-  with EmbeddedRabbit with Matchers with AnyWordSpecLike with BeforeAndAfterAll {
+class RabbitEventSourceSpec
+    extends TestKit(ActorSystem("RabbitEventSourceSpec"))
+    with EmbeddedRabbit
+    with Matchers
+    with AnyWordSpecLike
+    with BeforeAndAfterAll {
   import Mockito._
 
-  class TestRabbitEventSource(val rabbitMqUri: String, val queueName: String,
+  class TestRabbitEventSource(
+      val rabbitMqUri: String,
+      val queueName: String,
       override val bufferSize: Int = 10,
-      override val autoDeclarePlan: Option[AutoDeclarePlan]) extends RabbitEventSource[String] {
+      override val autoDeclarePlan: Option[AutoDeclarePlan])
+      extends RabbitEventSource[String] {
     private var sourcedReadResults: Seq[CommittableReadResult] = Seq[CommittableReadResult]()
 
     override def actorSystem: ActorSystem = system
@@ -66,10 +73,7 @@ class RabbitEventSourceSpec extends TestKit(ActorSystem("RabbitEventSourceSpec")
   "RabbitEventSource" should {
     "Have default configs" in {
       val uriInfo = rabbitMqUri()
-      val source: TestRabbitEventSource = new TestRabbitEventSource(
-        rabbitMqUri = uriInfo.uri,
-        queueName = "temp-test-queue-name",
-        autoDeclarePlan = None)
+      val source: TestRabbitEventSource = new TestRabbitEventSource(rabbitMqUri = uriInfo.uri, queueName = "temp-test-queue-name", autoDeclarePlan = None)
 
       source.autoDeclarePlan.isDefined shouldEqual false
 
@@ -79,13 +83,14 @@ class RabbitEventSourceSpec extends TestKit(ActorSystem("RabbitEventSourceSpec")
 
     "Apply declarations when autoDeclare plan is set" in {
       val uriInfo = rabbitMqUri()
-      val rabbitSource: TestRabbitEventSource = spy(new TestRabbitEventSource(
-        rabbitMqUri = uriInfo.uri,
-        queueName = "temp-test-queue-name",
-        autoDeclarePlan = Some(AutoDeclarePlan(
-          QueuePlan("temp-test-queue-name", exclusive = false, durable = false, autoDelete = false),
-          ExchangePlan("exchange", durable = false, autoDelete = false),
-          Binding("temp-test-queue-name", "exchange", Some("route"))))))
+      val rabbitSource: TestRabbitEventSource = spy(
+        new TestRabbitEventSource(
+          rabbitMqUri = uriInfo.uri,
+          queueName = "temp-test-queue-name",
+          autoDeclarePlan = Some(AutoDeclarePlan(
+            QueuePlan("temp-test-queue-name", exclusive = false, durable = false, autoDelete = false),
+            ExchangePlan("exchange", durable = false, autoDelete = false),
+            Binding("temp-test-queue-name", "exchange", Some("route"))))))
       val testProbe = TestProbe()
 
       val pipeline = rabbitSource.to(new TestProbeSink(testProbe))
@@ -124,10 +129,8 @@ class RabbitEventSourceSpec extends TestKit(ActorSystem("RabbitEventSourceSpec")
 
     "Not apply declarations when autoDeclare plan is not set" in {
       val uriInfo = rabbitMqUri()
-      val rabbitSource: TestRabbitEventSource = spy(new TestRabbitEventSource(
-        rabbitMqUri = uriInfo.uri,
-        queueName = "temp-test-queue-name",
-        autoDeclarePlan = None))
+      val rabbitSource: TestRabbitEventSource =
+        spy(new TestRabbitEventSource(rabbitMqUri = uriInfo.uri, queueName = "temp-test-queue-name", autoDeclarePlan = None))
       val testProbe = TestProbe()
 
       val pipeline = rabbitSource.to(new TestProbeSink(testProbe))
@@ -144,19 +147,19 @@ class RabbitEventSourceSpec extends TestKit(ActorSystem("RabbitEventSourceSpec")
 
       // Publisher declares queue/exchange/binding
       // Publish to rabbit "test message 1"
-      val futureDone: Future[Done] = primeQueue(Source.single(ByteString("test message 1")), amqpSink(
-        host = uriInfo.host,
-        port = uriInfo.port,
-        queueName = "subscribe-no-auto-declare-queue-name",
-        exchangeName = "subscribe-no-auto-declare-exchange",
-        writeRoute = messageRoute))
+      val futureDone: Future[Done] = primeQueue(
+        Source.single(ByteString("test message 1")),
+        amqpSink(
+          host = uriInfo.host,
+          port = uriInfo.port,
+          queueName = "subscribe-no-auto-declare-queue-name",
+          exchangeName = "subscribe-no-auto-declare-exchange",
+          writeRoute = messageRoute))
 
       // Subscribe
       val testProbe = TestProbe()
-      val rabbitSource: TestRabbitEventSource = new TestRabbitEventSource(
-        rabbitMqUri = uriInfo.uri,
-        queueName = "subscribe-no-auto-declare-queue-name",
-        autoDeclarePlan = None)
+      val rabbitSource: TestRabbitEventSource =
+        new TestRabbitEventSource(rabbitMqUri = uriInfo.uri, queueName = "subscribe-no-auto-declare-queue-name", autoDeclarePlan = None)
 
       val pipeline = rabbitSource.to(new TestProbeSink(testProbe))
 
@@ -181,10 +184,11 @@ class RabbitEventSourceSpec extends TestKit(ActorSystem("RabbitEventSourceSpec")
       val rabbitSource = new TestRabbitEventSource(
         rabbitMqUri = uriInfo.uri,
         queueName = "subscribe-auto-declare-queue-name",
-        autoDeclarePlan = Some(AutoDeclarePlan(
-          queuePlan = QueuePlan("subscribe-auto-declare-queue-name", exclusive = false, durable = false, autoDelete = false),
-          exchangePlan = ExchangePlan("subscribe-auto-declare-exchange", durable = false, autoDelete = false),
-          binding = Binding("subscribe-auto-declare-queue-name", "subscribe-auto-declare-exchange", Some(messageRoute)))))
+        autoDeclarePlan = Some(
+          AutoDeclarePlan(
+            queuePlan = QueuePlan("subscribe-auto-declare-queue-name", exclusive = false, durable = false, autoDelete = false),
+            exchangePlan = ExchangePlan("subscribe-auto-declare-exchange", durable = false, autoDelete = false),
+            binding = Binding("subscribe-auto-declare-queue-name", "subscribe-auto-declare-exchange", Some(messageRoute)))))
 
       val pipeline = rabbitSource.to(new TestProbeSink(testProbe))
 
@@ -192,12 +196,14 @@ class RabbitEventSourceSpec extends TestKit(ActorSystem("RabbitEventSourceSpec")
       pipeline.start()
 
       // Publish to rabbit "test message 1"
-      val futureDone: Future[Done] = primeQueue(Source.single(ByteString("test message 1")), amqpSink(
-        host = uriInfo.host,
-        port = uriInfo.port,
-        queueName = "subscribe-auto-declare-queue-name",
-        exchangeName = "subscribe-auto-declare-exchange",
-        writeRoute = messageRoute))
+      val futureDone: Future[Done] = primeQueue(
+        Source.single(ByteString("test message 1")),
+        amqpSink(
+          host = uriInfo.host,
+          port = uriInfo.port,
+          queueName = "subscribe-auto-declare-queue-name",
+          exchangeName = "subscribe-auto-declare-exchange",
+          writeRoute = messageRoute))
 
       // Wait for write to complete
       Await.result(futureDone, 10.seconds)
@@ -218,10 +224,11 @@ class RabbitEventSourceSpec extends TestKit(ActorSystem("RabbitEventSourceSpec")
       val rabbitSource = new TestRabbitEventSource(
         rabbitMqUri = uriInfo.uri,
         queueName = "subscribe-auto-declare-queue-name",
-        autoDeclarePlan = Some(AutoDeclarePlan(
-          queuePlan = QueuePlan("subscribe-auto-declare-queue-name", exclusive = false, durable = false, autoDelete = false),
-          exchangePlan = ExchangePlan("subscribe-auto-declare-exchange", durable = false, autoDelete = false),
-          binding = Binding("subscribe-auto-declare-queue-name", "subscribe-auto-declare-exchange", Some(messageRoute)))))
+        autoDeclarePlan = Some(
+          AutoDeclarePlan(
+            queuePlan = QueuePlan("subscribe-auto-declare-queue-name", exclusive = false, durable = false, autoDelete = false),
+            exchangePlan = ExchangePlan("subscribe-auto-declare-exchange", durable = false, autoDelete = false),
+            binding = Binding("subscribe-auto-declare-queue-name", "subscribe-auto-declare-exchange", Some(messageRoute)))))
 
       val pipeline = rabbitSource.to(new TestProbeSink(testProbe))
 
@@ -231,20 +238,10 @@ class RabbitEventSourceSpec extends TestKit(ActorSystem("RabbitEventSourceSpec")
     }
   }
 
-  private def amqpSink(
-    host: String,
-    port: Int,
-    queueName: String,
-    exchangeName: String,
-    writeRoute: String): Sink[ByteString, Future[Done]] = {
-    val queueDeclaration: Declaration = QueueDeclaration(queueName)
-      .withDurable(durable = false)
-      .withAutoDelete(autoDelete = false)
-    val exchangeDeclaration: Declaration = ExchangeDeclaration(exchangeName, "topic")
-      .withDurable(durable = false)
-      .withAutoDelete(autoDelete = false)
-    val bindingDeclaration: Declaration = BindingDeclaration(queueName, exchangeName)
-      .withRoutingKey(writeRoute)
+  private def amqpSink(host: String, port: Int, queueName: String, exchangeName: String, writeRoute: String): Sink[ByteString, Future[Done]] = {
+    val queueDeclaration: Declaration = QueueDeclaration(queueName).withDurable(durable = false).withAutoDelete(autoDelete = false)
+    val exchangeDeclaration: Declaration = ExchangeDeclaration(exchangeName, "topic").withDurable(durable = false).withAutoDelete(autoDelete = false)
+    val bindingDeclaration: Declaration = BindingDeclaration(queueName, exchangeName).withRoutingKey(writeRoute)
     val settings = AmqpWriteSettings(AmqpUriConnectionProvider(s"amqp://tester:tester@$host:$port/vhost"))
       .withDeclarations(Seq(queueDeclaration, exchangeDeclaration, bindingDeclaration).toList.asJava)
       .withRoutingKey(writeRoute)

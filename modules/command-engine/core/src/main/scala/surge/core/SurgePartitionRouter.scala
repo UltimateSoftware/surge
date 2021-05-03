@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.core
 
@@ -16,13 +16,19 @@ private[surge] final class SurgePartitionRouter(
     system: ActorSystem,
     clusterStateTrackingActor: ActorRef,
     businessLogic: SurgeModel[_, _],
-    regionCreator: PersistentActorRegionCreator[String]) extends HealthyComponent {
+    regionCreator: PersistentActorRegionCreator[String])
+    extends HealthyComponent {
 
   private val log = LoggerFactory.getLogger(getClass)
 
   val actorRegion: ActorRef = {
-    val shardRouterProps = KafkaPartitionShardRouterActor.props(clusterStateTrackingActor, businessLogic.partitioner, businessLogic.kafka.stateTopic,
-      regionCreator, RoutableMessage.extractEntityId, businessLogic.tracer)
+    val shardRouterProps = KafkaPartitionShardRouterActor.props(
+      clusterStateTrackingActor,
+      businessLogic.partitioner,
+      businessLogic.kafka.stateTopic,
+      regionCreator,
+      RoutableMessage.extractEntityId,
+      businessLogic.tracer)
     val actorName = s"${businessLogic.aggregateName}RouterActor"
     system.actorOf(shardRouterProps, name = actorName)
   }
@@ -31,14 +37,9 @@ private[surge] final class SurgePartitionRouter(
     actorRegion
       .ask(HealthyActor.GetHealth)(TimeoutConfig.HealthCheck.actorAskTimeout * 3)
       .mapTo[HealthCheck]
-      .recoverWith {
-        case err: Throwable =>
-          log.error(s"Failed to get router-actor health check", err)
-          Future.successful(
-            HealthCheck(
-              name = "router-actor",
-              id = s"router-actor-${actorRegion.hashCode}",
-              status = HealthCheckStatus.DOWN))
+      .recoverWith { case err: Throwable =>
+        log.error(s"Failed to get router-actor health check", err)
+        Future.successful(HealthCheck(name = "router-actor", id = s"router-actor-${actorRegion.hashCode}", status = HealthCheckStatus.DOWN))
       }(ExecutionContext.global)
   }
 }

@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.streams.replay
 
@@ -25,9 +25,7 @@ object DefaultEventReplaySettings extends EventReplaySettings {
 case object NoOpEventReplayStrategy extends EventReplayStrategy with Logging {
   override def preReplay: () => Future[Any] = () => Future.successful(true)
   override def postReplay: () => Unit = () => {}
-  override def replay(
-    consumerGroup: String,
-    partitions: Iterable[Int]): Future[Done] = {
+  override def replay(consumerGroup: String, partitions: Iterable[Int]): Future[Done] = {
     log.warn("Event Replay has been used with the default NoOps implementation, please refer to the docs to properly chose your replay strategy")
     Future.successful(Done)
   }

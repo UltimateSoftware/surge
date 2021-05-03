@@ -1,3 +1,5 @@
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
+
 // Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
 package surge.internal.persistence
 
@@ -15,16 +17,18 @@ import surge.tracing.TracedMessage
 import scala.concurrent.{ ExecutionContext, Future }
 
 /**
- * Generic reference to an aggregate that handles proxying messages to the actual aggregate
- * actor responsible for a particular aggregate id.  A single reference represents a proxy for
- * a single business logic aggregate actor.  Any commands you send to an instance of an AggregateRef
- * will be forwarded to the same business logic aggregate actor responsible for the same aggregateId
- * as the AggregateRef is responsible for.
+ * Generic reference to an aggregate that handles proxying messages to the actual aggregate actor responsible for a particular aggregate id. A single reference
+ * represents a proxy for a single business logic aggregate actor. Any commands you send to an instance of an AggregateRef will be forwarded to the same
+ * business logic aggregate actor responsible for the same aggregateId as the AggregateRef is responsible for.
  *
- * @tparam AggId The type of the aggregate id for the underlying business logic aggregate
- * @tparam Agg   The type of the business logic aggregate being proxied to
- * @tparam Cmd   The command type that the business logic aggregate handles
- * @tparam Event The event type that the business logic aggregate generates and can handle to update state
+ * @tparam AggId
+ *   The type of the aggregate id for the underlying business logic aggregate
+ * @tparam Agg
+ *   The type of the business logic aggregate being proxied to
+ * @tparam Cmd
+ *   The command type that the business logic aggregate handles
+ * @tparam Event
+ *   The event type that the business logic aggregate generates and can handle to update state
  */
 private[surge] trait AggregateRefTrait[AggId, Agg, Cmd, Event] extends SpanSupport {
 
@@ -54,29 +58,29 @@ private[surge] trait AggregateRefTrait[AggId, Agg, Cmd, Event] extends SpanSuppo
   /**
    * Asynchronously fetch the current state of the aggregate that this reference is proxying to.
    *
-   * @return A future of either None (the aggregate has no state) or some aggregate state for the
-   *         aggregate with the aggregate id of this reference
+   * @return
+   *   A future of either None (the aggregate has no state) or some aggregate state for the aggregate with the aggregate id of this reference
    */
   protected def queryState(implicit ec: ExecutionContext): Future[Option[Agg]] = {
     (region ? PersistentActor.GetState(aggregateId.toString)).mapTo[PersistentActor.StateResponse[Agg]].map(_.aggregateState)
   }
 
   /**
-   * Asynchronously send a command envelope to the aggregate business logic actor this reference is
-   * talking to. Retries a given number of times if sending the command envelope to the business logic
-   * actor fails.
+   * Asynchronously send a command envelope to the aggregate business logic actor this reference is talking to. Retries a given number of times if sending the
+   * command envelope to the business logic actor fails.
    *
-   * @param envelope         The command envelope to send to this aggregate actor
-   * @param retriesRemaining Number of retry attempts remaining, defaults to 0 for no retries.
-   * @param ec               Implicit execution context to use for transforming the raw actor response into a
-   *                         better typed response.
-   * @return A future of either validation errors from the business logic aggregate or the updated
-   *         state of the business logic aggregate after handling the command and applying any events
-   *         that resulted from the command.
+   * @param envelope
+   *   The command envelope to send to this aggregate actor
+   * @param retriesRemaining
+   *   Number of retry attempts remaining, defaults to 0 for no retries.
+   * @param ec
+   *   Implicit execution context to use for transforming the raw actor response into a better typed response.
+   * @return
+   *   A future of either validation errors from the business logic aggregate or the updated state of the business logic aggregate after handling the command
+   *   and applying any events that resulted from the command.
    */
-  protected def sendCommandWithRetries(
-    envelope: PersistentActor.ProcessMessage[Cmd],
-    retriesRemaining: Int = 0)(implicit ec: ExecutionContext): Future[Either[Throwable, Option[Agg]]] = {
+  protected def sendCommandWithRetries(envelope: PersistentActor.ProcessMessage[Cmd], retriesRemaining: Int = 0)(
+      implicit ec: ExecutionContext): Future[Either[Throwable, Option[Agg]]] = {
     val askSpan = createSpan("send_command_to_aggregate").setTag("aggregateId", aggregateId.toString)
     (region ? TracedMessage(tracer, envelope, askSpan)).map(interpretActorResponse(askSpan)).recoverWith {
       case _: Throwable if retriesRemaining > 0 =>
@@ -96,9 +100,8 @@ private[surge] trait AggregateRefTrait[AggId, Agg, Cmd, Event] extends SpanSuppo
     }
   }
 
-  protected def applyEventsWithRetries(
-    envelope: PersistentActor.ApplyEvent[Event],
-    retriesRemaining: Int = 0)(implicit ec: ExecutionContext): Future[Option[Agg]] = {
+  protected def applyEventsWithRetries(envelope: PersistentActor.ApplyEvent[Event], retriesRemaining: Int = 0)(
+      implicit ec: ExecutionContext): Future[Option[Agg]] = {
     val askSpan = createSpan("send_events_to_aggregate").setTag("aggregateId", aggregateId.toString)
     (region ? TracedMessage(tracer, envelope, askSpan)).map(interpretActorResponse(askSpan)).flatMap {
       case Left(exception) => Future.failed(exception)

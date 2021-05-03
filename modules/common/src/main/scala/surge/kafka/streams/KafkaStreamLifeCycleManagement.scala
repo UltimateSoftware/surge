@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.kafka.streams
 
@@ -31,11 +31,10 @@ trait KafkaStreamLifeCycleManagement[K, V, T <: KafkaStreamsConsumer[K, V], SV] 
   private val enableMetrics = config.getBoolean("surge.kafka-streams.enable-kafka-metrics")
 
   /**
-   * Base configuration for all streams, extend as needed
-   * Ex: override val streamsConfig = baseStreamsConfig ++ Map[String, String](... stream specific config ...)
+   * Base configuration for all streams, extend as needed Ex: override val streamsConfig = baseStreamsConfig ++ Map[String, String](... stream specific config
+   * ...)
    */
-  val baseStreamsConfig: Map[String, String] = Map[String, String](
-    StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG -> settings.cacheMemory.toString)
+  val baseStreamsConfig: Map[String, String] = Map[String, String](StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG -> settings.cacheMemory.toString)
 
   protected val stateChangeListener = new KafkaStreamsNotifyOnStateChangeListener(settings.storeName, List(receiveKafkaStreamStateChange))
   protected val uncaughtExceptionListener = new KafkaStreamsUncaughtExceptionHandler(List(receiveUnhandledExceptions))
@@ -99,11 +98,10 @@ trait KafkaStreamLifeCycleManagement[K, V, T <: KafkaStreamsConsumer[K, V], SV] 
   }
 
   /**
-   * Be careful when overriding this method, notice that the stream must set the "stateChangeListener"
-   * defined here in order to work correctly
-   * Use KafkaStreamsStateChangeWithMultipleListeners(stateChangeListener, yourOwnListener)
-   * to add your own state change listener
-   * @param consumer A hook to the Kafka Streams consumer instance you can attach listeners to
+   * Be careful when overriding this method, notice that the stream must set the "stateChangeListener" defined here in order to work correctly Use
+   * KafkaStreamsStateChangeWithMultipleListeners(stateChangeListener, yourOwnListener) to add your own state change listener
+   * @param consumer
+   *   A hook to the Kafka Streams consumer instance you can attach listeners to
    */
   protected def subscribeListeners(consumer: T): Unit = {
     consumer.streams.setStateListener(stateChangeListener)
@@ -113,43 +111,51 @@ trait KafkaStreamLifeCycleManagement[K, V, T <: KafkaStreamsConsumer[K, V], SV] 
 
   final override def receive: Receive = streamUninitialized
 
-  final def streamUninitialized: Receive = uninitialized orElse InlineReceive {
-    case Start =>
-      start()
-    case GetHealth =>
-      sender() ! getHealth(HealthCheckStatus.DOWN)
-    case Stop | Restart =>
-    // drop, can't restart or stop if is not running
-  } orElse errorHandler orElse logUnhandled("uninitialized")
+  final def streamUninitialized: Receive = uninitialized
+    .orElse(InlineReceive {
+      case Start =>
+        start()
+      case GetHealth =>
+        sender() ! getHealth(HealthCheckStatus.DOWN)
+      case Stop | Restart =>
+      // drop, can't restart or stop if is not running
+    })
+    .orElse(errorHandler)
+    .orElse(logUnhandled("uninitialized"))
 
-  final def streamCreated(consumer: T): Receive = created(consumer) orElse InlineReceive {
-    case Run =>
-      val queryableStore: KafkaStreamsKeyValueStore[K, SV] = createQueryableStore(consumer)
-      unstashAll()
-      log.info(s"Kafka streams ${settings.storeName} is running")
-      context.become(streamRunning(consumer, queryableStore))
-    case Stop =>
-      stop(consumer)
-    case Restart =>
-      restart()
-    case GetHealth =>
-      val status = if (consumer.streams.state().isRunningOrRebalancing) HealthCheckStatus.UP else HealthCheckStatus.DOWN
-      sender() ! getHealth(status)
-  } orElse errorHandler orElse logUnhandled("created")
+  final def streamCreated(consumer: T): Receive = created(consumer)
+    .orElse(InlineReceive {
+      case Run =>
+        val queryableStore: KafkaStreamsKeyValueStore[K, SV] = createQueryableStore(consumer)
+        unstashAll()
+        log.info(s"Kafka streams ${settings.storeName} is running")
+        context.become(streamRunning(consumer, queryableStore))
+      case Stop =>
+        stop(consumer)
+      case Restart =>
+        restart()
+      case GetHealth =>
+        val status = if (consumer.streams.state().isRunningOrRebalancing) HealthCheckStatus.UP else HealthCheckStatus.DOWN
+        sender() ! getHealth(status)
+    })
+    .orElse(errorHandler)
+    .orElse(logUnhandled("created"))
 
-  final def streamRunning(consumer: T, queryableStore: KafkaStreamsKeyValueStore[K, SV]): Receive = running(consumer, queryableStore) orElse InlineReceive {
-    case GetHealth =>
-      val status = if (consumer.streams.state().isRunningOrRebalancing) HealthCheckStatus.UP else HealthCheckStatus.DOWN
-      sender() ! getHealth(status)
-    case Stop =>
-      stop(consumer)
-    case Restart =>
-      restart()
-  } orElse errorHandler orElse logUnhandled("running")
+  final def streamRunning(consumer: T, queryableStore: KafkaStreamsKeyValueStore[K, SV]): Receive = running(consumer, queryableStore)
+    .orElse(InlineReceive {
+      case GetHealth =>
+        val status = if (consumer.streams.state().isRunningOrRebalancing) HealthCheckStatus.UP else HealthCheckStatus.DOWN
+        sender() ! getHealth(status)
+      case Stop =>
+        stop(consumer)
+      case Restart =>
+        restart()
+    })
+    .orElse(errorHandler)
+    .orElse(logUnhandled("running"))
 
-  final def logUnhandled(stateName: String): Receive = {
-    case unhandledMessage =>
-      log.debug(s"${settings.storeName} Dropping unhandled message on $stateName state {}", unhandledMessage)
+  final def logUnhandled(stateName: String): Receive = { case unhandledMessage =>
+    log.debug(s"${settings.storeName} Dropping unhandled message on $stateName state {}", unhandledMessage)
   }
 
   final def receiveUnhandledExceptions(uncaughtException: KafkaStreamsUncaughtException): Unit = {
@@ -170,10 +176,9 @@ trait KafkaStreamLifeCycleManagement[K, V, T <: KafkaStreamsConsumer[K, V], SV] 
     }
   }
 
-  final private[streams] def errorHandler: Receive = {
-    case err: Throwable =>
-      log.error("Restarting actor with error", err)
-      throw err
+  final private[streams] def errorHandler: Receive = { case err: Throwable =>
+    log.error("Restarting actor with error", err)
+    throw err
   }
 
   def restartOnError(err: Throwable): Unit = {
@@ -181,10 +186,7 @@ trait KafkaStreamLifeCycleManagement[K, V, T <: KafkaStreamsConsumer[K, V], SV] 
   }
 
   def getHealth(streamStatus: String): HealthCheck = {
-    HealthCheck(
-      name = healthCheckName,
-      id = settings.storeName,
-      status = streamStatus)
+    HealthCheck(name = healthCheckName, id = settings.storeName, status = streamStatus)
   }
 
   /**

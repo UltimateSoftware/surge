@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.kafka.streams
 
@@ -52,10 +52,8 @@ trait KafkaStreamsStateChangeListenerCommon extends KafkaStreams.StateListener w
   }
 }
 
-class KafkaStreamsNotifyOnStateChangeListener(
-    override val streamName: String,
-    notifyTo: List[KafkaStateChange => Unit],
-    override val verbose: Boolean = true) extends KafkaStreamsStateChangeListenerCommon {
+class KafkaStreamsNotifyOnStateChangeListener(override val streamName: String, notifyTo: List[KafkaStateChange => Unit], override val verbose: Boolean = true)
+    extends KafkaStreamsStateChangeListenerCommon {
   override def changed(change: KafkaStateChange): Unit = {
     if (notifyTo.nonEmpty) {
       notifyTo.foreach(f => f(change))
@@ -65,7 +63,8 @@ class KafkaStreamsNotifyOnStateChangeListener(
 class KafkaStreamsUpdatePartitionsOnStateChangeListener(
     override val streamName: String,
     partitionTracker: KafkaStreamsPartitionTracker,
-    override val verbose: Boolean = true) extends KafkaStreamsStateChangeListenerCommon {
+    override val verbose: Boolean = true)
+    extends KafkaStreamsStateChangeListenerCommon {
 
   override def onRunning(): Unit =
     partitionTracker.update()
@@ -95,17 +94,20 @@ object KafkaStreamsUncaughtExceptionHandler {
 
 class KafkaStreamsStateRestoreListener extends StateRestoreListener with Logging {
   override def onRestoreStart(topicPartition: TopicPartition, storeName: String, startingOffset: Long, endingOffset: Long): Unit = {
-    log.info(s"Restore started for $storeName on topicPartition " +
-      s"${topicPartition.topic()}:${topicPartition.partition()}, offsets $startingOffset -> $endingOffset")
+    log.info(
+      s"Restore started for $storeName on topicPartition " +
+        s"${topicPartition.topic()}:${topicPartition.partition()}, offsets $startingOffset -> $endingOffset")
   }
 
   override def onBatchRestored(topicPartition: TopicPartition, storeName: String, batchEndOffset: Long, numRestored: Long): Unit = {
-    log.trace(s"Batch restored for $storeName on topicPartition " +
-      s"${topicPartition.topic()}:${topicPartition.partition()}, end offset = $batchEndOffset, number restored = $numRestored")
+    log.trace(
+      s"Batch restored for $storeName on topicPartition " +
+        s"${topicPartition.topic()}:${topicPartition.partition()}, end offset = $batchEndOffset, number restored = $numRestored")
   }
 
   override def onRestoreEnd(topicPartition: TopicPartition, storeName: String, totalRestored: Long): Unit = {
-    log.info(s"Restore finished for $storeName on topicPartition " +
-      s"${topicPartition.topic()}:${topicPartition.partition()}, total restored = $totalRestored")
+    log.info(
+      s"Restore finished for $storeName on topicPartition " +
+        s"${topicPartition.topic()}:${topicPartition.partition()}, total restored = $totalRestored")
   }
 }

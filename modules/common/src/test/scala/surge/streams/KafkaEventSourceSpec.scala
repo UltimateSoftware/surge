@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.streams
 
@@ -49,7 +49,8 @@ class KafkaEventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with 
   }
 
   private def testConsumerSettings(kafkaBrokers: String, groupId: String): ConsumerSettings[String, Array[Byte]] = {
-    AkkaKafkaConsumer.consumerSettings[String, Array[Byte]](system, groupId)
+    AkkaKafkaConsumer
+      .consumerSettings[String, Array[Byte]](system, groupId)
       .withBootstrapServers(kafkaBrokers)
       .withProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
   }

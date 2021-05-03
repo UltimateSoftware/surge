@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.internal.streams
 
@@ -52,23 +52,26 @@ case class KafkaStreamMeta(topic: String, partition: Int, offset: Long, committa
 object KafkaStreamManager {
   val serviceIdentifier = "StreamManager"
 
-  def wrapBusinessFlow[Key, Value](
-    business: Flow[EventPlusStreamMeta[Key, Value, KafkaStreamMeta], KafkaStreamMeta, NotUsed]): Flow[ConsumerMessage.CommittableMessage[Key, Value], KafkaStreamMeta, NotUsed] = {
+  def wrapBusinessFlow[Key, Value](business: Flow[EventPlusStreamMeta[Key, Value, KafkaStreamMeta], KafkaStreamMeta, NotUsed])
+      : Flow[ConsumerMessage.CommittableMessage[Key, Value], KafkaStreamMeta, NotUsed] = {
     val contextToPropagate = MDC.getCopyOfContextMap
 
-    Flow[ConsumerMessage.CommittableMessage[Key, Value]].map { msg =>
-      Option(contextToPropagate).foreach(contextToPropagate => MDC.setContextMap(contextToPropagate))
+    Flow[ConsumerMessage.CommittableMessage[Key, Value]]
+      .map { msg =>
+        Option(contextToPropagate).foreach(contextToPropagate => MDC.setContextMap(contextToPropagate))
 
-      val kafkaMeta = KafkaStreamMeta(msg.record.topic(), msg.record.partition(), msg.record.offset(), msg.committableOffset)
+        val kafkaMeta = KafkaStreamMeta(msg.record.topic(), msg.record.partition(), msg.record.offset(), msg.committableOffset)
 
-      MDC.put("kafka.topic", kafkaMeta.topic)
-      MDC.put("kafka.partition", kafkaMeta.partition.toString)
-      MDC.put("kafka.offset", kafkaMeta.offset.toString)
-      EventPlusStreamMeta(msg.record.key, msg.record.value, kafkaMeta, HeadersHelper.unapplyHeaders(msg.record.headers()))
-    }.via(business).map { meta =>
-      MDC.clear()
-      meta
-    }
+        MDC.put("kafka.topic", kafkaMeta.topic)
+        MDC.put("kafka.partition", kafkaMeta.partition.toString)
+        MDC.put("kafka.offset", kafkaMeta.offset.toString)
+        EventPlusStreamMeta(msg.record.key, msg.record.value, kafkaMeta, HeadersHelper.unapplyHeaders(msg.record.headers()))
+      }
+      .via(business)
+      .map { meta =>
+        MDC.clear()
+        meta
+      }
   }
 }
 
@@ -79,8 +82,8 @@ class KafkaStreamManager[Key, Value](
     replayStrategy: EventReplayStrategy,
     replaySettings: EventReplaySettings,
     val tracer: Tracer)(implicit val actorSystem: ActorSystem)
-  extends ActorSystemHostAwareness
-  with Logging {
+    extends ActorSystemHostAwareness
+    with Logging {
 
   private val config = ConfigFactory.load()
   private val metricFetchTimeout = config.getDuration("surge.kafka-event-source.kafka-metric-fetch-timeout").toMillis.milliseconds
@@ -112,18 +115,21 @@ class KafkaStreamManager[Key, Value](
   def replay(): Future[ReplayResult] = {
     implicit val entireProcessTimeout: Timeout = Timeout(replaySettings.entireReplayTimeout)
     implicit val executionContext: ExecutionContext = ExecutionContext.global
-    (replayCoordinator ? ReplayCoordinator.StartReplay).map {
-      case ReplayCoordinator.ReplayCompleted =>
-        ReplaySuccessfullyStarted()
-      case ReplayCoordinator.ReplayFailed(err) =>
-        ReplayFailed(err)
-    }.recoverWith {
-      case err: Throwable =>
-        log.error(s"An unexpected error happened replaying $consumerGroup, " +
-          s"please try again, if the problem persists, reach out the Surge team for support", err)
+    (replayCoordinator ? ReplayCoordinator.StartReplay)
+      .map {
+        case ReplayCoordinator.ReplayCompleted =>
+          ReplaySuccessfullyStarted()
+        case ReplayCoordinator.ReplayFailed(err) =>
+          ReplayFailed(err)
+      }
+      .recoverWith { case err: Throwable =>
+        log.error(
+          s"An unexpected error happened replaying $consumerGroup, " +
+            s"please try again, if the problem persists, reach out the Surge team for support",
+          err)
         replayCoordinator ! ReplayCoordinator.StopReplay
         Future.successful(ReplayFailed(err))
-    }
+      }
   }
 }
 
@@ -140,10 +146,12 @@ object KafkaStreamManagerActor {
   case object SuccessfullyStarted extends KafkaStreamManagerActorResponse
 }
 
-class KafkaStreamManagerActor[Key, Value](topicName: String, subscriptionProvider: KafkaSubscriptionProvider,
-    val tracer: Tracer, registry: ActorRegistry) extends Actor
-  with ActorWithTracing
-  with ActorHostAwareness with Stash with Logging {
+class KafkaStreamManagerActor[Key, Value](topicName: String, subscriptionProvider: KafkaSubscriptionProvider, val tracer: Tracer, registry: ActorRegistry)
+    extends Actor
+    with ActorWithTracing
+    with ActorHostAwareness
+    with Stash
+    with Logging {
   import KafkaStreamManagerActor._
   import context.{ dispatcher, system }
 
@@ -190,13 +198,10 @@ class KafkaStreamManagerActor[Key, Value](topicName: String, subscriptionProvide
     val control = new AtomicReference[Consumer.Control](Consumer.NoopControl)
 
     val result = RestartSource
-      .onFailuresWithBackoff(
-        minBackoff = backoffMin,
-        maxBackoff = backoffMax,
-        randomFactor = randomFactor) { () =>
-        subscriptionProvider.createSubscription(context.system)
-          .mapMaterializedValue(c => control.set(c))
-      }.runWith(Sink.ignore)
+      .onFailuresWithBackoff(minBackoff = backoffMin, maxBackoff = backoffMax, randomFactor = randomFactor) { () =>
+        subscriptionProvider.createSubscription(context.system).mapMaterializedValue(c => control.set(c))
+      }
+      .runWith(Sink.ignore)
 
     val state = InternalState(control, result)
     context.become(consuming(state))
@@ -219,13 +224,13 @@ class KafkaStreamManagerActor[Key, Value](topicName: String, subscriptionProvide
 
   private def handleGetMetrics(state: InternalState): Unit = {
     val control = state.control.get()
-    control.metrics pipeTo sender()
+    control.metrics.pipeTo(sender())
   }
 
   private def registerSelf(): Unit = {
     log.debug(s"Registering StreamManager at [{}] to the ActorRegistry", self.path)
-    registry.registerService(KafkaStreamManager.serviceIdentifier, self, List(topicName)).recover {
-      case _ => self ! RegisterSelf
+    registry.registerService(KafkaStreamManager.serviceIdentifier, self, List(topicName)).recover { case _ =>
+      self ! RegisterSelf
     }
   }
 

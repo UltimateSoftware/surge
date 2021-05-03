@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.internal.utils
 
@@ -45,17 +45,17 @@ class NotificationReceiver {
 }
 
 class BackoffChildActorTerminationWatcherSpec
-  extends AnyWordSpecLike
-  with Matchers
-  with MockitoSugar
-  with BeforeAndAfterAll
-  with Eventually
-  with PatienceConfiguration {
+    extends AnyWordSpecLike
+    with Matchers
+    with MockitoSugar
+    with BeforeAndAfterAll
+    with Eventually
+    with PatienceConfiguration {
 
   private val system = ActorSystem("test")
 
-  override implicit val patienceConfig: PatienceConfig = PatienceConfig(
-    timeout = Span(3, Seconds), interval = Span(10, Millis)) // scalastyle:ignore magic.number
+  override implicit val patienceConfig: PatienceConfig =
+    PatienceConfig(timeout = Span(3, Seconds), interval = Span(10, Millis)) // scalastyle:ignore magic.number
 
   override def afterAll(): Unit = {
     system.terminate()
@@ -70,12 +70,9 @@ class BackoffChildActorTerminationWatcherSpec
       val notificationReceiver = mock[NotificationReceiver]
 
       val supervisorProps = BackoffSupervisor.props(
-        BackoffOpts.onStop(
-          doomedToDieActorProps,
-          childName = "test",
-          minBackoff = 200.millis,
-          maxBackoff = 500.millis,
-          randomFactor = 0.2).withMaxNrOfRetries(2))
+        BackoffOpts
+          .onStop(doomedToDieActorProps, childName = "test", minBackoff = 200.millis, maxBackoff = 500.millis, randomFactor = 0.2)
+          .withMaxNrOfRetries(2))
 
       val backoffSupervisor = system.actorOf(supervisorProps)
 

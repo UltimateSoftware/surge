@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.kafka
 
@@ -21,19 +21,16 @@ final case class HostPort(host: String, port: Int) {
 
 object PartitionAssignmentChanges {
   private def missingPartitionMappings(
-    startingAssignments: Map[HostPort, List[TopicPartition]],
-    endingAssignments: Map[HostPort, List[TopicPartition]]): Map[HostPort, List[TopicPartition]] = {
-    startingAssignments.map {
-      case (hostPort, topicPartitions) =>
-        val newTopicPartitionsForHost = endingAssignments.getOrElse(hostPort, List.empty)
-        val removedTopicPartitionsForHost = topicPartitions.diff(newTopicPartitionsForHost)
-        hostPort -> removedTopicPartitionsForHost
+      startingAssignments: Map[HostPort, List[TopicPartition]],
+      endingAssignments: Map[HostPort, List[TopicPartition]]): Map[HostPort, List[TopicPartition]] = {
+    startingAssignments.map { case (hostPort, topicPartitions) =>
+      val newTopicPartitionsForHost = endingAssignments.getOrElse(hostPort, List.empty)
+      val removedTopicPartitionsForHost = topicPartitions.diff(newTopicPartitionsForHost)
+      hostPort -> removedTopicPartitionsForHost
     }
   }
 
-  def diff(
-    currentAssignments: Map[HostPort, List[TopicPartition]],
-    newAssignments: Map[HostPort, List[TopicPartition]]): PartitionAssignmentChanges = {
+  def diff(currentAssignments: Map[HostPort, List[TopicPartition]], newAssignments: Map[HostPort, List[TopicPartition]]): PartitionAssignmentChanges = {
 
     val revokedPartitions = missingPartitionMappings(currentAssignments, newAssignments)
     val addedPartitions = missingPartitionMappings(newAssignments, currentAssignments)
@@ -41,7 +38,9 @@ object PartitionAssignmentChanges {
     PartitionAssignmentChanges(revokedTopicPartitions = revokedPartitions, addedTopicPartitions = addedPartitions)
   }
 }
-final case class PartitionAssignmentChanges(revokedTopicPartitions: Map[HostPort, List[TopicPartition]], addedTopicPartitions: Map[HostPort, List[TopicPartition]])
+final case class PartitionAssignmentChanges(
+    revokedTopicPartitions: Map[HostPort, List[TopicPartition]],
+    addedTopicPartitions: Map[HostPort, List[TopicPartition]])
 
 final case class PartitionAssignmentsWithChanges(assignments: PartitionAssignments, changes: PartitionAssignmentChanges)
 
@@ -50,9 +49,8 @@ object PartitionAssignments {
 }
 final case class PartitionAssignments(partitionAssignments: Map[HostPort, List[TopicPartition]]) {
   def topicPartitionsToHosts: Map[TopicPartition, HostPort] = {
-    partitionAssignments.flatMap {
-      case (hostPort, topicPartitions) =>
-        topicPartitions.map(tp => tp -> hostPort)
+    partitionAssignments.flatMap { case (hostPort, topicPartitions) =>
+      topicPartitions.map(tp => tp -> hostPort)
     }
   }
 

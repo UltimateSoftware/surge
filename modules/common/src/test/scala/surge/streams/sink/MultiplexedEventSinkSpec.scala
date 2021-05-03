@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.streams.sink
 
@@ -49,8 +49,8 @@ class MultiplexedEventSinkSpec extends TestKit(ActorSystem("MultiplexedEventSink
       val testMultiplexedSink = new MultiplexedEventSink[TopLevelEvent] {
         override implicit def ec: ExecutionContext = ExecutionContext.global
         override def partitionBy(key: String, event: TopLevelEvent, headers: Map[String, Array[Byte]]): String = key
-        override def destinationSinks: Seq[EventSinkMultiplexAdapter[TopLevelEvent, _ <: TopLevelEvent]] = Seq(
-          new Subtype1Adapter(subtype1Probe), new Subtype2Adapter(subtype2Probe))
+        override def destinationSinks: Seq[EventSinkMultiplexAdapter[TopLevelEvent, _ <: TopLevelEvent]] =
+          Seq(new Subtype1Adapter(subtype1Probe), new Subtype2Adapter(subtype2Probe))
       }
       val control = eventSource.to(testMultiplexedSink, "")
       control.sendEvent(Subtype1Event1("subtype-1"))

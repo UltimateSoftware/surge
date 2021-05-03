@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.core
 
@@ -86,10 +86,8 @@ trait TestBoundedContext {
       val newSequenceNumber = agg.map(_.version).getOrElse(0) + 1
 
       cmd match {
-        case Increment(aggregateId) => Future.successful(Right(Seq(CountIncremented(aggregateId, incrementBy = 1,
-          sequenceNumber = newSequenceNumber))))
-        case Decrement(aggregateId) => Future.successful(Right(Seq(CountDecremented(aggregateId, decrementBy = 1,
-          sequenceNumber = newSequenceNumber))))
+        case Increment(aggregateId)       => Future.successful(Right(Seq(CountIncremented(aggregateId, incrementBy = 1, sequenceNumber = newSequenceNumber))))
+        case Decrement(aggregateId)       => Future.successful(Right(Seq(CountDecremented(aggregateId, decrementBy = 1, sequenceNumber = newSequenceNumber))))
         case CreateNoOpEvent(aggregateId) => Future.successful(Right(Seq(NoOpEvent(aggregateId, newSequenceNumber))))
         case _: DoNothing                 => Future.successful(Right(Seq.empty))
         case fail: FailCommandProcessing =>

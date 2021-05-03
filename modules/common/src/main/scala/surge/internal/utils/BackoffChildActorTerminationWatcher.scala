@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.internal.utils
 
@@ -6,11 +6,12 @@ import akka.actor.{ Actor, ActorRef, Props, Terminated }
 import akka.pattern.BackoffSupervisor
 
 /**
- * There is no documented way to be notify once an actor is killed by the Backoff supervisor
- * once it meets the max number of retries
- * This is a custom implementation that will notify
- * @param subject The BackoffSupervisor actor
- * @param onChildTermination The function to call when the actor inside `subject` gets terminated
+ * There is no documented way to be notify once an actor is killed by the Backoff supervisor once it meets the max number of retries This is a custom
+ * implementation that will notify
+ * @param subject
+ *   The BackoffSupervisor actor
+ * @param onChildTermination
+ *   The function to call when the actor inside `subject` gets terminated
  */
 class BackoffChildActorTerminationWatcher(subject: ActorRef, onChildTermination: () => Unit) extends Actor with Logging {
 

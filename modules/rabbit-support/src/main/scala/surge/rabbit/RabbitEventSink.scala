@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.rabbit
 
@@ -30,21 +30,20 @@ trait RabbitEventSink[Event] extends EventHandler[Event] {
   private val log = LoggerFactory.getLogger(getClass)
 
   override def eventHandler[Meta]: Flow[EventPlusStreamMeta[String, Event, Meta], Meta, NotUsed] = {
-    Flow[EventPlusStreamMeta[String, Event, Meta]].map { evtPlusOffset =>
-      val serialized = formatting.writeEvent(evtPlusOffset.messageBody)
-      val headers: Map[String, AnyRef] = serialized.headers
-      val props = new BasicProperties.Builder()
-        .headers(headers.asJava)
-        .build()
+    Flow[EventPlusStreamMeta[String, Event, Meta]]
+      .map { evtPlusOffset =>
+        val serialized = formatting.writeEvent(evtPlusOffset.messageBody)
+        val headers: Map[String, AnyRef] = serialized.headers
+        val props = new BasicProperties.Builder().headers(headers.asJava).build()
 
-      val writeMessage = WriteMessage(ByteString(serialized.value)).withProperties(props)
-        .withRoutingKey(writeRoute)
-      interceptWriteMessage(writeMessage) -> evtPlusOffset.streamMeta
+        val writeMessage = WriteMessage(ByteString(serialized.value)).withProperties(props).withRoutingKey(writeRoute)
+        interceptWriteMessage(writeMessage) -> evtPlusOffset.streamMeta
 
-    }.via(
-      PassThroughFlow(
+      }
+      .via(PassThroughFlow(
         Flow[(WriteMessage, Meta)].map(_._1).via(AmqpFlow.withConfirm(writeSettings())), // TODO Grab the write result and look for failures?
-        Keep.right)).map(_._2)
+        Keep.right))
+      .map(_._2)
   }
 
   def interceptWriteMessage(writeMessage: WriteMessage): WriteMessage = {
@@ -73,10 +72,7 @@ trait RabbitEventSink[Event] extends EventHandler[Event] {
           .withBufferSize(bufferSize = bufferSize)
           .withConfirmationTimeout(confirmationTimeout)
       case None =>
-        AmqpWriteSettings(connectionProvider)
-          .withRoutingKey(writeRoute)
-          .withBufferSize(bufferSize = bufferSize)
-          .withConfirmationTimeout(confirmationTimeout)
+        AmqpWriteSettings(connectionProvider).withRoutingKey(writeRoute).withBufferSize(bufferSize = bufferSize).withConfirmationTimeout(confirmationTimeout)
     }
   }
 }

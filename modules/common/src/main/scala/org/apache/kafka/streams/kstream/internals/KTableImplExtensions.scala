@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package org.apache.kafka.streams.kstream.internals
 
@@ -41,8 +41,14 @@ object KTableImplExtensions {
       ktableImpl.builder.addGraphNode(ktableImpl.streamsGraphNode, toStreamNode)
 
       // we can inherit parent key and value serde
-      val impl = new KStreamImpl[K, Change[V]](name, ktableImpl.keySerde, serdeForChanged(ktableImpl.valueSerde), ktableImpl.subTopologySourceNodes,
-        false, toStreamNode, ktableImpl.builder)
+      val impl = new KStreamImpl[K, Change[V]](
+        name,
+        ktableImpl.keySerde,
+        serdeForChanged(ktableImpl.valueSerde),
+        ktableImpl.subTopologySourceNodes,
+        false,
+        toStreamNode,
+        ktableImpl.builder)
 
       new KStream(impl)
     }
