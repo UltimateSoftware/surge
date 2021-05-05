@@ -5,11 +5,10 @@ package surge.core
 import io.opentracing.mock.MockTracer
 import play.api.libs.json._
 import surge.internal.domain.CommandHandler
-import surge.internal.utils.JsonFormats
 import surge.kafka.KafkaTopic
 import surge.metrics.Metrics
 
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.Future
 
 object TestBoundedContext {
   case class State(aggregateId: String, count: Int, version: Int)
@@ -36,6 +35,14 @@ object TestBoundedContext {
   }
   case class CreateExceptionThrowingEvent(aggregateId: String, throwable: Throwable) extends BaseTestCommand
 
+  implicit val countIncrementedFormat: Format[CountIncremented] = Json.format
+  implicit val countDecrementedFormat: Format[CountDecremented] = Json.format
+  implicit val noopFormat: Format[NoOpEvent] = Json.format
+  implicit val exceptionThrowingFormat: Format[ExceptionThrowingEvent] = new Format[ExceptionThrowingEvent] {
+    override def writes(o: ExceptionThrowingEvent): JsValue = JsNull
+    override def reads(json: JsValue): JsResult[ExceptionThrowingEvent] = JsError("Exception throwing event should never be serialized")
+  }
+  implicit val baseTestEventFormat: Format[BaseTestEvent] = Json.format[BaseTestEvent]
   sealed trait BaseTestEvent {
     def aggregateId: String
     def sequenceNumber: Int
@@ -112,7 +119,7 @@ trait TestBoundedContext {
 
   val readFormats: SurgeReadFormatting[State, BaseTestEvent] = new SurgeReadFormatting[State, BaseTestEvent] {
     override def readEvent(bytes: Array[Byte]): BaseTestEvent = {
-      Json.parse(bytes).as[BaseTestEvent](JsonFormats.jsonFormatterFromJackson)
+      Json.parse(bytes).as[BaseTestEvent]
     }
 
     override def readState(bytes: Array[Byte]): Option[State] = {
@@ -123,7 +130,7 @@ trait TestBoundedContext {
   val writeFormats: SurgeWriteFormatting[State, BaseTestEvent] = new SurgeWriteFormatting[State, BaseTestEvent] {
     override def writeEvent(evt: BaseTestEvent): SerializedMessage = {
       val key = s"${evt.aggregateId}:${evt.sequenceNumber}"
-      val body = Json.toJson(evt)(JsonFormats.jsonFormatterFromJackson).toString().getBytes()
+      val body = Json.toJson(evt).toString().getBytes()
       SerializedMessage(key, body, Map.empty)
     }
 

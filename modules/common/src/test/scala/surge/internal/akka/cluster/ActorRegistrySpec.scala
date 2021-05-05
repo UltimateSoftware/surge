@@ -62,7 +62,7 @@ class ActorRegistrySpec
       val ref2 = system.actorOf(Props(new RegisteredActor(registry, key)))
 
       eventually {
-        registry.discoverActors(key, List(HostPort("localhost", 0))).futureValue shouldEqual List(ref1.path.toString, ref2.path.toString)
+        registry.discoverActors(key, List(HostPort("localhost", 0))).futureValue should contain theSameElementsAs List(ref1.path.toString, ref2.path.toString)
       }
     }
     "Retrieve from inventory an actor by tag" in {
