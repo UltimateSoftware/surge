@@ -36,8 +36,8 @@ jobs:
             --environment_json=
       - name: lint
         run: 'fnd tanagra:build:lint && sbt scalafmtCheckAll'
-      - name: check-binary-compatibility
-        run: 'fnd tanagra:build:check-binary-compat'
+#      - name: check-binary-compatibility
+#        run: 'fnd tanagra:build:check-binary-compat'
       - name: test
         run: |-
           fnd tanagra:build:test \

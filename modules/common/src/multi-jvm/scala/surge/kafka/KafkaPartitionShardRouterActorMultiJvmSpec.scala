@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.kafka
 
@@ -36,8 +36,11 @@ object KafkaPartitionShardRouterActorSpecConfig extends MultiNodeConfig {
 class KafkaPartitionShardRouterActorMultiJvmNode1 extends KafkaPartitionShardRouterActorSpecBase
 class KafkaPartitionShardRouterActorMultiJvmNode2 extends KafkaPartitionShardRouterActorSpecBase
 
-class KafkaPartitionShardRouterActorSpecBase extends MultiNodeSpec(KafkaPartitionShardRouterActorSpecConfig) with STMultiNodeSpec
-  with ImplicitSender with KafkaPartitionShardRouterActorSpecLike {
+class KafkaPartitionShardRouterActorSpecBase
+    extends MultiNodeSpec(KafkaPartitionShardRouterActorSpecConfig)
+    with STMultiNodeSpec
+    with ImplicitSender
+    with KafkaPartitionShardRouterActorSpecLike {
   import KafkaPartitionShardRouterActorSpecModels._
   import KafkaPartitionShardRouterActorSpecConfig._
 

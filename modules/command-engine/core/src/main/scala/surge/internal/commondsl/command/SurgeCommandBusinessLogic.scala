@@ -5,7 +5,8 @@ package surge.internal.commondsl.command
 import com.typesafe.config.ConfigFactory
 import io.opentracing.Tracer
 import io.opentracing.noop.NoopTracerFactory
-import surge.core.{ SurgeAggregateReadFormatting, SurgeCommandKafkaConfig, SurgeCommandModel, SurgeWriteFormatting }
+import surge.core.command.{ SurgeCommandKafkaConfig, SurgeCommandModel }
+import surge.core.{ SurgeAggregateReadFormatting, SurgeWriteFormatting }
 import surge.kafka.KafkaTopic
 import surge.metrics.Metrics
 
@@ -19,8 +20,8 @@ abstract class SurgeBaseCommandBusinessLogic[AggId, Agg, Command, Rej, Event] {
   def aggregateName: String
 
   def stateTopic: KafkaTopic
-
   def eventsTopic: KafkaTopic
+  @deprecated("Will be removed from here once an alternative model to CQRS processing is available.", "0.5.2")
   def publishStateOnly: Boolean = false
 
   def readFormatting: SurgeAggregateReadFormatting[Agg]

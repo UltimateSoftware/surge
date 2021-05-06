@@ -8,6 +8,7 @@ import akka.util.Timeout
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.header.Headers
 import org.slf4j.LoggerFactory
+import surge.internal.SurgeModel
 import surge.internal.config.TimeoutConfig
 import surge.internal.kafka.KafkaProducerActorImpl
 import surge.kafka.streams._
@@ -87,7 +88,7 @@ object KafkaProducerActor {
       actorSystem: ActorSystem,
       assignedPartition: TopicPartition,
       metrics: Metrics,
-      businessLogic: SurgeModel[_, _],
+      businessLogic: SurgeModel[_, _, _, _],
       kStreams: AggregateStateStoreKafkaStreams[_]): KafkaProducerActor = {
     val publisherActor = actorSystem.actorOf(
       Props(new KafkaProducerActorImpl(assignedPartition, metrics, businessLogic, kStreams)).withDispatcher("kafka-publisher-actor-dispatcher"))

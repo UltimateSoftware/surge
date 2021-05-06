@@ -19,7 +19,7 @@ import scala.util.{ Failure, Success, Try }
 final case class KafkaRecordMetadata[Key](key: Option[Key], wrapped: RecordMetadata)
 
 trait KafkaProducerHelperCommon[K, V] {
-  def topic: KafkaTopic
+  def topic: KafkaTopicTrait
   def partitioner: KafkaPartitionerBase[K]
   def producer: KafkaProducer[K, V]
 
@@ -154,7 +154,7 @@ case class KafkaStringProducer(
 
 case class KafkaBytesProducer(
     brokers: Seq[String],
-    override val topic: KafkaTopic,
+    override val topic: KafkaTopicTrait,
     override val partitioner: KafkaPartitionerBase[String] = NoPartitioner[String],
     kafkaConfig: Map[String, String] = Map.empty)
     extends KafkaProducerTrait[String, Array[Byte]] {

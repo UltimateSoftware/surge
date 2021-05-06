@@ -6,6 +6,7 @@ import akka.actor.{ ActorSystem, NoSerializationVerificationNeeded }
 import akka.testkit.{ TestKit, TestProbe }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
+import surge.core.command.{ SurgeCommandServiceSink, SurgeMultiCommandServiceSink }
 import surge.streams.sink.TestEventSource
 
 import java.util.UUID

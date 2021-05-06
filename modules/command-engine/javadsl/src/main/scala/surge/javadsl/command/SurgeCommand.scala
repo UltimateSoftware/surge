@@ -4,10 +4,13 @@ package surge.javadsl.command
 
 import akka.actor.ActorSystem
 import com.typesafe.config.{ Config, ConfigFactory }
+import play.api.libs.json.JsValue
 import surge.core
-import surge.core.{ SurgeCommandModel => CoreBusinessLogic }
+import surge.core.{ command, SurgePartitionRouter }
+import surge.core.command.SurgeCommandModel
 import surge.internal.commondsl.command.{ SurgeCommandBusinessLogic, SurgeRejectableCommandBusinessLogic }
 import surge.javadsl.common.{ HealthCheck, HealthCheckTrait }
+import surge.kafka.streams.AggregateStateStoreKafkaStreams
 import surge.metrics.Metric
 
 import java.util.concurrent.CompletionStage
@@ -44,11 +47,14 @@ object SurgeCommand {
 
 private[javadsl] class SurgeCommandImpl[AggId, Agg, Command, +Rej, Evt](
     val actorSystem: ActorSystem,
-    override val businessLogic: CoreBusinessLogic[Agg, Command, Rej, Evt],
+    override val businessLogic: SurgeCommandModel[Agg, Command, Rej, Evt],
     aggIdToString: AggId => String,
     config: Config)
-    extends core.SurgeCommandImpl[Agg, Command, Rej, Evt](actorSystem, businessLogic, config)
+    extends command.SurgeCommandImpl[Agg, Command, Rej, Evt](actorSystem, businessLogic, config)
     with SurgeCommand[AggId, Agg, Command, Rej, Evt] {
+
+  override protected val actorRouter: SurgePartitionRouter = createPartitionRouter()
+  override protected val kafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue] = createStateStore()
 
   import surge.javadsl.common.HealthCheck._
   def getHealthCheck: CompletionStage[HealthCheck] = {

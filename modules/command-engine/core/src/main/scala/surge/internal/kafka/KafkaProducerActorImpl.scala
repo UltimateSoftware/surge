@@ -15,7 +15,7 @@ import surge.core.KafkaProducerActor
 import surge.internal.akka.ActorWithTracing
 import surge.kafka.streams.HealthyActor.GetHealth
 import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, HealthCheck, HealthCheckStatus }
-import surge.kafka.{ KafkaBytesProducer, KafkaRecordMetadata }
+import surge.kafka.{ KafkaBytesProducer, KafkaRecordMetadata, KafkaTopicTrait }
 import surge.metrics.{ MetricInfo, Metrics, Rate, Timer }
 
 import java.time.Instant
@@ -68,8 +68,8 @@ class KafkaProducerActorImpl(
     with Timers {
 
   import KafkaProducerActorImpl._
-  import producerContext._
   import context.dispatcher
+  import producerContext._
   import kafka._
 
   private val log: Logger = LoggerFactory.getLogger(getClass)
@@ -109,6 +109,11 @@ class KafkaProducerActorImpl(
   }
 
   private def newPublisher(): KafkaBytesProducer = {
+
+    object PoisonTopic extends KafkaTopicTrait {
+      def name = throw new IllegalStateException("there is no topic")
+    }
+
     val kafkaConfig = Map[String, String](
       ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG -> true.toString,
       ProducerConfig.BATCH_SIZE_CONFIG -> publisherBatchSize.toString,
@@ -119,7 +124,7 @@ class KafkaProducerActorImpl(
 
     // Set up the producer on the events topic so the partitioner can partition automatically on the events topic since we manually set the partition for the
     // aggregate state topic record and the events topic could have a different number of partitions
-    val producer = KafkaBytesProducer(brokers, eventsTopic, partitioner, kafkaConfig)
+    val producer = KafkaBytesProducer(brokers, eventsTopicOpt.getOrElse(PoisonTopic), partitioner, kafkaConfig)
     if (enableMetrics) {
       metrics.registerKafkaMetrics(kafkaPublisherMetricsName, () => producer.producer.metrics)
     }
@@ -236,7 +241,6 @@ class KafkaProducerActorImpl(
     if (state.transactionInProgress) {
       if (state.currentTransactionTimeMillis >= transactionTimeWarningThreshold &&
         lastTransactionInProgressWarningTime.plusSeconds(1L).isBefore(Instant.now())) {
-
         lastTransactionInProgressWarningTime = Instant.now
         log.warn(
           s"KafkaPublisherActor partition {} tried to flush, but another transaction is already in progress. " +
@@ -249,10 +253,14 @@ class KafkaProducerActorImpl(
       val eventMessages = state.pendingWrites.flatMap(_.publish.eventsToPublish)
       val stateMessages = state.pendingWrites.map(_.publish.state)
 
-      val eventRecords = eventMessages.map { eventToPublish =>
-        // Using null here since we need to add the headers but we don't want to explicitly assign the partition
-        new ProducerRecord(eventsTopic.name, null, eventToPublish.key, eventToPublish.value, eventToPublish.headers) // scalastyle:ignore null
-      }
+      val eventRecords = eventsTopicOpt
+        .map(eventsTopic =>
+          eventMessages.map { eventToPublish =>
+            // Using null here since we need to add the headers but we don't want to explicitly assign the partition
+            new ProducerRecord(eventsTopic.name, null, eventToPublish.key, eventToPublish.value, eventToPublish.headers) // scalastyle:ignore null
+          })
+        .getOrElse(Seq.empty)
+
       val stateRecords = stateMessages.map { state =>
         new ProducerRecord(stateTopic.name, assignedPartition.partition(), state.key, state.value, state.headers)
       }

@@ -4,12 +4,13 @@ package surge.core
 
 import akka.actor.ActorSystem
 import com.typesafe.config.Config
+import surge.internal.SurgeModel
 
 trait SurgeProcessingTrait[S, M, +R, E] {
   def start(): Unit
   def restart(): Unit
   def stop(): Unit
-  val businessLogic: SurgeModel[S, E]
+  val businessLogic: SurgeModel[S, M, R, E]
   def actorSystem: ActorSystem
   def config: Config
 }

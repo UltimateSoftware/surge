@@ -10,6 +10,7 @@ import io.opentracing.{ Span, Tracer }
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.akka.cluster.{ JacksonSerializable, Passivate }
 import surge.core._
+import surge.internal.SurgeModel
 import surge.internal.akka.ActorWithTracing
 import surge.internal.config.{ RetryConfig, TimeoutConfig }
 import surge.internal.domain.HandledMessageResult
@@ -119,7 +120,7 @@ object PersistentActor {
 
   def props[S, M, R, E](
       aggregateId: String,
-      businessLogic: SurgeCommandModel[S, M, R, E],
+      businessLogic: SurgeModel[S, M, R, E],
       regionSharedResources: PersistentEntitySharedResources,
       config: Config): Props = {
     Props(new PersistentActor(aggregateId, businessLogic, regionSharedResources, config)).withDispatcher("surge-persistence-actor-dispatcher")
@@ -132,7 +133,7 @@ object PersistentActor {
 
 class PersistentActor[S, M, R, E](
     val aggregateId: String,
-    val businessLogic: SurgeCommandModel[S, M, R, E],
+    val businessLogic: SurgeModel[S, M, R, E],
     val regionSharedResources: PersistentEntitySharedResources,
     implicit val config: Config)
     extends ActorWithTracing
@@ -190,7 +191,7 @@ class PersistentActor[S, M, R, E](
 
   protected val log: Logger = LoggerFactory.getLogger(getClass)
 
-  private val publishStateOnly: Boolean = businessLogic.kafka.publishStateOnly
+  private val publishStateOnly: Boolean = businessLogic.kafka.eventsTopicOpt.isEmpty
 
   override def preStart(): Unit = {
     initializeState(initializationAttempts = 0, None)
@@ -354,7 +355,7 @@ class PersistentActor[S, M, R, E](
 
   private def serializeEvents(events: Seq[E]): Future[Seq[KafkaProducerActor.MessageToPublish]] = Future {
     events.map { event =>
-      val serializedMessage = metrics.serializeEventTimer.time(businessLogic.writeFormatting.writeEvent(event))
+      val serializedMessage = metrics.serializeEventTimer.time(businessLogic.eventWriteFormatting.writeEvent(event))
       log.trace(s"Publishing event for {} {}", Seq(businessLogic.aggregateName, serializedMessage.key): _*)
       KafkaProducerActor.MessageToPublish(
         key = serializedMessage.key,
@@ -365,7 +366,7 @@ class PersistentActor[S, M, R, E](
 
   private def serializeState(stateValueOpt: Option[S]): Future[KafkaProducerActor.MessageToPublish] = Future {
     val serializedStateOpt = stateValueOpt.map { value =>
-      metrics.serializeStateTimer.time(businessLogic.writeFormatting.writeState(value))
+      metrics.serializeStateTimer.time(businessLogic.aggregateWriteFormatting.writeState(value))
     }
     val stateValue = serializedStateOpt.map(_.value).orNull
     val stateHeaders = serializedStateOpt.map(ser => HeadersHelper.createHeaders(ser.headers)).orNull

@@ -4,6 +4,7 @@ package surge.core
 
 import io.opentracing.mock.MockTracer
 import play.api.libs.json._
+import surge.core.command.{ SurgeCommandKafkaConfig, SurgeCommandModel }
 import surge.internal.domain.CommandHandler
 import surge.kafka.KafkaTopic
 import surge.metrics.Metrics
@@ -137,7 +138,7 @@ trait TestBoundedContext {
     override def writeState(agg: State): SerializedAggregate = SerializedAggregate(Json.toJson(agg).toString().getBytes(), Map.empty)
   }
   val businessLogic: SurgeCommandModel[State, BaseTestCommand, Nothing, BaseTestEvent] =
-    SurgeCommandModel(
+    command.SurgeCommandModel(
       aggregateName = "CountAggregate",
       kafka = kafkaConfig,
       model = BusinessLogic,
