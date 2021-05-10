@@ -31,7 +31,7 @@ object SurgeCommand {
   }
   def apply[AggId, Agg, Command, Rej, Evt](
       actorSystem: ActorSystem,
-      businessLogic: SurgeRejectableCommandBusinessLogicTrait[AggId, Agg, Command, Nothing, Evt],
+      businessLogic: SurgeRejectableCommandBusinessLogicTrait[AggId, Agg, Command, Rej, Evt],
       config: Config): SurgeCommand[AggId, Agg, Command, Rej, Evt] = {
     new SurgeCommandImpl(actorSystem, SurgeCommandModel(businessLogic), businessLogic.aggregateIdToString, config)
   }

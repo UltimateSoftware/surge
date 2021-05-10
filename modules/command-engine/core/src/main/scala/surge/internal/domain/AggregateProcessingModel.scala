@@ -75,11 +75,11 @@ trait CommandHandler[S, M, R, E] extends AggregateProcessingModel[S, M, R, E] {
 }
 
 trait EventHandler[S, E] extends AggregateProcessingModel[S, Nothing, Nothing, E] {
-  def processEvent(ctx: Context, state: Option[S], event: E): Option[S]
+  def handleEvent(ctx: Context, state: Option[S], event: E): Option[S]
 
   override final def handle(ctx: Context, state: Option[S], msg: Nothing)(
       implicit ec: ExecutionContext): Future[Either[Nothing, HandledMessageResult[S, Nothing]]] =
     throw new RuntimeException("Impossible")
 
-  override final def apply(ctx: Context, state: Option[S], event: E): Option[S] = processEvent(ctx, state, event)
+  override final def apply(ctx: Context, state: Option[S], event: E): Option[S] = handleEvent(ctx, state, event)
 }
