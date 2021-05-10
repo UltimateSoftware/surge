@@ -5,35 +5,31 @@ package surge.scaladsl.command
 import akka.actor.ActorRef
 import io.opentracing.Tracer
 import surge.internal.persistence.{ AggregateRefTrait, PersistentActor }
+import surge.scaladsl.common.{ AggregateRefBaseTrait, _ }
 
 import scala.concurrent.{ ExecutionContext, Future }
 
 trait AggregateRef[Agg, Cmd, Event] {
-  def sendCommand(command: Cmd)(implicit ec: ExecutionContext): Future[CommandResult[Agg]]
-  def getState(implicit ec: ExecutionContext): Future[Option[Agg]]
-  def applyEvent(event: Event)(implicit ec: ExecutionContext): Future[ApplyEventResult[Agg]]
+  def getState: Future[Option[Agg]]
+  def sendCommand(command: Cmd): Future[CommandResult[Agg]]
+  def applyEvent(event: Event): Future[ApplyEventResult[Agg]]
 }
 
-final class AggregateRefImpl[AggId, Agg, Cmd, Event](val aggregateId: AggId, val region: ActorRef, val tracer: Tracer)
+final class AggregateRefImpl[AggId, Agg, Cmd, Event](val aggregateId: AggId, protected val region: ActorRef, protected val tracer: Tracer)
     extends AggregateRef[Agg, Cmd, Event]
+    with AggregateRefBaseTrait[AggId, Agg, Cmd, Event]
     with AggregateRefTrait[AggId, Agg, Cmd, Event] {
 
-  def sendCommand(command: Cmd)(implicit ec: ExecutionContext): Future[CommandResult[Agg]] = {
+  private implicit val ec: ExecutionContext = ExecutionContext.global
+
+  def sendCommand(command: Cmd): Future[CommandResult[Agg]] = {
     val envelope = PersistentActor.ProcessMessage[Cmd](aggregateId.toString, command)
-    sendCommandWithRetries(envelope).map {
+    val result = sendCommandWithRetries(envelope).map {
       case Left(error) =>
-        CommandFailure(error)
+        CommandFailure[Agg](error)
       case Right(aggOpt) =>
-        CommandSuccess(aggOpt)
+        CommandSuccess[Agg](aggOpt)
     }
-  }
-
-  def getState(implicit ec: ExecutionContext): Future[Option[Agg]] = queryState
-
-  def applyEvent(event: Event)(implicit ec: ExecutionContext): Future[ApplyEventResult[Agg]] = {
-    val envelope = PersistentActor.ApplyEvent[Event](aggregateId.toString, event)
-    applyEventsWithRetries(envelope).map(aggOpt => ApplyEventsSuccess[Agg](aggOpt)).recover { case e =>
-      ApplyEventsFailure[Agg](e)
-    }
+    result
   }
 }

@@ -7,9 +7,9 @@ import java.util.concurrent.CompletionStage
 import akka.actor.ActorSystem
 import com.typesafe.config.{ Config, ConfigFactory }
 import surge.core
-import surge.core.command
-import surge.core.command.SurgeCommandModel
-import surge.internal.commondsl.command.{ SurgeCommandBusinessLogic, SurgeRejectableCommandBusinessLogic }
+import surge.core.command._
+import surge.core.commondsl.{ SurgeCommandBusinessLogicTrait, SurgeRejectableCommandBusinessLogicTrait }
+import surge.core.{ command, SurgePartitionRouter }
 import surge.javadsl.common.{ HealthCheck, HealthCheckTrait }
 import surge.metrics.Metric
 
@@ -23,7 +23,8 @@ trait SurgeCommand[AggId, Agg, Command, +Rej, Evt] extends core.SurgeProcessingT
 }
 
 object SurgeCommand {
-  def create[AggId, Agg, Command, Evt](businessLogic: SurgeCommandBusinessLogic[AggId, Agg, Command, Evt]): SurgeCommand[AggId, Agg, Command, Nothing, Evt] = {
+  def create[AggId, Agg, Command, Evt](
+      businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Evt]): SurgeCommand[AggId, Agg, Command, Nothing, Evt] = {
     val actorSystem = ActorSystem(s"${businessLogic.aggregateName}ActorSystem")
     val config = ConfigFactory.load()
     create(actorSystem, businessLogic, config)
@@ -31,16 +32,16 @@ object SurgeCommand {
 
   def create[AggId, Agg, Command, Evt](
       actorSystem: ActorSystem,
-      businessLogic: SurgeCommandBusinessLogic[AggId, Agg, Command, Evt],
+      businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Evt],
       config: Config): SurgeCommand[AggId, Agg, Command, Nothing, Evt] = {
-    new SurgeCommandImpl(actorSystem, SurgeCommandBusinessLogic.toCore(businessLogic), businessLogic.aggregateIdToString, config)
+    new SurgeCommandImpl(actorSystem, SurgeCommandModel(businessLogic), businessLogic.aggregateIdToString, config)
   }
 
   def create[AggId, Agg, Command, Rej, Evt](
       actorSystem: ActorSystem,
-      businessLogic: SurgeRejectableCommandBusinessLogic[AggId, Agg, Command, Rej, Evt],
+      businessLogic: SurgeRejectableCommandBusinessLogicTrait[AggId, Agg, Command, Rej, Evt],
       config: Config): SurgeCommand[AggId, Agg, Command, Rej, Evt] = {
-    new SurgeCommandImpl(actorSystem, SurgeRejectableCommandBusinessLogic.toCore(businessLogic), businessLogic.aggregateIdToString, config)
+    new SurgeCommandImpl(actorSystem, SurgeCommandModel(businessLogic), businessLogic.aggregateIdToString, config)
   }
 }
 

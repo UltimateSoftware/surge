@@ -7,7 +7,7 @@ import com.typesafe.config.{ Config, ConfigFactory }
 import surge.core
 import surge.core.command
 import surge.core.command.SurgeCommandModel
-import surge.internal.commondsl.command.{ SurgeCommandBusinessLogic, SurgeRejectableCommandBusinessLogic }
+import surge.core.commondsl.{ SurgeCommandBusinessLogicTrait, SurgeRejectableCommandBusinessLogicTrait }
 import surge.metrics.Metric
 import surge.scaladsl.common.HealthCheckTrait
 
@@ -18,22 +18,22 @@ trait SurgeCommand[AggId, Agg, Command, +Rej, Evt] extends core.SurgeProcessingT
 
 object SurgeCommand {
   def apply[AggId, Agg, Command, Event](
-      businessLogic: SurgeCommandBusinessLogic[AggId, Agg, Command, Event]): SurgeCommand[AggId, Agg, Command, Nothing, Event] = {
+      businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Event]): SurgeCommand[AggId, Agg, Command, Nothing, Event] = {
     val actorSystem = ActorSystem(s"${businessLogic.aggregateName}ActorSystem")
     val config = ConfigFactory.load()
     apply(actorSystem, businessLogic, config)
   }
   def apply[AggId, Agg, Command, Event](
       actorSystem: ActorSystem,
-      businessLogic: SurgeCommandBusinessLogic[AggId, Agg, Command, Event],
+      businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Event],
       config: Config = ConfigFactory.load()): SurgeCommand[AggId, Agg, Command, Nothing, Event] = {
-    new SurgeCommandImpl(actorSystem, SurgeCommandBusinessLogic.toCore(businessLogic), businessLogic.aggregateIdToString, config)
+    new SurgeCommandImpl(actorSystem, SurgeCommandModel(businessLogic), businessLogic.aggregateIdToString, config)
   }
   def apply[AggId, Agg, Command, Rej, Evt](
       actorSystem: ActorSystem,
-      businessLogic: SurgeRejectableCommandBusinessLogic[AggId, Agg, Command, Nothing, Evt],
+      businessLogic: SurgeRejectableCommandBusinessLogicTrait[AggId, Agg, Command, Nothing, Evt],
       config: Config): SurgeCommand[AggId, Agg, Command, Rej, Evt] = {
-    new SurgeCommandImpl(actorSystem, SurgeRejectableCommandBusinessLogic.toCore(businessLogic), businessLogic.aggregateIdToString, config)
+    new SurgeCommandImpl(actorSystem, SurgeCommandModel(businessLogic), businessLogic.aggregateIdToString, config)
   }
 }
 

@@ -2,16 +2,17 @@
 
 package docs.command
 
-import java.util.UUID
+import com.typesafe.config.ConfigFactory
 
+import java.util.UUID
 import play.api.libs.json.Json
 import surge.core.{ SerializedAggregate, SerializedMessage, SurgeAggregateReadFormatting, SurgeWriteFormatting }
-import surge.internal.commondsl.command.{ AggregateCommandModelBase, SurgeCommandBusinessLogic }
 import surge.kafka.KafkaTopic
+import surge.scaladsl.command.{ AggregateCommandModel, SurgeCommandBusinessLogic }
 
 // #surge_model_class
-object BankAccountSurgeModel extends SurgeCommandBusinessLogic[UUID, BankAccount, BankAccountCommand, BankAccountEvent] {
-  override def commandModel: AggregateCommandModelBase[BankAccount, BankAccountCommand, Nothing, BankAccountEvent] = BankAccountCommandModel
+object BankAccountSurgeModel extends SurgeCommandBusinessLogic[UUID, BankAccount, BankAccountCommand, BankAccountEvent](ConfigFactory.load()) {
+  override def commandModel: AggregateCommandModel[BankAccount, BankAccountCommand, BankAccountEvent] = BankAccountCommandModel
 
   override def aggregateName: String = "bank-account"
 

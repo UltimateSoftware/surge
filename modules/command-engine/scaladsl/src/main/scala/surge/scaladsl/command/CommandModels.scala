@@ -3,13 +3,13 @@
 package surge.scaladsl.command
 
 import surge.core.Context
-import surge.internal.commondsl.command.AggregateCommandModelBase
+import surge.core.command.AggregateCommandModelCoreTrait
 import surge.internal.domain.CommandHandler
 
 import scala.concurrent.Future
 import scala.util.Try
 
-trait AggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelBase[Agg, Cmd, Nothing, Evt] {
+trait AggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCoreTrait[Agg, Cmd, Nothing, Evt] {
   def processCommand(aggregate: Option[Agg], command: Cmd): Try[Seq[Evt]]
   def handleEvent(aggregate: Option[Agg], event: Evt): Option[Agg]
 
@@ -21,7 +21,7 @@ trait AggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelBase[Agg
     }
 }
 
-trait ContextAwareAggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelBase[Agg, Cmd, Nothing, Evt] {
+trait ContextAwareAggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCoreTrait[Agg, Cmd, Nothing, Evt] {
   def processCommand(ctx: Context, aggregate: Option[Agg], command: Cmd): Future[Seq[Evt]]
   def handleEvent(ctx: Context, aggregate: Option[Agg], event: Evt): Option[Agg]
 
@@ -44,7 +44,7 @@ trait ContextAwareAggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandM
  * @tparam Evt
  *   event type
  */
-trait RejectableAggregateCommandModel[Agg, Cmd, Rej, Evt] extends AggregateCommandModelBase[Agg, Cmd, Rej, Evt] {
+trait RejectableAggregateCommandModel[Agg, Cmd, Rej, Evt] extends AggregateCommandModelCoreTrait[Agg, Cmd, Rej, Evt] {
 
   /**
    * Process a command
