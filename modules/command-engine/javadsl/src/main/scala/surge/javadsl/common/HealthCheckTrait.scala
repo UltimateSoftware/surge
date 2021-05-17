@@ -1,0 +1,10 @@
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
+
+//
+package surge.javadsl.common
+
+import java.util.concurrent.CompletionStage
+
+trait HealthCheckTrait {
+  def getHealthCheck: CompletionStage[HealthCheck]
+}

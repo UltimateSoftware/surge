@@ -1,0 +1,103 @@
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
+
+package surge.core
+
+import akka.actor.{ ActorRef, ActorSystem, PoisonPill, Props }
+import akka.pattern._
+import akka.util.Timeout
+import org.apache.kafka.common.TopicPartition
+import org.apache.kafka.common.header.Headers
+import org.slf4j.LoggerFactory
+import surge.internal.SurgeModel
+import surge.internal.config.TimeoutConfig
+import surge.internal.kafka.KafkaProducerActorImpl
+import surge.kafka.streams._
+import surge.metrics.{ MetricInfo, Metrics, Timer }
+
+import java.time.Instant
+import scala.concurrent.{ ExecutionContext, Future }
+
+/**
+ * A stateful producer actor responsible for publishing all states + events for aggregates that belong to a particular state topic partition. The state
+ * maintained by this producer actor is a list of aggregate ids which are considered "in flight". "In flight" is determined by keeping track of the offset this
+ * actor publishes to for each aggregate id as messages are published to Kafka and listening to updates of the downstream Kafka Streams consumer as it makes
+ * progress through the topic. As a state is published, this actor remembers the aggregate id and offset the state for that aggregate is. When the Kafka Streams
+ * consumer processes the state (saving it to a KTable) it notifies the MetadataHandler with the offset of the most recently processed message. The
+ * MetadataHandler will publish an event KafkaPartitionMetadata This producer actor subscribes to the KafkaPartitionMetadata events to get the last processed
+ * offset and marks any aggregates in the "in flight" state as up to date if their offset is less than or equal to the last processed offset.
+ *
+ * When an aggregate actor wants to initialize, it must first ask this stateful producer if the state for that aggregate is up to date in the Kafka Streams
+ * state store KTable. The stateful producer is able to determine this by looking at the aggregates with states that are in flight - if any are in flight for an
+ * aggregate, the state in the KTable is not up to date and initialization of that actor should be delayed.
+ *
+ * On initialization of the stateful producer, it emits an empty "flush" record to the Kafka state topic. The flush record is for an empty aggregate id, but is
+ * used to ensure on initial startup that there were no remaining aggregate states that were in flight, since the newly created producer cannot initialize with
+ * the knowledge of everything that was published previously.
+ *
+ * @param publisherActor
+ *   The underlying publisher actor used to batch and publish messages to Kafka
+ * @param metrics
+ *   Metrics provider to use for recording internal metrics to
+ * @param aggregateName
+ *   The name of the aggregate this publisher is responsible for
+ */
+class KafkaProducerActor(publisherActor: ActorRef, metrics: Metrics, aggregateName: String, val assignedPartition: TopicPartition) extends HealthyComponent {
+
+  private val log = LoggerFactory.getLogger(getClass)
+
+  def publish(
+      aggregateId: String,
+      state: KafkaProducerActor.MessageToPublish,
+      events: Seq[KafkaProducerActor.MessageToPublish]): Future[KafkaProducerActor.PublishResult] = {
+    log.trace(s"Publishing state for {} {}", Seq(aggregateName, state.key): _*)
+    implicit val ec: ExecutionContext = ExecutionContext.global
+    implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PublisherActor.publishTimeout)
+    (publisherActor ? KafkaProducerActorImpl.Publish(eventsToPublish = events, state = state)).mapTo[KafkaProducerActor.PublishResult]
+  }
+
+  def terminate(): Unit = {
+    publisherActor ! PoisonPill
+  }
+
+  private val isAggregateStateCurrentTimer: Timer = metrics.timer(
+    MetricInfo(
+      s"surge.${aggregateName.toLowerCase()}.is-aggregate-current-timer",
+      "Average time in milliseconds taken to check if a particular aggregate is up to date in the KTable",
+      tags = Map("aggregate" -> aggregateName)))
+  def isAggregateStateCurrent(aggregateId: String): Future[Boolean] = {
+    implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PublisherActor.aggregateStateCurrentTimeout)
+    val expirationTime = Instant.now.plusMillis(askTimeout.duration.toMillis)
+    isAggregateStateCurrentTimer.time {
+      (publisherActor ? KafkaProducerActorImpl.IsAggregateStateCurrent(aggregateId, expirationTime)).mapTo[Boolean]
+    }
+  }
+
+  def healthCheck(): Future[HealthCheck] = {
+    publisherActor
+      .ask(HealthyActor.GetHealth)(TimeoutConfig.HealthCheck.actorAskTimeout)
+      .mapTo[HealthCheck]
+      .recoverWith { case err: Throwable =>
+        log.error(s"Failed to get publisher-actor health check", err)
+        Future.successful(HealthCheck(name = "publisher-actor", id = aggregateName, status = HealthCheckStatus.DOWN))
+      }(ExecutionContext.global)
+  }
+}
+
+object KafkaProducerActor {
+  def apply(
+      actorSystem: ActorSystem,
+      assignedPartition: TopicPartition,
+      metrics: Metrics,
+      businessLogic: SurgeModel[_, _, _, _],
+      kStreams: AggregateStateStoreKafkaStreams[_]): KafkaProducerActor = {
+    val publisherActor = actorSystem.actorOf(
+      Props(new KafkaProducerActorImpl(assignedPartition, metrics, businessLogic, kStreams)).withDispatcher("kafka-publisher-actor-dispatcher"))
+
+    new KafkaProducerActor(publisherActor, metrics, businessLogic.aggregateName, assignedPartition)
+  }
+
+  sealed trait PublishResult
+  case object PublishSuccess extends PublishResult
+  case class PublishFailure(t: Throwable) extends PublishResult
+  case class MessageToPublish(key: String, value: Array[Byte], headers: Headers)
+}
