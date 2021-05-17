@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 package surge.internal.streams
 
@@ -20,7 +20,7 @@ import org.scalatest.{ BeforeAndAfterAll, OptionValues }
 import surge.internal.akka.kafka.AkkaKafkaConsumer
 import surge.kafka.KafkaTopic
 import surge.kafka.streams.DefaultSerdes
-import surge.streams.EventPlusStreamMeta
+import surge.streams.{ EventPlusStreamMeta, KafkaStreamMeta }
 import surge.streams.replay.{ DefaultEventReplaySettings, KafkaForeverReplaySettings, KafkaForeverReplayStrategy, NoOpEventReplayStrategy }
 import io.opentracing.noop.NoopTracerFactory
 
@@ -51,8 +51,12 @@ object StreamManagerSpecConfig extends MultiNodeConfig {
 class StreamManagerSpecMultiJvmNode0 extends StreamManagerSpecBase
 class StreamManagerSpecMultiJvmNode1 extends StreamManagerSpecBase
 
-class StreamManagerSpecBase extends MultiNodeSpec(StreamManagerSpecConfig) with StreamManagerMultiNodeSpec
-  with EmbeddedKafka with ScalaFutures with OptionValues {
+class StreamManagerSpecBase
+    extends MultiNodeSpec(StreamManagerSpecConfig)
+    with StreamManagerMultiNodeSpec
+    with EmbeddedKafka
+    with ScalaFutures
+    with OptionValues {
   import StreamManagerSpecConfig._
 
   val tracer: Tracer = NoopTracerFactory.create()
@@ -89,15 +93,14 @@ class StreamManagerSpecBase extends MultiNodeSpec(StreamManagerSpecConfig) with 
             ()
           }
           val replaySettings = KafkaForeverReplaySettings(topic.name).copy(brokers = List(embeddedBroker))
-          val kafkaForeverReplayStrategy = KafkaForeverReplayStrategy.create(
-            actorSystem = system,
-            settings = replaySettings,
-            postReplay = postReplayDef
-          )
+          val kafkaForeverReplayStrategy = KafkaForeverReplayStrategy.create(actorSystem = system, settings = replaySettings, postReplay = postReplayDef)
 
           val probe = TestProbe()
-          val subscriptionProvider = new KafkaOffsetManagementSubscriptionProvider(topic.name, Subscriptions.topics(topic.name),
-            consumerSettings, KafkaStreamManager.wrapBusinessFlow(sendToTestProbe(probe)))
+          val subscriptionProvider = new KafkaOffsetManagementSubscriptionProvider(
+            topic.name,
+            Subscriptions.topics(topic.name),
+            consumerSettings,
+            KafkaStreamManager.wrapBusinessFlow(sendToTestProbe(probe)))
           val consumer = new KafkaStreamManager(topic.name, consumerSettings, subscriptionProvider, kafkaForeverReplayStrategy, replaySettings, tracer)
 
           consumer.start()
@@ -109,8 +112,11 @@ class StreamManagerSpecBase extends MultiNodeSpec(StreamManagerSpecConfig) with 
 
       runOn(node1) {
         val probe = TestProbe()
-        val subscriptionProvider = new KafkaOffsetManagementSubscriptionProvider(topic.name, Subscriptions.topics(topic.name),
-          consumerSettings, KafkaStreamManager.wrapBusinessFlow(sendToTestProbe(probe)))
+        val subscriptionProvider = new KafkaOffsetManagementSubscriptionProvider(
+          topic.name,
+          Subscriptions.topics(topic.name),
+          consumerSettings,
+          KafkaStreamManager.wrapBusinessFlow(sendToTestProbe(probe)))
         val consumer = new KafkaStreamManager(topic.name, consumerSettings, subscriptionProvider, NoOpEventReplayStrategy, DefaultEventReplaySettings, tracer)
 
         consumer.start()

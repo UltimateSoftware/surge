@@ -1,0 +1,24 @@
+name: Build Main
+on:
+  push:
+    branches:
+      - main
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: olafurpg/setup-scala@v10
+        with:
+          java-version: openjdk@1.11.0
+      - name: lint
+        run: 'sbt scalastyle && sbt scalafmtCheckAll'
+      #- name: check-binary-compatibility
+      #  run: 'sbt mimaReportBinaryIssues'
+      - name: test
+        run: 'sbt clean coverage test coverageReport coverageAggregate'
+      - name: publish test report
+        uses: mikepenz/action-junit-report@v2
+        if: 'always()'
+        with:
+          report_paths: 'target/test-reports/*.xml'
