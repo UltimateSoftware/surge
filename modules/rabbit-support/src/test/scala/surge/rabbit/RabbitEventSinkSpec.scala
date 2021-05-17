@@ -18,6 +18,8 @@ import surge.streams.EventPlusStreamMeta
 
 import scala.concurrent.duration._
 
+// FIXME replace embedded rabbit with TestContainers
+/*
 object RabbitEventSinkSpec {
   val SERVICE_PORT: Int = 5672
 }
@@ -185,3 +187,4 @@ class RabbitEventSinkSpec extends TestKit(ActorSystem("RabbitEventSinkSpec")) wi
     }
   }
 }
+ */
