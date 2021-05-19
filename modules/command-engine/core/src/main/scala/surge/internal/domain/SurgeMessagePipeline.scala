@@ -26,16 +26,8 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     with ActorSystemHostAwareness {
 
   protected implicit val system: ActorSystem = actorSystem
-  private val cqrsRegionCreator = new PersistentActorRegionCreator[M](actorSystem, businessLogic, kafkaStreamsImpl, businessLogic.metrics, config)
-  protected val actorRouter: SurgePartitionRouter
-  protected val kafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue]
-
   protected val stateChangeActor: ActorRef = system.actorOf(KafkaConsumerStateTrackingActor.props)
-
-  protected val surgeHealthCheck = new SurgeHealthCheck(businessLogic.aggregateName, kafkaStreamsImpl, actorRouter)(ExecutionContext.global)
-
-  protected def createPartitionRouter() = new SurgePartitionRouter(actorSystem, stateChangeActor, businessLogic, cqrsRegionCreator)
-  protected def createStateStore() = new AggregateStateStoreKafkaStreams[JsValue](
+  protected val kafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue] = new AggregateStateStoreKafkaStreams[JsValue](
     aggregateName = businessLogic.aggregateName,
     stateTopic = businessLogic.kafka.stateTopic,
     partitionTrackerProvider = new KafkaStreamsPartitionTrackerActorProvider(stateChangeActor),
@@ -45,6 +37,10 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     clientId = businessLogic.kafka.clientId,
     system = system,
     metrics = businessLogic.metrics)
+  private val cqrsRegionCreator = new PersistentActorRegionCreator[M](actorSystem, businessLogic, kafkaStreamsImpl, businessLogic.metrics, config)
+  protected val actorRouter: SurgePartitionRouter = new SurgePartitionRouter(actorSystem, stateChangeActor, businessLogic, cqrsRegionCreator)
+
+  protected val surgeHealthCheck = new SurgeHealthCheck(businessLogic.aggregateName, kafkaStreamsImpl, actorRouter)(ExecutionContext.global)
 
   def healthCheck: Future[HealthCheck] = {
     surgeHealthCheck.healthCheck()
