@@ -57,6 +57,16 @@ Pull request titles are used in the release notes and should be a descriptive se
 It should be possible to understand what your change does, but not necessarily how it's accomplished from this single sentence. In the description for your pull request,
 include any additional details to describe how your solution works.
 
+### Documentation
+
+Our documentation & examples can be found in the [surge-docs](modules/surge-docs) module. We leverage [sbt Paradox](https://developer.lightbend.com/docs/paradox/current/)
+to pull examples for the docs from real code.
+
+If you'd like to preview the docs site:
+```
+sbt surge-docs/previewSite
+```
+
 ### Binary Compatibility
 
 Surge tries to guarantee binary compatibility within a minor version.  We use [MiMa](https://github.com/lightbend/mima) to validate the binary compatibility of incoming pull requests.

@@ -87,6 +87,11 @@ lazy val `surge-metrics` = (project in file("modules/metrics")).settings(
     scalatestPlusMockito,
     mockitoCore))
 
+lazy val `surge-docs` = (project in file("modules/surge-docs"))
+  .dependsOn(`surge-common`, `surge-engine-command-core`, `surge-engine-command-javadsl`, `surge-engine-command-scaladsl`, `surge-metrics`)
+  .enablePlugins(ParadoxPlugin, ParadoxSitePlugin)
+  .settings(skip in publish := true, paradoxTheme := Some(builtinParadoxTheme("generic")))
+
 lazy val `surge` = project
   .in(file("."))
   .aggregate(
@@ -95,9 +100,9 @@ lazy val `surge` = project
     `surge-engine-command-javadsl`,
     `surge-engine-command-scaladsl`,
     `surge-metrics`,
-    `surge-rabbitmq-support`)
-  .enablePlugins(ParadoxPlugin, ParadoxSitePlugin)
-  .settings(skip in publish := true, ReleaseSettings.settings, paradoxTheme := Some(builtinParadoxTheme("generic")))
+    `surge-rabbitmq-support`,
+    `surge-docs`)
+  .settings(skip in publish := true, ReleaseSettings.settings)
   .disablePlugins(MimaPlugin)
 
 addCommandAlias("codeFormat", ";headerCreate;test:headerCreate;scalafmtAll")
