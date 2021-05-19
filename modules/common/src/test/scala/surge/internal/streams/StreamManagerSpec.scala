@@ -2,10 +2,11 @@
 
 package surge.internal.streams
 
-import akka.Done
 import akka.actor.ActorSystem
 import akka.kafka.Subscriptions
+import akka.stream.scaladsl.Flow
 import akka.testkit.{ TestKit, TestProbe }
+import akka.{ Done, NotUsed }
 import io.opentracing.noop.NoopTracerFactory
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.clients.producer.ProducerRecord
@@ -21,8 +22,8 @@ import surge.internal.akka.streams.FlowConverter
 import surge.kafka.KafkaTopic
 import surge.kafka.streams.DefaultSerdes
 import surge.streams.DataPipeline._
-import surge.streams.KafkaStreamMeta
 import surge.streams.replay._
+import surge.streams.{ DataHandler, EventPlusStreamMeta }
 
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
@@ -59,19 +60,18 @@ class StreamManagerSpec
       kafkaBrokers: String,
       groupId: String,
       businessLogic: (String, Array[Byte]) => Future[_],
-      replayStrategy: EventReplayStrategy = NoOpEventReplayStrategy,
+      replayStrategy: EventReplayStrategy[String, Array[Byte]] = new NoOpEventReplayStrategy,
       replaySettings: EventReplaySettings = DefaultEventReplaySettings): KafkaStreamManager[String, Array[Byte]] = {
     val consumerSettings = AkkaKafkaConsumer.consumerSettings[String, Array[Byte]](system, groupId).withBootstrapServers(kafkaBrokers)
 
     val parallelism = 16
     val tupleFlow: (String, Array[Byte], Map[String, Array[Byte]]) => Future[_] = { (k, v, _) => businessLogic(k, v) }
     val partitionBy: (String, Array[Byte], Map[String, Array[Byte]]) => String = { (k, _, _) => k }
-    val businessFlow = FlowConverter.flowFor[String, Array[Byte], KafkaStreamMeta](tupleFlow, partitionBy, new DefaultDataSinkExceptionHandler, parallelism)
-    val subscriptionProvider = new KafkaOffsetManagementSubscriptionProvider(
-      topic.name,
-      Subscriptions.topics(topic.name),
-      consumerSettings,
-      KafkaStreamManager.wrapBusinessFlow(businessFlow))
+    val businessFlow = new DataHandler[String, Array[Byte]] {
+      override def dataHandler[Meta]: Flow[EventPlusStreamMeta[String, Array[Byte], Meta], Meta, NotUsed] =
+        FlowConverter.flowFor[String, Array[Byte], Meta](tupleFlow, partitionBy, new DefaultDataSinkExceptionHandler, parallelism)
+    }
+    val subscriptionProvider = new KafkaOffsetManagementSubscriptionProvider(topic.name, Subscriptions.topics(topic.name), consumerSettings, businessFlow)
     new KafkaStreamManager(topic.name, consumerSettings, subscriptionProvider, replayStrategy, replaySettings, NoopTracerFactory.create())
   }
 
@@ -220,7 +220,7 @@ class StreamManagerSpec
         publishToKafka(new ProducerRecord[String, String](topic.name, 2, record3, record3))
 
         val settings = KafkaForeverReplaySettings(topic.name).copy(brokers = List(embeddedBroker))
-        val kafkaForeverReplayStrategy = KafkaForeverReplayStrategy.create(system, settings)
+        val kafkaForeverReplayStrategy = KafkaForeverReplayStrategy.create[String, Array[Byte]](system, settings)
         val consumer =
           testStreamManager(topic, kafkaBrokers = embeddedBroker, groupId = "replay-test", sendToTestProbe(probe), kafkaForeverReplayStrategy, settings)
 

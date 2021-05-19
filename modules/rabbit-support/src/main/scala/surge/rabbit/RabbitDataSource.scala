@@ -19,7 +19,7 @@ object RabbitDataSource {
   val log: Logger = LoggerFactory.getLogger(getClass)
 }
 
-trait RabbitDataSource[Key, Value] extends DataSource {
+trait RabbitDataSource[Key, Value] extends DataSource[Key, Value] {
   import RabbitDataSource._
   def actorSystem: ActorSystem
 
