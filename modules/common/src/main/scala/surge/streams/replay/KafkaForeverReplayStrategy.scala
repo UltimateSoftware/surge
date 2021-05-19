@@ -22,18 +22,27 @@ import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.jdk.CollectionConverters._
 
-class KafkaForeverReplayStrategy[Key, Value](
+class KafkaForeverReplayStrategy(
     actorSystem: ActorSystem,
     settings: KafkaForeverReplaySettings,
     override val preReplay: () => Future[Any] = { () => Future.successful(true) },
     override val postReplay: () => Unit = { () => () })(implicit executionContext: ExecutionContext)
-    extends EventReplayStrategy[Key, Value]
-    with Logging {
+    extends EventReplayStrategy {
 
+  override def createReplayController[Key, Value](context: ReplayControlContext[Key, Value]): KafkaForeverReplayControl =
+    new KafkaForeverReplayControl(actorSystem, settings, preReplay, postReplay)
+}
+
+class KafkaForeverReplayControl(
+    actorSystem: ActorSystem,
+    settings: KafkaForeverReplaySettings,
+    override val preReplay: () => Future[Any] = { () => Future.successful(true) },
+    override val postReplay: () => Unit = { () => () })(implicit executionContext: ExecutionContext)
+    extends ReplayControl {
   private val underlyingActor = actorSystem.actorOf(Props(new TopicResetActor(settings.brokers, settings.topic)))
 
   implicit val timeout: Timeout = Timeout(settings.resetTopicTimeout)
-  override def replay(consumerGroup: String, partitions: Iterable[Int], replayFlow: DataHandler[Key, Value]): Future[Done] = {
+  override def fullReplay(consumerGroup: String, partitions: Iterable[Int]): Future[Done] = {
     underlyingActor.ask(TopicResetActor.ResetTopic(consumerGroup, partitions.toList)).mapTo[ResetTopicResult].map {
       case TopicResetSucceed     => Done
       case TopicResetFailed(err) => throw err
@@ -66,7 +75,7 @@ object KafkaForeverReplayStrategy {
       actorSystem: ActorSystem,
       settings: KafkaForeverReplaySettings,
       preReplay: () => Future[Any] = { () => Future.successful(true) },
-      postReplay: () => Unit = { () => () }): EventReplayStrategy[Key, Value] = {
+      postReplay: () => Unit = { () => () }): KafkaForeverReplayStrategy = {
     new KafkaForeverReplayStrategy(actorSystem, settings, preReplay, postReplay)(ExecutionContext.global)
   }
 }

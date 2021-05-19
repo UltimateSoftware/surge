@@ -9,6 +9,7 @@ import akka.stream.scaladsl.{ Keep, RestartSource, Sink, Source }
 import akka.stream.{ KillSwitch, KillSwitches, Materializer }
 import surge.streams.DataPipeline
 import surge.streams.DataPipeline.ReplaySuccessfullyStarted
+import surge.streams.replay.{ NoOpEventReplayControl, ReplayControl }
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -39,4 +40,6 @@ private[rabbit] class RabbitDataPipeline(source: Source[CommittableReadResult, N
   }
 
   override def replay(): Future[DataPipeline.ReplayResult] = Future.successful(ReplaySuccessfullyStarted())
+
+  override def getReplayControl: ReplayControl = new NoOpEventReplayControl()
 }

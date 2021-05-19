@@ -5,6 +5,7 @@ package surge.streams
 import java.util.concurrent.CompletionStage
 
 import surge.streams.DataPipeline.ReplayResult
+import surge.streams.replay.ReplayControl
 
 import scala.compat.java8.FutureConverters._
 import scala.concurrent.Future
@@ -16,6 +17,8 @@ trait DataPipeline {
   def replayWithCompletionStage(): CompletionStage[ReplayResult] = {
     replay().toJava
   }
+
+  def getReplayControl: ReplayControl
 }
 
 object DataPipeline {
@@ -29,4 +32,5 @@ class TypedDataPipeline[Type](dataPipeline: DataPipeline) extends DataPipeline {
   override def start(): Unit = dataPipeline.start()
   override def stop(): Unit = dataPipeline.stop()
   override def replay(): Future[ReplayResult] = dataPipeline.replay()
+  override def getReplayControl: ReplayControl = dataPipeline.getReplayControl
 }
