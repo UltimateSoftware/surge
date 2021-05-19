@@ -6,7 +6,6 @@ import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
 
 import akka.actor.{ Actor, ActorRef, ActorSystem, Address, Props, Stash }
-import akka.kafka.ConsumerMessage.CommittableOffset
 import akka.kafka.scaladsl.Consumer
 import akka.kafka.scaladsl.Consumer.DrainingControl
 import akka.kafka.{ ConsumerMessage, _ }
@@ -72,8 +71,8 @@ object KafkaStreamManager {
 class KafkaStreamManager[Key, Value](
     topicName: String,
     consumerSettings: ConsumerSettings[Key, Value],
-    subscriptionProvider: KafkaSubscriptionProvider,
-    replayStrategy: EventReplayStrategy,
+    subscriptionProvider: KafkaSubscriptionProvider[Key, Value],
+    replayStrategy: EventReplayStrategy[Key, Value],
     replaySettings: EventReplaySettings,
     val tracer: Tracer)(implicit val actorSystem: ActorSystem)
     extends ActorSystemHostAwareness
@@ -84,7 +83,8 @@ class KafkaStreamManager[Key, Value](
   private val consumerGroup = consumerSettings.getProperty(ConsumerConfig.GROUP_ID_CONFIG)
   private val actorRegistry = new ActorRegistry(actorSystem)
   private val managerActor = actorSystem.actorOf(Props(new KafkaStreamManagerActor(topicName, subscriptionProvider, tracer, actorRegistry)))
-  private val replayCoordinator = actorSystem.actorOf(Props(new ReplayCoordinator(topicName, consumerGroup, replayStrategy, actorRegistry)))
+  private val replayCoordinator =
+    actorSystem.actorOf(Props(new ReplayCoordinator(topicName, consumerGroup, replayStrategy, actorRegistry, subscriptionProvider.businessFlow)))
 
   def start(): KafkaStreamManager[Key, Value] = {
     managerActor ! KafkaStreamManagerActor.StartConsuming
@@ -140,7 +140,11 @@ object KafkaStreamManagerActor {
   case object SuccessfullyStarted extends KafkaStreamManagerActorResponse
 }
 
-class KafkaStreamManagerActor[Key, Value](topicName: String, subscriptionProvider: KafkaSubscriptionProvider, val tracer: Tracer, registry: ActorRegistry)
+class KafkaStreamManagerActor[Key, Value](
+    topicName: String,
+    subscriptionProvider: KafkaSubscriptionProvider[Key, Value],
+    val tracer: Tracer,
+    registry: ActorRegistry)
     extends Actor
     with ActorWithTracing
     with ActorHostAwareness

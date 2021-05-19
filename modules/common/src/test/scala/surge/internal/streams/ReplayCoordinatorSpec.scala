@@ -14,6 +14,7 @@ import surge.internal.akka.cluster.{ ActorRegistry, ActorSystemHostAwareness }
 import surge.internal.streams.ReplayCoordinator.{ ReplayCompleted, ReplayFailed, StartReplay }
 import surge.kafka.HostPort
 import surge.streams.replay.EventReplayStrategy
+import surge.streams.{ DataHandler, DataSink, DataSinkExceptionHandler }
 
 import scala.concurrent.{ ExecutionContext, Future }
 
@@ -29,7 +30,7 @@ class ReplayCoordinatorSpec
   private case object PreReplayCalled
   private case object PostReplayCalled
   private case class ReplayCalled(consumerGroup: String, partitions: Iterable[Int])
-  private def mockReplayStrategy(probe: TestProbe): EventReplayStrategy = new EventReplayStrategy {
+  private def mockReplayStrategy(probe: TestProbe): EventReplayStrategy[Array[Byte], Array[Byte]] = new EventReplayStrategy[Array[Byte], Array[Byte]] {
     override def preReplay: () => Future[Any] = { () =>
       probe.ref ! PreReplayCalled
       Future.successful(Done)
@@ -37,10 +38,17 @@ class ReplayCoordinatorSpec
     override def postReplay: () => Unit = { () =>
       probe.ref ! PostReplayCalled
     }
-    override def replay(consumerGroup: String, partitions: Iterable[Int]): Future[Done] = {
+
+    override def replay(consumerGroup: String, partitions: Iterable[Int], replayFlow: DataHandler[Array[Byte], Array[Byte]]): Future[Done] = {
       probe.ref ! ReplayCalled(consumerGroup, partitions)
       Future.successful(Done)
     }
+  }
+
+  private def emptyFlow: DataSink[Array[Byte], Array[Byte]] = new DataSink[Array[Byte], Array[Byte]] {
+    override def handle(key: Array[Byte], value: Array[Byte], headers: Map[String, Array[Byte]]): Future[Any] = Future.successful(Done)
+    override def partitionBy(key: Array[Byte], value: Array[Byte], headers: Map[String, Array[Byte]]): String = ""
+    override def sinkExceptionHandler: DataSinkExceptionHandler[Array[Byte], Array[Byte]] = new DefaultDataSinkExceptionHandler
   }
 
   "ReplayCoordinator" should {
@@ -51,7 +59,8 @@ class ReplayCoordinatorSpec
       val replayProbe = TestProbe()
       val mockRegistry = mock[ActorRegistry]
       val streamManagerProbe = TestProbe()
-      val replayCoordinator = system.actorOf(Props(new ReplayCoordinator(testTopic, testConsumerGroup, mockReplayStrategy(replayProbe), mockRegistry)))
+      val replayCoordinator =
+        system.actorOf(Props(new ReplayCoordinator(testTopic, testConsumerGroup, mockReplayStrategy(replayProbe), mockRegistry, emptyFlow)))
       when(mockRegistry.discoverActors(anyString, any[List[HostPort]], any[List[String]])(any[ExecutionContext]))
         .thenReturn(Future.successful(List(streamManagerProbe.ref.path.toString)))
 
@@ -74,7 +83,8 @@ class ReplayCoordinatorSpec
       val testProbe = TestProbe()
       val replayProbe = TestProbe()
       val mockRegistry = mock[ActorRegistry]
-      val replayCoordinator = system.actorOf(Props(new ReplayCoordinator(testTopic, testConsumerGroup, mockReplayStrategy(replayProbe), mockRegistry)))
+      val replayCoordinator =
+        system.actorOf(Props(new ReplayCoordinator(testTopic, testConsumerGroup, mockReplayStrategy(replayProbe), mockRegistry, emptyFlow)))
       when(mockRegistry.discoverActors(anyString, any[List[HostPort]], any[List[String]])(any[ExecutionContext])).thenReturn(Future.successful(List.empty))
 
       testProbe.send(replayCoordinator, StartReplay)

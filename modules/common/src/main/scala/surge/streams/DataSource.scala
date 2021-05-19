@@ -19,12 +19,13 @@ import surge.streams.replay.{ DefaultEventReplaySettings, EventReplaySettings, E
 import scala.concurrent.ExecutionContext
 import scala.jdk.CollectionConverters._
 
-trait DataSource {
-  def replayStrategy: EventReplayStrategy = NoOpEventReplayStrategy
+trait DataSource[Key, Value] {
+  private val defaultReplayStrategy = new NoOpEventReplayStrategy[Key, Value]
+  def replayStrategy: EventReplayStrategy[Key, Value] = defaultReplayStrategy
   def replaySettings: EventReplaySettings = DefaultEventReplaySettings
 }
 
-trait KafkaDataSource[Key, Value] extends DataSource {
+trait KafkaDataSource[Key, Value] extends DataSource[Key, Value] {
   private val config: Config = ConfigFactory.load()
   private val defaultBrokers = config.getString("kafka.brokers")
 
@@ -46,40 +47,29 @@ trait KafkaDataSource[Key, Value] extends DataSource {
   def offsetManager: OffsetManager = new DefaultKafkaOffsetManager
 
   def to(sink: DataHandler[Key, Value], consumerGroup: String): DataPipeline = {
-    to(KafkaDataHandler.from(sink), consumerGroup)
-  }
-  def to(sink: KafkaDataHandler[Key, Value], consumerGroup: String): DataPipeline = {
     to(sink, consumerGroup, autoStart = true)
   }
-  def to(sink: DataHandler[Key, Value], consumerGroup: String, autoStart: Boolean): DataPipeline = {
-    to(KafkaDataHandler.from(sink), consumerGroup, autoStart)
-  }
 
-  def to(sink: KafkaDataHandler[Key, Value], consumerGroup: String, autoStart: Boolean): DataPipeline = {
+  def to(sink: DataHandler[Key, Value], consumerGroup: String, autoStart: Boolean): DataPipeline = {
     val consumerSettings = AkkaKafkaConsumer
       .consumerSettings[Key, Value](actorSystem, groupId = consumerGroup, brokers = kafkaBrokers)(keyDeserializer, valueDeserializer)
       .withProperties(additionalKafkaProperties.asScala.toMap)
-    to(consumerSettings, sink, autoStart)
+    to(consumerSettings)(sink, autoStart)
   }
 
-  private def getStreamManager(consumerSettings: ConsumerSettings[Key, Value], sink: KafkaDataHandler[Key, Value])(
+  private def getStreamManager(consumerSettings: ConsumerSettings[Key, Value], sink: DataHandler[Key, Value])(
       implicit actorSystem: ActorSystem): KafkaStreamManager[Key, Value] = {
     val topicName = kafkaTopic.name
-    val processingFlow = KafkaStreamManager.wrapBusinessFlow(sink.dataHandler)
     val subscriptionProvider = offsetManager match {
       case _: DefaultKafkaOffsetManager =>
-        new KafkaOffsetManagementSubscriptionProvider[Key, Value](topicName, subscription, consumerSettings, processingFlow)
+        new KafkaOffsetManagementSubscriptionProvider[Key, Value](topicName, subscription, consumerSettings, sink)
       case _ =>
-        new ManualOffsetManagementSubscriptionProvider[Key, Value](topicName, subscription, consumerSettings, processingFlow, offsetManager)
+        new ManualOffsetManagementSubscriptionProvider[Key, Value](topicName, subscription, consumerSettings, sink, offsetManager)
     }
     new KafkaStreamManager[Key, Value](topicName, consumerSettings, subscriptionProvider, replayStrategy, replaySettings, tracer)
   }
 
   private[streams] def to(consumerSettings: ConsumerSettings[Key, Value])(sink: DataHandler[Key, Value], autoStart: Boolean): DataPipeline = {
-    to(consumerSettings, KafkaDataHandler.from(sink), autoStart)
-  }
-
-  private[streams] def to(consumerSettings: ConsumerSettings[Key, Value], sink: KafkaDataHandler[Key, Value], autoStart: Boolean): DataPipeline = {
     implicit val system: ActorSystem = actorSystem
     implicit val executionContext: ExecutionContext = ExecutionContext.global
     val pipeline = new ManagedDataPipeline(getStreamManager(consumerSettings, sink), metrics)

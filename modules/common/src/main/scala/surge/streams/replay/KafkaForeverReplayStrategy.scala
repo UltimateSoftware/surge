@@ -15,24 +15,25 @@ import org.apache.kafka.common.TopicPartition
 import surge.internal.streams.PartitionAssignorConfig
 import surge.internal.utils.Logging
 import surge.kafka.{ KafkaBytesConsumer, UltiKafkaConsumerConfig }
+import surge.streams.DataHandler
 import surge.streams.replay.TopicResetActor._
 
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.jdk.CollectionConverters._
 
-class KafkaForeverReplayStrategy(
+class KafkaForeverReplayStrategy[Key, Value](
     actorSystem: ActorSystem,
     settings: KafkaForeverReplaySettings,
     override val preReplay: () => Future[Any] = { () => Future.successful(true) },
     override val postReplay: () => Unit = { () => () })(implicit executionContext: ExecutionContext)
-    extends EventReplayStrategy
+    extends EventReplayStrategy[Key, Value]
     with Logging {
 
   private val underlyingActor = actorSystem.actorOf(Props(new TopicResetActor(settings.brokers, settings.topic)))
 
   implicit val timeout: Timeout = Timeout(settings.resetTopicTimeout)
-  override def replay(consumerGroup: String, partitions: Iterable[Int]): Future[Done] = {
+  override def replay(consumerGroup: String, partitions: Iterable[Int], replayFlow: DataHandler[Key, Value]): Future[Done] = {
     underlyingActor.ask(TopicResetActor.ResetTopic(consumerGroup, partitions.toList)).mapTo[ResetTopicResult].map {
       case TopicResetSucceed     => Done
       case TopicResetFailed(err) => throw err
@@ -61,15 +62,13 @@ object KafkaForeverReplaySettings {
 }
 
 object KafkaForeverReplayStrategy {
-
-  def create(
+  def create[Key, Value](
       actorSystem: ActorSystem,
       settings: KafkaForeverReplaySettings,
       preReplay: () => Future[Any] = { () => Future.successful(true) },
-      postReplay: () => Unit = { () => () }): EventReplayStrategy = {
+      postReplay: () => Unit = { () => () }): EventReplayStrategy[Key, Value] = {
     new KafkaForeverReplayStrategy(actorSystem, settings, preReplay, postReplay)(ExecutionContext.global)
   }
-
 }
 
 class TopicResetActor(brokers: List[String], kafkaTopic: String) extends Actor with Stash with Logging {

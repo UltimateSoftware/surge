@@ -3,6 +3,7 @@
 package surge.streams
 
 import akka.NotUsed
+import akka.kafka.ConsumerMessage.CommittableOffset
 import akka.kafka.ConsumerSettings
 import akka.stream.scaladsl.Flow
 import org.apache.kafka.common.serialization.{ ByteArrayDeserializer, Deserializer, StringDeserializer }
@@ -92,6 +93,12 @@ trait KafkaEventSource[Event] extends EventSource[Event] with KafkaDataSource[St
   }
 
   private[streams] def to(consumerSettings: ConsumerSettings[String, Array[Byte]])(sink: EventHandler[Event], autoStart: Boolean): DataPipeline = {
-    super.to(consumerSettings, KafkaDataHandler.from(dataHandler(sink)), autoStart)
+    super.to(consumerSettings)(dataHandler(sink), autoStart)
+  }
+}
+
+case class KafkaStreamMeta(topic: String, partition: Int, offset: Long, committableOffset: CommittableOffset) {
+  override def toString: String = {
+    s"topic=$topic, partition=$partition, offset=$offset"
   }
 }

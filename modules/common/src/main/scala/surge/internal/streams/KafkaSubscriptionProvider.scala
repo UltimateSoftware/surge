@@ -4,22 +4,22 @@ package surge.internal.streams
 
 import java.util.UUID
 
-import akka.{ Done, NotUsed }
+import akka.Done
 import akka.actor.ActorSystem
 import akka.kafka.ConsumerMessage.CommittableOffset
-import akka.kafka.{ AutoSubscription, CommitterSettings, ConsumerMessage, ConsumerSettings, Subscription }
 import akka.kafka.scaladsl.{ Committer, Consumer }
+import akka.kafka.{ AutoSubscription, CommitterSettings, ConsumerSettings, Subscription }
 import akka.stream.scaladsl.{ Flow, Source }
 import com.typesafe.config.ConfigFactory
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.slf4j.LoggerFactory
 import surge.internal.akka.cluster.ActorSystemHostAwareness
 import surge.internal.kafka.HostAwarenessConfig
-import surge.streams.{ KafkaStreamMeta, OffsetManager }
+import surge.streams.{ DataHandler, OffsetManager }
 
 import scala.concurrent.duration.Duration
 
-trait KafkaSubscriptionProvider {
+trait KafkaSubscriptionProvider[Key, Value] {
   private val config = ConfigFactory.load()
   private val reuseConsumerId = config.getBoolean("surge.kafka-reuse-consumer-id")
   // Set this uniquely per manager actor so that restarts of the Kafka stream don't cause a rebalance of the consumer group
@@ -44,6 +44,7 @@ trait KafkaSubscriptionProvider {
     }
   }
 
+  def businessFlow: DataHandler[Key, Value]
   def createSubscription(actorSystem: ActorSystem): Source[Done, Consumer.Control]
 }
 
@@ -51,8 +52,8 @@ class KafkaOffsetManagementSubscriptionProvider[Key, Value](
     topicName: String,
     subscription: Subscription,
     baseConsumerSettings: ConsumerSettings[Key, Value],
-    businessFlow: Flow[ConsumerMessage.CommittableMessage[Key, Value], KafkaStreamMeta, NotUsed])
-    extends KafkaSubscriptionProvider {
+    override val businessFlow: DataHandler[Key, Value])
+    extends KafkaSubscriptionProvider[Key, Value] {
 
   private val log = LoggerFactory.getLogger(getClass)
   private val config = ConfigFactory.load()
@@ -60,12 +61,13 @@ class KafkaOffsetManagementSubscriptionProvider[Key, Value](
   private val committerMaxInterval = config.getDuration("surge.kafka-event-source.committer.max-interval")
   private val committerParallelism = config.getInt("surge.kafka-event-source.committer.parallelism")
 
+  private val kafkaFlow = KafkaStreamManager.wrapBusinessFlow(businessFlow.dataHandler)
   override def createSubscription(actorSystem: ActorSystem): Source[Done, Consumer.Control] = {
     val committerSettings =
       CommitterSettings(actorSystem).withMaxBatch(committerMaxBatch).withMaxInterval(committerMaxInterval).withParallelism(committerParallelism)
     val consumerSettings = createConsumerSettings(actorSystem, baseConsumerSettings)
     log.debug("Creating Kafka source for topic {} with client id {}", Seq(topicName, clientId): _*)
-    Consumer.committableSource(consumerSettings, subscription).via(businessFlow).map(_.committableOffset).via(Committer.flow(committerSettings))
+    Consumer.committableSource(consumerSettings, subscription).via(kafkaFlow).map(_.committableOffset).via(Committer.flow(committerSettings))
   }
 }
 
@@ -73,11 +75,12 @@ class ManualOffsetManagementSubscriptionProvider[Key, Value](
     topicName: String,
     subscription: AutoSubscription,
     baseConsumerSettings: ConsumerSettings[Key, Value],
-    businessFlow: Flow[ConsumerMessage.CommittableMessage[Key, Value], KafkaStreamMeta, NotUsed],
+    override val businessFlow: DataHandler[Key, Value],
     offsetManager: OffsetManager,
     maxPartitions: Int = 10)
-    extends KafkaSubscriptionProvider {
+    extends KafkaSubscriptionProvider[Key, Value] {
   private val log = LoggerFactory.getLogger(getClass)
+  private val kafkaFlow = KafkaStreamManager.wrapBusinessFlow(businessFlow.dataHandler)
   override def createSubscription(actorSystem: ActorSystem): Source[Done, Consumer.Control] = {
     val consumerSettings = createConsumerSettings(actorSystem, baseConsumerSettings)
     log.debug("Creating Kafka source for topic {} with client id {}", Seq(topicName, clientId): _*)
@@ -87,7 +90,7 @@ class ManualOffsetManagementSubscriptionProvider[Key, Value](
     Consumer
       .committablePartitionedManualOffsetSource(consumerSettings, subscription, offsetManager.getOffsets)
       .flatMapMerge(maxPartitions, _._2)
-      .via(businessFlow)
+      .via(kafkaFlow)
       .map(_.committableOffset)
       .via(committerFlow)
   }

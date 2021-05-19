@@ -2,11 +2,11 @@
 
 package surge.internal.streams
 
-import akka.Done
 import akka.actor.ActorSystem
 import akka.kafka.Subscriptions
-import akka.stream.scaladsl.Sink
+import akka.stream.scaladsl.{ Flow, Sink }
 import akka.testkit.{ TestKit, TestProbe }
+import akka.{ Done, NotUsed }
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.TopicPartition
@@ -18,7 +18,7 @@ import surge.internal.akka.kafka.AkkaKafkaConsumer
 import surge.internal.akka.streams.FlowConverter
 import surge.kafka.KafkaTopic
 import surge.kafka.streams.DefaultSerdes
-import surge.streams.{ KafkaStreamMeta, OffsetManager }
+import surge.streams.{ DataHandler, EventPlusStreamMeta, OffsetManager }
 
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
@@ -49,13 +49,11 @@ class KafkaSubscriptionProviderSpec extends TestKit(ActorSystem("StreamManagerSp
     val consumerSettings = AkkaKafkaConsumer.consumerSettings[String, Array[Byte]](system, groupId).withBootstrapServers(kafkaBrokers)
     val tupleFlow: (String, Array[Byte], Map[String, Array[Byte]]) => Future[_] = { (k, v, _) => businessLogic(k, v) }
     val partitionBy: (String, Array[Byte], Map[String, Array[Byte]]) => String = { (k, _, _) => k }
-    val businessFlow = FlowConverter.flowFor[String, Array[Byte], KafkaStreamMeta](tupleFlow, partitionBy, new DefaultDataSinkExceptionHandler, 16)
-    new ManualOffsetManagementSubscriptionProvider(
-      topic.name,
-      Subscriptions.topics(topic.name),
-      consumerSettings,
-      KafkaStreamManager.wrapBusinessFlow(businessFlow),
-      offsetManager)
+    val businessFlow = new DataHandler[String, Array[Byte]] {
+      override def dataHandler[Meta]: Flow[EventPlusStreamMeta[String, Array[Byte], Meta], Meta, NotUsed] =
+        FlowConverter.flowFor[String, Array[Byte], Meta](tupleFlow, partitionBy, new DefaultDataSinkExceptionHandler, 16)
+    }
+    new ManualOffsetManagementSubscriptionProvider(topic.name, Subscriptions.topics(topic.name), consumerSettings, businessFlow, offsetManager)
   }
 
   private def sendToTestProbe(testProbe: TestProbe)(key: String, value: Array[Byte]): Future[Done] = {

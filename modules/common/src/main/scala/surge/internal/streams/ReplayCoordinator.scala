@@ -12,6 +12,7 @@ import surge.internal.kafka.HostAssignmentTracker
 import surge.internal.streams.KafkaStreamManagerActor.{ StartConsuming, SuccessfullyStopped }
 import surge.internal.utils.InlineReceive
 import surge.kafka.HostPort
+import surge.streams.DataHandler
 import surge.streams.replay.EventReplayStrategy
 
 import scala.concurrent.Future
@@ -33,7 +34,12 @@ private[streams] object ReplayCoordinator {
   }
 }
 
-class ReplayCoordinator(topicName: String, consumerGroup: String, replayStrategy: EventReplayStrategy, registry: ActorRegistry)
+class ReplayCoordinator[Key, Value](
+    topicName: String,
+    consumerGroup: String,
+    replayStrategy: EventReplayStrategy[Key, Value],
+    registry: ActorRegistry,
+    replayFlow: DataHandler[Key, Value])
     extends Actor
     with ActorHostAwareness {
 
@@ -119,7 +125,7 @@ class ReplayCoordinator(topicName: String, consumerGroup: String, replayStrategy
     }
     context.become(replaying(replayState))
     replayStrategy
-      .replay(consumerGroup, existingPartitions)
+      .replay(consumerGroup, existingPartitions, replayFlow)
       .map { _ =>
         ReplayCompleted
       }
