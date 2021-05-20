@@ -568,9 +568,6 @@ class PersistentActorSpec
       val testContext = TestContext.setupDefault
       import testContext._
 
-      probe.send(actor, ReceiveTimeout) // When uninitialized, the actor should ignore a ReceiveTimeout
-      probe.expectNoMessage()
-
       processIncrementCommand(actor, baseState, mockProducer)
 
       probe.watch(actor)

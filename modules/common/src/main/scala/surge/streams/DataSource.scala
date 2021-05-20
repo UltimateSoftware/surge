@@ -20,8 +20,8 @@ import scala.concurrent.ExecutionContext
 import scala.jdk.CollectionConverters._
 
 trait DataSource[Key, Value] {
-  private val defaultReplayStrategy = new NoOpEventReplayStrategy[Key, Value]
-  def replayStrategy: EventReplayStrategy[Key, Value] = defaultReplayStrategy
+  private val defaultReplayStrategy = new NoOpEventReplayStrategy
+  def replayStrategy: EventReplayStrategy = defaultReplayStrategy
   def replaySettings: EventReplaySettings = DefaultEventReplaySettings
 }
 
@@ -66,7 +66,15 @@ trait KafkaDataSource[Key, Value] extends DataSource[Key, Value] {
       case _ =>
         new ManualOffsetManagementSubscriptionProvider[Key, Value](topicName, subscription, consumerSettings, sink, offsetManager)
     }
-    new KafkaStreamManager[Key, Value](topicName, consumerSettings, subscriptionProvider, replayStrategy, replaySettings, tracer)
+    new KafkaStreamManager[Key, Value](
+      topicName = topicName,
+      consumerSettings = consumerSettings,
+      subscriptionProvider = subscriptionProvider,
+      keyDeserializer = keyDeserializer,
+      valueDeserializer = valueDeserializer,
+      replayStrategy = replayStrategy,
+      replaySettings = replaySettings,
+      tracer = tracer)
   }
 
   private[streams] def to(consumerSettings: ConsumerSettings[Key, Value])(sink: DataHandler[Key, Value], autoStart: Boolean): DataPipeline = {

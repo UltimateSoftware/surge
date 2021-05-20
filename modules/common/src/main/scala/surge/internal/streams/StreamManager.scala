@@ -16,6 +16,7 @@ import akka.{ Done, NotUsed }
 import com.typesafe.config.ConfigFactory
 import io.opentracing.Tracer
 import org.apache.kafka.clients.consumer.ConsumerConfig
+import org.apache.kafka.common.serialization.Deserializer
 import org.apache.kafka.common.{ Metric, MetricName }
 import org.slf4j.{ LoggerFactory, MDC }
 import surge.internal.akka.ActorWithTracing
@@ -24,7 +25,7 @@ import surge.internal.kafka.{ HeadersHelper, HostAwareCooperativeStickyAssignor,
 import surge.internal.utils.Logging
 import surge.streams.DataPipeline._
 import surge.streams.{ EventPlusStreamMeta, KafkaStreamMeta }
-import surge.streams.replay.{ EventReplaySettings, EventReplayStrategy }
+import surge.streams.replay.{ EventReplaySettings, EventReplayStrategy, ReplayControl, ReplayControlContext }
 
 import scala.concurrent.duration._
 import scala.concurrent.{ Await, ExecutionContext, Future }
@@ -72,7 +73,9 @@ class KafkaStreamManager[Key, Value](
     topicName: String,
     consumerSettings: ConsumerSettings[Key, Value],
     subscriptionProvider: KafkaSubscriptionProvider[Key, Value],
-    replayStrategy: EventReplayStrategy[Key, Value],
+    keyDeserializer: Deserializer[Key],
+    valueDeserializer: Deserializer[Value],
+    replayStrategy: EventReplayStrategy,
     replaySettings: EventReplaySettings,
     val tracer: Tracer)(implicit val actorSystem: ActorSystem)
     extends ActorSystemHostAwareness
@@ -83,8 +86,14 @@ class KafkaStreamManager[Key, Value](
   private val consumerGroup = consumerSettings.getProperty(ConsumerConfig.GROUP_ID_CONFIG)
   private val actorRegistry = new ActorRegistry(actorSystem)
   private val managerActor = actorSystem.actorOf(Props(new KafkaStreamManagerActor(topicName, subscriptionProvider, tracer, actorRegistry)))
+
+  private val deserializeKey: Array[Byte] => Key = { bytes => keyDeserializer.deserialize(topicName, bytes) }
+  private val deserializeValue: Array[Byte] => Value = { bytes => valueDeserializer.deserialize(topicName, bytes) }
+  private val replayContext =
+    ReplayControlContext(keyDeserializer = deserializeKey, valueDeserializer = deserializeValue, dataHandler = subscriptionProvider.businessFlow)
+  private val replayControl = replayStrategy.createReplayController(replayContext)
   private val replayCoordinator =
-    actorSystem.actorOf(Props(new ReplayCoordinator(topicName, consumerGroup, replayStrategy, actorRegistry, subscriptionProvider.businessFlow)))
+    actorSystem.actorOf(Props(new ReplayCoordinator(topicName, consumerGroup, actorRegistry, replayControl)))
 
   def start(): KafkaStreamManager[Key, Value] = {
     managerActor ! KafkaStreamManagerActor.StartConsuming
@@ -125,6 +134,8 @@ class KafkaStreamManager[Key, Value](
         Future.successful(ReplayFailed(err))
       }
   }
+
+  def getReplayControl: ReplayControl = replayControl
 }
 
 object KafkaStreamManagerActor {

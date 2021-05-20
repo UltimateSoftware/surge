@@ -60,7 +60,7 @@ class StreamManagerSpec
       kafkaBrokers: String,
       groupId: String,
       businessLogic: (String, Array[Byte]) => Future[_],
-      replayStrategy: EventReplayStrategy[String, Array[Byte]] = new NoOpEventReplayStrategy,
+      replayStrategy: EventReplayStrategy = new NoOpEventReplayStrategy,
       replaySettings: EventReplaySettings = DefaultEventReplaySettings): KafkaStreamManager[String, Array[Byte]] = {
     val consumerSettings = AkkaKafkaConsumer.consumerSettings[String, Array[Byte]](system, groupId).withBootstrapServers(kafkaBrokers)
 
@@ -72,7 +72,15 @@ class StreamManagerSpec
         FlowConverter.flowFor[String, Array[Byte], Meta](tupleFlow, partitionBy, new DefaultDataSinkExceptionHandler, parallelism)
     }
     val subscriptionProvider = new KafkaOffsetManagementSubscriptionProvider(topic.name, Subscriptions.topics(topic.name), consumerSettings, businessFlow)
-    new KafkaStreamManager(topic.name, consumerSettings, subscriptionProvider, replayStrategy, replaySettings, NoopTracerFactory.create())
+    new KafkaStreamManager(
+      topic.name,
+      consumerSettings,
+      subscriptionProvider,
+      stringDeserializer,
+      byteArrayDeserializer,
+      replayStrategy,
+      replaySettings,
+      NoopTracerFactory.create())
   }
 
   "StreamManager" should {

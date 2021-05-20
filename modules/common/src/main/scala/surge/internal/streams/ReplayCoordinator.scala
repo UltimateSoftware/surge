@@ -12,8 +12,7 @@ import surge.internal.kafka.HostAssignmentTracker
 import surge.internal.streams.KafkaStreamManagerActor.{ StartConsuming, SuccessfullyStopped }
 import surge.internal.utils.InlineReceive
 import surge.kafka.HostPort
-import surge.streams.DataHandler
-import surge.streams.replay.EventReplayStrategy
+import surge.streams.replay.ReplayControl
 
 import scala.concurrent.Future
 import scala.util.{ Failure, Success }
@@ -34,14 +33,7 @@ private[streams] object ReplayCoordinator {
   }
 }
 
-class ReplayCoordinator[Key, Value](
-    topicName: String,
-    consumerGroup: String,
-    replayStrategy: EventReplayStrategy[Key, Value],
-    registry: ActorRegistry,
-    replayFlow: DataHandler[Key, Value])
-    extends Actor
-    with ActorHostAwareness {
+class ReplayCoordinator(topicName: String, consumerGroup: String, registry: ActorRegistry, replayControl: ReplayControl) extends Actor with ActorHostAwareness {
 
   import ReplayCoordinator._
   import context.dispatcher
@@ -81,7 +73,7 @@ class ReplayCoordinator[Key, Value](
       replayState.replyTo ! failure
       context.become(uninitialized())
     case ReplayCompleted =>
-      replayStrategy.postReplay()
+      replayControl.postReplay()
       startStoppedConsumers(replayState)
       replayState.replyTo ! ReplayCompleted
       context.become(uninitialized())
@@ -106,7 +98,7 @@ class ReplayCoordinator[Key, Value](
 
   private def doPreReplay(): Unit = {
     log.trace("ReplayCoordinator kicking off PreReplay function")
-    replayStrategy.preReplay().onComplete {
+    replayControl.preReplay().onComplete {
       case Success(_) =>
         self ! PreReplayCompleted
       case Failure(e) =>
@@ -124,8 +116,8 @@ class ReplayCoordinator[Key, Value](
       topicPartition.partition()
     }
     context.become(replaying(replayState))
-    replayStrategy
-      .replay(consumerGroup, existingPartitions, replayFlow)
+    replayControl
+      .fullReplay(consumerGroup, existingPartitions)
       .map { _ =>
         ReplayCompleted
       }
