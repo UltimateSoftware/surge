@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+
+<head>
+<title>Overview · Surge</title>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="description" content='surge-docs'/>
+<link href="https://fonts.googleapis.com/css?family=Roboto:100normal,100italic,300normal,300italic,400normal,400italic,500normal,500italic,700normal,700italic,900normal,900italicc" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="lib/jquery/jquery.min.js"></script>
+<script type="text/javascript" src="js/page.js"></script>
+<script type="text/javascript" src="js/warnOldVersion.js"></script>
+<script type="text/javascript" src="js/groups.js"></script>
+<link rel="stylesheet" type="text/css" href="lib/foundation/dist/foundation.min.css"/>
+<link rel="stylesheet" type="text/css" href="css/page.css"/>
+
+<!--
+<link rel="shortcut icon" href="images/favicon.ico" />
+-->
+</head>
+
+<body>
+<div class="off-canvas-wrapper">
+<div class="off-canvas-wrapper-inner" data-off-canvas-wrapper>
+
+<div class="off-canvas position-left" id="off-canvas-menu" data-off-canvas>
+<nav class="off-canvas-nav">
+<div class="nav-home">
+<a href="index.html" >
+<span class="home-icon">⌂</span>Surge
+</a>
+<div class="version-number">
+0.5.3*
+</div>
+</div>
+<div class="nav-toc">
+<ul>
+  <li><a href="overview.html" class="active page">Overview</a></li>
+  <li><a href="command-usage.html" class="page">Using Surge on the command side</a></li>
+</ul>
+</div>
+
+</nav>
+</div>
+
+<div class="off-canvas-content" data-off-canvas-content>
+
+<header class="site-header expanded row">
+<div class="small-12 column">
+<a href="#" class="off-canvas-toggle hide-for-medium" data-toggle="off-canvas-menu"><svg class="svg-icon svg-icon-menu" version="1.1" id="Menu" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 20 20" enable-background="new 0 0 20 20" xml:space="preserve"> <path class="svg-icon-menu-path" fill="#53CDEC" d="M16.4,9H3.6C3.048,9,3,9.447,3,10c0,0.553,0.048,1,0.6,1H16.4c0.552,0,0.6-0.447,0.6-1C17,9.447,16.952,9,16.4,9z M16.4,13
+H3.6C3.048,13,3,13.447,3,14c0,0.553,0.048,1,0.6,1H16.4c0.552,0,0.6-0.447,0.6-1C17,13.447,16.952,13,16.4,13z M3.6,7H16.4
+C16.952,7,17,6.553,17,6c0-0.553-0.048-1-0.6-1H3.6C3.048,5,3,5.447,3,6C3,6.553,3.048,7,3.6,7z"/></svg>
+</a>
+<div class="title"><a href="index.html">Surge</a></div>
+
+<!--
+<a href="https://www.example.com" class="logo show-for-medium">logo</a>
+-->
+</div>
+</header>
+
+<div class="expanded row">
+
+<div class="medium-3 large-2 show-for-medium column">
+<nav class="site-nav">
+<div class="nav-home">
+<a href="index.html" >
+<span class="home-icon">⌂</span>Surge
+</a>
+<div class="version-number">
+0.5.3*
+</div>
+</div>
+<div class="nav-toc">
+<ul>
+  <li><a href="overview.html" class="active page">Overview</a></li>
+  <li><a href="command-usage.html" class="page">Using Surge on the command side</a></li>
+</ul>
+</div>
+
+</nav>
+</div>
+
+<div class="small-12 medium-9 large-10 column">
+<section class="site-content">
+
+<span id="version-warning"></span>
+
+<div class="page-header row">
+<div class="medium-12 show-for-medium column">
+<div class="nav-breadcrumbs">
+<ul>
+  <li><a href="index.html">Surge</a></li>
+  <li>Overview</li>
+</ul>
+</div>
+</div>
+</div>
+
+<div class="page-content row">
+<div class="small-12 large-9 column" id="docs">
+<h1><a href="#overview" name="overview" class="anchor"><span class="anchor-link"></span></a>Overview</h1>
+<h2><a href="#command-engine" name="command-engine" class="anchor"><span class="anchor-link"></span></a>Command Engine</h2>
+<h3><a href="#high-level-overview" name="high-level-overview" class="anchor"><span class="anchor-link"></span></a>High level overview</h3>
+<p><img src="images/surge-command-components.png" alt="Kafka Streams Command Components" /></p>
+<p>The Surge command engine is a library component that lives inside of a domain command application. The engine indexes an aggregate state snapshot Kafka topic to maintain the state for each aggregate created by a domain service. It is also responsible for managing a cluster of domain aggregates to map each unique aggregate id for a domain aggregate to a single actor within the application cluster that is responsible for that aggregate. Because the engine maintains this state, it handles the routing of any messages to the actor instance responsible for the aggregate id the incoming message is destined for. To determine how commands and events for an aggregate should be handled, the engine leverages an implementation of a command model interface which is provided to the engine at compile time when creating the engine.</p>
+<h3><a href="#in-depth-overview" name="in-depth-overview" class="anchor"><span class="anchor-link"></span></a>In depth overview</h3>
+<p><img src="images/cqrs-on-kafka-streams.png" alt="Kafka Streams Command In Depth" /></p>
+<p><strong>Note</strong> All of these in depth details are implemented in/provided by the Surge engine out of the box and do not have to be implemented in a domain app. The details described are for anyone interested in taking a look at how things work.</p>
+<h4><a href="#state-tracking" name="state-tracking" class="anchor"><span class="anchor-link"></span></a>State Tracking</h4>
+<p>When an aggregate emits new events, they are accompanied by an update to the aggregate state via a message produced to the aggregate state snapshot topic. An aggregate id will always send state updates to the same Kafka partition - this is important for being able to compact away older aggregate snapshots and guarantee any updates to a particular aggregate id as well as provide routing (described in more detail later). State updates sent to the state topic are consumed internally by the Surge command engine and indexed in a Kafka Streams KTable (key value store). Since we are subscribing to Kafka to build up the state store, service nodes coordinate via a Kafka consumer group to determine which nodes are responsible for which partitions, and therefore any aggregate ids associated with that partition.</p>
+<h4><a href="#message-routing" name="message-routing" class="anchor"><span class="anchor-link"></span></a>Message Routing</h4>
+<p>Internally, the Surge engine leverages the consumer group of the Kafka Streams process to determine which application nodes are responsible for which partitions in Kafka. Each service node has a single router actor that follows updates to the consumer group and associates each partition with the address (maybe local, maybe remote) of a partition manager actor. The partition manager actor for each partition keeps track of which aggregate actors are running in memory and which are not. It performs the local routing of messages to the correct aggregate actor for the given aggregate id. Since each aggregate only sends to a particular partition in Kafka, we can see which partition an aggregate is associated with and have the router forward to the appropriate partition manager. Any messages for a particular aggregate id are first routed to the correct partition manager, and then to the correct actor responsible for the given aggregate id.</p><div class="callout note "><div class="callout-title">Note</div>
+<p>Why does Surge route message from node to node? Why not just have the node that received a command handle it?</p>
+<p>This comes back to some of the guarantees we want to provide. By having a single instance of an aggregate id across an entire application cluster, we can guarantee there is always only a single writer for that aggregate in order to guarantee the order eliminate race conditions between multiple nodes publishing events for the same aggregate simultaneously.</p></div>
+<h4><a href="#guarantees-around-events-aggregate-state" name="guarantees-around-events-aggregate-state" class="anchor"><span class="anchor-link"></span></a>Guarantees Around Events &amp; Aggregate State</h4>
+<p>The Surge engine guarantees two important things around persisted events and state:  - All-or-nothing publishing for groups of events and updated state. When a handled command results in some events (1 or more) they are applied to the aggregate state to get a new aggregate snapshot. Using Kafka transactions, we guarantee that either all of those events along with the aggregate state are published to Kafka or none of them are and the transaction is cancelled. This is important to guarantee that any state snapshots are directly derived from the event stream with no discrepancy between the two.  - When handling a command, the most recently updated aggregate state for an aggregate will be passed to the command handler. This guarantees that domain logic for handling a command or event will always see the most recently updated state for an aggregate, never a stale or old state.</p>
+<p>To guarantee that any fetched aggregate state is always the most recent version for a particular aggregate id the Surge engine maintains a stateful producer actor. The stateful producer actor is responsible for following which aggregates have state snapshots that have been published to Kafka but not yet consumed and reflected in the aggregate state KTable.</p>
+<p>When an aggregate actor is newly created (i.e. not in memory when a command is sent to it) it must ensure that the state of the aggregate in the aggregate KTable is up to date. It does this by checking with the stateful producer actor if there are any pending messages for the given aggregate id. If there are, the aggregate actor buffers the command and checks again after a short delay with the producer actor. The aggregate actor will perform this check several more times before either succeeding or giving up. If there are no in flight messages for the aggregate, the aggregate state KTable is up to date for the given aggregate id, so the actor may initialize from the state KTable and process the command as normal.</p>
+<h4><a href="#use-of-kafka-transactions" name="use-of-kafka-transactions" class="anchor"><span class="anchor-link"></span></a>Use of Kafka Transactions</h4>
+<p>Surge uses Kafka transactions under the hood to ensure the events topic and aggregate state are in sync, guarantee batches of events are written in an all-or-none way, and preserve the integrity of the event stream by fencing out &ldquo;zombie producers&rdquo;. <a href="https://www.confluent.io/blog/transactions-apache-kafka/">This blog post</a> by Confluent is a great resource to learn about transactions in general.</p>
+<p>Surge uses a stateful Kafka producer per partition to remember what aggregates have recently published data and follow along indexing of the aggregate state topic. Transactional ids are assigned uniquely for each partition of the aggregate state topic by using the name and partition number for the aggregate state topic that the stateful producer is following as a suffix to the transactional id prefix: for example <code>my.transaction.id.prefix-my.state.topic-0</code>. Since the routing for Surge ensures there should only be a single shard responsible for each of these partitions, no two producers should share a transactional id. If two were using the same id, the older of the producers is considered a &ldquo;zombie producer&rdquo; and is prevented from writing data by Kafka and shut down in order to preserve the integrity of the event stream.</p>
+<div class="source-github">
+The source code for this page can be found <a href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/main/paradox/overview.md">here</a>.
+</div>
+
+<div class="nav-next">
+<p><strong>Next:</strong> <a href="command-usage.html">Using Surge on the command side</a></p>
+</div>
+</div>
+<div class="large-3 show-for-large column" data-sticky-container>
+<nav class="sidebar sticky" data-sticky data-anchor="docs" data-sticky-on="large">
+<div class="page-nav">
+<div class="nav-title">On this page:</div>
+<div class="nav-toc">
+<ul>
+  <li><a href="overview.html#overview" class="header">Overview</a>
+  <ul>
+    <li><a href="overview.html#command-engine" class="header">Command Engine</a></li>
+  </ul></li>
+</ul>
+</div>
+</div>
+</nav>
+</div>
+</div>
+
+</section>
+</div>
+
+</div>
+
+<footer class="site-footer">
+
+<section class="site-footer-nav">
+<div class="expanded row">
+<div class="small-12 large-offset-2 large-10 column">
+<div class="row site-footer-content">
+
+<div class="small-12 medium-4 large-3 text-center column">
+<div class="nav-links">
+<ul>
+<!-- <li><a href="https://www.example.com/products/">Products</a> -->
+</ul>
+</div>
+</div>
+
+</div>
+</div>
+</div>
+</section>
+
+<section class="site-footer-base">
+<div class="expanded row">
+<div class="small-12 large-offset-2 large-10 column">
+<div class="row site-footer-content">
+
+<div class="small-12 text-center large-9 column">
+
+<!--
+<div class="copyright">
+<span class="text">&copy; 2021</span>
+<a href="https://www.example.com" class="logo">logo</a>
+</div>
+-->
+</div>
+
+</div>
+</div>
+</div>
+</section>
+</footer>
+
+</div>
+</div>
+</div>
+</body>
+
+<script type="text/javascript" src="lib/foundation/dist/foundation.min.js"></script>
+<script type="text/javascript">jQuery(document).foundation();</script>
+<script type="text/javascript" src="js/magellan.js"></script>
+
+<style type="text/css">@import "lib/prettify/prettify.css";</style>
+<script type="text/javascript" src="lib/prettify/prettify.js"></script>
+<script type="text/javascript" src="lib/prettify/lang-scala.js"></script>
+<script type="text/javascript">jQuery(function(){window.prettyPrint && prettyPrint()});</script>
+<script type="text/javascript">jQuery(function(jq){initOldVersionWarnings(jq, '0.5.3-SNAPSHOT', '')});</script>
+
+
+</html>
