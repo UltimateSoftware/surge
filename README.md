@@ -24,7 +24,7 @@ by ditching traditional state storage in favor of bringing it to where the rest 
 
 ## Reference Documentation
 
-TODO: Help wanted to fill in this section
+Our current documentation can be found at https://ultimatesoftware.github.io/surge/.
 
 ## Contributing
 
