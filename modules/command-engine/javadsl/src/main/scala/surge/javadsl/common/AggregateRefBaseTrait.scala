@@ -12,12 +12,7 @@ import scala.compat.java8.FutureConverters
 import scala.compat.java8.OptionConverters._
 import scala.concurrent.ExecutionContext
 
-trait AggregateRef[Agg, Event] {
-  def getState: CompletionStage[Optional[Agg]]
-  def applyEvent(event: Event): CompletionStage[ApplyEventResult[Agg]]
-}
-
-trait AggregateRefBaseTrait[AggId, Agg, Cmd, Event] extends AggregateRef[Agg, Event] with AggregateRefTrait[AggId, Agg, Cmd, Event] {
+trait AggregateRefBaseTrait[AggId, Agg, Cmd, Event] extends AggregateRefTrait[AggId, Agg, Cmd, Event] {
 
   val aggregateId: AggId
   protected val region: ActorRef

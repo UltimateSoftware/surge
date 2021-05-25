@@ -8,12 +8,7 @@ import surge.internal.persistence.{ AggregateRefTrait, PersistentActor }
 
 import scala.concurrent.{ ExecutionContext, Future }
 
-trait AggregateRefEvent[Agg, Event] {
-  def getState: Future[Option[Agg]]
-  def applyEvent(event: Event): Future[ApplyEventResult[Agg]]
-}
-
-trait AggregateRefBaseTrait[AggId, Agg, Cmd, Event] extends AggregateRefEvent[Agg, Event] with AggregateRefTrait[AggId, Agg, Cmd, Event] {
+trait AggregateRefBaseTrait[AggId, Agg, Cmd, Event] extends AggregateRefTrait[AggId, Agg, Cmd, Event] {
 
   val aggregateId: AggId
   protected val region: ActorRef
