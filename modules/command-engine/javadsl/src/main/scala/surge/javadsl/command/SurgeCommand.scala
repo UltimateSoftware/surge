@@ -3,13 +3,13 @@
 package surge.javadsl.command
 
 import java.util.concurrent.CompletionStage
-
 import akka.actor.ActorSystem
 import com.typesafe.config.{ Config, ConfigFactory }
 import surge.core
 import surge.core.command._
 import surge.core.commondsl.{ SurgeCommandBusinessLogicTrait, SurgeRejectableCommandBusinessLogicTrait }
 import surge.core.{ command, SurgePartitionRouter }
+import surge.internal.domain
 import surge.javadsl.common.{ HealthCheck, HealthCheckTrait }
 import surge.metrics.Metric
 
@@ -50,7 +50,7 @@ private[javadsl] class SurgeCommandImpl[AggId, Agg, Command, +Rej, Evt](
     override val businessLogic: SurgeCommandModel[Agg, Command, Rej, Evt],
     aggIdToString: AggId => String,
     config: Config)
-    extends command.SurgeCommandImpl[Agg, Command, Rej, Evt](actorSystem, businessLogic, config)
+    extends domain.SurgeCommandImpl[Agg, Command, Rej, Evt](actorSystem, businessLogic, config)
     with SurgeCommand[AggId, Agg, Command, Rej, Evt] {
 
   import surge.javadsl.common.HealthCheck._

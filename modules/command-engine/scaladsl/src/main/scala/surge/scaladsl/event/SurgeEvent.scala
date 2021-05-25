@@ -5,7 +5,8 @@ package surge.scaladsl.event
 import akka.actor.ActorSystem
 import com.typesafe.config.{ Config, ConfigFactory }
 import surge.core
-import surge.core.event.{ SurgeEventServiceImpl, SurgeEventServiceModel }
+import surge.core.event.SurgeEventServiceModel
+import surge.internal.domain.SurgeEventServiceImpl
 import surge.metrics.Metric
 import surge.scaladsl.common.HealthCheckTrait
 

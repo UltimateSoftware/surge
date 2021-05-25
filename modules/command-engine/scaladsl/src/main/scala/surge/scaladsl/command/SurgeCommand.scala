@@ -8,6 +8,7 @@ import surge.core
 import surge.core.command
 import surge.core.command.SurgeCommandModel
 import surge.core.commondsl.{ SurgeCommandBusinessLogicTrait, SurgeRejectableCommandBusinessLogicTrait }
+import surge.internal.domain
 import surge.metrics.Metric
 import surge.scaladsl.common.HealthCheckTrait
 
@@ -42,7 +43,7 @@ private[scaladsl] class SurgeCommandImpl[AggId, Agg, Command, +Rej, Event](
     override val businessLogic: SurgeCommandModel[Agg, Command, Rej, Event],
     aggIdToString: AggId => String,
     override val config: Config)
-    extends command.SurgeCommandImpl[Agg, Command, Rej, Event](actorSystem, businessLogic, config)
+    extends domain.SurgeCommandImpl[Agg, Command, Rej, Event](actorSystem, businessLogic, config)
     with SurgeCommand[AggId, Agg, Command, Rej, Event] {
 
   def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Command, Event] = {
