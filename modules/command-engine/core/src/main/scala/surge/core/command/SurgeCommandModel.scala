@@ -12,12 +12,12 @@ import surge.kafka.KafkaTopic
 import surge.metrics.Metrics
 
 private[surge] case class SurgeCommandKafkaConfig(
-    stateTopic: KafkaTopic,
+    override val stateTopic: KafkaTopic,
     eventsTopic: KafkaTopic,
     publishStateOnly: Boolean,
-    streamsApplicationId: String,
-    clientId: String,
-    transactionalIdPrefix: String)
+    override val streamsApplicationId: String,
+    override val clientId: String,
+    override val transactionalIdPrefix: String)
     extends SurgeKafkaConfig {
   override val eventsTopicOpt: Option[KafkaTopic] = if (publishStateOnly) None else Some(eventsTopic)
 }
@@ -30,7 +30,7 @@ private[surge] object SurgeCommandModel {
       kafka = businessLogic.kafkaConfig,
       model = businessLogic.commandModel.toCore,
       writeFormatting = businessLogic.writeFormatting,
-      readFormatting = businessLogic.readFormatting,
+      aggregateReadFormatting = businessLogic.aggregateReadFormatting,
       aggregateValidator = businessLogic.aggregateValidatorLambda,
       metrics = businessLogic.metrics,
       tracer = businessLogic.tracer)
@@ -42,7 +42,7 @@ private[surge] object SurgeCommandModel {
       kafka = businessLogic.kafkaConfig,
       model = businessLogic.commandModel.toCore,
       writeFormatting = businessLogic.writeFormatting,
-      readFormatting = businessLogic.readFormatting,
+      aggregateReadFormatting = businessLogic.aggregateReadFormatting,
       aggregateValidator = businessLogic.aggregateValidatorLambda,
       metrics = businessLogic.metrics,
       tracer = businessLogic.tracer)
@@ -53,12 +53,12 @@ private[surge] case class SurgeCommandModel[Agg, Command, +Rej, Event](
     override val aggregateName: String,
     override val kafka: SurgeCommandKafkaConfig,
     override val model: AggregateProcessingModel[Agg, Command, Rej, Event],
-    override val readFormatting: SurgeAggregateReadFormatting[Agg],
+    override val aggregateReadFormatting: SurgeAggregateReadFormatting[Agg],
     writeFormatting: SurgeWriteFormatting[Agg, Event],
     override val aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) => Boolean,
     override val metrics: Metrics,
     override val tracer: Tracer)
     extends SurgeModel[Agg, Command, Rej, Event] {
   override val aggregateWriteFormatting: SurgeAggregateWriteFormatting[Agg] = writeFormatting
-  override val eventWriteFormatting: SurgeEventWriteFormatting[Event] = writeFormatting
+  override val eventWriteFormattingOpt: Option[SurgeEventWriteFormatting[Event]] = Some(writeFormatting)
 }

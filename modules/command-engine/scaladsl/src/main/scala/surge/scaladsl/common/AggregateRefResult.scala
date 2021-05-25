@@ -7,5 +7,5 @@ case class CommandSuccess[Agg](aggregateState: Option[Agg]) extends CommandResul
 case class CommandFailure[Agg](reason: Throwable) extends CommandResult[Agg]
 
 sealed trait ApplyEventResult[Agg]
-case class ApplyEventsSuccess[Agg](aggregateState: Option[Agg]) extends ApplyEventResult[Agg]
-case class ApplyEventsFailure[Agg](reason: Throwable) extends ApplyEventResult[Agg]
+case class ApplyEventSuccess[Agg](aggregateState: Option[Agg]) extends ApplyEventResult[Agg]
+case class ApplyEventFailure[Agg](reason: Throwable) extends ApplyEventResult[Agg]
