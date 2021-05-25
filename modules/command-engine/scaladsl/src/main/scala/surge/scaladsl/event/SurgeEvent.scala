@@ -10,11 +10,9 @@ import surge.internal.domain.SurgeEventServiceImpl
 import surge.metrics.Metric
 import surge.scaladsl.common.HealthCheckTrait
 
-import scala.jdk.CollectionConverters._
-
 trait SurgeEvent[AggId, Agg, Evt] extends core.SurgeProcessingTrait[Agg, Nothing, Nothing, Evt] with HealthCheckTrait {
   def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Evt]
-  def getMetrics: java.util.List[Metric]
+  def getMetrics: Vector[Metric]
 }
 
 object SurgeEvent {
@@ -38,5 +36,5 @@ private[scaladsl] class SurgeEventImpl[AggId, Agg, Evt](
     new AggregateRefImpl(aggIdToString(aggregateId), actorRouter.actorRegion, businessLogic.tracer)
   }
 
-  def getMetrics: java.util.List[Metric] = businessLogic.metrics.getMetrics.asJava
+  def getMetrics: Vector[Metric] = businessLogic.metrics.getMetrics
 }

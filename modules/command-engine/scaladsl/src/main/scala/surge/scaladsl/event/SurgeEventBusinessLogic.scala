@@ -2,7 +2,8 @@
 
 package surge.scaladsl.event
 
-import com.typesafe.config.Config
+import com.typesafe.config.{ Config, ConfigFactory }
 import surge.core.commondsl.AbstractSurgeEventBusinessLogic
 
-abstract class SurgeEventBusinessLogic[AggId, Agg, Event](config: Config) extends AbstractSurgeEventBusinessLogic[AggId, Agg, Event](config)
+abstract class SurgeEventBusinessLogic[AggId, Agg, Event](config: Config = ConfigFactory.load())
+    extends AbstractSurgeEventBusinessLogic[AggId, Agg, Event](config)

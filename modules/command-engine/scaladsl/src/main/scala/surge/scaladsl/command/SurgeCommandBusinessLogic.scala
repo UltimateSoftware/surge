@@ -2,13 +2,13 @@
 
 package surge.scaladsl.command
 
-import com.typesafe.config.Config
+import com.typesafe.config.{ Config, ConfigFactory }
 import surge.core.commondsl.SurgeCommandBusinessLogicTrait
 import surge.scaladsl.common.DefaultAggregateValidator
 
-abstract class SurgeCommandBusinessLogic[AggId, Agg, Command, Event](conf: Config)
+abstract class SurgeCommandBusinessLogic[AggId, Agg, Command, Event](conf: Config = ConfigFactory.load())
     extends SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Event]
     with DefaultAggregateValidator {
-  override protected[surge] val config = conf
+  final override protected[surge] val config = conf
   override final def publishStateOnly: Boolean = false
 }
