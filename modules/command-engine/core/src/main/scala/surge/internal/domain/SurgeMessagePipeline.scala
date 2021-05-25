@@ -1,6 +1,5 @@
 // Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
-// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 package surge.internal.domain
 
 import akka.actor.{ ActorRef, ActorSystem }
@@ -9,8 +8,9 @@ import play.api.libs.json.JsValue
 import surge.core.{ SurgePartitionRouter, SurgeProcessingTrait }
 import surge.internal.SurgeModel
 import surge.internal.akka.cluster.ActorSystemHostAwareness
-import surge.internal.akka.kafka.KafkaConsumerStateTrackingActor
+import surge.internal.akka.kafka.{ CustomConsumerGroupRebalanceListener, KafkaConsumerStateTrackingActor }
 import surge.internal.persistence.PersistentActorRegionCreator
+import surge.kafka.PartitionAssignments
 import surge.kafka.streams._
 
 import scala.concurrent.{ ExecutionContext, Future }
@@ -56,5 +56,9 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
 
   def stop(): Unit = {
     kafkaStreamsImpl.stop()
+  }
+
+  protected def registerRebalanceCallback(callback: PartitionAssignments => Unit): Unit = {
+    system.actorOf(CustomConsumerGroupRebalanceListener.props(stateChangeActor, callback))
   }
 }
