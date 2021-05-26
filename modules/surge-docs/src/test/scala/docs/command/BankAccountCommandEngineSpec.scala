@@ -54,7 +54,7 @@ class BankAccountCommandEngineSpec extends AnyWordSpec with Matchers with Embedd
         val currentState: Future[Option[BankAccount]] = BankAccountEngine.surgeEngine.aggregateFor(accountNumber).getState
         // #getting_state_from_engine
 
-        Await.result(currentState, 10.seconds) shouldEqual Some(BankAccount(accountNumber, "Jane Doe", "1234", 1000.0))
+        Await.result(currentState, 10.seconds) shouldEqual Some(BankAccount(accountNumber, "Jane Doe", "1234", 1100.0))
 
         // #rebalance_listener
         val rebalanceListener = new BankAccountRebalanceListener

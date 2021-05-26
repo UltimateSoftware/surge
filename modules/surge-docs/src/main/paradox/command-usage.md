@@ -95,4 +95,3 @@ Java
 :    Java examples coming soon...
 
 The `getState` method will return the current state of the given aggregate if it exists.
-
