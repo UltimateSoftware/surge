@@ -11,15 +11,15 @@ import surge.internal.config.TimeoutConfig
 import surge.kafka.streams.{ HealthCheck, HealthCheckStatus, HealthyActor, HealthyComponent }
 import surge.kafka.{ HostPort, PartitionAssignments }
 
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.Future
 
-class KafkaConsumerPartitionAssignmentTracker(underlyingActor: ActorRef) extends HealthyComponent {
-  def register(actorRef: ActorRef): Unit = {
+class KafkaConsumerPartitionAssignmentTracker(val underlyingActor: ActorRef) extends HealthyComponent {
+  def register(implicit actorRef: ActorRef): Unit = {
     underlyingActor ! KafkaConsumerStateTrackingActor.Register(actorRef)
   }
 
-  def getPartitionAssignments(implicit ec: ExecutionContext, timeout: Timeout): Future[PartitionAssignments] = {
-    underlyingActor.ask(KafkaConsumerStateTrackingActor.GetPartitionAssignments).mapTo[Map[HostPort, List[TopicPartition]]].map(PartitionAssignments(_))
+  def getPartitionAssignments(implicit timeout: Timeout): Future[PartitionAssignments] = {
+    underlyingActor.ask(KafkaConsumerStateTrackingActor.GetPartitionAssignments).mapTo[PartitionAssignments]
   }
 
   override def healthCheck(): Future[HealthCheck] = {

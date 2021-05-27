@@ -12,7 +12,7 @@ import org.apache.kafka.common.TopicPartition
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.internal.akka.ActorWithTracing
 import surge.internal.akka.cluster.{ ActorHostAwareness, Shard }
-import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
+import surge.internal.akka.kafka.{ KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor }
 import surge.internal.config.TimeoutConfig
 import surge.kafka.streams.HealthyActor.GetHealth
 import surge.kafka.streams.{ HealthCheck, HealthCheckStatus, HealthyActor }

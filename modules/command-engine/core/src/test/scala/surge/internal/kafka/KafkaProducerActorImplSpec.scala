@@ -77,7 +77,7 @@ class KafkaProducerActorImplSpec
 
   private val defaultMockPartitionTracker: KafkaConsumerPartitionAssignmentTracker = {
     val tracker = mock[KafkaConsumerPartitionAssignmentTracker]
-    when(tracker.getPartitionAssignments(any[ExecutionContext], any[Timeout])).thenReturn(Future.successful(PartitionAssignments(Map.empty)))
+    when(tracker.getPartitionAssignments(any[Timeout])).thenReturn(Future.successful(PartitionAssignments(Map.empty)))
     tracker
   }
 
@@ -396,7 +396,7 @@ class KafkaProducerActorImplSpec
       val mockProducerFenceOnCommit = mock[KafkaBytesProducer]
       val mockMetadata = mockRecordMetadata(assignedPartition)
 
-      when(mockPartitionTracker.getPartitionAssignments(any[ExecutionContext], any[Timeout])).thenReturn(Future.successful(PartitionAssignments(assignmentMap)))
+      when(mockPartitionTracker.getPartitionAssignments(any[Timeout])).thenReturn(Future.successful(PartitionAssignments(assignmentMap)))
       when(mockProducerFenceOnCommit.initTransactions()(any[ExecutionContext])).thenReturn(Future.unit)
       doNothing().when(mockProducerFenceOnCommit).beginTransaction()
       doNothing().when(mockProducerFenceOnCommit).abortTransaction()
