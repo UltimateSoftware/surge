@@ -3,7 +3,7 @@
 // Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 package surge.core.commondsl
 
-import com.typesafe.config.Config
+import com.typesafe.config.{ Config, ConfigFactory }
 import io.opentracing.Tracer
 import io.opentracing.noop.NoopTracerFactory
 import surge.core.{ SurgeAggregateReadFormatting, SurgeAggregateWriteFormatting }
@@ -15,7 +15,7 @@ import scala.concurrent.ExecutionContext.global
 
 trait SurgeGenericBusinessLogicTrait[AggId, Agg, Command, Rej, Event] {
 
-  protected[surge] val config: Config
+  protected val config: Config = ConfigFactory.load()
 
   def aggregateName: String
 

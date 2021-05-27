@@ -2,8 +2,7 @@
 
 package surge.scaladsl.event
 
-import com.typesafe.config.{ Config, ConfigFactory }
-import surge.core.commondsl.AbstractSurgeEventBusinessLogic
+import surge.core.commondsl.SurgeEventBusinessLogicTrait
+import surge.scaladsl.common.DefaultAggregateValidator
 
-abstract class SurgeEventBusinessLogic[AggId, Agg, Event](config: Config = ConfigFactory.load())
-    extends AbstractSurgeEventBusinessLogic[AggId, Agg, Event](config)
+abstract class SurgeEventBusinessLogic[AggId, Agg, Event] extends SurgeEventBusinessLogicTrait[AggId, Agg, Event] with DefaultAggregateValidator

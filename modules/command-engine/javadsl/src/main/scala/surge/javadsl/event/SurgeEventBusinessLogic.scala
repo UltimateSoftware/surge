@@ -2,10 +2,7 @@
 
 package surge.javadsl.event
 
-import com.typesafe.config.Config
-import surge.core.commondsl.AbstractSurgeEventBusinessLogic
+import surge.core.commondsl.SurgeEventBusinessLogicTrait
 import surge.javadsl.common.DefaultAggregateValidator
 
-abstract class SurgeEventBusinessLogic[AggId, Agg, Event](config: Config)
-    extends AbstractSurgeEventBusinessLogic[AggId, Agg, Event](config)
-    with DefaultAggregateValidator
+abstract class SurgeEventBusinessLogic[AggId, Agg, Event] extends SurgeEventBusinessLogicTrait[AggId, Agg, Event] with DefaultAggregateValidator

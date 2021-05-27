@@ -3,7 +3,7 @@
 package surge.core.event
 
 import io.opentracing.Tracer
-import surge.core.commondsl.AbstractSurgeEventBusinessLogic
+import surge.core.commondsl.SurgeEventBusinessLogicTrait
 import surge.core.{ SurgeAggregateReadFormatting, SurgeAggregateWriteFormatting, SurgeEventWriteFormatting }
 import surge.internal.SurgeModel
 import surge.internal.domain.AggregateProcessingModel
@@ -17,7 +17,7 @@ private[surge] case class SurgeEventKafkaConfig(stateTopic: KafkaTopic, streamsA
 }
 
 object SurgeEventServiceModel {
-  def apply[AggId, Agg, Event](businessLogic: AbstractSurgeEventBusinessLogic[AggId, Agg, Event]): SurgeEventServiceModel[Agg, Event] = {
+  def apply[AggId, Agg, Event](businessLogic: SurgeEventBusinessLogicTrait[AggId, Agg, Event]): SurgeEventServiceModel[Agg, Event] = {
     new SurgeEventServiceModel[Agg, Event](
       aggregateName = businessLogic.aggregateName,
       kafka = businessLogic.kafkaConfig,

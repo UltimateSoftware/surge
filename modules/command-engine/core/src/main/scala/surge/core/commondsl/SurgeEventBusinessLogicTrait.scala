@@ -2,13 +2,9 @@
 
 package surge.core.commondsl
 
-import com.typesafe.config.Config
 import surge.core.event.{ AggregateEventModelCoreTrait, SurgeEventKafkaConfig }
-import surge.internal.kafka.SurgeKafkaConfig
-import surge.kafka.KafkaTopic
 
-abstract class AbstractSurgeEventBusinessLogic[AggId, Agg, Event](final override protected[surge] val config: Config)
-    extends SurgeGenericBusinessLogicTrait[AggId, Agg, Nothing, Nothing, Event] {
+trait SurgeEventBusinessLogicTrait[AggId, Agg, Event] extends SurgeGenericBusinessLogicTrait[AggId, Agg, Nothing, Nothing, Event] {
 
   protected[surge] def aggregateValidatorLambda: (String, Array[Byte], Option[Array[Byte]]) => Boolean
 

@@ -4,7 +4,6 @@ package surge.core.commondsl
 
 import surge.core.command.{ AggregateCommandModelCoreTrait, SurgeCommandKafkaConfig }
 import surge.core.{ SurgeAggregateReadFormatting, SurgeAggregateWriteFormatting, SurgeEventWriteFormatting, SurgeWriteFormatting }
-import surge.internal.kafka.SurgeKafkaConfig
 import surge.kafka.KafkaTopic
 
 trait SurgeGenericCommandBusinessLogicTrait[AggId, Agg, Command, Rej, Event] extends SurgeGenericBusinessLogicTrait[AggId, Agg, Command, Rej, Event] {
