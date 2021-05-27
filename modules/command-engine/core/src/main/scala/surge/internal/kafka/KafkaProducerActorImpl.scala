@@ -17,9 +17,13 @@ import surge.kafka.streams.HealthyActor.GetHealth
 import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, HealthCheck, HealthCheckStatus }
 import surge.kafka.{ KafkaBytesProducer, KafkaRecordMetadata, KafkaTopicTrait }
 import surge.metrics.{ MetricInfo, Metrics, Rate, Timer }
-
 import java.time.Instant
 import java.util.concurrent.TimeUnit
+
+import akka.util.Timeout
+import surge.internal.akka.cluster.ActorHostAwareness
+import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
+
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.{ Failure, Success, Try }
@@ -56,14 +60,19 @@ object KafkaProducerActorImpl {
   case class PublishWithSender(sender: ActorRef, publish: Publish) extends InternalMessage
   case class PendingInitialization(actor: ActorRef, key: String, expiration: Instant) extends InternalMessage
   case class KTableProgressUpdate(topicPartition: TopicPartition, lagInfo: LagInfo) extends InternalMessage
+  case class ProducerFenced(exception: ProducerFencedException) extends InternalMessage
+  case object RestartProducer extends InternalMessage
+  case object ShutdownProducer extends InternalMessage
 }
 class KafkaProducerActorImpl(
     assignedPartition: TopicPartition,
     metrics: Metrics,
     producerContext: ProducerActorContext,
     kStreams: AggregateStateStoreKafkaStreams[_],
+    partitionTracker: KafkaConsumerPartitionAssignmentTracker,
     kafkaProducerOverride: Option[KafkaBytesProducer] = None)
     extends ActorWithTracing
+    with ActorHostAwareness
     with Stash
     with Timers {
 
@@ -153,6 +162,16 @@ class KafkaProducerActorImpl(
     case _: IsAggregateStateCurrent => stash()
   }
 
+  private def fenced(state: KafkaProducerActorState): Receive = {
+    case msg: ProducerFenced => maybeRestartFencedProducer(state, msg)
+    case msg: EventsFailedToPublish =>
+      context.become(fenced(state.completeTransaction()))
+      msg.originalSenders.foreach(_ ! KafkaProducerActor.PublishFailure(msg.reason))
+    case RestartProducer  => restartPublisher()
+    case ShutdownProducer => context.stop(self)
+    case _                => stash()
+  }
+
   private def processing(state: KafkaProducerActorState): Receive = {
     case msg: KTableProgressUpdate    => handle(state, msg)
     case msg: Publish                 => handle(state, msg)
@@ -162,6 +181,9 @@ class KafkaProducerActorImpl(
     case GetHealth                    => doHealthCheck(state)
     case FlushMessages                => handleFlushMessages(state)
     case msg: AbortTransactionFailed  => handle(msg)
+    case msg: ProducerFenced =>
+      context.become(fenced(state))
+      self ! msg
     case Status.Failure(e) =>
       log.error(s"Saw unhandled exception in producer for $assignedPartition", e)
   }
@@ -278,8 +300,8 @@ class KafkaProducerActorImpl(
     val futureMsg = kafkaPublisherTimer.time {
       Try(kafkaPublisher.beginTransaction()) match {
         case Failure(f: ProducerFencedException) =>
-          producerFenced()
-          Future.successful(EventsFailedToPublish(senders, f)) // Only used for the return type, the actor is stopped in the producerFenced() method
+          producerFenced(state, f)
+          Future.successful(EventsFailedToPublish(senders, f))
         case Failure(err) =>
           log.error(s"KafkaPublisherActor partition $assignedPartition there was an error beginning transaction", err)
           Future.successful(EventsFailedToPublish(senders, err))
@@ -292,8 +314,9 @@ class KafkaProducerActorImpl(
               EventsPublished(senders, recordMeta.filter(_.wrapped.topic() == stateTopic.name))
             }
             .recover {
-              case _: ProducerFencedException =>
-                producerFenced()
+              case e: ProducerFencedException =>
+                producerFenced(state, e)
+                EventsFailedToPublish(senders, e)
               case e =>
                 log.error(s"KafkaPublisherActor partition $assignedPartition got error while trying to publish to Kafka", e)
                 Try(kafkaPublisher.abortTransaction()) match {
@@ -314,18 +337,41 @@ class KafkaProducerActorImpl(
       s"KafkaPublisherActor partition $assignedPartition saw an error aborting transaction, will recreate the producer.",
       abortTransactionFailed.abortTransactionException)
     abortTransactionFailed.originalSenders.foreach(_ ! KafkaProducerActor.PublishFailure(abortTransactionFailed.originalException))
+    restartPublisher()
+  }
+
+  private def restartPublisher(): Unit = {
     closeAndRecreatePublisher()
     context.system.scheduler.scheduleOnce(10.milliseconds, self, InitTransactions)
     context.become(uninitialized)
   }
 
-  private def producerFenced(): Unit = {
+  private def producerFenced(state: KafkaProducerActorState, exception: ProducerFencedException): Unit = {
     val producerFencedErrorLog = s"KafkaPublisherActor partition $assignedPartition tried to commit a transaction, but was " +
       s"fenced out by another producer instance. This instance of the producer for the assigned partition will shut down in favor of the " +
       s"newer producer for this partition.  If this message persists, check that two independent application clusters are not using the same " +
       s"transactional id prefix of [$transactionalId] for the same Kafka cluster."
     log.error(producerFencedErrorLog)
-    context.stop(self)
+    self ! ProducerFenced(exception)
+  }
+
+  private def maybeRestartFencedProducer(state: KafkaProducerActorState, fenced: ProducerFenced): Unit = {
+    implicit val timeout: Timeout = Timeout(10.seconds)
+    partitionTracker.getPartitionAssignments
+      .map { assignments =>
+        if (assignments.topicPartitionsToHosts.get(assignedPartition).exists(isHostPortThisNode)) {
+          log.info(s"KafkaPublisherActor partition $assignedPartition restarting because this instance is still responsible for the partition.")
+          RestartProducer
+        } else {
+          log.info(s"KafkaPublisherActor partition $assignedPartition shutting down because this instance is no longer responsible for the partition")
+          ShutdownProducer
+        }
+      }
+      .recover { case e =>
+        log.warn("Exception while attempting to check if the producer could be restarted after being fenced, will check again.", e)
+        fenced
+      }
+      .pipeTo(self)
   }
 
   private def handle(state: KafkaProducerActorState, isAggregateStateCurrent: IsAggregateStateCurrent): Unit = {

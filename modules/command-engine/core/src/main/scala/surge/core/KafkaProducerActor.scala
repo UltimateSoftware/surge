@@ -13,8 +13,10 @@ import surge.internal.config.TimeoutConfig
 import surge.internal.kafka.KafkaProducerActorImpl
 import surge.kafka.streams._
 import surge.metrics.{ MetricInfo, Metrics, Timer }
-
 import java.time.Instant
+
+import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
+
 import scala.concurrent.{ ExecutionContext, Future }
 
 /**
@@ -89,9 +91,11 @@ object KafkaProducerActor {
       assignedPartition: TopicPartition,
       metrics: Metrics,
       businessLogic: SurgeModel[_, _, _, _],
-      kStreams: AggregateStateStoreKafkaStreams[_]): KafkaProducerActor = {
+      kStreams: AggregateStateStoreKafkaStreams[_],
+      partitionTracker: KafkaConsumerPartitionAssignmentTracker): KafkaProducerActor = {
     val publisherActor = actorSystem.actorOf(
-      Props(new KafkaProducerActorImpl(assignedPartition, metrics, businessLogic, kStreams)).withDispatcher("kafka-publisher-actor-dispatcher"))
+      Props(new KafkaProducerActorImpl(assignedPartition, metrics, businessLogic, kStreams, partitionTracker))
+        .withDispatcher("kafka-publisher-actor-dispatcher"))
 
     new KafkaProducerActor(publisherActor, metrics, businessLogic.aggregateName, assignedPartition)
   }
