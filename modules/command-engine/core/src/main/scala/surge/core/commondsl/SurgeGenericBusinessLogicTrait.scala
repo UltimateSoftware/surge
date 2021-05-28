@@ -26,7 +26,7 @@ trait SurgeGenericBusinessLogicTrait[AggId, Agg, Command, Rej, Event] {
 
   protected[surge] def aggregateValidatorLambda: (String, Array[Byte], Option[Array[Byte]]) => Boolean
 
-  def aggregateIdToString(aggId: AggId): String = aggId.toString
+  protected[surge] def aggregateIdToString(aggId: AggId): String = aggId.toString
 
   def metrics: Metrics = Metrics.globalMetricRegistry
 

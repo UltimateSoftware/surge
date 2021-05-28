@@ -16,7 +16,6 @@ trait SurgeGenericCommandBusinessLogicTrait[AggId, Agg, Command, Rej, Event] ext
   final def eventWriteFormatting: SurgeEventWriteFormatting[Event] = writeFormatting
   final override def aggregateWriteFormatting: SurgeAggregateWriteFormatting[Agg] = writeFormatting
 
-  def publishStateOnly: Boolean
   def kafkaConfig: SurgeCommandKafkaConfig = new SurgeCommandKafkaConfig(
     stateTopic = stateTopic,
     eventsTopic = eventsTopic,
