@@ -4,6 +4,7 @@ package surge.internal.akka
 
 import akka.AroundReceiveActor
 import io.opentracing.Scope
+import org.slf4j.MDC
 import surge.internal.utils.SpanSupport
 import surge.tracing.TracedMessage
 
@@ -18,6 +19,7 @@ trait ActorWithTracing extends AroundReceiveActor with SpanSupport {
     msg match {
       case traced: TracedMessage[_] =>
         activeScope = Some(tracer.activateSpan(traced.activeSpan(tracer)))
+        traced.mdcContextMap.foreach(MDC.setContextMap)
         superAroundReceive(receive, traced.message)
       case _ =>
         superAroundReceive(receive, msg)
@@ -27,5 +29,6 @@ trait ActorWithTracing extends AroundReceiveActor with SpanSupport {
   override def afterReceive(receive: Receive, msg: Any): Unit = {
     activeScope.foreach(_.close())
     activeScope = None
+    MDC.clear()
   }
 }

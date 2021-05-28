@@ -8,12 +8,14 @@ import io.opentracing.{ References, Span, Tracer }
 import io.opentracing.mock.{ MockSpan, MockTracer }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
+import org.slf4j.MDC
 import surge.tracing.TracedMessage
 
 import scala.jdk.CollectionConverters._
 
 object ProbeWithTraceSupport {
   case object GetMostRecentSpan extends NoSerializationVerificationNeeded
+  case object GetMDC extends NoSerializationVerificationNeeded
   case class MostRecentSpan(spanOpt: Option[Span]) extends NoSerializationVerificationNeeded
 }
 
@@ -22,6 +24,7 @@ class ProbeWithTraceSupport(probe: TestProbe, val tracer: Tracer) extends ActorW
   override def receive: Receive = {
     case ProbeWithTraceSupport.GetMostRecentSpan =>
       sender() ! ProbeWithTraceSupport.MostRecentSpan(mostRecentSpan)
+    case ProbeWithTraceSupport.GetMDC => sender() ! Option(MDC.getCopyOfContextMap)
     case msg =>
       mostRecentSpan = Option(tracer.activeSpan())
       probe.ref.forward(msg)
@@ -40,6 +43,23 @@ class ActorWithTracingSpec extends TestKit(ActorSystem("ActorWithTracingSpec")) 
 
       actor ! expectedMsg
       probe.expectMsg(expectedMsg)
+    }
+
+    "Unwrap and set the MDC for wrapped messages with an MDC set" in {
+      MDC.put("test", "test")
+      MDC.put("second key", "other value")
+      val expectedMDC = MDC.getCopyOfContextMap
+
+      val probe = TestProbe()
+      val mockTracer = new MockTracer()
+      val actor = system.actorOf(Props(new ProbeWithTraceSupport(probe, mockTracer)))
+
+      probe.send(actor, TracedMessage(ProbeWithTraceSupport.GetMDC, Map.empty))
+      probe.expectMsg(Some(expectedMDC))
+
+      MDC.clear()
+      probe.send(actor, TracedMessage(ProbeWithTraceSupport.GetMDC, Map.empty[String, String], Option(expectedMDC)))
+      probe.expectMsg(Some(expectedMDC))
     }
 
     "Unwrap the span context and forward the wrapped message for TraceMessages" in {

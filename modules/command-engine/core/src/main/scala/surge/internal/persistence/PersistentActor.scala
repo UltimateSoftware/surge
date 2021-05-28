@@ -7,7 +7,7 @@ import akka.pattern.pipe
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import com.typesafe.config.{ Config, ConfigFactory }
 import io.opentracing.{ Span, Tracer }
-import org.slf4j.{ Logger, LoggerFactory }
+import org.slf4j.{ Logger, LoggerFactory, MDC }
 import surge.akka.cluster.{ JacksonSerializable, Passivate }
 import surge.core._
 import surge.health.HealthSignalBusTrait
@@ -19,7 +19,6 @@ import surge.internal.kafka.HeadersHelper
 import surge.internal.utils.SpanExtensions._
 import surge.kafka.streams.AggregateStateStoreKafkaStreams
 import surge.metrics.{ MetricInfo, Metrics, Timer }
-
 import java.time.Instant
 import java.util.concurrent.Executors
 

@@ -2,17 +2,15 @@
 
 package surge.internal.kafka
 
-import akka.actor.{ ActorRef, NoSerializationVerificationNeeded, Stash, Status, Timers }
+import akka.actor.{ Actor, ActorRef, NoSerializationVerificationNeeded, Stash, Status, Timers }
 import akka.pattern._
 import com.typesafe.config.{ Config, ConfigFactory }
-import io.opentracing.Tracer
 import org.apache.kafka.clients.producer.{ ProducerConfig, ProducerRecord }
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.{ AuthorizationException, ProducerFencedException }
 import org.apache.kafka.streams.LagInfo
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.core.KafkaProducerActor
-import surge.internal.akka.ActorWithTracing
 import surge.kafka.streams.HealthyActor.GetHealth
 import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, HealthCheck, HealthCheckStatus }
 import surge.kafka.{ KafkaBytesProducer, KafkaRecordMetadata, KafkaTopicTrait }
@@ -78,7 +76,7 @@ class KafkaProducerActorImpl(
     override val signalBus: HealthSignalBusTrait,
     config: Config = ConfigFactory.load(),
     kafkaProducerOverride: Option[KafkaBytesProducer] = None)
-    extends ActorWithTracing
+    extends Actor
     with ActorHostAwareness
     with Stash
     with Timers
@@ -110,8 +108,6 @@ class KafkaProducerActorImpl(
 
   //noinspection ActorMutableStateInspection
   private var kafkaPublisher = getPublisher
-
-  override val tracer: Tracer = producerContext.tracer
 
   private val kafkaPublisherTimer: Timer = metrics.timer(
     MetricInfo(

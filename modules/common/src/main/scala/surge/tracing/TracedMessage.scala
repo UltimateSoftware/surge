@@ -7,6 +7,7 @@ import java.util
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import io.opentracing.propagation.{ Format, TextMapExtract, TextMapInject }
 import io.opentracing.{ References, Span, SpanContext, Tracer }
+import org.slf4j.MDC
 import surge.akka.cluster.JacksonSerializable
 
 import scala.jdk.CollectionConverters._
@@ -20,14 +21,18 @@ object TracedMessage {
       new TextMapInject {
         override def put(key: String, value: String): Unit = headers.put(key, value)
       })
-    span.context()
-    TracedMessage(message, headers.toMap)
+    TracedMessage(message, headers.toMap, Option(MDC.getCopyOfContextMap))
+  }
+
+  def apply[T](message: T, headers: Map[String, String]): TracedMessage[T] = {
+    TracedMessage(message, headers, Option(MDC.getCopyOfContextMap))
   }
 }
 
 case class TracedMessage[T](
     @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "messageType", visible = true) message: T,
-    headers: Map[String, String])
+    headers: Map[String, String],
+    mdcContextMap: Option[java.util.Map[String, String]])
     extends JacksonSerializable {
   private def spanContext(tracer: Tracer): Option[SpanContext] = {
     Option(
