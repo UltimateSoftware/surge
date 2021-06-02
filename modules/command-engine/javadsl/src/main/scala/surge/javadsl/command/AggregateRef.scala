@@ -5,6 +5,7 @@ package surge.javadsl.command
 import akka.actor.ActorRef
 import io.opentracing.Tracer
 import surge.internal.persistence.{ AggregateRefTrait, PersistentActor }
+import surge.javadsl.common.{ AggregateRefBaseTrait, _ }
 
 import java.util.Optional
 import java.util.concurrent.CompletionStage
@@ -18,15 +19,12 @@ trait AggregateRef[Agg, Cmd, Event] {
   def applyEvent(event: Event): CompletionStage[ApplyEventResult[Agg]]
 }
 
-final class AggregateRefImpl[AggId, Agg, Cmd, Event](val aggregateId: AggId, val region: ActorRef, val tracer: Tracer)
+final class AggregateRefImpl[AggId, Agg, Cmd, Event](val aggregateId: AggId, protected val region: ActorRef, protected val tracer: Tracer)
     extends AggregateRef[Agg, Cmd, Event]
+    with AggregateRefBaseTrait[AggId, Agg, Cmd, Event]
     with AggregateRefTrait[AggId, Agg, Cmd, Event] {
 
   private implicit val ec: ExecutionContext = ExecutionContext.global
-
-  def getState: CompletionStage[Optional[Agg]] = {
-    FutureConverters.toJava(queryState.map(_.asJava))
-  }
 
   def sendCommand(command: Cmd): CompletionStage[CommandResult[Agg]] = {
     val envelope = PersistentActor.ProcessMessage[Cmd](aggregateId.toString, command)
@@ -35,14 +33,6 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event](val aggregateId: AggId, val
         CommandFailure[Agg](error)
       case Right(aggOpt) =>
         CommandSuccess[Agg](aggOpt.asJava)
-    }
-    FutureConverters.toJava(result)
-  }
-
-  def applyEvent(event: Event): CompletionStage[ApplyEventResult[Agg]] = {
-    val envelope = PersistentActor.ApplyEvent[Event](aggregateId.toString, event)
-    val result = applyEventsWithRetries(envelope).map(aggOpt => ApplyEventsSuccess[Agg](aggOpt.asJava)).recover { case e =>
-      ApplyEventsFailure[Agg](e)
     }
     FutureConverters.toJava(result)
   }

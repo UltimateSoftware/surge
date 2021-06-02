@@ -181,7 +181,7 @@ class PersistentActor[S, M, R, E](
 
   override val kafkaStreamsCommand: AggregateStateStoreKafkaStreams[_] = regionSharedResources.stateStore
 
-  override def deserializeState(bytes: Array[Byte]): Option[S] = businessLogic.readFormatting.readState(bytes)
+  override def deserializeState(bytes: Array[Byte]): Option[S] = businessLogic.aggregateReadFormatting.readState(bytes)
 
   override val tracer: Tracer = businessLogic.tracer
 
@@ -193,6 +193,7 @@ class PersistentActor[S, M, R, E](
 
   private val publishStateOnly: Boolean = businessLogic.kafka.eventsTopicOpt.isEmpty
 
+  assert(!publishStateOnly || businessLogic.eventWriteFormattingOpt.nonEmpty, "businessLogic.eventWriteFormattingOpt may not be none when publishing events")
   override def preStart(): Unit = {
     initializeState(initializationAttempts = 0, None)
     super.preStart()
@@ -356,8 +357,11 @@ class PersistentActor[S, M, R, E](
   }
 
   private def serializeEvents(events: Seq[E]): Future[Seq[KafkaProducerActor.MessageToPublish]] = Future {
+    val eventWriteFormatting = businessLogic.eventWriteFormattingOpt.getOrElse {
+      throw new IllegalStateException("businessLogic.eventWriteFormattingOpt must not be None")
+    }
     events.map { event =>
-      val serializedMessage = metrics.serializeEventTimer.time(businessLogic.eventWriteFormatting.writeEvent(event))
+      val serializedMessage = metrics.serializeEventTimer.time(eventWriteFormatting.writeEvent(event))
       log.trace(s"Publishing event for {} {}", Seq(businessLogic.aggregateName, serializedMessage.key): _*)
       KafkaProducerActor.MessageToPublish(
         key = serializedMessage.key,

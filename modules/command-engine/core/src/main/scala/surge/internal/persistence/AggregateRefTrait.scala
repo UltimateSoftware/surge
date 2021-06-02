@@ -33,8 +33,8 @@ import scala.concurrent.{ ExecutionContext, Future }
 private[surge] trait AggregateRefTrait[AggId, Agg, Cmd, Event] extends SpanSupport {
 
   val aggregateId: AggId
-  val region: ActorRef
-  val tracer: Tracer
+  protected val region: ActorRef
+  protected val tracer: Tracer
 
   private val askTimeoutDuration = TimeoutConfig.AggregateActor.askTimeout
   private implicit val timeout: Timeout = Timeout(askTimeoutDuration)

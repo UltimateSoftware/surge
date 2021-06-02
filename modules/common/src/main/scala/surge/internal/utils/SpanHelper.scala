@@ -6,8 +6,8 @@ import io.opentracing.{ Span, Tracer }
 
 import scala.jdk.CollectionConverters._
 
-trait SpanSupport {
-  def tracer: Tracer
+private[surge] trait SpanSupport {
+  protected def tracer: Tracer
 
   def createSpan(operationName: String): Span = {
     createSpan(operationName, Option(tracer.activeSpan()))

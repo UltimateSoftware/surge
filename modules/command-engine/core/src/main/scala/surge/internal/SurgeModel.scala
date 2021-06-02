@@ -1,6 +1,5 @@
 // Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
-// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 package surge.internal
 
 import io.opentracing.Tracer
@@ -12,9 +11,9 @@ import surge.metrics.Metrics
 
 trait SurgeModel[S, M, +R, E] extends ProducerActorContext {
   override def aggregateName: String
-  def readFormatting: SurgeAggregateReadFormatting[S]
+  def aggregateReadFormatting: SurgeAggregateReadFormatting[S]
   def aggregateWriteFormatting: SurgeAggregateWriteFormatting[S]
-  def eventWriteFormatting: SurgeEventWriteFormatting[E]
+  def eventWriteFormattingOpt: Option[SurgeEventWriteFormatting[E]]
   def aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) => Boolean
   def model: AggregateProcessingModel[S, M, R, E]
   override def metrics: Metrics
