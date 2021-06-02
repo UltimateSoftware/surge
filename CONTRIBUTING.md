@@ -12,7 +12,7 @@ Here are some ways you can help:
 
 ## **Did you fix a bug or want to submit a new feature?**
 
-* You will need **write access** to the repository. Reach out to the maintainers to have that granted to you.
+* Fork the Surge repository on GitHub. You may push any feature branches to your own fork and open pull requests against the main repository from there.
 
 * Follow the Code Conventions below as you make your fix.
 

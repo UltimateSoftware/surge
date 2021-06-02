@@ -12,7 +12,7 @@ import org.apache.kafka.common.TopicPartition
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.internal.akka.ActorWithTracing
 import surge.internal.akka.cluster.{ ActorHostAwareness, Shard }
-import surge.internal.akka.kafka.KafkaConsumerStateTrackingActor
+import surge.internal.akka.kafka.{ KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor }
 import surge.internal.config.TimeoutConfig
 import surge.kafka.streams.HealthyActor.GetHealth
 import surge.kafka.streams.{ HealthCheck, HealthCheckStatus, HealthyActor }
@@ -26,7 +26,7 @@ object KafkaPartitionShardRouterActor {
   private val brokers = config.getString("kafka.brokers").split(",").toVector
 
   def props[Agg, Command, Event](
-      partitionTracker: ActorRef,
+      partitionTracker: KafkaConsumerPartitionAssignmentTracker,
       partitioner: KafkaPartitioner[String],
       trackedTopic: KafkaTopic,
       regionCreator: PersistentActorRegionCreator[String],
@@ -65,7 +65,7 @@ object KafkaPartitionShardRouterActor {
  *   A partial function to extract an entity id from an incoming message. This actor can only handle routing
  */
 class KafkaPartitionShardRouterActor(
-    partitionTracker: ActorRef,
+    partitionTracker: KafkaConsumerPartitionAssignmentTracker,
     kafkaStateProducer: KafkaProducerTrait[String, _],
     regionCreator: PersistentActorRegionCreator[String],
     extractEntityId: PartialFunction[Any, String],
@@ -304,7 +304,7 @@ class KafkaPartitionShardRouterActor(
 
   private def initializeState(): Unit = {
     log.debug(s"Initializing actor router with path = ${self.path}")
-    partitionTracker ! KafkaConsumerStateTrackingActor.Register(self)
+    partitionTracker.register(self)
   }
 
   private def getLocalPartitionRegionsHealth(partitionRegions: Map[Int, PartitionRegion]): Seq[Future[HealthCheck]] = {
@@ -320,7 +320,7 @@ class KafkaPartitionShardRouterActor(
   }
 
   private def getPartitionTrackerActorHealthCheck: Future[HealthCheck] = {
-    partitionTracker.ask(HealthyActor.GetHealth)(TimeoutConfig.HealthCheck.actorAskTimeout).mapTo[HealthCheck].recoverWith { case err: Throwable =>
+    partitionTracker.healthCheck().recoverWith { case err: Throwable =>
       log.error(s"Failed to get partition-tracker health check", err)
       Future.successful(
         HealthCheck(name = "partition-tracker", id = s"partition-tracker-actor-${partitionTracker.hashCode()}", status = HealthCheckStatus.DOWN))

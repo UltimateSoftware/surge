@@ -13,6 +13,7 @@ trait ActorSystemHostAwareness {
   protected lazy val localHostname: String = localAddress.host.getOrElse("localhost")
   protected lazy val localPort: Int = localAddress.port.getOrElse(0)
   protected lazy val akkaProtocol: String = localAddress.protocol
+  protected lazy val localHostPort: HostPort = HostPort(localHostname, localPort)
 
   protected lazy val applicationHostPort: Option[String] = for {
     akkaHost <- localAddress.host

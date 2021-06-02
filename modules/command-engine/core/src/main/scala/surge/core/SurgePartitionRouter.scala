@@ -6,6 +6,7 @@ import akka.actor._
 import akka.pattern.ask
 import org.slf4j.LoggerFactory
 import surge.internal.SurgeModel
+import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.config.TimeoutConfig
 import surge.internal.persistence.RoutableMessage
 import surge.kafka.streams._
@@ -15,7 +16,7 @@ import scala.concurrent.{ ExecutionContext, Future }
 
 private[surge] final class SurgePartitionRouter(
     system: ActorSystem,
-    clusterStateTrackingActor: ActorRef,
+    partitionTracker: KafkaConsumerPartitionAssignmentTracker,
     businessLogic: SurgeModel[_, _, _, _],
     regionCreator: PersistentActorRegionCreator[String])
     extends HealthyComponent {
@@ -24,7 +25,7 @@ private[surge] final class SurgePartitionRouter(
 
   val actorRegion: ActorRef = {
     val shardRouterProps = KafkaPartitionShardRouterActor.props(
-      clusterStateTrackingActor,
+      partitionTracker,
       businessLogic.partitioner,
       businessLogic.kafka.stateTopic,
       regionCreator,
