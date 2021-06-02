@@ -3,10 +3,29 @@
 package surge.internal.akka.kafka
 
 import akka.actor.{ Actor, ActorRef, NoSerializationVerificationNeeded, Props }
+import akka.pattern.ask
+import akka.util.Timeout
 import org.apache.kafka.common.TopicPartition
 import org.slf4j.LoggerFactory
-import surge.kafka.streams.{ HealthCheck, HealthCheckStatus, HealthyActor }
+import surge.internal.config.TimeoutConfig
+import surge.kafka.streams.{ HealthCheck, HealthCheckStatus, HealthyActor, HealthyComponent }
 import surge.kafka.{ HostPort, PartitionAssignments }
+
+import scala.concurrent.Future
+
+class KafkaConsumerPartitionAssignmentTracker(val underlyingActor: ActorRef) extends HealthyComponent {
+  def register(implicit actorRef: ActorRef): Unit = {
+    underlyingActor ! KafkaConsumerStateTrackingActor.Register(actorRef)
+  }
+
+  def getPartitionAssignments(implicit timeout: Timeout): Future[PartitionAssignments] = {
+    underlyingActor.ask(KafkaConsumerStateTrackingActor.GetPartitionAssignments).mapTo[PartitionAssignments]
+  }
+
+  override def healthCheck(): Future[HealthCheck] = {
+    underlyingActor.ask(HealthyActor.GetHealth)(TimeoutConfig.HealthCheck.actorAskTimeout).mapTo[HealthCheck]
+  }
+}
 
 object KafkaConsumerStateTrackingActor {
   sealed trait Message extends NoSerializationVerificationNeeded // These should only ever be locally sent

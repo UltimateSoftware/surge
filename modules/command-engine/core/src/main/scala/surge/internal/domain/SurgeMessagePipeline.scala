@@ -8,7 +8,7 @@ import play.api.libs.json.JsValue
 import surge.core.{ SurgePartitionRouter, SurgeProcessingTrait }
 import surge.internal.SurgeModel
 import surge.internal.akka.cluster.ActorSystemHostAwareness
-import surge.internal.akka.kafka.{ CustomConsumerGroupRebalanceListener, KafkaConsumerStateTrackingActor }
+import surge.internal.akka.kafka.{ CustomConsumerGroupRebalanceListener, KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor }
 import surge.internal.persistence.PersistentActorRegionCreator
 import surge.kafka.PartitionAssignments
 import surge.kafka.streams._
@@ -26,7 +26,8 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     with ActorSystemHostAwareness {
 
   protected implicit val system: ActorSystem = actorSystem
-  protected val stateChangeActor: ActorRef = system.actorOf(KafkaConsumerStateTrackingActor.props)
+  private val stateChangeActor: ActorRef = system.actorOf(KafkaConsumerStateTrackingActor.props)
+  protected val partitionTracker: KafkaConsumerPartitionAssignmentTracker = new KafkaConsumerPartitionAssignmentTracker(stateChangeActor)
   protected val kafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue] = new AggregateStateStoreKafkaStreams[JsValue](
     aggregateName = businessLogic.aggregateName,
     stateTopic = businessLogic.kafka.stateTopic,
@@ -37,8 +38,9 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     clientId = businessLogic.kafka.clientId,
     system = system,
     metrics = businessLogic.metrics)
-  private val cqrsRegionCreator = new PersistentActorRegionCreator[M](actorSystem, businessLogic, kafkaStreamsImpl, businessLogic.metrics, config)
-  protected val actorRouter: SurgePartitionRouter = new SurgePartitionRouter(actorSystem, stateChangeActor, businessLogic, cqrsRegionCreator)
+  private val cqrsRegionCreator =
+    new PersistentActorRegionCreator[M](actorSystem, businessLogic, kafkaStreamsImpl, partitionTracker, businessLogic.metrics, config)
+  protected val actorRouter: SurgePartitionRouter = new SurgePartitionRouter(actorSystem, partitionTracker, businessLogic, cqrsRegionCreator)
 
   protected val surgeHealthCheck = new SurgeHealthCheck(businessLogic.aggregateName, kafkaStreamsImpl, actorRouter)(ExecutionContext.global)
 

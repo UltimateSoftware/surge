@@ -23,10 +23,13 @@ import surge.core.KafkaProducerActor.{ PublishFailure, PublishSuccess }
 import surge.core.{ KafkaProducerActor, TestBoundedContext }
 import surge.internal.kafka.KafkaProducerActorImpl.{ AggregateStateRates, KTableProgressUpdate }
 import surge.kafka.streams.AggregateStateStoreKafkaStreams
-import surge.kafka.{ KafkaBytesProducer, KafkaRecordMetadata }
+import surge.kafka.{ KafkaBytesProducer, KafkaRecordMetadata, PartitionAssignments }
 import surge.metrics.Metrics
-
 import java.time.Instant
+
+import surge.internal.akka.cluster.ActorSystemHostAwareness
+import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
+
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{ Await, ExecutionContext, Future }
@@ -39,7 +42,10 @@ class KafkaProducerActorImplSpec
     with TestBoundedContext
     with MockitoSugar
     with ScalaFutures
-    with PatienceConfiguration {
+    with PatienceConfiguration
+    with ActorSystemHostAwareness {
+
+  override val actorSystem: ActorSystem = system
 
   override implicit val patienceConfig: PatienceConfig = PatienceConfig(timeout = Span(3, Seconds), interval = Span(10, Millis))
 
@@ -69,12 +75,21 @@ class KafkaProducerActorImplSpec
     mockStateStore
   }
 
+  private val defaultMockPartitionTracker: KafkaConsumerPartitionAssignmentTracker = {
+    val tracker = mock[KafkaConsumerPartitionAssignmentTracker]
+    when(tracker.getPartitionAssignments(any[Timeout])).thenReturn(Future.successful(PartitionAssignments(Map.empty)))
+    tracker
+  }
+
   private def testProducerActor(
       assignedPartition: TopicPartition,
       mockProducer: KafkaBytesProducer,
-      mockStateStore: AggregateStateStoreKafkaStreams[_]): ActorRef = {
+      mockStateStore: AggregateStateStoreKafkaStreams[_],
+      mockPartitionTracker: KafkaConsumerPartitionAssignmentTracker = defaultMockPartitionTracker): ActorRef = {
     val actor =
-      system.actorOf(Props(new KafkaProducerActorImpl(assignedPartition, Metrics.globalMetricRegistry, businessLogic, mockStateStore, Some(mockProducer))))
+      system.actorOf(
+        Props(
+          new KafkaProducerActorImpl(assignedPartition, Metrics.globalMetricRegistry, businessLogic, mockStateStore, mockPartitionTracker, Some(mockProducer))))
     // Blocks the execution to wait until the actor is ready so we know its subscribed to the event bus
     system.actorSelection(actor.path).resolveOne()(Timeout(patienceConfig.timeout)).futureValue
     actor
@@ -358,6 +373,7 @@ class KafkaProducerActorImplSpec
       probe.watch(fencedOnBegin)
       probe.send(fencedOnBegin, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
       probe.send(fencedOnBegin, KafkaProducerActorImpl.FlushMessages)
+      probe.expectMsgType[PublishFailure]
       probe.expectTerminated(fencedOnBegin)
       verify(mockProducerFenceOnBegin).beginTransaction()
       verify(mockProducerFenceOnBegin, times(0)).putRecords(records(assignedPartition, testEvents1, testAggs1))
@@ -365,10 +381,43 @@ class KafkaProducerActorImplSpec
       probe.watch(fencedOnCommit)
       probe.send(fencedOnCommit, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
       probe.send(fencedOnCommit, KafkaProducerActorImpl.FlushMessages)
+      probe.expectMsgType[PublishFailure]
       probe.expectTerminated(fencedOnCommit)
       verify(mockProducerFenceOnCommit).beginTransaction()
       verify(mockProducerFenceOnCommit).putRecords(records(assignedPartition, testEvents1, testAggs1))
       verify(mockProducerFenceOnCommit).commitTransaction()
+    }
+
+    "Recreate the producer on a ProducerFencedException if the partition is still assigned to this node" in {
+      val probe = TestProbe()
+      val assignedPartition = new TopicPartition("testTopic", 1)
+      val mockPartitionTracker = mock[KafkaConsumerPartitionAssignmentTracker]
+      val assignmentMap = Map(localHostPort -> List(assignedPartition))
+      val mockProducerFenceOnCommit = mock[KafkaBytesProducer]
+      val mockMetadata = mockRecordMetadata(assignedPartition)
+
+      when(mockPartitionTracker.getPartitionAssignments(any[Timeout])).thenReturn(Future.successful(PartitionAssignments(assignmentMap)))
+      when(mockProducerFenceOnCommit.initTransactions()(any[ExecutionContext])).thenReturn(Future.unit)
+      doNothing().when(mockProducerFenceOnCommit).beginTransaction()
+      doNothing().when(mockProducerFenceOnCommit).abortTransaction()
+      doThrow(new ProducerFencedException("This is expected")).doNothing().when(mockProducerFenceOnCommit).commitTransaction()
+      when(mockProducerFenceOnCommit.putRecords(any[Seq[ProducerRecord[String, Array[Byte]]]])).thenReturn(Seq(Future.successful(mockMetadata)))
+
+      val mockStateStore = mockStateStoreReturningOffset(assignedPartition, 100L, 100L)
+      val fencedOnCommit = testProducerActor(assignedPartition, mockProducerFenceOnCommit, mockStateStore, mockPartitionTracker)
+
+      probe.watch(fencedOnCommit)
+      probe.send(fencedOnCommit, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
+      probe.send(fencedOnCommit, KafkaProducerActorImpl.FlushMessages)
+      probe.expectMsgType[PublishFailure]
+      verify(mockProducerFenceOnCommit).beginTransaction()
+      verify(mockProducerFenceOnCommit).putRecords(records(assignedPartition, testEvents1, testAggs1))
+      verify(mockProducerFenceOnCommit).commitTransaction()
+
+      probe.send(fencedOnCommit, KafkaProducerActorImpl.Publish(testAggs2, testEvents2))
+      probe.send(fencedOnCommit, KafkaProducerActorImpl.FlushMessages)
+      probe.expectMsg(PublishSuccess)
+      verify(mockProducerFenceOnCommit).putRecords(records(assignedPartition, testEvents2, testAggs2))
     }
   }
 

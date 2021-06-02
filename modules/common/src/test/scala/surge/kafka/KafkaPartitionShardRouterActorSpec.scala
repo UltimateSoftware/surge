@@ -14,7 +14,7 @@ import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
 import surge.akka.cluster.{ EntityPropsProvider, PerShardLogicProvider }
 import surge.internal.akka.cluster.ActorSystemHostAwareness
-import surge.internal.akka.kafka.KafkaConsumerStateTrackingActor
+import surge.internal.akka.kafka.{ KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor }
 import surge.kafka.streams.{ HealthCheck, HealthCheckStatus }
 import surge.tracing.TracedMessage
 
@@ -73,7 +73,7 @@ trait KafkaPartitionShardRouterActorSpecLike extends MockitoSugar {
     }
     val shardRouterProps = Props(
       new KafkaPartitionShardRouterActor(
-        partitionTracker = partitionProbe.ref,
+        partitionTracker = new KafkaConsumerPartitionAssignmentTracker(partitionProbe.ref),
         kafkaStateProducer = producer,
         regionCreator = new ProbeInterceptorRegionCreator(regionProbe),
         extractEntityId = extractEntityId,

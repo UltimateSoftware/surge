@@ -8,8 +8,8 @@ import org.apache.kafka.common.TopicPartition
 import play.api.libs.json.JsValue
 import surge.akka.cluster.{ EntityPropsProvider, PerShardLogicProvider }
 import surge.core.KafkaProducerActor
+import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.persistence
-import surge.internal.persistence.PersistentActor.MetricsQuiver
 import surge.internal.utils.Logging
 import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, HealthCheck }
 import surge.kafka.{ PersistentActorRegionCreator => KafkaPersistentActorRegionCreator }
@@ -25,11 +25,12 @@ class PersistentActorRegionCreator[M](
     system: ActorSystem,
     businessLogic: BusinessLogic,
     kafkaStreamsCommand: AggregateStateStoreKafkaStreams[JsValue],
+    partitionTracker: KafkaConsumerPartitionAssignmentTracker,
     metrics: Metrics,
     config: Config)
     extends KafkaPersistentActorRegionCreator[String] {
   override def regionFromTopicPartition(topicPartition: TopicPartition): PerShardLogicProvider[String] =
-    new PersistentActorRegion[M](system, topicPartition, businessLogic, kafkaStreamsCommand, metrics, config)
+    new PersistentActorRegion[M](system, topicPartition, businessLogic, kafkaStreamsCommand, partitionTracker, metrics, config)
 }
 
 class PersistentActorRegion[M](
@@ -37,6 +38,7 @@ class PersistentActorRegion[M](
     assignedPartition: TopicPartition,
     businessLogic: BusinessLogic,
     aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue],
+    partitionTracker: KafkaConsumerPartitionAssignmentTracker,
     metrics: Metrics,
     val config: Config)
     extends PerShardLogicProvider[String]
@@ -47,7 +49,8 @@ class PersistentActorRegion[M](
     assignedPartition = assignedPartition,
     metrics = metrics,
     businessLogic = businessLogic,
-    kStreams = aggregateKafkaStreamsImpl)
+    kStreams = aggregateKafkaStreamsImpl,
+    partitionTracker = partitionTracker)
 
   override def onShardTerminated(): Unit = {
     log.debug("Shard for partition {} terminated, killing partition kafkaProducerActor", assignedPartition)
