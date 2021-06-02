@@ -9,7 +9,7 @@ import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.common.config.TopicConfig
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
-import surge.scaladsl.command.{ CommandFailure, CommandSuccess }
+import surge.scaladsl.common.{ CommandFailure, CommandSuccess }
 
 import scala.concurrent.{ Await, ExecutionContext, Future }
 import scala.concurrent.duration._

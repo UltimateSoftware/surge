@@ -16,7 +16,7 @@ import scala.concurrent.{ ExecutionContext, Future }
 case class HandledMessageResult[S, +E](resultingState: Option[S], eventsToLog: Seq[E])
 
 /**
- * AggregateProcessingModel defines a structure for a domain's types and algebra for an "X" Service
+ * AggregateProcessingModel defines a structure for a domain's types and algebra for an CommandService or EventService
  *
  * @tparam S
  *   State type
@@ -25,7 +25,7 @@ case class HandledMessageResult[S, +E](resultingState: Option[S], eventsToLog: S
  * @tparam R
  *   Rejection type
  * @tparam E
- *   CQRS Event type
+ *   Event type
  */
 
 trait AggregateProcessingModel[S, M, +R, E] {
@@ -72,4 +72,14 @@ trait CommandHandler[S, M, R, E] extends AggregateProcessingModel[S, M, R, E] {
       case Right(events) =>
         Right(HandledMessageResult(events.foldLeft(state)((s: Option[S], e: E) => apply(ctx, s, e)), events))
     }
+}
+
+trait EventHandler[S, E] extends AggregateProcessingModel[S, Nothing, Nothing, E] {
+  def handleEvent(ctx: Context, state: Option[S], event: E): Option[S]
+
+  override final def handle(ctx: Context, state: Option[S], msg: Nothing)(
+      implicit ec: ExecutionContext): Future[Either[Nothing, HandledMessageResult[S, Nothing]]] =
+    throw new RuntimeException("Impossible")
+
+  override final def apply(ctx: Context, state: Option[S], event: E): Option[S] = handleEvent(ctx, state, event)
 }

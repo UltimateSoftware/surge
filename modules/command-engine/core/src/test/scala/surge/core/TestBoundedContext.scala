@@ -154,7 +154,7 @@ trait TestBoundedContext {
       aggregateName = "CountAggregate",
       kafka = kafkaConfig,
       model = BusinessLogic,
-      readFormatting = readFormats,
+      aggregateReadFormatting = readFormats,
       writeFormatting = writeFormats,
       aggregateValidator = { (_, _, _) => true },
       metrics = Metrics.globalMetricRegistry,
