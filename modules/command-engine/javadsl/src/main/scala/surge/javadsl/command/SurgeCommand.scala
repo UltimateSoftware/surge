@@ -8,7 +8,6 @@ import com.typesafe.config.{ Config, ConfigFactory }
 import surge.core
 import surge.core.command._
 import surge.core.commondsl.{ SurgeCommandBusinessLogicTrait, SurgeRejectableCommandBusinessLogicTrait }
-import surge.core.{ command, SurgePartitionRouter }
 import surge.internal.domain
 import surge.javadsl.common.{ HealthCheck, HealthCheckTrait }
 import surge.metrics.Metric
@@ -20,7 +19,7 @@ import scala.jdk.CollectionConverters._
 trait SurgeCommand[AggId, Agg, Command, Rej, Evt] extends core.SurgeProcessingTrait[Agg, Command, Rej, Evt] with HealthCheckTrait {
   def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Command, Evt]
   def getMetrics: java.util.List[Metric]
-  def registerConsumerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Command, Rej, Evt]): Unit
+  def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Command, Rej, Evt]): Unit
 }
 
 object SurgeCommand {
@@ -65,7 +64,7 @@ private[javadsl] class SurgeCommandImpl[AggId, Agg, Command, Rej, Evt](
 
   def getMetrics: java.util.List[Metric] = businessLogic.metrics.getMetrics.asJava
 
-  override def registerConsumerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Command, Rej, Evt]): Unit = {
+  def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Command, Rej, Evt]): Unit = {
     registerRebalanceCallback { assignments =>
       val javaAssignments = assignments.partitionAssignments.map(kv => kv._1 -> kv._2.asJava).asJava
       listener.onRebalance(this, javaAssignments)

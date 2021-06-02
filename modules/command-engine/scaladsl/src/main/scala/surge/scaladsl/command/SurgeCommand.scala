@@ -5,7 +5,6 @@ package surge.scaladsl.command
 import akka.actor.ActorSystem
 import com.typesafe.config.{ Config, ConfigFactory }
 import surge.core
-import surge.core.command
 import surge.core.command.SurgeCommandModel
 import surge.core.commondsl.{ SurgeCommandBusinessLogicTrait, SurgeRejectableCommandBusinessLogicTrait }
 import surge.internal.domain
