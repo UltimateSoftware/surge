@@ -18,6 +18,7 @@ import scala.jdk.CollectionConverters._
 trait SurgeEvent[AggId, Agg, Evt] extends core.SurgeProcessingTrait[Agg, Nothing, Nothing, Evt] with HealthCheckTrait {
   def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Evt]
   def getMetrics: java.util.List[Metric]
+  def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Evt]): Unit
 }
 
 object SurgeEvent {
@@ -47,4 +48,11 @@ private[javadsl] class SurgeEventImpl[AggId, Agg, Evt](
   }
 
   def getMetrics: java.util.List[Metric] = businessLogic.metrics.getMetrics.asJava
+
+  def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Evt]): Unit = {
+    registerRebalanceCallback { assignments =>
+      val javaAssignments = assignments.partitionAssignments.map(kv => kv._1 -> kv._2.asJava).asJava
+      listener.onRebalance(this, javaAssignments)
+    }
+  }
 }

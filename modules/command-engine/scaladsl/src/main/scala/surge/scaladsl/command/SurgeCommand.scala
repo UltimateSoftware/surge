@@ -5,16 +5,16 @@ package surge.scaladsl.command
 import akka.actor.ActorSystem
 import com.typesafe.config.{ Config, ConfigFactory }
 import surge.core
-import surge.core.command
 import surge.core.command.SurgeCommandModel
 import surge.core.commondsl.{ SurgeCommandBusinessLogicTrait, SurgeRejectableCommandBusinessLogicTrait }
 import surge.internal.domain
 import surge.metrics.Metric
 import surge.scaladsl.common.HealthCheckTrait
 
-trait SurgeCommand[AggId, Agg, Command, +Rej, Evt] extends core.SurgeProcessingTrait[Agg, Command, Rej, Evt] with HealthCheckTrait {
+trait SurgeCommand[AggId, Agg, Command, Rej, Evt] extends core.SurgeProcessingTrait[Agg, Command, Rej, Evt] with HealthCheckTrait {
   def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Command, Evt]
   def getMetrics: Seq[Metric] = businessLogic.metrics.getMetrics
+  def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Command, Rej, Evt]): Unit
 }
 
 object SurgeCommand {
@@ -38,7 +38,7 @@ object SurgeCommand {
   }
 }
 
-private[scaladsl] class SurgeCommandImpl[AggId, Agg, Command, +Rej, Event](
+private[scaladsl] class SurgeCommandImpl[AggId, Agg, Command, Rej, Event](
     val actorSystem: ActorSystem,
     override val businessLogic: SurgeCommandModel[Agg, Command, Rej, Event],
     aggIdToString: AggId => String,
@@ -52,4 +52,7 @@ private[scaladsl] class SurgeCommandImpl[AggId, Agg, Command, +Rej, Event](
 
   override def getMetrics: Seq[Metric] = businessLogic.metrics.getMetrics
 
+  def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Command, Rej, Event]): Unit = {
+    registerRebalanceCallback { assignments => listener.onRebalance(this, assignments.partitionAssignments) }
+  }
 }

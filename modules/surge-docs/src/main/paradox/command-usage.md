@@ -1,4 +1,4 @@
-# Using Surge on the command side
+# Command Side Usage
 
 Surge provides an engine that must be configured with domain logic.  It uses this domain logic
 under the hood to determine what events should be emitted based on a command and how to update
@@ -78,12 +78,20 @@ Java
 :    Java examples coming soon...
 
 
-You can interact with the running engine via two methods, `getState` for fetching state and `sendCommand` for sending commands:
+You can interact with the running engine via two main methods, `sendCommand` for sending commands and `getState` for fetching state:
 
 Scala
-:    @@snip [Service.scala](/modules/surge-docs/src/test/scala/docs/command/BankAccountService.scala) { #bank_account_service_class }
+:    @@snip [Service.scala](/modules/surge-docs/src/test/scala/docs/command/BankAccountCommandEngineSpec.scala) { #sending_command_to_engine }
 
 Java
 :    Java examples coming soon...
 
 The `sendCommand` method will return a `CommandSuccess` if the command was processed successfully, even if no events are emitted or a `CommandFailure` wrapping any exception thrown as part of the command processing logic if one is thrown.
+
+Scala
+:    @@snip [Service.scala](/modules/surge-docs/src/test/scala/docs/command/BankAccountCommandEngineSpec.scala) { #getting_state_from_engine }
+
+Java
+:    Java examples coming soon...
+
+The `getState` method will return the current state of the given aggregate if it exists.
