@@ -3,7 +3,7 @@
 package surge.javadsl.command
 
 import surge.core.Context
-import surge.internal.commondsl.command.AggregateCommandModelBase
+import surge.core.command.AggregateCommandModelCoreTrait
 import surge.internal.domain.CommandHandler
 
 import java.util.concurrent.CompletableFuture
@@ -13,7 +13,7 @@ import scala.compat.java8.OptionConverters._
 import scala.concurrent.Future
 import scala.jdk.CollectionConverters._
 
-trait AggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelBase[Agg, Cmd, Nothing, Evt] {
+trait AggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCoreTrait[Agg, Cmd, Nothing, Evt] {
   def processCommand(aggregate: Optional[Agg], command: Cmd): JList[Evt]
   def handleEvent(aggregate: Optional[Agg], event: Evt): Optional[Agg]
 
@@ -25,7 +25,7 @@ trait AggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelBase[Agg
     }
 }
 
-trait ContextAwareAggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelBase[Agg, Cmd, Nothing, Evt] {
+trait ContextAwareAggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCoreTrait[Agg, Cmd, Nothing, Evt] {
   def processCommand(ctx: Context, aggregate: Optional[Agg], command: Cmd): CompletableFuture[Seq[Evt]]
   def handleEvent(ctx: Context, aggregate: Optional[Agg], event: Evt): Optional[Agg]
 
@@ -48,7 +48,7 @@ trait ContextAwareAggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandM
  * @tparam Evt
  *   event type
  */
-trait RejectableAggregateCommandModel[Agg, Cmd, Rej, Evt] extends AggregateCommandModelBase[Agg, Cmd, Rej, Evt] {
+trait RejectableAggregateCommandModel[Agg, Cmd, Rej, Evt] extends AggregateCommandModelCoreTrait[Agg, Cmd, Rej, Evt] {
 
   /**
    * Process a command

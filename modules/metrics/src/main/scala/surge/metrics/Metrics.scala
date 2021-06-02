@@ -112,7 +112,7 @@ final case class Metrics(config: MetricsConfig) {
     metricListeners.remove(listener)
   }
 
-  def getMetrics: Seq[Metric] = metrics.values.toVector
+  def getMetrics: Vector[Metric] = metrics.values.toVector
 
   def metricDescriptions: Seq[MetricDescription] = {
     getMetrics.map(_.describe)

@@ -2,7 +2,7 @@
 
 package docs.command
 
-import surge.scaladsl.command.{ CommandFailure, CommandSuccess }
+import surge.scaladsl.command.Types._
 
 import scala.concurrent.{ ExecutionContext, Future }
 

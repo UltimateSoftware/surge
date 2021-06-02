@@ -105,4 +105,4 @@ lazy val `surge` = project
   .settings(skip in publish := true, ReleaseSettings.settings)
   .disablePlugins(MimaPlugin)
 
-addCommandAlias("codeFormat", ";headerCreate;test:headerCreate;scalafmtAll")
+addCommandAlias("codeFormat", ";headerCreate;test:headerCreate;scalafmtAll;scalafmtSbt")
