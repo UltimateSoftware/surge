@@ -127,8 +127,8 @@ class PersistentActorSpec
 
     probe.expectMsg(PersistentActor.ACKSuccess(expectedState))
 
-    val serializedEvent = businessLogic.writeFormatting.writeEvent(expectedEvent)
-    val serializedAgg = expectedState.map(businessLogic.writeFormatting.writeState)
+    val serializedEvent = businessLogic.eventWriteFormatting.writeEvent(expectedEvent)
+    val serializedAgg = expectedState.map(businessLogic.aggregateWriteFormatting.writeState)
     val expectedStateSerialized = KafkaProducerActor.MessageToPublish(state.aggregateId, serializedAgg.map(_.value).orNull, new RecordHeaders())
     val headers = HeadersHelper.createHeaders(serializedEvent.headers)
     val expectedEventSerialized = KafkaProducerActor.MessageToPublish(serializedEvent.key, serializedEvent.value, headers)

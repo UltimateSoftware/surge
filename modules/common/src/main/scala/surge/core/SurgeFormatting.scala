@@ -13,7 +13,7 @@ trait SurgeAggregateReadFormatting[Agg] {
   def readState(bytes: Array[Byte]): Option[Agg]
 }
 
-trait SurgeReadFormatting[Agg, Event] extends SurgeEventReadFormatting[Event] with SurgeAggregateReadFormatting[Agg]
+//trait SurgeReadFormatting[Agg, Event] extends SurgeEventReadFormatting[Event] with SurgeAggregateReadFormatting[Agg]
 
 trait SurgeEventWriteFormatting[Event] {
   def writeEvent(evt: Event): SerializedMessage
@@ -22,7 +22,7 @@ trait SurgeEventWriteFormatting[Event] {
 trait SurgeAggregateWriteFormatting[Agg] {
   def writeState(agg: Agg): SerializedAggregate
 }
-trait SurgeWriteFormatting[Agg, Event] extends SurgeEventWriteFormatting[Event] with SurgeAggregateWriteFormatting[Agg]
+//trait SurgeWriteFormatting[Agg, Event] extends SurgeEventWriteFormatting[Event] with SurgeAggregateWriteFormatting[Agg]
 
 trait SurgeAggregateFormatting[Agg] extends SurgeAggregateReadFormatting[Agg] with SurgeAggregateWriteFormatting[Agg]
 trait SurgeEventFormatting[Event] extends SurgeEventReadFormatting[Event] with SurgeEventWriteFormatting[Event]

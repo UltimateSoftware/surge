@@ -130,32 +130,25 @@ trait TestBoundedContext {
     clientId = "",
     transactionalIdPrefix = "test-transaction-id-prefix")
 
-  val readFormats: SurgeReadFormatting[State, BaseTestEvent] = new SurgeReadFormatting[State, BaseTestEvent] {
-    override def readEvent(bytes: Array[Byte]): BaseTestEvent = {
-      Json.parse(bytes).as[BaseTestEvent]
-    }
-
-    override def readState(bytes: Array[Byte]): Option[State] = {
-      Json.parse(bytes).asOpt[State]
-    }
-  }
-
-  val writeFormats: SurgeWriteFormatting[State, BaseTestEvent] = new SurgeWriteFormatting[State, BaseTestEvent] {
-    override def writeEvent(evt: BaseTestEvent): SerializedMessage = {
-      val key = s"${evt.aggregateId}:${evt.sequenceNumber}"
-      val body = Json.toJson(evt).toString().getBytes()
-      SerializedMessage(key, body, Map.empty)
-    }
-
+  val aggregateFormatting: SurgeAggregateFormatting[State] = new SurgeAggregateFormatting[State] {
+    override def readState(bytes: Array[Byte]): Option[State] = Json.parse(bytes).asOpt[State]
     override def writeState(agg: State): SerializedAggregate = SerializedAggregate(Json.toJson(agg).toString().getBytes(), Map.empty)
   }
+
+  val eventWriter: SurgeEventWriteFormatting[BaseTestEvent] = (evt: BaseTestEvent) => {
+    val key = s"${evt.aggregateId}:${evt.sequenceNumber}"
+    val body = Json.toJson(evt).toString().getBytes()
+    SerializedMessage(key, body, Map.empty)
+  }
+
   val businessLogic: SurgeCommandModel[State, BaseTestCommand, Nothing, BaseTestEvent] =
     command.SurgeCommandModel(
       aggregateName = "CountAggregate",
       kafka = kafkaConfig,
       model = BusinessLogic,
-      aggregateReadFormatting = readFormats,
-      writeFormatting = writeFormats,
+      aggregateReadFormatting = aggregateFormatting,
+      aggregateWriteFormatting = aggregateFormatting,
+      eventWriteFormatting = eventWriter,
       aggregateValidator = { (_, _, _) => true },
       metrics = Metrics.globalMetricRegistry,
       tracer = new MockTracer())
