@@ -349,6 +349,7 @@ class KafkaProducerActorImplSpec
 
     "Stop if the producer is fenced out by another instance with the same transaction id" in {
       val probe = TestProbe()
+      val terminateWatcherProbe = TestProbe()
       val assignedPartition = new TopicPartition("testTopic", 1)
       val mockProducerFenceOnBegin = mock[KafkaBytesProducer]
       val mockProducerFenceOnCommit = mock[KafkaBytesProducer]
@@ -370,11 +371,11 @@ class KafkaProducerActorImplSpec
       val fencedOnBegin = testProducerActor(assignedPartition, mockProducerFenceOnBegin, mockStateStore)
       val fencedOnCommit = testProducerActor(assignedPartition, mockProducerFenceOnCommit, mockStateStore)
 
-      probe.watch(fencedOnBegin)
+      terminateWatcherProbe.watch(fencedOnBegin)
       probe.send(fencedOnBegin, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
       probe.send(fencedOnBegin, KafkaProducerActorImpl.FlushMessages)
       probe.expectMsgType[PublishFailure]
-      probe.expectTerminated(fencedOnBegin)
+      terminateWatcherProbe.expectTerminated(fencedOnBegin)
       verify(mockProducerFenceOnBegin).beginTransaction()
       verify(mockProducerFenceOnBegin, times(0)).putRecords(records(assignedPartition, testEvents1, testAggs1))
 
@@ -409,7 +410,7 @@ class KafkaProducerActorImplSpec
       probe.watch(fencedOnCommit)
       probe.send(fencedOnCommit, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
       probe.send(fencedOnCommit, KafkaProducerActorImpl.FlushMessages)
-      probe.expectMsgType[PublishFailure]
+      probe.expectMsgType[PublishFailure](5.seconds)
       verify(mockProducerFenceOnCommit).beginTransaction()
       verify(mockProducerFenceOnCommit).putRecords(records(assignedPartition, testEvents1, testAggs1))
       verify(mockProducerFenceOnCommit).commitTransaction()
