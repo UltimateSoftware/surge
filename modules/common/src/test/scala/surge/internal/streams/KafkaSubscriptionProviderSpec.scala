@@ -13,6 +13,7 @@ import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.serialization.{ Deserializer, Serializer }
 import org.scalatest.concurrent.Eventually
 import org.scalatest.matchers.should.Matchers
+import org.scalatest.time.{ Millis, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
 import surge.internal.akka.kafka.AkkaKafkaConsumer
 import surge.internal.akka.streams.FlowConverter
@@ -28,6 +29,8 @@ class KafkaSubscriptionProviderSpec extends TestKit(ActorSystem("StreamManagerSp
   private implicit val stringSer: Serializer[String] = DefaultSerdes.stringSerde.serializer()
   private implicit val stringDeserializer: Deserializer[String] = DefaultSerdes.stringSerde.deserializer()
   private implicit val byteArrayDeserializer: Deserializer[Array[Byte]] = DefaultSerdes.byteArraySerde.deserializer()
+
+  override implicit val patienceConfig: PatienceConfig = PatienceConfig(timeout = Span(10, Seconds), interval = Span(100, Millis))
 
   private class InMemoryOffsetManager() extends OffsetManager {
     private val offsetMappings: scala.collection.mutable.Map[TopicPartition, Long] = scala.collection.mutable.Map.empty
