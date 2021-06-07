@@ -22,3 +22,4 @@ jobs:
         if: 'always()'
         with:
           report_paths: 'target/test-reports/*.xml'
+      - uses: codecov/codecov-action@v1
