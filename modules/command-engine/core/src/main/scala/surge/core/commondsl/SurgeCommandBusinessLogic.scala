@@ -3,18 +3,16 @@
 package surge.core.commondsl
 
 import surge.core.command.{ AggregateCommandModelCoreTrait, SurgeCommandKafkaConfig }
-import surge.core.{ SurgeAggregateReadFormatting, SurgeAggregateWriteFormatting, SurgeEventWriteFormatting, SurgeWriteFormatting }
+import surge.core.{ SurgeAggregateReadFormatting, SurgeAggregateWriteFormatting, SurgeEventWriteFormatting }
 import surge.kafka.KafkaTopic
 
 trait SurgeGenericCommandBusinessLogicTrait[AggId, Agg, Command, Rej, Event] extends SurgeGenericBusinessLogicTrait[AggId, Agg, Command, Rej, Event] {
 
   def eventsTopic: KafkaTopic
-  def writeFormatting: SurgeWriteFormatting[Agg, Event]
-  def readFormatting: SurgeAggregateReadFormatting[Agg]
 
-  override final def aggregateReadFormatting: SurgeAggregateReadFormatting[Agg] = readFormatting
-  final def eventWriteFormatting: SurgeEventWriteFormatting[Event] = writeFormatting
-  final override def aggregateWriteFormatting: SurgeAggregateWriteFormatting[Agg] = writeFormatting
+  def aggregateReadFormatting: SurgeAggregateReadFormatting[Agg]
+  def eventWriteFormatting: SurgeEventWriteFormatting[Event]
+  def aggregateWriteFormatting: SurgeAggregateWriteFormatting[Agg]
 
   def kafkaConfig: SurgeCommandKafkaConfig = new SurgeCommandKafkaConfig(
     stateTopic = stateTopic,
