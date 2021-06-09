@@ -18,7 +18,7 @@ object MiMa extends AutoPlugin {
 
   private def previousArtifacts(projectName: String, organization: String): Set[sbt.ModuleID] = {
     val versions: Seq[String] = {
-      val firstPatchVersion = "2"
+      val firstPatchVersion = "4"
       Seq(s"0.5.$firstPatchVersion")
     }
 
