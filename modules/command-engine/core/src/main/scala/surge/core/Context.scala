@@ -2,11 +2,13 @@
 
 package surge.core
 
-import scala.concurrent.ExecutionContext
-import scala.concurrent.ExecutionContext.global
+import akka.actor.ActorRef
 
-object Context {
-  val noop: Context = new Context()
+import scala.concurrent.ExecutionContext
+
+private[surge] object Context {
+  def apply(executionContext: ExecutionContext, actorRef: ActorRef): Context = new Context(executionContext, actorRef)
+
 }
 
-class Context private (private[surge] val executionContext: ExecutionContext = global)
+private[surge] class Context private (val executionContext: ExecutionContext, val actorRef: ActorRef)

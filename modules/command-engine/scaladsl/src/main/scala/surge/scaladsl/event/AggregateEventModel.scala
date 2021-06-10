@@ -2,12 +2,13 @@
 
 package surge.scaladsl.event
 
-import surge.core.Context
 import surge.core.event.AggregateEventModelCoreTrait
+import surge.core.{ Context => CoreContext }
 import surge.internal.domain.EventHandler
+import surge.scaladsl.common.Context
 
 trait AggregateEventModel[Agg, Evt] extends AggregateEventModelCoreTrait[Agg, Evt] {
   def handleEvent(ctx: Context, state: Option[Agg], event: Evt): Option[Agg]
 
-  override def toCore: EventHandler[Agg, Evt] = (ctx: Context, state: Option[Agg], event: Evt) => handleEvent(ctx, state, event)
+  override def toCore: EventHandler[Agg, Evt] = (ctx: CoreContext, state: Option[Agg], event: Evt) => handleEvent(Context(ctx), state, event)
 }

@@ -2,9 +2,10 @@
 
 package surge.scaladsl.command
 
-import surge.core.Context
 import surge.core.command.AggregateCommandModelCoreTrait
+import surge.core.{ Context => CoreContext }
 import surge.internal.domain.CommandHandler
+import surge.scaladsl.common.Context
 
 import scala.concurrent.Future
 import scala.util.Try
@@ -15,9 +16,9 @@ trait AggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCoreTrai
 
   final def toCore: CommandHandler[Agg, Cmd, Nothing, Evt] =
     new CommandHandler[Agg, Cmd, Nothing, Evt] {
-      override def processCommand(ctx: Context, state: Option[Agg], cmd: Cmd): Future[CommandResult] =
+      override def processCommand(ctx: CoreContext, state: Option[Agg], cmd: Cmd): Future[CommandResult] =
         Future.fromTry(AggregateCommandModel.this.processCommand(state, cmd).map(v => Right(v)))
-      override def apply(ctx: Context, state: Option[Agg], event: Evt): Option[Agg] = handleEvent(state, event)
+      override def apply(ctx: CoreContext, state: Option[Agg], event: Evt): Option[Agg] = handleEvent(state, event)
     }
 }
 
@@ -27,9 +28,9 @@ trait ContextAwareAggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandM
 
   final def toCore: CommandHandler[Agg, Cmd, Nothing, Evt] =
     new CommandHandler[Agg, Cmd, Nothing, Evt] {
-      override def processCommand(ctx: Context, state: Option[Agg], cmd: Cmd): Future[CommandResult] =
-        ContextAwareAggregateCommandModel.this.processCommand(ctx, state, cmd).map(v => Right(v))(ctx.executionContext)
-      override def apply(ctx: Context, state: Option[Agg], event: Evt): Option[Agg] = handleEvent(ctx, state, event)
+      override def processCommand(ctx: CoreContext, state: Option[Agg], cmd: Cmd): Future[CommandResult] =
+        ContextAwareAggregateCommandModel.this.processCommand(Context(ctx), state, cmd).map(v => Right(v))(ctx.executionContext)
+      override def apply(ctx: CoreContext, state: Option[Agg], event: Evt): Option[Agg] = handleEvent(Context(ctx), state, event)
     }
 }
 
@@ -74,8 +75,8 @@ trait RejectableAggregateCommandModel[Agg, Cmd, Rej, Evt] extends AggregateComma
 
   final def toCore: CommandHandler[Agg, Cmd, Rej, Evt] =
     new CommandHandler[Agg, Cmd, Rej, Evt] {
-      override def processCommand(ctx: Context, state: Option[Agg], cmd: Cmd): Future[CommandResult] =
-        RejectableAggregateCommandModel.this.processCommand(ctx, state, cmd)
-      override def apply(ctx: Context, state: Option[Agg], event: Evt): Option[Agg] = handleEvent(ctx, state, event)
+      override def processCommand(ctx: CoreContext, state: Option[Agg], cmd: Cmd): Future[CommandResult] =
+        RejectableAggregateCommandModel.this.processCommand(Context(ctx), state, cmd)
+      override def apply(ctx: CoreContext, state: Option[Agg], event: Evt): Option[Agg] = handleEvent(Context(ctx), state, event)
     }
 }
