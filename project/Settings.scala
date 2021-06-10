@@ -21,7 +21,14 @@ object Settings extends AutoPlugin {
     publishMavenStyle := true,
     scmInfo := Some(ScmInfo(url("https://github.com/UltimateSoftware/surge"), "scm:git:git@github.com:UltimateSoftware/surge.git")),
     git.remoteRepo := scmInfo.value.get.connection.replace("scm:git:", ""),
-    Test / parallelExecution := false)
+    Test / parallelExecution := false,
+    publishTo := {
+      if (isSnapshot.value) {
+        Some("FIXME".at("not-set-up"))
+      } else {
+        Some("FIXME".at("not-set-up"))
+      }
+    })
 
   override def buildSettings: Seq[Def.Setting[_]] = Seq(
     organization in ThisBuild := "com.ukg",
