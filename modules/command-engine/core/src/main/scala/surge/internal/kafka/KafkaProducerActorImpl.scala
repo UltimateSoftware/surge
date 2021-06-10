@@ -12,19 +12,18 @@ import org.apache.kafka.common.errors.ProducerFencedException
 import org.apache.kafka.streams.LagInfo
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.core.KafkaProducerActor
+import surge.internal.akka.ActorWithTracing
+import surge.kafka.streams.HealthyActor.GetHealth
+import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, HealthCheck, HealthCheckStatus }
+import surge.kafka.{ KafkaBytesProducer, KafkaRecordMetadata, KafkaTopicTrait }
+import surge.metrics.{ MetricInfo, Metrics, Rate, Timer }
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 
 import akka.util.Timeout
+import surge.health.{ HealthSignalBusTrait, HealthyPublisher }
 import surge.internal.akka.cluster.ActorHostAwareness
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
-import surge.health.{ HealthSignalBusTrait, HealthyPublisher }
-import surge.internal.akka.ActorWithTracing
-import surge.internal.persistence.PersistentActor.Stop
-import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, HealthCheck, HealthCheckStatus }
-import surge.kafka.streams.HealthyActor.GetHealth
-import surge.kafka.{ KafkaBytesProducer, KafkaRecordMetadata, KafkaTopicTrait }
-import surge.metrics.{ MetricInfo, Metrics, Rate, Timer }
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -70,7 +69,6 @@ object KafkaProducerActorImpl {
   case object RestartProducer extends InternalMessage
   case object ShutdownProducer extends InternalMessage
 }
-
 class KafkaProducerActorImpl(
     assignedPartition: TopicPartition,
     metrics: Metrics,
@@ -160,14 +158,11 @@ class KafkaProducerActorImpl(
     case InitTransactionSuccess =>
       unstashAll()
       context.become(waitingForKTableIndexing())
-
     case FlushMessages              => // Ignore from this state
     case GetHealth                  => doHealthCheck()
     case _: KTableProgressUpdate    => stash() // process only AFTER flush message is sent
     case _: Publish                 => stash()
     case _: IsAggregateStateCurrent => stash()
-
-    case Stop => handleStop()
   }
 
   private def waitingForKTableIndexing(): Receive = {
@@ -186,19 +181,20 @@ class KafkaProducerActorImpl(
     case RestartProducer  => restartPublisher()
     case ShutdownProducer => context.stop(self)
     case _                => stash()
-    case Stop             => handleStop()
   }
 
   private def processing(state: KafkaProducerActorState): Receive = {
     case msg: KTableProgressUpdate    => handle(state, msg)
     case msg: Publish                 => handle(state, msg)
+    case msg: EventsPublished         => handle(state, msg)
+    case msg: EventsFailedToPublish   => handleFailedToPublish(state, msg)
     case msg: IsAggregateStateCurrent => handle(state, msg)
-    case msg: InternalMessage         => handleInternalMessage(state, msg)
+    case GetHealth                    => doHealthCheck(state)
+    case FlushMessages                => handleFlushMessages(state)
+    case msg: AbortTransactionFailed  => handle(msg)
     case msg: ProducerFenced =>
       context.become(fenced(state))
       self ! msg
-    case GetHealth => doHealthCheck(state)
-    case Stop      => handleStop()
     case Status.Failure(e) =>
       log.error(s"Saw unhandled exception in producer for $assignedPartition", e)
   }
@@ -212,18 +208,6 @@ class KafkaProducerActorImpl(
       }
     }
   }
-
-  private def handleInternalMessage(state: KafkaProducerActorState, message: KafkaProducerActorImpl.InternalMessage): Unit = {
-    message match {
-      case msg: EventsPublished        => handle(state, msg)
-      case msg: EventsFailedToPublish  => handleFailedToPublish(state, msg)
-      case msg: AbortTransactionFailed => handle(msg)
-      case FlushMessages               => handleFlushMessages(state)
-      case other                       => unhandled(other)
-    }
-  }
-
-  private def handleStop(): Unit = context.stop(self)
 
   private def initializeTransactions(): Unit = {
     kafkaPublisher
@@ -279,7 +263,6 @@ class KafkaProducerActorImpl(
   }
 
   // FIXME need to open a GH issue for this warning
-  // the warning below is covered by https://github.com/UltimateSoftware/surge-kafka-streams/issues/339
   private var lastTransactionInProgressWarningTime: Instant = Instant.ofEpochMilli(0L)
   private val transactionTimeWarningThreshold = flushInterval.toMillis * 4
   private val eventsPublishedRate: Rate = metrics.rate(
@@ -387,6 +370,7 @@ class KafkaProducerActorImpl(
     implicit val timeout: Timeout = Timeout(10.seconds)
     partitionTracker.getPartitionAssignments
       .map { assignments =>
+        println("partitions to host ----- " + assignments.topicPartitionsToHosts)
         if (assignments.topicPartitionsToHosts.get(assignedPartition).exists(isHostPortThisNode)) {
           log.info(s"KafkaPublisherActor partition $assignedPartition restarting because this instance is still responsible for the partition.")
           RestartProducer

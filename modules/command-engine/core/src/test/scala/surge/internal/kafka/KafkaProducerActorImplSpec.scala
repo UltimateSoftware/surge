@@ -49,7 +49,6 @@ class KafkaProducerActorImplSpec
 
   override val actorSystem: ActorSystem = system
 
-  implicit val executionContext: ExecutionContext = system.dispatcher
   override implicit val patienceConfig: PatienceConfig = PatienceConfig(timeout = Span(3, Seconds), interval = Span(10, Millis))
 
   override def afterAll(): Unit = {
@@ -87,7 +86,8 @@ class KafkaProducerActorImplSpec
   private def testProducerActor(
       assignedPartition: TopicPartition,
       mockProducer: KafkaBytesProducer,
-      mockStateStore: AggregateStateStoreKafkaStreams[_]): ActorRef = {
+      mockStateStore: AggregateStateStoreKafkaStreams[_],
+      mockPartitionTracker: KafkaConsumerPartitionAssignmentTracker = defaultMockPartitionTracker): ActorRef = {
     val signalBus: HealthSignalBusTrait = Mockito.mock[HealthSignalBusTrait](classOf[HealthSignalBusTrait])
     val mockEmittable: EmittableHealthSignal = Mockito.mock[EmittableHealthSignal](classOf[EmittableHealthSignal])
     Mockito.when(mockEmittable.emit()).thenReturn(mockEmittable)
@@ -109,8 +109,8 @@ class KafkaProducerActorImplSpec
             Metrics.globalMetricRegistry,
             businessLogic,
             mockStateStore,
-            defaultMockPartitionTracker,
-            Mockito.mock[HealthSignalBusTrait](classOf[HealthSignalBusTrait]),
+            mockPartitionTracker,
+            signalBus,
             Some(mockProducer))))
     // Blocks the execution to wait until the actor is ready so we know its subscribed to the event bus
     system.actorSelection(actor.path).resolveOne()(Timeout(patienceConfig.timeout)).futureValue
@@ -262,7 +262,8 @@ class KafkaProducerActorImplSpec
       probe.send(actor, isAggregateStateCurrent)
       // Verify that we haven't initialized transactions yet so we are in the uninitialized state and messages were stashed
       verify(mockProducer, times(0)).initTransactions()(any[ExecutionContext])
-      val response = actor.ask(isAggregateStateCurrent)(10.seconds).map(Some(_)).recoverWith { case _ => Future.successful(None) }
+      val response =
+        actor.ask(isAggregateStateCurrent)(10.seconds).map(Some(_))(system.dispatcher).recoverWith { case _ => Future.successful(None) }(system.dispatcher)
       assert(Await.result(response, 10.seconds).isDefined)
     }
 
@@ -287,7 +288,8 @@ class KafkaProducerActorImplSpec
       val barRecord1 = KafkaRecordMetadata(Some("bar"), createRecordMeta("testTopic", 0, 0))
       probe.send(actor, KafkaProducerActorImpl.EventsPublished(Seq(probe.ref), Seq(barRecord1)))
       val isAggregateStateCurrent = KafkaProducerActorImpl.IsAggregateStateCurrent("bar", Instant.now.plusSeconds(10L))
-      val response = actor.ask(isAggregateStateCurrent)(10.seconds).map(Some(_)).recoverWith { case _ => Future.successful(None) }
+      val response =
+        actor.ask(isAggregateStateCurrent)(10.seconds).map(Some(_))(system.dispatcher).recoverWith { case _ => Future.successful(None) }(system.dispatcher)
       assert(Await.result(response, 3.second).isDefined)
     }
 
@@ -429,12 +431,12 @@ class KafkaProducerActorImplSpec
       when(mockProducerFenceOnCommit.putRecords(any[Seq[ProducerRecord[String, Array[Byte]]]])).thenReturn(Seq(Future.successful(mockMetadata)))
 
       val mockStateStore = mockStateStoreReturningOffset(assignedPartition, 100L, 100L)
-      val fencedOnCommit = testProducerActor(assignedPartition, mockProducerFenceOnCommit, mockStateStore)
+      val fencedOnCommit = testProducerActor(assignedPartition, mockProducerFenceOnCommit, mockStateStore, mockPartitionTracker)
 
       probe.watch(fencedOnCommit)
       probe.send(fencedOnCommit, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
       probe.send(fencedOnCommit, KafkaProducerActorImpl.FlushMessages)
-      probe.expectMsgType[PublishFailure](5.seconds)
+      probe.expectMsgType[PublishFailure]
       verify(mockProducerFenceOnCommit).beginTransaction()
       verify(mockProducerFenceOnCommit).putRecords(records(assignedPartition, testEvents1, testAggs1))
       verify(mockProducerFenceOnCommit).commitTransaction()
