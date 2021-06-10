@@ -199,7 +199,7 @@ class PersistentActor[S, M, R, E](
     super.preStart()
   }
 
-  private def surgeContext() = Context(businessLogic.executionContext, self)
+  private def surgeContext() = Context(businessLogic.executionContext, this)
 
   override def receive: Receive = uninitialized
 

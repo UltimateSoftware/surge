@@ -2,12 +2,13 @@
 
 package surge.javadsl.common
 
-import surge.core.{ Context => Core }
+import surge.internal
+import surge.internal.persistence
 
 trait Context {}
 
 object Context {
-  def apply(core: Core): Context = new ContextImpl(core)
+  def apply(core: persistence.Context): Context = new ContextImpl(core)
 }
 
-class ContextImpl(private val core: Core) extends Context
+class ContextImpl(private val core: persistence.Context) extends Context

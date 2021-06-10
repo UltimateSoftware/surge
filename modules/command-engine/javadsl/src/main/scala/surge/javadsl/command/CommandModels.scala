@@ -3,8 +3,9 @@
 package surge.javadsl.command
 
 import surge.core.command.AggregateCommandModelCoreTrait
-import surge.core.{ Context => CoreContext }
+import surge.internal
 import surge.internal.domain.CommandHandler
+import surge.internal.persistence
 import surge.javadsl._
 import surge.javadsl.common.Context
 
@@ -21,9 +22,9 @@ trait AggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCoreTrai
 
   final def toCore: CommandHandler[Agg, Cmd, Nothing, Evt] =
     new CommandHandler[Agg, Cmd, Nothing, Evt] {
-      override def processCommand(ctx: CoreContext, state: Option[Agg], cmd: Cmd): Future[CommandResult] =
+      override def processCommand(ctx: persistence.Context, state: Option[Agg], cmd: Cmd): Future[CommandResult] =
         Future.successful(Right(AggregateCommandModel.this.processCommand(state.asJava, cmd).asScala.toSeq))
-      override def apply(ctx: CoreContext, state: Option[Agg], event: Evt): Option[Agg] = handleEvent(state.asJava, event).asScala
+      override def apply(ctx: persistence.Context, state: Option[Agg], event: Evt): Option[Agg] = handleEvent(state.asJava, event).asScala
     }
 }
 
@@ -33,11 +34,11 @@ trait ContextAwareAggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandM
 
   final def toCore: CommandHandler[Agg, Cmd, Nothing, Evt] =
     new CommandHandler[Agg, Cmd, Nothing, Evt] {
-      override def processCommand(ctx: CoreContext, state: Option[Agg], cmd: Cmd): Future[CommandResult] =
+      override def processCommand(ctx: persistence.Context, state: Option[Agg], cmd: Cmd): Future[CommandResult] =
         FutureConverters
           .toScala(ContextAwareAggregateCommandModel.this.processCommand(Context(ctx), state.asJava, cmd))
           .map(v => Right(v))(ctx.executionContext)
-      override def apply(ctx: CoreContext, state: Option[Agg], event: Evt): Option[Agg] = handleEvent(Context(ctx), state.asJava, event).asScala
+      override def apply(ctx: persistence.Context, state: Option[Agg], event: Evt): Option[Agg] = handleEvent(Context(ctx), state.asJava, event).asScala
     }
 }
 
@@ -82,8 +83,8 @@ trait RejectableAggregateCommandModel[Agg, Cmd, Rej, Evt] extends AggregateComma
 
   final def toCore: CommandHandler[Agg, Cmd, Rej, Evt] =
     new CommandHandler[Agg, Cmd, Rej, Evt] {
-      override def processCommand(ctx: CoreContext, state: Option[Agg], cmd: Cmd): Future[CommandResult] =
+      override def processCommand(ctx: persistence.Context, state: Option[Agg], cmd: Cmd): Future[CommandResult] =
         FutureConverters.toScala(RejectableAggregateCommandModel.this.processCommand(Context(ctx), state.asJava, cmd))
-      override def apply(ctx: CoreContext, state: Option[Agg], event: Evt): Option[Agg] = handleEvent(Context(ctx), state.asJava, event).asScala
+      override def apply(ctx: persistence.Context, state: Option[Agg], event: Evt): Option[Agg] = handleEvent(Context(ctx), state.asJava, event).asScala
     }
 }
