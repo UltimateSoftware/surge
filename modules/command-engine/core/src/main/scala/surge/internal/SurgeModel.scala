@@ -14,6 +14,7 @@ trait SurgeModel[S, M, +R, E] extends ProducerActorContext {
   def aggregateReadFormatting: SurgeAggregateReadFormatting[S]
   def aggregateWriteFormatting: SurgeAggregateWriteFormatting[S]
   def eventWriteFormattingOpt: Option[SurgeEventWriteFormatting[E]]
+
   def aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) => Boolean
   def model: AggregateProcessingModel[S, M, R, E]
   override def metrics: Metrics

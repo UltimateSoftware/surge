@@ -4,9 +4,8 @@ package surge.kafka.streams
 
 import akka.actor.{ Actor, Stash }
 import com.typesafe.config.ConfigFactory
-import org.apache.kafka.clients.consumer.ConsumerConfig
+
 import org.apache.kafka.streams.{ KafkaStreams, StreamsConfig }
-import surge.internal.config.TimeoutConfig
 import surge.internal.utils.{ InlineReceive, Logging }
 import surge.kafka.streams.HealthyActor.GetHealth
 import surge.kafka.streams.KafkaStreamLifeCycleManagement._
@@ -83,7 +82,8 @@ trait KafkaStreamLifeCycleManagement[K, V, T <: KafkaStreamsConsumer[K, V], SV] 
       case Success(_) =>
         log.debug(s"Kafka streams ${settings.storeName} stopped")
       case Failure(error) =>
-        log.error(s"Kafka streams ${settings.storeName} failed to stop, shutting down the JVM", error)
+        val failedMessage = s"Kafka streams ${settings.storeName} failed to stop, shutting down the JVM"
+        log.error(failedMessage, error)
         // Let the app crash, dead locks risk if the stream fails to kill itself, its not safe to restart
         System.exit(1)
     }
@@ -152,7 +152,7 @@ trait KafkaStreamLifeCycleManagement[K, V, T <: KafkaStreamsConsumer[K, V], SV] 
         restart()
     })
     .orElse(errorHandler)
-    .orElse(logUnhandled("running"))
+    .orElse(logUnhandled(stateName = "running"))
 
   final def logUnhandled(stateName: String): Receive = { case unhandledMessage =>
     log.debug(s"${settings.storeName} Dropping unhandled message on $stateName state {}", unhandledMessage)
@@ -219,6 +219,7 @@ private[streams] object KafkaStreamLifeCycleManagement {
   case object Restart extends KafkaStreamLifeCycleCommand
   case object Stop extends KafkaStreamLifeCycleCommand
   case object Run extends KafkaStreamLifeCycleCommand
+  case object GetState extends KafkaStreamLifeCycleCommand
 }
 
 private[streams] trait KafkaStreamSettings {

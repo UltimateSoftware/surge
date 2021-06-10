@@ -13,6 +13,7 @@ import org.slf4j.{ Logger, LoggerFactory }
 import surge.internal.akka.ActorWithTracing
 import surge.internal.akka.cluster.{ ActorHostAwareness, Shard }
 import surge.internal.akka.kafka.{ KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor }
+
 import surge.internal.config.TimeoutConfig
 import surge.kafka.streams.HealthyActor.GetHealth
 import surge.kafka.streams.{ HealthCheck, HealthCheckStatus, HealthyActor }
@@ -154,7 +155,7 @@ class KafkaPartitionShardRouterActor(
 
   override def receive: Receive = uninitialized
 
-  private def uninitialized: Receive = {
+  private def uninitialized(): Receive = {
     case msg: PartitionAssignments => handle(msg)
     case _                         => stash()
   }

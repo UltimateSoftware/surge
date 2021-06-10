@@ -8,6 +8,7 @@ import org.apache.kafka.common.TopicPartition
 import play.api.libs.json.JsValue
 import surge.akka.cluster.{ EntityPropsProvider, PerShardLogicProvider }
 import surge.core.KafkaProducerActor
+import surge.health.HealthSignalBusTrait
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.persistence
 import surge.internal.utils.Logging
@@ -27,10 +28,11 @@ class PersistentActorRegionCreator[M](
     kafkaStreamsCommand: AggregateStateStoreKafkaStreams[JsValue],
     partitionTracker: KafkaConsumerPartitionAssignmentTracker,
     metrics: Metrics,
+    signalBus: HealthSignalBusTrait,
     config: Config)
     extends KafkaPersistentActorRegionCreator[String] {
   override def regionFromTopicPartition(topicPartition: TopicPartition): PerShardLogicProvider[String] =
-    new PersistentActorRegion[M](system, topicPartition, businessLogic, kafkaStreamsCommand, partitionTracker, metrics, config)
+    new PersistentActorRegion[M](system, topicPartition, businessLogic, kafkaStreamsCommand, partitionTracker, metrics, signalBus, config)
 }
 
 class PersistentActorRegion[M](
@@ -40,17 +42,19 @@ class PersistentActorRegion[M](
     aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue],
     partitionTracker: KafkaConsumerPartitionAssignmentTracker,
     metrics: Metrics,
+    signalBus: HealthSignalBusTrait,
     val config: Config)
     extends PerShardLogicProvider[String]
     with Logging {
 
-  private val kafkaProducerActor: KafkaProducerActor = KafkaProducerActor(
+  private var kafkaProducerActor: KafkaProducerActor = KafkaProducerActor(
     actorSystem = system,
     assignedPartition = assignedPartition,
     metrics = metrics,
     businessLogic = businessLogic,
+    partitionTracker = partitionTracker,
     kStreams = aggregateKafkaStreamsImpl,
-    partitionTracker = partitionTracker)
+    signalBus = signalBus)
 
   override def onShardTerminated(): Unit = {
     log.debug("Shard for partition {} terminated, killing partition kafkaProducerActor", assignedPartition)
@@ -65,7 +69,19 @@ class PersistentActorRegion[M](
     val aggregateMetrics = PersistentActor.createMetrics(metrics, businessLogic.aggregateName)
     val sharedResources = persistence.PersistentEntitySharedResources(kafkaProducerActor, aggregateMetrics, aggregateKafkaStreamsImpl)
 
-    actorId: String => PersistentActor.props(actorId, businessLogic, sharedResources, config)
+    actorId: String => PersistentActor.props(actorId, businessLogic, signalBus, sharedResources, config)
   }
 
+  override def restart(): Unit = {
+    kafkaProducerActor.restart()
+  }
+
+  override def start(): Unit = {
+    kafkaProducerActor.start()
+  }
+
+  override def stop(): Unit =
+    Option(kafkaProducerActor).foreach(producer => producer.stop())
+
+  override def shutdown(): Unit = stop()
 }

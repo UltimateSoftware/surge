@@ -3,45 +3,24 @@
 package surge.core
 
 import akka.actor._
-import akka.pattern.ask
-import org.slf4j.LoggerFactory
+import surge.health.HealthSignalBusTrait
 import surge.internal.SurgeModel
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
-import surge.internal.config.TimeoutConfig
-import surge.internal.persistence.RoutableMessage
+import surge.internal.core.SurgePartitionRouterImpl
+import surge.kafka.PersistentActorRegionCreator
 import surge.kafka.streams._
-import surge.kafka.{ KafkaPartitionShardRouterActor, PersistentActorRegionCreator }
 
-import scala.concurrent.{ ExecutionContext, Future }
+trait SurgePartitionRouter extends HealthyComponent with Controllable {
+  def actorRegion: ActorRef
+}
 
-private[surge] final class SurgePartitionRouter(
-    system: ActorSystem,
-    partitionTracker: KafkaConsumerPartitionAssignmentTracker,
-    businessLogic: SurgeModel[_, _, _, _],
-    regionCreator: PersistentActorRegionCreator[String])
-    extends HealthyComponent {
-
-  private val log = LoggerFactory.getLogger(getClass)
-
-  val actorRegion: ActorRef = {
-    val shardRouterProps = KafkaPartitionShardRouterActor.props(
-      partitionTracker,
-      businessLogic.partitioner,
-      businessLogic.kafka.stateTopic,
-      regionCreator,
-      RoutableMessage.extractEntityId,
-      businessLogic.tracer)
-    val actorName = s"${businessLogic.aggregateName}RouterActor"
-    system.actorOf(shardRouterProps, name = actorName)
-  }
-
-  override def healthCheck(): Future[HealthCheck] = {
-    actorRegion
-      .ask(HealthyActor.GetHealth)(TimeoutConfig.HealthCheck.actorAskTimeout * 3)
-      .mapTo[HealthCheck]
-      .recoverWith { case err: Throwable =>
-        log.error(s"Failed to get router-actor health check", err)
-        Future.successful(HealthCheck(name = "router-actor", id = s"router-actor-${actorRegion.hashCode}", status = HealthCheckStatus.DOWN))
-      }(ExecutionContext.global)
+object SurgePartitionRouter {
+  def apply(
+      system: ActorSystem,
+      partitionTracker: KafkaConsumerPartitionAssignmentTracker,
+      businessLogic: SurgeModel[_, _, _, _],
+      regionCreator: PersistentActorRegionCreator[String],
+      signalBus: HealthSignalBusTrait): SurgePartitionRouter = {
+    new SurgePartitionRouterImpl(system, partitionTracker, businessLogic, regionCreator, signalBus)
   }
 }

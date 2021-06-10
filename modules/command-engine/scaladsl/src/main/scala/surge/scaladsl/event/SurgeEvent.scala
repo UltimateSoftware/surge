@@ -4,9 +4,15 @@ package surge.scaladsl.event
 
 import akka.actor.ActorSystem
 import com.typesafe.config.{ Config, ConfigFactory }
+import play.api.libs.json.JsValue
 import surge.core
 import surge.core.event.SurgeEventServiceModel
+import surge.health.config.WindowingStreamConfigLoader
+import surge.health.matchers.SignalPatternMatcherRegistry
 import surge.internal.domain.SurgeEventServiceImpl
+import surge.internal.health.HealthSignalStreamProvider
+import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
+import surge.kafka.streams.AggregateStateStoreKafkaStreams
 import surge.metrics.Metric
 import surge.scaladsl.common.HealthCheckTrait
 
@@ -20,7 +26,12 @@ object SurgeEvent {
   def create[AggId, Agg, Evt](businessLogic: SurgeEventBusinessLogic[AggId, Agg, Evt]): SurgeEvent[AggId, Agg, Evt] = {
     val actorSystem = ActorSystem(s"${businessLogic.aggregateName}ActorSystem")
     val config = ConfigFactory.load()
-    new SurgeEventImpl(actorSystem, SurgeEventServiceModel.apply(businessLogic), businessLogic.aggregateIdToString, config)
+    new SurgeEventImpl(
+      actorSystem,
+      SurgeEventServiceModel.apply(businessLogic),
+      new SlidingHealthSignalStreamProvider(WindowingStreamConfigLoader.load(), actorSystem, filters = SignalPatternMatcherRegistry.load().toSeq),
+      businessLogic.aggregateIdToString,
+      config)
   }
 
 }
@@ -28,9 +39,10 @@ object SurgeEvent {
 private[scaladsl] class SurgeEventImpl[AggId, Agg, Evt](
     val actorSystem: ActorSystem,
     override val businessLogic: SurgeEventServiceModel[Agg, Evt],
+    signalStreamProvider: HealthSignalStreamProvider,
     aggIdToString: AggId => String,
     config: Config)
-    extends SurgeEventServiceImpl[Agg, Evt](actorSystem, businessLogic, config)
+    extends SurgeEventServiceImpl[Agg, Evt](actorSystem, businessLogic, signalStreamProvider, config)
     with SurgeEvent[AggId, Agg, Evt] {
 
   def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Evt] = {
@@ -40,6 +52,8 @@ private[scaladsl] class SurgeEventImpl[AggId, Agg, Evt](
   def getMetrics: Vector[Metric] = businessLogic.metrics.getMetrics
 
   def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Evt]): Unit = {
-    registerRebalanceCallback { assignments => listener.onRebalance(this, assignments.partitionAssignments) }
+    registerRebalanceCallback { assignments => listener.onRebalance(engine = this, assignments.partitionAssignments) }
   }
+
+  override protected val kafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue] = createStateStore()
 }

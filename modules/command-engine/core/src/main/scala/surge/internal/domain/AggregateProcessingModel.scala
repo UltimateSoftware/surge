@@ -27,7 +27,6 @@ case class HandledMessageResult[S, +E](resultingState: Option[S], eventsToLog: S
  * @tparam E
  *   Event type
  */
-
 trait AggregateProcessingModel[S, M, +R, E] {
 
   /**

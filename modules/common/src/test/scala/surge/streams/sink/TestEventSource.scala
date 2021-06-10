@@ -7,6 +7,7 @@ import akka.stream.scaladsl.{ Keep, Sink }
 import akka.stream.testkit.TestPublisher
 import akka.stream.testkit.scaladsl.TestSource
 import surge.streams.replay.{ NoOpEventReplayControl, ReplayControl }
+
 import surge.streams.{ DataPipeline, EventHandler, EventPlusStreamMeta, EventSource }
 
 import scala.concurrent.Future
@@ -30,6 +31,5 @@ class TestDataPipeline[Event](probe: TestPublisher.Probe[EventPlusStreamMeta[Str
     probe.sendNext(eventPlusStreamMeta)
     this
   }
-
   override def getReplayControl: ReplayControl = new NoOpEventReplayControl()
 }

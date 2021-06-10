@@ -21,6 +21,8 @@ object TimeoutConfig {
       config.getDuration("surge.aggregate-actor.idle-timeout", TimeUnit.MILLISECONDS).milliseconds
     val askTimeout: FiniteDuration =
       config.getDuration("surge.aggregate-actor.ask-timeout", TimeUnit.MILLISECONDS).milliseconds
+    val initTimeout: FiniteDuration =
+      config.getDuration("surge.aggregate-actor.init-timeout", TimeUnit.MILLISECONDS).milliseconds
   }
 
   object HealthCheck {

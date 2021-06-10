@@ -14,7 +14,6 @@ import surge.internal.akka.cluster.{ ActorRegistry, ActorSystemHostAwareness }
 import surge.internal.streams.ReplayCoordinator.{ ReplayCompleted, ReplayFailed, StartReplay }
 import surge.kafka.HostPort
 import surge.streams.replay.ReplayControl
-import surge.streams.{ DataSink, DataSinkExceptionHandler }
 
 import scala.concurrent.{ ExecutionContext, Future }
 
@@ -79,6 +78,7 @@ class ReplayCoordinatorSpec
       val mockRegistry = mock[ActorRegistry]
       val replayCoordinator =
         system.actorOf(Props(new ReplayCoordinator(testTopic, testConsumerGroup, mockRegistry, mockReplayStrategy(replayProbe))))
+
       when(mockRegistry.discoverActors(anyString, any[List[HostPort]], any[List[String]])(any[ExecutionContext])).thenReturn(Future.successful(List.empty))
 
       testProbe.send(replayCoordinator, StartReplay)

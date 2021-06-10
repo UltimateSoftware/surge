@@ -12,7 +12,7 @@ import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.header.internals.RecordHeaders
 import org.mockito.Mockito._
 import org.mockito.invocation.InvocationOnMock
-import org.mockito.{ ArgumentCaptor, ArgumentMatcher, ArgumentMatchers }
+import org.mockito.{ ArgumentCaptor, ArgumentMatcher, ArgumentMatchers, Mockito }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatest.{ BeforeAndAfterAll, PartialFunctionValues }
@@ -27,6 +27,9 @@ import surge.kafka.streams.AggregateStateStoreKafkaStreams
 import surge.metrics.Metrics
 
 import java.util.UUID
+
+import surge.health.HealthSignalBusTrait
+
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
 class IsAtLeastOneElementSeq extends ArgumentMatcher[Seq[KafkaProducerActor.MessageToPublish]] {
@@ -71,6 +74,7 @@ class PersistentActorSpec
     PersistentActor.props(
       aggregateId,
       businessLogic.copy(kafka = businessLogic.kafka.copy(publishStateOnly = publishStateOnly)),
+      Mockito.mock(classOf[HealthSignalBusTrait]),
       sharedResources,
       ConfigFactory.load())
   }
@@ -126,7 +130,6 @@ class PersistentActorSpec
     val expectedState = BusinessLogic.handleEvent(Some(state), expectedEvent)
 
     probe.expectMsg(PersistentActor.ACKSuccess(expectedState))
-
     val serializedEvent = businessLogic.eventWriteFormatting.writeEvent(expectedEvent)
     val serializedAgg = expectedState.map(businessLogic.aggregateWriteFormatting.writeState)
     val expectedStateSerialized = KafkaProducerActor.MessageToPublish(state.aggregateId, serializedAgg.map(_.value).orNull, new RecordHeaders())
@@ -567,6 +570,9 @@ class PersistentActorSpec
     "Passivate after the actor idle timeout threshold is exceeded" in {
       val testContext = TestContext.setupDefault
       import testContext._
+
+      probe.send(actor, ReceiveTimeout) // When uninitialized, the actor should ignore a ReceiveTimeout
+      probe.expectNoMessage()
 
       processIncrementCommand(actor, baseState, mockProducer)
 

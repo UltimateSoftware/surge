@@ -21,6 +21,8 @@ import surge.metrics.{ MetricInfo, Metrics, Timer }
 import java.time.Instant
 import java.util.concurrent.Executors
 
+import surge.health.HealthSignalBusTrait
+
 import scala.concurrent.duration.{ Duration, FiniteDuration }
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.{ Failure, Success, Try }
@@ -121,9 +123,10 @@ object PersistentActor {
   def props[S, M, R, E](
       aggregateId: String,
       businessLogic: SurgeModel[S, M, R, E],
+      signalBus: HealthSignalBusTrait,
       regionSharedResources: PersistentEntitySharedResources,
       config: Config): Props = {
-    Props(new PersistentActor(aggregateId, businessLogic, regionSharedResources, config)).withDispatcher("surge-persistence-actor-dispatcher")
+    Props(new PersistentActor(aggregateId, businessLogic, regionSharedResources, signalBus, config)).withDispatcher("surge-persistence-actor-dispatcher")
   }
 
   val serializationThreadPoolSize: Int = ConfigFactory.load().getInt("surge.serialization.thread-pool-size")
@@ -135,6 +138,7 @@ class PersistentActor[S, M, R, E](
     val aggregateId: String,
     val businessLogic: SurgeModel[S, M, R, E],
     val regionSharedResources: PersistentEntitySharedResources,
+    val signalBus: HealthSignalBusTrait,
     implicit val config: Config)
     extends ActorWithTracing
     with Stash
@@ -194,8 +198,9 @@ class PersistentActor[S, M, R, E](
   private val publishStateOnly: Boolean = businessLogic.kafka.eventsTopicOpt.isEmpty
 
   assert(!publishStateOnly || businessLogic.eventWriteFormattingOpt.nonEmpty, "businessLogic.eventWriteFormattingOpt may not be none when publishing events")
+
   override def preStart(): Unit = {
-    initializeState(initializationAttempts = 0, None)
+    initializeState(initializationAttempts = 0, None)(context.dispatcher)
     super.preStart()
   }
 
@@ -208,6 +213,7 @@ class PersistentActor[S, M, R, E](
     case ReceiveTimeout        => handlePassivate()
     case Stop                  => handleStop()
   }
+
   private def handle(initializeWithState: InitializeWithState): Unit = {
     log.debug(s"Actor state for aggregate $aggregateId successfully initialized")
     unstashAll()
@@ -378,5 +384,4 @@ class PersistentActor[S, M, R, E](
     val stateHeaders = serializedStateOpt.map(ser => HeadersHelper.createHeaders(ser.headers)).orNull
     KafkaProducerActor.MessageToPublish(aggregateId, stateValue, stateHeaders)
   }(serializationExecutionContext)
-
 }

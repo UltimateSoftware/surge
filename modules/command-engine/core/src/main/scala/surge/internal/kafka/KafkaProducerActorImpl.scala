@@ -12,23 +12,29 @@ import org.apache.kafka.common.errors.ProducerFencedException
 import org.apache.kafka.streams.LagInfo
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.core.KafkaProducerActor
-import surge.internal.akka.ActorWithTracing
-import surge.kafka.streams.HealthyActor.GetHealth
-import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, HealthCheck, HealthCheckStatus }
-import surge.kafka.{ KafkaBytesProducer, KafkaRecordMetadata, KafkaTopicTrait }
-import surge.metrics.{ MetricInfo, Metrics, Rate, Timer }
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 
 import akka.util.Timeout
 import surge.internal.akka.cluster.ActorHostAwareness
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
+import surge.health.{ HealthSignalBusTrait, HealthyPublisher }
+import surge.internal.akka.ActorWithTracing
+import surge.internal.persistence.PersistentActor.Stop
+import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, HealthCheck, HealthCheckStatus }
+import surge.kafka.streams.HealthyActor.GetHealth
+import surge.kafka.{ KafkaBytesProducer, KafkaRecordMetadata, KafkaTopicTrait }
+import surge.metrics.{ MetricInfo, Metrics, Rate, Timer }
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.{ Failure, Success, Try }
 
 object KafkaProducerActorImpl {
+  val KAFKA_PRODUCER_KTABLE_ERROR_SIGNAL_NAME: String = "kafka.producer.actor.ktable.error"
+  val KAFKA_PRODUCER_ABORT_TX_FAILED_SIGNAL_NAME: String = "kafka.producer.actor.abort.tx.failed"
+  val KAFKA_PRODUCER_FENCED_SIGNAL_NAME: String = "kafka.producer.actor.fenced"
+
   sealed trait KafkaProducerActorMessage extends NoSerializationVerificationNeeded
   case class Publish(state: KafkaProducerActor.MessageToPublish, eventsToPublish: Seq[KafkaProducerActor.MessageToPublish]) extends KafkaProducerActorMessage
   case class IsAggregateStateCurrent(aggregateId: String, expirationTime: Instant) extends KafkaProducerActorMessage
@@ -64,17 +70,20 @@ object KafkaProducerActorImpl {
   case object RestartProducer extends InternalMessage
   case object ShutdownProducer extends InternalMessage
 }
+
 class KafkaProducerActorImpl(
     assignedPartition: TopicPartition,
     metrics: Metrics,
     producerContext: ProducerActorContext,
     kStreams: AggregateStateStoreKafkaStreams[_],
     partitionTracker: KafkaConsumerPartitionAssignmentTracker,
+    override val signalBus: HealthSignalBusTrait,
     kafkaProducerOverride: Option[KafkaBytesProducer] = None)
     extends ActorWithTracing
     with ActorHostAwareness
     with Stash
-    with Timers {
+    with Timers
+    with HealthyPublisher {
 
   import KafkaProducerActorImpl._
   import context.dispatcher
@@ -142,16 +151,23 @@ class KafkaProducerActorImpl(
 
   override def receive: Receive = uninitialized
 
+  override def signalMetadata(): Map[String, String] = {
+    Map[String, String](elems = "aggregateName" -> aggregateName)
+  }
+
   private def uninitialized: Receive = {
     case InitTransactions => initializeTransactions()
     case InitTransactionSuccess =>
       unstashAll()
       context.become(waitingForKTableIndexing())
+
     case FlushMessages              => // Ignore from this state
     case GetHealth                  => doHealthCheck()
     case _: KTableProgressUpdate    => stash() // process only AFTER flush message is sent
     case _: Publish                 => stash()
     case _: IsAggregateStateCurrent => stash()
+
+    case Stop => handleStop()
   }
 
   private def waitingForKTableIndexing(): Receive = {
@@ -170,20 +186,19 @@ class KafkaProducerActorImpl(
     case RestartProducer  => restartPublisher()
     case ShutdownProducer => context.stop(self)
     case _                => stash()
+    case Stop             => handleStop()
   }
 
   private def processing(state: KafkaProducerActorState): Receive = {
     case msg: KTableProgressUpdate    => handle(state, msg)
     case msg: Publish                 => handle(state, msg)
-    case msg: EventsPublished         => handle(state, msg)
-    case msg: EventsFailedToPublish   => handleFailedToPublish(state, msg)
     case msg: IsAggregateStateCurrent => handle(state, msg)
-    case GetHealth                    => doHealthCheck(state)
-    case FlushMessages                => handleFlushMessages(state)
-    case msg: AbortTransactionFailed  => handle(msg)
+    case msg: InternalMessage         => handleInternalMessage(state, msg)
     case msg: ProducerFenced =>
       context.become(fenced(state))
       self ! msg
+    case GetHealth => doHealthCheck(state)
+    case Stop      => handleStop()
     case Status.Failure(e) =>
       log.error(s"Saw unhandled exception in producer for $assignedPartition", e)
   }
@@ -197,6 +212,18 @@ class KafkaProducerActorImpl(
       }
     }
   }
+
+  private def handleInternalMessage(state: KafkaProducerActorState, message: KafkaProducerActorImpl.InternalMessage): Unit = {
+    message match {
+      case msg: EventsPublished        => handle(state, msg)
+      case msg: EventsFailedToPublish  => handleFailedToPublish(state, msg)
+      case msg: AbortTransactionFailed => handle(msg)
+      case FlushMessages               => handleFlushMessages(state)
+      case other                       => unhandled(other)
+    }
+  }
+
+  private def handleStop(): Unit = context.stop(self)
 
   private def initializeTransactions(): Unit = {
     kafkaPublisher
@@ -252,6 +279,7 @@ class KafkaProducerActorImpl(
   }
 
   // FIXME need to open a GH issue for this warning
+  // the warning below is covered by https://github.com/UltimateSoftware/surge-kafka-streams/issues/339
   private var lastTransactionInProgressWarningTime: Instant = Instant.ofEpochMilli(0L)
   private val transactionTimeWarningThreshold = flushInterval.toMillis * 4
   private val eventsPublishedRate: Rate = metrics.rate(

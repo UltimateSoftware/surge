@@ -20,4 +20,19 @@ object BackoffConfig {
     val randomFactor = config.getDouble("surge.global-ktable-actor.backoff.random-factor")
     val maxRetries = config.getInt("surge.global-ktable-actor.backoff.max-retries")
   }
+
+  object HealthSignalWindowActor {
+    val minBackoff = config.getDuration("surge.health.window-actor.backoff.min-backoff")
+    val maxBackoff = config.getDuration("surge.health.window-actor.backoff.max-backoff")
+    val randomFactor = config.getDouble("surge.health.window-actor.backoff.random-factor")
+    val maxRetries = config.getInt("surge.health.window-actor.backoff.max-retries")
+  }
+
+  object HealthSupervisorActor {
+    val minBackoff = config.getDuration("surge.health.signal-supervisor-actor.backoff.min-backoff")
+    val maxBackoff = config.getDuration("surge.health.signal-supervisor-actor.backoff.max-backoff")
+    val randomFactor = config.getDouble("surge.health.signal-supervisor-actor.backoff.random-factor")
+    val maxRetries = config.getInt("surge.health.signal-supervisor-actor.backoff.max-retries")
+
+  }
 }

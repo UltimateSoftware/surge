@@ -6,7 +6,11 @@ on:
 
 jobs:
   label_pull_request:
+<<<<<<< HEAD
     runs-on: ubuntu-latest
+=======
+    runs-on: self-hosted
+>>>>>>> surge-kafka-streams/feature/harden-aggregate-actors
     steps:
       - uses: release-drafter/release-drafter@v5
         name: Add Labels from Branch Name

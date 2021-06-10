@@ -4,6 +4,7 @@ package surge.scaladsl.command
 
 import surge.core.Context
 import surge.core.command.AggregateCommandModelCoreTrait
+
 import surge.internal.domain.CommandHandler
 
 import scala.concurrent.Future

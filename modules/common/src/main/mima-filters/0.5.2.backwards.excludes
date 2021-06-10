@@ -1,1 +1,16 @@
 ProblemFilters.exclude[ReversedMissingMethodProblem]("surge.streams.KafkaEventSource.surge$streams$KafkaEventSource$$super$to")
+<<<<<<< HEAD
+=======
+ProblemFilters.exclude[DirectMissingMethodProblem]("surge.kafka.streams.AggregateStateStoreKafkaStreams.this")
+
+ProblemFilters.exclude[InheritedNewAbstractMethodProblem]("surge.kafka.streams.HealthyComponent.restart")
+ProblemFilters.exclude[InheritedNewAbstractMethodProblem]("surge.kafka.streams.HealthyComponent.start")
+ProblemFilters.exclude[InheritedNewAbstractMethodProblem]("surge.kafka.streams.HealthyComponent.stop")
+ProblemFilters.exclude[InheritedNewAbstractMethodProblem]("surge.kafka.streams.HealthyComponent.shutdown")
+
+ProblemFilters.exclude[InheritedNewAbstractMethodProblem]("surge.akka.cluster.PerShardLogicProvider.restart")
+ProblemFilters.exclude[InheritedNewAbstractMethodProblem]("surge.akka.cluster.PerShardLogicProvider.start")
+ProblemFilters.exclude[InheritedNewAbstractMethodProblem]("surge.akka.cluster.PerShardLogicProvider.stop")
+
+ProblemFilters.exclude[InheritedNewAbstractMethodProblem]("surge.akka.cluster.PerShardLogicProvider.shutdown")
+>>>>>>> surge-kafka-streams/feature/harden-aggregate-actors
