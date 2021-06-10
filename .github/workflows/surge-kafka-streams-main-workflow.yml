@@ -1,0 +1,65 @@
+name: surge-kafka-streams-main
+'on':
+  push:
+    branches:
+      - main
+jobs:
+  build:
+    env:
+      TEMPLATE_TYPE: lib
+      IS_PIPELINE: 'true'
+      CMD_OPTS: ''
+      SMALL_TEST_CMD_OPTS: SmallTests
+      MEDIUM_TEST_CMD_OPTS: MediumTests
+      CONTRACT_TEST_CMD_OPTS: ContractTests
+      GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
+      NAMESPACE: ge-incubator
+      NAMESPACE_AIRLOCK_HOST: 'https://gateway.quark-airlock.dlas1.ucloud.int/tcxadoption'
+      NAMESPACE_AIRLOCK_HASH: '${{ secrets.AIRLOCK_HASH }}'
+      NAMESPACE_AIRLOCK_NAME: prod
+      PROJECT_NAME: surge-kafka-streams
+      PIPELINE_NAME: surge-kafka-streams
+      PROJECT_DIR: ''
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: update fnd
+        run: fnd update
+      - name: started
+        run: 'fnd tanagra:status:report --pipeline_status=STARTED'
+      - name: package
+        run: |-
+          fnd tanagra:build:package \
+            --environment_json=
+      - name: lint
+        run: 'fnd tanagra:build:lint && sbt scalafmtCheckAll'
+#      - name: check-binary-compatibility
+#        run: 'fnd tanagra:build:check-binary-compat'
+      - name: test
+        run: |-
+          fnd tanagra:build:test \
+            --cmd_opts=$SMALL_TEST_CMD_OPTS \
+            --environment_json=
+      - name: sonar
+        run: |-
+          fnd tanagra:build:sonar \
+            --sonar_host=https://sonar.mia.ucloud.int \
+            --sonar_token=secrets.prod::sonar:token \
+            --sonar_project_key=GEARS_Tools \
+            --sonar_quality_gate_id=
+      - name: publish-library
+        run: |-
+          fnd tanagra:deploy:library \
+          --npmrc_base64=secrets.prod::artifactory/npm:npmrc-base64 \
+          --artifactory_url=https://artifactory.mia.ulti.io/artifactory \
+          --artifactory_username=gt \
+          --artifactory_password=secrets.prod::artifactory:password \
+          --environment_json=
+      - name: succeeded
+        run: 'fnd tanagra:status:report --pipeline_status=SUCCEEDED'
+        if: '${{ success() }}'
+      - name: failed
+        run: 'fnd tanagra:status:report --pipeline_status=FAILED'
+        if: '${{failure() || cancelled()}}'
