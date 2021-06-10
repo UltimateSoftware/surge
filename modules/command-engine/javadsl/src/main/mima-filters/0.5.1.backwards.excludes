@@ -1,5 +1,1 @@
-<<<<<<< HEAD
 ProblemFilters.exclude[DirectMissingMethodProblem]("surge.javadsl.common.HealthCheck.writer")
-=======
-ProblemFilters.exclude[DirectMissingMethodProblem]("surge.javadsl.common.HealthCheck.writer")
->>>>>>> surge-kafka-streams/feature/harden-aggregate-actors
