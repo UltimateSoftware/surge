@@ -47,7 +47,7 @@ class PersistentActorRegion[M](
     extends PerShardLogicProvider[String]
     with Logging {
 
-  private var kafkaProducerActor: KafkaProducerActor = KafkaProducerActor(
+  private val kafkaProducerActor: KafkaProducerActor = KafkaProducerActor(
     actorSystem = system,
     assignedPartition = assignedPartition,
     metrics = metrics,

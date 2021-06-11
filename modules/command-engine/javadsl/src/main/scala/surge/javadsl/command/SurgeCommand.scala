@@ -81,9 +81,9 @@ private[javadsl] class SurgeCommandImpl[AggId, Agg, Command, Rej, Evt](
   def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Command, Rej, Evt]): Unit = {
     registerRebalanceCallback { assignments =>
       val javaAssignments = assignments.partitionAssignments.map(kv => kv._1 -> kv._2.asJava).asJava
-      listener.onRebalance(this, javaAssignments)
+      listener.onRebalance(engine = this, javaAssignments)
     }
   }
 
-  override protected val kafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue] = createStateStore()
+  override protected lazy val kafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue] = createStateStore()
 }

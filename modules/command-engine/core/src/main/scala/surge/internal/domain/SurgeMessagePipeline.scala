@@ -8,11 +8,13 @@ import play.api.libs.json.JsValue
 import surge.core.{ SurgePartitionRouter, SurgeProcessingTrait }
 import surge.health.{ HealthSignalBusAware, HealthSignalBusTrait }
 import surge.internal.SurgeModel
+import surge.internal.akka.actor.ActorLifecycleManagerActor
 import surge.internal.akka.cluster.ActorSystemHostAwareness
 import surge.internal.akka.kafka.{ CustomConsumerGroupRebalanceListener, KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor }
 import surge.internal.core.SurgePartitionRouterImpl
 import surge.internal.domain.SurgeMessagePipeline.PipelineControlActor
 import surge.internal.health.HealthSignalStreamProvider
+import surge.internal.health.supervisor.{ Stop => HealthSupervisedStop }
 import surge.internal.health.supervisor.{ ShutdownComponent, Stop }
 import surge.internal.persistence.PersistentActorRegionCreator
 import surge.kafka.PartitionAssignments
@@ -25,7 +27,8 @@ object SurgeMessagePipeline {
     override def receive: Receive = {
       case ShutdownComponent(_) =>
         pipeline.shutdown()
-      case Stop => context.stop(self)
+      case HealthSupervisedStop            => context.self ! ActorLifecycleManagerActor.Stop
+      case ActorLifecycleManagerActor.Stop => context.stop(self)
     }
   }
 }
@@ -115,7 +118,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     kafkaStreamsImpl.stop()
 
     // Stop Pipeline Control
-    Option(pipelineControlActor).foreach(a => a ! Stop)
+    Option(pipelineControlActor).foreach(a => a ! HealthSupervisedStop)
 
     // Stop Signal Stream
     signalBus.signalStream().unsubscribe().stop()

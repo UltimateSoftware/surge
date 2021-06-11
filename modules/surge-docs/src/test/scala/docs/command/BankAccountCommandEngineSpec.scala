@@ -7,7 +7,6 @@ import java.util.UUID
 import com.typesafe.config.ConfigFactory
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.common.config.TopicConfig
-import org.scalatest.Ignore
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import surge.scaladsl.common.{ CommandFailure, CommandSuccess }
@@ -15,8 +14,6 @@ import surge.scaladsl.common.{ CommandFailure, CommandSuccess }
 import scala.concurrent.{ Await, ExecutionContext, Future }
 import scala.concurrent.duration._
 
-// fixme: Test broken after merge
-@Ignore
 class BankAccountCommandEngineSpec extends AnyWordSpec with Matchers with EmbeddedKafka {
   implicit val ec: ExecutionContext = ExecutionContext.global
   private val config = ConfigFactory.load()

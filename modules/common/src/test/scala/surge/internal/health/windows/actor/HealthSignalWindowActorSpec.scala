@@ -106,8 +106,7 @@ class HealthSignalWindowActorSpec
       }
     }
 
-    // fixme: broken test after merge
-    "when sliding configured with no buffer; advance on AddedToWindow" ignore {
+    "when sliding configured with no buffer; advance on AddedToWindow" in {
       val actorRef = HealthSignalWindowActor(system, FiniteDuration(5, "seconds"), WindowSlider(1, 0), Seq.empty, bus)
       val probe = TestProbe()
       probe.watch(actorRef.actor)
@@ -118,7 +117,11 @@ class HealthSignalWindowActorSpec
 
       actorRef.processSignal(mock(classOf[HealthSignal]))
 
-      probe.expectMsgClass(classOf[AddedToWindow])
+      val maybeAddedEvent = probe.fishForMessage(FiniteDuration(10, "seconds")) { case msg =>
+        msg.isInstanceOf[AddedToWindow]
+      }
+
+      maybeAddedEvent shouldBe a[AddedToWindow]
 
       probe.expectMsgClass(FiniteDuration(10, "seconds"), classOf[WindowAdvanced])
 
@@ -129,8 +132,7 @@ class HealthSignalWindowActorSpec
       }
     }
 
-    // fixme: broken test after merge
-    "when sliding configured with buffer; advance on CloseWindow" ignore {
+    "when sliding configured with buffer; advance on CloseWindow" in {
       val actorRef = HealthSignalWindowActor(system, FiniteDuration(5, "seconds"), WindowSlider(1), Seq.empty, bus)
       val probe = TestProbe()
       probe.watch(actorRef.actor)
@@ -144,7 +146,11 @@ class HealthSignalWindowActorSpec
 
       actorRef.closeWindow()
 
-      probe.expectMsgClass(classOf[AddedToWindow])
+      val maybeAddedEvent = probe.fishForMessage(FiniteDuration(10, "seconds")) { case msg =>
+        msg.isInstanceOf[AddedToWindow]
+      }
+
+      maybeAddedEvent shouldBe a[AddedToWindow]
 
       probe.expectMsgClass(max = FiniteDuration(10, "seconds"), classOf[WindowClosed])
       probe.expectMsgClass(max = FiniteDuration(10, "seconds"), classOf[WindowAdvanced])

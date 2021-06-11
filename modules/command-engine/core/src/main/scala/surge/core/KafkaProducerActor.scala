@@ -2,7 +2,6 @@
 
 package surge.core
 
-import akka.actor.SupervisorStrategy.Stop
 import akka.actor.{ ActorRef, ActorSystem, PoisonPill, Props }
 import akka.pattern._
 import akka.util.Timeout
@@ -88,14 +87,14 @@ class KafkaProducerActor(publisherActor: ActorRef, metrics: Metrics, aggregateNa
       }(ExecutionContext.global)
   }
 
-  // underlying actor is essentially started in the ctor via a `scheduleOnce` of InitTransactions
   override def restart(): Unit = {}
 
-  // underlying actor is essentially started in the ctor via a `scheduleOnce` of InitTransactions
-  override def start(): Unit = {}
+  override def start(): Unit = {
+    publisherActor ! ActorLifecycleManagerActor.Start
+  }
 
   override def stop(): Unit = {
-    publisherActor ! Stop
+    publisherActor ! ActorLifecycleManagerActor.Stop
   }
 
   override def shutdown(): Unit = stop()
@@ -114,7 +113,7 @@ object KafkaProducerActor {
       signalBus: HealthSignalBusTrait,
       kafkaProducerOverride: Option[KafkaBytesProducer] = None): KafkaProducerActor = {
 
-    val lifecycleManagerProps = Props(
+    val kafkaProducerProps = Props(
       new KafkaProducerActorImpl(
         assignedPartition = assignedPartition,
         metrics = metrics,
@@ -125,7 +124,7 @@ object KafkaProducerActor {
         kafkaProducerOverride = kafkaProducerOverride)).withDispatcher(dispatcherName)
 
     new KafkaProducerActor(
-      actorSystem.actorOf(Props(new ActorLifecycleManagerActor(lifecycleManagerProps))),
+      actorSystem.actorOf(Props(new ActorLifecycleManagerActor(kafkaProducerProps))),
       metrics,
       businessLogic.aggregateName,
       assignedPartition)

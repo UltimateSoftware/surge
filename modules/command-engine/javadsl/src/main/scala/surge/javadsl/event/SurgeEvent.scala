@@ -69,6 +69,6 @@ private[javadsl] class SurgeEventImpl[AggId, Agg, Evt](
     }
   }
 
-  override protected val kafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue] = createStateStore()
+  override protected lazy val kafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue] = createStateStore()
 
 }

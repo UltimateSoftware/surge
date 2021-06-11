@@ -71,8 +71,8 @@ private[scaladsl] class SurgeCommandImpl[AggId, Agg, Command, Rej, Event](
   override def getMetrics: Seq[Metric] = businessLogic.metrics.getMetrics
 
   def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Command, Rej, Event]): Unit = {
-    registerRebalanceCallback { assignments => listener.onRebalance(this, assignments.partitionAssignments) }
+    registerRebalanceCallback { assignments => listener.onRebalance(engine = this, assignments.partitionAssignments) }
   }
 
-  override protected val kafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue] = createStateStore()
+  override protected lazy val kafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue] = createStateStore()
 }

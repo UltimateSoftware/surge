@@ -370,7 +370,6 @@ class KafkaProducerActorImpl(
     implicit val timeout: Timeout = Timeout(10.seconds)
     partitionTracker.getPartitionAssignments
       .map { assignments =>
-        println("partitions to host ----- " + assignments.topicPartitionsToHosts)
         if (assignments.topicPartitionsToHosts.get(assignedPartition).exists(isHostPortThisNode)) {
           log.info(s"KafkaPublisherActor partition $assignedPartition restarting because this instance is still responsible for the partition.")
           RestartProducer
