@@ -1,6 +1,5 @@
 // Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
 package surge.internal.health
 
 import surge.internal.health.supervisor.{ HealthRegistrationReceived, HealthSignalReceived }

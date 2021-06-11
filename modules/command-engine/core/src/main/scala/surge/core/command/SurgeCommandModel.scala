@@ -51,7 +51,6 @@ private[surge] object SurgeCommandModel {
   }
 
 }
-
 private[surge] case class SurgeCommandModel[Agg, Command, +Rej, Event](
     override val aggregateName: String,
     override val kafka: SurgeCommandKafkaConfig,

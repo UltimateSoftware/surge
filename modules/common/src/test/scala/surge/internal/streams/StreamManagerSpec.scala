@@ -7,7 +7,6 @@ import akka.kafka.Subscriptions
 import akka.stream.scaladsl.Flow
 import akka.testkit.{ TestKit, TestProbe }
 import akka.{ Done, NotUsed }
-
 import io.opentracing.noop.NoopTracerFactory
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.clients.producer.ProducerRecord

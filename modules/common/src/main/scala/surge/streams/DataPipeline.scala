@@ -17,6 +17,7 @@ trait DataPipeline {
   def replayWithCompletionStage(): CompletionStage[ReplayResult] = {
     replay().toJava
   }
+
   def getReplayControl: ReplayControl
 }
 

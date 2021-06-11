@@ -15,6 +15,7 @@ import org.apache.kafka.common.TopicPartition
 import surge.internal.streams.PartitionAssignorConfig
 import surge.internal.utils.Logging
 import surge.kafka.{ KafkaBytesConsumer, UltiKafkaConsumerConfig }
+import surge.streams.DataHandler
 import surge.streams.replay.TopicResetActor._
 
 import scala.concurrent.duration._

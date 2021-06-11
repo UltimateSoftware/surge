@@ -5,24 +5,24 @@ package surge.internal.streams
 import akka.NotUsed
 import akka.kafka.Subscriptions
 import akka.remote.testconductor.RoleName
-import akka.remote.testkit.{MultiNodeConfig, MultiNodeSpec, MultiNodeSpecCallbacks}
+import akka.remote.testkit.{ MultiNodeConfig, MultiNodeSpec, MultiNodeSpecCallbacks }
 import akka.stream.scaladsl.Flow
 import akka.testkit.TestProbe
-import com.typesafe.config.{Config, ConfigFactory}
+import com.typesafe.config.{ Config, ConfigFactory }
 import io.opentracing.Tracer
 import io.opentracing.noop.NoopTracerFactory
-import net.manub.embeddedkafka.{EmbeddedKafka, EmbeddedKafkaConfig}
+import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.clients.producer.ProducerRecord
-import org.apache.kafka.common.serialization.{ByteArrayDeserializer, Deserializer, Serializer, StringDeserializer}
+import org.apache.kafka.common.serialization.{ ByteArrayDeserializer, Deserializer, Serializer, StringDeserializer }
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
-import org.scalatest.{BeforeAndAfterAll, OptionValues}
+import org.scalatest.{ BeforeAndAfterAll, OptionValues }
 import surge.internal.akka.kafka.AkkaKafkaConsumer
 import surge.kafka.KafkaTopic
 import surge.kafka.streams.DefaultSerdes
-import surge.streams.{DataHandler, EventPlusStreamMeta}
-import surge.streams.replay.{DefaultEventReplaySettings, KafkaForeverReplaySettings, KafkaForeverReplayStrategy, NoOpEventReplayStrategy}
+import surge.streams.replay.{ DefaultEventReplaySettings, KafkaForeverReplaySettings, KafkaForeverReplayStrategy, NoOpEventReplayStrategy }
+import surge.streams.{ DataHandler, EventPlusStreamMeta }
 
 import scala.concurrent.duration._
 
@@ -73,7 +73,6 @@ class StreamManagerSpecBase
       val topic = KafkaTopic(topicName)
       val record1 = "record 1"
       val record2 = "record 2"
-
       def sendToTestProbe(testProbe: TestProbe): DataHandler[String, Array[Byte]] = new DataHandler[String, Array[Byte]] {
         override def dataHandler[Meta]: Flow[EventPlusStreamMeta[String, Array[Byte], Meta], Meta, NotUsed] =
           Flow[EventPlusStreamMeta[String, Array[Byte], Meta]].map { eventPlusOffset =>
@@ -82,7 +81,6 @@ class StreamManagerSpecBase
             eventPlusOffset.streamMeta
           }
       }
-
       val embeddedBroker = s"${node(node0).address.host.getOrElse("localhost")}:${config.kafkaPort}"
       val consumerSettings = AkkaKafkaConsumer.consumerSettings[String, Array[Byte]](system, "replay-test").withBootstrapServers(embeddedBroker)
 
@@ -91,12 +89,10 @@ class StreamManagerSpecBase
           createCustomTopic(topic.name, partitions = 2)
           publishToKafka(new ProducerRecord[String, String](topic.name, 0, record1, record1))
           publishToKafka(new ProducerRecord[String, String](topic.name, 1, record2, record2))
-
           def postReplayDef(): Unit = {
             enterBarrier("afterReplay")
             ()
           }
-
           val replaySettings = KafkaForeverReplaySettings(topic.name).copy(brokers = List(embeddedBroker))
           val kafkaForeverReplayStrategy = KafkaForeverReplayStrategy.create(actorSystem = system, settings = replaySettings, postReplay = postReplayDef)
 
@@ -133,7 +129,6 @@ class StreamManagerSpecBase
           replayStrategy = new NoOpEventReplayStrategy,
           replaySettings = DefaultEventReplaySettings,
           tracer = tracer)
-
 
         consumer.start()
         probe.expectMsgAnyOf(20.seconds, record1, record2)
