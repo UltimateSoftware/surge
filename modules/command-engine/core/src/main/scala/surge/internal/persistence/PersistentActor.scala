@@ -18,6 +18,7 @@ import surge.internal.kafka.HeadersHelper
 import surge.internal.utils.SpanExtensions._
 import surge.kafka.streams.AggregateStateStoreKafkaStreams
 import surge.metrics.{ MetricInfo, Metrics, Timer }
+
 import java.time.Instant
 import java.util.concurrent.Executors
 
@@ -204,6 +205,8 @@ class PersistentActor[S, M, R, E](
     super.preStart()
   }
 
+  private def surgeContext() = Context(businessLogic.executionContext, this)
+
   override def receive: Receive = uninitialized
 
   private def freeToProcess(state: InternalActorState): Receive = {
@@ -258,7 +261,7 @@ class PersistentActor[S, M, R, E](
   }
 
   private def processMessage(state: InternalActorState, ProcessMessage: ProcessMessage[M]): Future[Either[R, HandledMessageResult[S, E]]] = {
-    metrics.messageHandlingTimer.time(businessLogic.model.handle(Context.noop, state.stateOpt, ProcessMessage.message))
+    metrics.messageHandlingTimer.time(businessLogic.model.handle(surgeContext(), state.stateOpt, ProcessMessage.message))
   }
 
   private def handle(state: InternalActorState, applyEventEnvelope: ApplyEvent[E]): Unit = {
@@ -282,7 +285,7 @@ class PersistentActor[S, M, R, E](
 
   private def handleEvents(state: InternalActorState, events: Seq[E]): Try[Option[S]] = Try {
     events.foldLeft(state.stateOpt) { (state, evt) =>
-      metrics.eventHandlingTimer.time(businessLogic.model.apply(Context.noop, state, evt))
+      metrics.eventHandlingTimer.time(businessLogic.model.apply(surgeContext(), state, evt))
     }
   }
 

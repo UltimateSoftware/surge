@@ -2,7 +2,7 @@
 
 package surge.internal.domain
 
-import surge.core.Context
+import surge.internal.persistence.Context
 
 import scala.concurrent.{ ExecutionContext, Future }
 
