@@ -37,11 +37,8 @@ class TimerSpec extends MetricsSpecLike with Eventually {
     "Properly time method completion time" in {
       val testTimerName = "method-timer-test"
       val timer = metrics.timer(MetricInfo(testTimerName, "Test timer description"))
-      timer.time { Future { Thread.sleep(10L) }(ExecutionContext.global) }
-
-      eventually {
-        metricValue(testTimerName) shouldEqual 10.0 +- 4 // Give it a little wiggle room
-      }
+      timer.time { Thread.sleep(10L) }
+      metricValue(testTimerName) shouldEqual 10.0 +- 4 // Give it a little wiggle room
     }
   }
 }
