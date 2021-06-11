@@ -27,6 +27,7 @@ import surge.kafka.{ KafkaBytesProducer, KafkaRecordMetadata, PartitionAssignmen
 import surge.metrics.Metrics
 import java.time.Instant
 
+import com.typesafe.config.{ Config, ConfigFactory, ConfigValueFactory }
 import surge.internal.akka.cluster.ActorSystemHostAwareness
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 
@@ -85,11 +86,19 @@ class KafkaProducerActorImplSpec
       assignedPartition: TopicPartition,
       mockProducer: KafkaBytesProducer,
       mockStateStore: AggregateStateStoreKafkaStreams[_],
-      mockPartitionTracker: KafkaConsumerPartitionAssignmentTracker = defaultMockPartitionTracker): ActorRef = {
+      mockPartitionTracker: KafkaConsumerPartitionAssignmentTracker = defaultMockPartitionTracker,
+      config: Config = ConfigFactory.load()): ActorRef = {
     val actor =
       system.actorOf(
         Props(
-          new KafkaProducerActorImpl(assignedPartition, Metrics.globalMetricRegistry, businessLogic, mockStateStore, mockPartitionTracker, Some(mockProducer))))
+          new KafkaProducerActorImpl(
+            assignedPartition,
+            Metrics.globalMetricRegistry,
+            businessLogic,
+            mockStateStore,
+            mockPartitionTracker,
+            config,
+            Some(mockProducer))))
     // Blocks the execution to wait until the actor is ready so we know its subscribed to the event bus
     system.actorSelection(actor.path).resolveOne()(Timeout(patienceConfig.timeout)).futureValue
     actor
@@ -206,8 +215,10 @@ class KafkaProducerActorImplSpec
         .thenReturn(Future.unit)
       when(mockProducer.putRecords(any[Seq[ProducerRecord[String, Array[Byte]]]])).thenReturn(Seq(Future.successful(mockMetadata)))
 
+      val configOverride =
+        ConfigFactory.load().withValue("kafka.publisher.init-transactions.authz-exception-retry-time", ConfigValueFactory.fromAnyRef("2 seconds"))
       val mockStateStore = mockStateStoreReturningOffset(assignedPartition, 100L, 100L)
-      val actor = testProducerActor(assignedPartition, mockProducer, mockStateStore)
+      val actor = testProducerActor(assignedPartition, mockProducer, mockStateStore, config = configOverride)
       probe.send(actor, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
       probe.send(actor, KafkaProducerActorImpl.FlushMessages)
 
