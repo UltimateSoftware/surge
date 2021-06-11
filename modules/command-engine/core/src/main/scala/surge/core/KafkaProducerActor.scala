@@ -2,7 +2,7 @@
 
 package surge.core
 
-import akka.actor.{ActorRef, ActorSystem, PoisonPill, Props}
+import akka.actor.{ ActorRef, ActorSystem, PoisonPill, Props }
 import akka.pattern._
 import akka.util.Timeout
 import org.apache.kafka.common.TopicPartition
@@ -11,16 +11,16 @@ import org.slf4j.LoggerFactory
 import java.time.Instant
 
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
-import surge.health.{HealthSignalBusAware, HealthSignalBusTrait}
+import surge.health.{ HealthSignalBusAware, HealthSignalBusTrait }
 import surge.internal.SurgeModel
 import surge.internal.akka.actor.ActorLifecycleManagerActor
 import surge.internal.config.TimeoutConfig
 import surge.internal.kafka.KafkaProducerActorImpl
 import surge.kafka.KafkaBytesProducer
 import surge.kafka.streams._
-import surge.metrics.{MetricInfo, Metrics, Timer}
+import surge.metrics.{ MetricInfo, Metrics, Timer }
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ ExecutionContext, Future }
 
 /**
  * A stateful producer actor responsible for publishing all states + events for aggregates that belong to a particular state topic partition. The state
@@ -46,18 +46,19 @@ import scala.concurrent.{ExecutionContext, Future}
  * @param aggregateName
  *   The name of the aggregate this publisher is responsible for
  */
-class KafkaProducerActor(publisherActor: ActorRef, metrics: Metrics,
-                         aggregateName: String,
-                         val assignedPartition: TopicPartition,
-                         override val signalBus: HealthSignalBusTrait) extends HealthyComponent
-  with HealthSignalBusAware {
+class KafkaProducerActor(
+    publisherActor: ActorRef,
+    metrics: Metrics,
+    aggregateName: String,
+    val assignedPartition: TopicPartition,
+    override val signalBus: HealthSignalBusTrait)
+    extends HealthyComponent
+    with HealthSignalBusAware {
   private implicit val executionContext: ExecutionContext = ExecutionContext.global
   private val log = LoggerFactory.getLogger(getClass)
 
   // Register
-  signalBus.registration(publisherActor, componentName = "kafka-producer-actor",
-    restartSignalPatterns = restartSignalPatterns()
-  ).invoke()
+  signalBus.registration(publisherActor, componentName = "kafka-producer-actor", restartSignalPatterns = restartSignalPatterns()).invoke()
 
   def publish(
       aggregateId: String,
@@ -136,7 +137,8 @@ object KafkaProducerActor {
       actorSystem.actorOf(Props(new ActorLifecycleManagerActor(kafkaProducerProps))),
       metrics,
       businessLogic.aggregateName,
-      assignedPartition, signalBus)
+      assignedPartition,
+      signalBus)
   }
 
   sealed trait PublishResult
