@@ -41,7 +41,10 @@ object TestBoundedContext {
   implicit val countIncrementedFormat: Format[CountIncremented] = Json.format
   implicit val countDecrementedFormat: Format[CountDecremented] = Json.format
   implicit val noopFormat: Format[NoOpEvent] = Json.format
-  implicit val exceptionThrowingFormat: Format[ExceptionThrowingEvent] = Json.format
+  implicit val exceptionThrowingFormat: Format[ExceptionThrowingEvent] = new Format[ExceptionThrowingEvent] {
+    override def writes(o: ExceptionThrowingEvent): JsValue = JsNull
+    override def reads(json: JsValue): JsResult[ExceptionThrowingEvent] = JsError("Exception throwing event should never be serialized")
+  }
   implicit val baseEventFormat: Format[BaseTestEvent] = Json.format
   sealed trait BaseTestEvent {
     def aggregateId: String
