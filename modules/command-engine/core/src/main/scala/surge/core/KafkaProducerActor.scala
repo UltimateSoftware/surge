@@ -11,7 +11,7 @@ import org.slf4j.LoggerFactory
 import java.time.Instant
 
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
-import surge.health.{ HealthSignalBusAware, HealthSignalBusTrait }
+import surge.health.{ HealthSignalBusAware, HealthSignalBusTrait, InvokableHealthRegistration }
 import surge.internal.SurgeModel
 import surge.internal.akka.actor.ActorLifecycleManagerActor
 import surge.internal.config.TimeoutConfig
@@ -58,7 +58,9 @@ class KafkaProducerActor(
   private val log = LoggerFactory.getLogger(getClass)
 
   // Register
-  signalBus.registration(publisherActor, componentName = "kafka-producer-actor", restartSignalPatterns = restartSignalPatterns()).invoke()
+  val doRegistration: InvokableHealthRegistration =
+    signalBus.registration(publisherActor, componentName = "kafka-producer-actor", restartSignalPatterns = restartSignalPatterns())
+  doRegistration.invoke()
 
   def publish(
       aggregateId: String,

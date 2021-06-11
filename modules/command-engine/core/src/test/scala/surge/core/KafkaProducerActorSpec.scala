@@ -2,20 +2,22 @@
 
 package surge.core
 
-import akka.actor.ActorSystem
+import java.util.regex.Pattern
+
+import akka.actor.{ ActorRef, ActorSystem }
 import akka.actor.Status.Failure
 import akka.pattern.AskTimeoutException
 import akka.testkit.{ TestKit, TestProbe }
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.header.internals.RecordHeaders
-import org.mockito.Mockito
+import org.mockito.{ ArgumentMatchers, Mockito }
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.{ PatienceConfiguration, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Millis, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
-import surge.health.HealthSignalBusTrait
+import surge.health.{ HealthSignalBusTrait, InvokableHealthRegistration }
 import surge.internal.kafka.KafkaProducerActorImpl
 import surge.kafka.streams.{ HealthCheck, HealthCheckStatus, HealthyActor }
 import surge.metrics.Metrics
@@ -42,12 +44,13 @@ class KafkaProducerActorSpec
 
   "KafkaProducerActor" should {
     def producerMock(testProbe: TestProbe): KafkaProducerActor = {
-      new KafkaProducerActor(
-        testProbe.ref,
-        Metrics.globalMetricRegistry,
-        "test-aggregate-name",
-        new TopicPartition("testTopic", 1),
-        Mockito.mock(classOf[HealthSignalBusTrait]))
+      val signalBus: HealthSignalBusTrait = Mockito.mock(classOf[HealthSignalBusTrait])
+      val invokable: InvokableHealthRegistration = Mockito.mock(classOf[InvokableHealthRegistration])
+
+      Mockito
+        .when(signalBus.registration(ArgumentMatchers.any(classOf[ActorRef]), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any()))
+        .thenReturn(invokable)
+      new KafkaProducerActor(testProbe.ref, Metrics.globalMetricRegistry, "test-aggregate-name", new TopicPartition("testTopic", 1), signalBus)
     }
     "Terminate an underlying actor by sending a PoisonPill" in {
       val probe = TestProbe()
@@ -103,12 +106,7 @@ class KafkaProducerActorSpec
     "Return a failed future when the ask to the underlying publisher actor times out" in {
       implicit val ec: ExecutionContext = ExecutionContext.global
       val probe = TestProbe()
-      val producer = new KafkaProducerActor(
-        probe.ref,
-        Metrics.globalMetricRegistry,
-        "test-aggregate",
-        new TopicPartition("testTopic", 1),
-        Mockito.mock(classOf[HealthSignalBusTrait]))
+      val producer = producerMock(probe)
 
       val errorWatchProbe = TestProbe()
       val stateToPublish = KafkaProducerActor.MessageToPublish("test", "test".getBytes(), new RecordHeaders())
