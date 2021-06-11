@@ -54,7 +54,7 @@ class RepeatingSignalMatcherSpec extends TestKit(ActorSystem("RepeatingSignals")
         Range(1, 100))
 
       Source(repeatingData)
-        .mapAsync(10)(data =>
+        .mapAsync(parallelism = 10)(data =>
           Future {
             data.foreach(d => {
               bus.signalWithTrace(name = s"$d", trace = Trace("trace", None, None)).emit()
