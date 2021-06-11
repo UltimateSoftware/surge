@@ -2,8 +2,6 @@
 
 package surge.internal.kafka
 
-import java.time.Instant
-
 import akka.actor.{ ActorRef, ActorSystem, Props }
 import akka.pattern.ask
 import akka.testkit.{ TestKit, TestProbe }
@@ -26,12 +24,15 @@ import surge.core.KafkaProducerActor.{ PublishFailure, PublishSuccess }
 import surge.core.{ KafkaProducerActor, TestBoundedContext }
 import surge.health.HealthSignalBusTrait
 import surge.health.domain.EmittableHealthSignal
-import surge.internal.akka.cluster.ActorSystemHostAwareness
-import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.kafka.KafkaProducerActorImpl.{ AggregateStateRates, KTableProgressUpdate }
 import surge.kafka.streams.AggregateStateStoreKafkaStreams
 import surge.kafka.{ KafkaBytesProducer, KafkaRecordMetadata, PartitionAssignments }
 import surge.metrics.Metrics
+import java.time.Instant
+
+import com.typesafe.config.{ Config, ConfigFactory, ConfigValueFactory }
+import surge.internal.akka.cluster.ActorSystemHostAwareness
+import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 
 import scala.concurrent.duration._
 import scala.concurrent.{ Await, ExecutionContext, Future }
@@ -87,7 +88,8 @@ class KafkaProducerActorImplSpec
       assignedPartition: TopicPartition,
       mockProducer: KafkaBytesProducer,
       mockStateStore: AggregateStateStoreKafkaStreams[_],
-      mockPartitionTracker: KafkaConsumerPartitionAssignmentTracker = defaultMockPartitionTracker): ActorRef = {
+      mockPartitionTracker: KafkaConsumerPartitionAssignmentTracker = defaultMockPartitionTracker,
+      config: Config = ConfigFactory.load()): ActorRef = {
     val signalBus: HealthSignalBusTrait = Mockito.mock[HealthSignalBusTrait](classOf[HealthSignalBusTrait])
     val mockEmittable: EmittableHealthSignal = Mockito.mock[EmittableHealthSignal](classOf[EmittableHealthSignal])
     Mockito.when(mockEmittable.emit()).thenReturn(mockEmittable)
@@ -111,6 +113,7 @@ class KafkaProducerActorImplSpec
             mockStateStore,
             mockPartitionTracker,
             signalBus,
+            config,
             Some(mockProducer))))
     // Blocks the execution to wait until the actor is ready so we know its subscribed to the event bus
     system.actorSelection(actor.path).resolveOne()(Timeout(patienceConfig.timeout)).futureValue
@@ -228,8 +231,10 @@ class KafkaProducerActorImplSpec
         .thenReturn(Future.unit)
       when(mockProducer.putRecords(any[Seq[ProducerRecord[String, Array[Byte]]]])).thenReturn(Seq(Future.successful(mockMetadata)))
 
+      val configOverride =
+        ConfigFactory.load().withValue("kafka.publisher.init-transactions.authz-exception-retry-time", ConfigValueFactory.fromAnyRef("2 seconds"))
       val mockStateStore = mockStateStoreReturningOffset(assignedPartition, 100L, 100L)
-      val actor = testProducerActor(assignedPartition, mockProducer, mockStateStore)
+      val actor = testProducerActor(assignedPartition, mockProducer, mockStateStore, config = configOverride)
       probe.send(actor, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
       probe.send(actor, KafkaProducerActorImpl.FlushMessages)
 

@@ -4,11 +4,11 @@ package surge.internal.kafka
 
 import akka.actor.{ ActorRef, NoSerializationVerificationNeeded, Stash, Status, Timers }
 import akka.pattern._
-import com.typesafe.config.ConfigFactory
+import com.typesafe.config.{ Config, ConfigFactory }
 import io.opentracing.Tracer
 import org.apache.kafka.clients.producer.{ ProducerConfig, ProducerRecord }
 import org.apache.kafka.common.TopicPartition
-import org.apache.kafka.common.errors.ProducerFencedException
+import org.apache.kafka.common.errors.{ AuthorizationException, ProducerFencedException }
 import org.apache.kafka.streams.LagInfo
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.core.KafkaProducerActor
@@ -76,6 +76,7 @@ class KafkaProducerActorImpl(
     kStreams: AggregateStateStoreKafkaStreams[_],
     partitionTracker: KafkaConsumerPartitionAssignmentTracker,
     override val signalBus: HealthSignalBusTrait,
+    config: Config = ConfigFactory.load(),
     kafkaProducerOverride: Option[KafkaBytesProducer] = None)
     extends ActorWithTracing
     with ActorHostAwareness
@@ -90,7 +91,6 @@ class KafkaProducerActorImpl(
 
   private val log: Logger = LoggerFactory.getLogger(getClass)
 
-  private val config = ConfigFactory.load()
   private val assignedTopicPartitionKey = s"${assignedPartition.topic}:${assignedPartition.partition}"
   private val flushInterval = config.getDuration("kafka.publisher.flush-interval", TimeUnit.MILLISECONDS).milliseconds
   private val publisherBatchSize = config.getInt("kafka.publisher.batch-size")
@@ -100,6 +100,10 @@ class KafkaProducerActorImpl(
   private val ktableCheckInterval = config.getDuration("kafka.publisher.ktable-check-interval").toMillis.milliseconds
   private val brokers = config.getString("kafka.brokers").split(",").toVector
   private val enableMetrics = config.getBoolean("surge.producer.enable-kafka-metrics")
+  private val initTransactionAuthzExceptionRetryDuration =
+    config.getDuration("kafka.publisher.init-transactions.authz-exception-retry-time").toMillis.millis.toCoarsest
+  private val initTransactionOtherExceptionRetryDuration =
+    config.getDuration("kafka.publisher.init-transactions.other-exception-retry-time").toMillis.millis.toCoarsest
 
   private val transactionalId = s"$transactionalIdPrefix-${assignedPartition.topic()}-${assignedPartition.partition()}"
   private val kafkaPublisherMetricsName = transactionalId
@@ -217,10 +221,21 @@ class KafkaProducerActorImpl(
         self ! InitTransactionSuccess
       }
       .recover { case err: Throwable =>
-        log.error(s"KafkaPublisherActor failed to initialize kafka transactions, retrying in 3 seconds: $assignedPartition", err)
+        val retryTime = initTransactionsRetryTimeFromError(err)
+        log.error(
+          s"KafkaPublisherActor failed to initialize kafka transactions with transactional id [$transactionalId] " +
+            s"for partition [$assignedPartition], retrying in $retryTime",
+          err)
         closeAndRecreatePublisher()
-        context.system.scheduler.scheduleOnce(3.seconds, self, InitTransactions)
+        context.system.scheduler.scheduleOnce(retryTime, self, InitTransactions)
       }
+  }
+
+  private def initTransactionsRetryTimeFromError(err: Throwable): FiniteDuration = {
+    err match {
+      case _: AuthorizationException => initTransactionAuthzExceptionRetryDuration
+      case _                         => initTransactionOtherExceptionRetryDuration
+    }
   }
 
   private def closeAndRecreatePublisher(): Unit = {

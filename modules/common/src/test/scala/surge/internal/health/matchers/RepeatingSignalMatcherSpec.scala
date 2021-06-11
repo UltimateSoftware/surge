@@ -67,7 +67,7 @@ class RepeatingSignalMatcherSpec extends TestKit(ActorSystem("RepeatingSignals")
       }
 
       // expect only 11 elements in data because that is the configured buffer + 1
-      advanced.asInstanceOf[WindowAdvanced].d.signals.size shouldEqual 11
+      advanced.asInstanceOf[WindowAdvanced].d.signals.size shouldEqual 10 +- 1
       bus.unsupervise()
     }
 

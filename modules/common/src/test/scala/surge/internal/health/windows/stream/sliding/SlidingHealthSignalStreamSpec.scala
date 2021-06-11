@@ -84,7 +84,7 @@ class SlidingHealthSignalStreamSpec
       bus.signalWithTrace("trace.test", Trace("tester")).emit().emit().emit()
 
       eventually {
-        val closed = probe.fishForMessage(max = 100.millis) { case msg =>
+        val closed = probe.fishForMessage(max = 200.millis) { case msg =>
           msg.isInstanceOf[WindowClosed]
         }
 
@@ -145,7 +145,7 @@ class SlidingHealthSignalStreamSpec
       bus.signalWithError(name = "test.error", Error("error to test close-open-window", None)).emit()
 
       eventually {
-        val windowClosed = probe.fishForMessage(max = 100.millis) { case msg =>
+        val windowClosed = probe.fishForMessage(max = 200.millis) { case msg =>
           msg.isInstanceOf[WindowClosed]
         }
 
