@@ -29,7 +29,7 @@ object SlidingHealthSignalStream {
       streamMonitoringRef: Option[StreamMonitoringRef] = None,
       actorSystem: ActorSystem): SlidingHealthSignalStream = {
     val listener: WindowStreamListener = SignalPatternMatchResultHandler.asListener(signalBus, filters, streamMonitoringRef.map(r => r.actor))
-    val ref = actorSystem.actorOf(Props(HealthSignalStreamActor(signalBus, filters, Some(listener))), name = "slidingHealthSignalStreamActor")
+    val ref = actorSystem.actorOf(Props(HealthSignalStreamActor(Some(listener))), name = "slidingHealthSignalStreamActor")
     new SlidingHealthSignalStreamImpl(slidingConfig, signalBus, filters, ref, actorSystem)
   }
 }
@@ -80,7 +80,7 @@ private class SlidingHealthSignalStreamImpl(
     val windowActors: Seq[HealthSignalWindowActorRef] = {
       val advancerConfig = windowingConfig.advancerConfig
       windowingConfig.frequencies
-        .map(freq => HealthSignalWindowActor(actorSystem, freq, WindowSlider(advancerConfig.amount, advancerConfig.buffer), signalPatternMatchers, signalBus))
+        .map(freq => HealthSignalWindowActor(actorSystem, freq, WindowSlider(advancerConfig.amount, advancerConfig.buffer)))
         .map(ref => ref.start(monitoringActor))
     }
 

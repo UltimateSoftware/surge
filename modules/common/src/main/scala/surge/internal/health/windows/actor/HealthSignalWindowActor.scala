@@ -8,10 +8,8 @@ import akka.actor.{ Actor, ActorRef, ActorSystem, Cancellable, PoisonPill, Props
 import akka.pattern.{ BackoffOpts, BackoffSupervisor }
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.health.domain.HealthSignal
-import surge.health.matchers.SignalPatternMatcher
 import surge.health.windows.{ AddedToWindow, Advancer, Window, WindowAdvanced, WindowClosed, WindowData, WindowOpened, WindowStopped }
 import surge.internal.config.BackoffConfig
-import surge.internal.health._
 import surge.internal.health.windows._
 
 import scala.concurrent.ExecutionContext
@@ -28,12 +26,7 @@ object HealthSignalWindowActor {
 
   object Stop
 
-  def apply(
-      actorSystem: ActorSystem,
-      windowFrequency: FiniteDuration,
-      advancer: Advancer[Window],
-      filters: Seq[SignalPatternMatcher],
-      signalBus: HealthSignalBusInternal): HealthSignalWindowActorRef = {
+  def apply(actorSystem: ActorSystem, windowFrequency: FiniteDuration, advancer: Advancer[Window]): HealthSignalWindowActorRef = {
 
     // note: we lose the window data on restarts
     val props = BackoffSupervisor.props(
@@ -47,16 +40,11 @@ object HealthSignalWindowActor {
         .withMaxNrOfRetries(BackoffConfig.HealthSignalWindowActor.maxRetries))
 
     val windowActor = actorSystem.actorOf(props, name = "healthyWindow")
-    new HealthSignalWindowActorRef(windowActor, windowFrequency, filters, signalBus, actorSystem)
+    new HealthSignalWindowActorRef(windowActor, windowFrequency, actorSystem)
   }
 }
 
-class HealthSignalWindowActorRef(
-    val actor: ActorRef,
-    windowFreq: FiniteDuration,
-    filters: Seq[SignalPatternMatcher],
-    signalBus: HealthSignalBusInternal,
-    actorSystem: ActorSystem) {
+class HealthSignalWindowActorRef(val actor: ActorRef, windowFreq: FiniteDuration, actorSystem: ActorSystem) {
   import HealthSignalWindowActor._
 
   private var listener: WindowStreamListeningActorRef = _

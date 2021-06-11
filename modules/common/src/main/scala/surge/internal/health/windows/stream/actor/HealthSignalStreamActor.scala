@@ -4,27 +4,16 @@ package surge.internal.health.windows.stream.actor
 
 import akka.actor.Actor
 import surge.health.domain.HealthSignal
-import surge.health.matchers.SignalPatternMatcher
 import surge.health.windows.{ AddedToWindow, Window, WindowAdvanced, WindowClosed, WindowOpened, WindowStopped, WindowStreamListener }
-import surge.internal.health.windows._
-import surge.internal.health.HealthSignalBusInternal
 
 object HealthSignalStreamActor {
-  def apply(
-      signalBus: HealthSignalBusInternal,
-      filters: Seq[SignalPatternMatcher],
-      windowListener: Option[WindowStreamListener] = None): HealthSignalStreamActor = {
-    new HealthSignalStreamActor(signalBus, filters, windowListener)
+  def apply(windowListener: Option[WindowStreamListener] = None): HealthSignalStreamActor = {
+    new HealthSignalStreamActor(windowListener)
   }
 }
 
 case object Stop
-protected class HealthSignalStreamActor(
-    signalBus: HealthSignalBusInternal,
-    filters: Seq[SignalPatternMatcher],
-    val windowListener: Option[WindowStreamListener] = None)
-    extends Actor
-    with WindowStreamListener {
+protected class HealthSignalStreamActor(val windowListener: Option[WindowStreamListener] = None) extends Actor with WindowStreamListener {
   override def receive: Receive = {
     case WindowAdvanced(w, data) => slide(w, data.signals)
     case WindowClosed(w, data)   => windowClosed(w.asInstanceOf[Window], data.signals)

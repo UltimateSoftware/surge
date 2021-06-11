@@ -35,28 +35,39 @@ class RepeatingSignalMatcherSpec extends TestKit(ActorSystem("RepeatingSignals")
       val probe = TestProbe()
       val slidingHealthSignalStream = new SlidingHealthSignalStreamProvider(
         WindowingStreamConfig(advancerConfig = WindowingStreamSliderConfig()),
-        filters = Seq(RepeatingSignalMatcher(2, SignalNameEqualsMatcher("1"), None)),
+        filters = Seq(RepeatingSignalMatcher(2, SignalNameEqualsMatcher("99"), None)),
         streamMonitoring = Some(new StreamMonitoringRef(probe.ref)),
         actorSystem = system)
 
       val bus = slidingHealthSignalStream.busWithSupervision(startStreamOnInit = true)
 
-      // race-condition: is there a way to have a source repeat and terminate after N repeats
-      Source
-        .repeat(Range(1, 100))
-        .mapAsync(parallelism = 5)(data =>
+      val repeatingData = Seq(
+        Range(1, 100),
+        Range(1, 100),
+        Range(1, 100),
+        Range(1, 100),
+        Range(1, 100),
+        Range(1, 100),
+        Range(1, 100),
+        Range(1, 100),
+        Range(1, 100),
+        Range(1, 100))
+
+      Source(repeatingData)
+        .mapAsync(10)(data =>
           Future {
-            data.foreach(d => bus.signalWithTrace(name = s"$d", trace = Trace("trace", None, None)).emit())
+            data.foreach(d => {
+              bus.signalWithTrace(name = s"$d", trace = Trace("trace", None, None)).emit()
+            })
           }(system.dispatcher))
         .run()
 
-      val advanced = probe.fishForMessage(max = 10 seconds) { case msg =>
+      val advanced = probe.fishForMessage() { case msg =>
         msg.isInstanceOf[WindowAdvanced]
       }
 
-      // expect only 10 to pass the filter
-      advanced.asInstanceOf[WindowAdvanced].d.signals.size >= 10 shouldEqual true
-      advanced.asInstanceOf[WindowAdvanced].d.signals.size < 15 shouldEqual true
+      // expect only 11 elements in data because that is the configured buffer + 1
+      advanced.asInstanceOf[WindowAdvanced].d.signals.size shouldEqual 11
       bus.unsupervise()
     }
 
@@ -74,7 +85,7 @@ class RepeatingSignalMatcherSpec extends TestKit(ActorSystem("RepeatingSignals")
           HealthSignalBuilder("topic").withName(name = "bar").build(),
           HealthSignalBuilder("topic").withName(name = "test.trace").build(),
           HealthSignalBuilder("topic").withName(name = "test.trace").build()),
-        frequency = 10 seconds)
+        frequency = 10.seconds)
 
       result.matches.size shouldEqual 5
     }
@@ -94,7 +105,7 @@ class RepeatingSignalMatcherSpec extends TestKit(ActorSystem("RepeatingSignals")
           HealthSignalBuilder("topic").withName(name = "bar").build(),
           HealthSignalBuilder("topic").withName(name = "test.trace").build(),
           HealthSignalBuilder("topic").withName(name = "test.trace").build()),
-        frequency = 10 seconds)
+        frequency = 10.seconds)
 
       result.matches.size shouldEqual 5
     }
@@ -109,7 +120,7 @@ class RepeatingSignalMatcherSpec extends TestKit(ActorSystem("RepeatingSignals")
           HealthSignalBuilder("topic").withName(name = "foo").build(),
           HealthSignalBuilder("topic").withName(name = "test.trace").build(),
           HealthSignalBuilder("topic").withName(name = "bar").build()),
-        frequency = 10 seconds)
+        frequency = 10.seconds)
 
       result.matches.size shouldEqual 0
     }
@@ -125,7 +136,7 @@ class RepeatingSignalMatcherSpec extends TestKit(ActorSystem("RepeatingSignals")
           HealthSignalBuilder("topic").withName(name = "foo").build(),
           HealthSignalBuilder("topic").withName(name = "test.trace").build(),
           HealthSignalBuilder("topic").withName(name = "bar").build()),
-        frequency = 10 seconds)
+        frequency = 10.seconds)
 
       result.matches.size shouldEqual 0
     }
