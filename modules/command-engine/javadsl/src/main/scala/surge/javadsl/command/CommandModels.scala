@@ -3,7 +3,7 @@
 package surge.javadsl.command
 
 import surge.core.command.AggregateCommandModelCoreTrait
-
+import surge.internal
 import surge.internal.domain.CommandHandler
 import surge.internal.persistence
 import surge.javadsl._

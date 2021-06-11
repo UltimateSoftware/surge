@@ -10,6 +10,7 @@ import io.opentracing.{ Span, Tracer }
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.akka.cluster.{ JacksonSerializable, Passivate }
 import surge.core._
+import surge.health.HealthSignalBusTrait
 import surge.internal.SurgeModel
 import surge.internal.akka.ActorWithTracing
 import surge.internal.config.{ RetryConfig, TimeoutConfig }
@@ -21,8 +22,6 @@ import surge.metrics.{ MetricInfo, Metrics, Timer }
 
 import java.time.Instant
 import java.util.concurrent.Executors
-
-import surge.health.HealthSignalBusTrait
 
 import scala.concurrent.duration.{ Duration, FiniteDuration }
 import scala.concurrent.{ ExecutionContext, Future }
@@ -199,9 +198,8 @@ class PersistentActor[S, M, R, E](
   private val publishStateOnly: Boolean = businessLogic.kafka.eventsTopicOpt.isEmpty
 
   assert(!publishStateOnly || businessLogic.eventWriteFormattingOpt.nonEmpty, "businessLogic.eventWriteFormattingOpt may not be none when publishing events")
-
   override def preStart(): Unit = {
-    initializeState(initializationAttempts = 0, None)(context.dispatcher)
+    initializeState(initializationAttempts = 0, None)
     super.preStart()
   }
 
@@ -216,7 +214,6 @@ class PersistentActor[S, M, R, E](
     case ReceiveTimeout        => handlePassivate()
     case Stop                  => handleStop()
   }
-
   private def handle(initializeWithState: InitializeWithState): Unit = {
     log.debug(s"Actor state for aggregate $aggregateId successfully initialized")
     unstashAll()

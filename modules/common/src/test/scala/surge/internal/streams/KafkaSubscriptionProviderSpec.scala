@@ -2,11 +2,11 @@
 
 package surge.internal.streams
 
-import akka.{ Done, NotUsed }
 import akka.actor.ActorSystem
 import akka.kafka.Subscriptions
 import akka.stream.scaladsl.{ Flow, Sink }
 import akka.testkit.{ TestKit, TestProbe }
+import akka.{ Done, NotUsed }
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.TopicPartition

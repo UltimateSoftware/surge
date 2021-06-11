@@ -32,5 +32,6 @@ private[surge] class ManagedDataPipeline[Key, Value](underlyingManager: KafkaStr
   override def replay(): Future[ReplayResult] = {
     underlyingManager.replay()
   }
+
   override def getReplayControl: ReplayControl = underlyingManager.getReplayControl
 }

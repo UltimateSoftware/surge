@@ -7,7 +7,6 @@ import surge.core.command.SurgeCommandKafkaConfig
 import surge.core._
 import surge.kafka.KafkaTopic
 import surge.scaladsl.command.{ AggregateCommandModel, SurgeCommandBusinessLogic }
-import surge.internal.utils.JsonFormats
 
 import scala.util.{ Failure, Success, Try }
 
@@ -39,6 +38,11 @@ object TestBoundedContext {
 
   case class CreateExceptionThrowingEvent(aggregateId: String, throwable: Throwable) extends BaseTestCommand
 
+  implicit val countIncrementedFormat: Format[CountIncremented] = Json.format
+  implicit val countDecrementedFormat: Format[CountDecremented] = Json.format
+  implicit val noopFormat: Format[NoOpEvent] = Json.format
+  implicit val exceptionThrowingFormat: Format[ExceptionThrowingEvent] = Json.format
+  implicit val baseEventFormat: Format[BaseTestEvent] = Json.format
   sealed trait BaseTestEvent {
     def aggregateId: String
     def sequenceNumber: Int
@@ -64,8 +68,6 @@ object TestBoundedContext {
 
 trait TestBoundedContext {
   import TestBoundedContext._
-  implicit val countIncrementedFormat: Format[CountIncremented] = Json.format
-  implicit val countDecrementedFormat: Format[CountDecremented] = Json.format
 
   trait BusinessLogicTrait extends AggregateCommandModel[State, BaseTestCommand, BaseTestEvent] {
 
@@ -116,7 +118,7 @@ trait TestBoundedContext {
 
   val readFormats: SurgeReadFormatting[State, BaseTestEvent] = new SurgeReadFormatting[State, BaseTestEvent] {
     override def readEvent(bytes: Array[Byte]): BaseTestEvent = {
-      Json.parse(bytes).as[BaseTestEvent](JsonFormats.jacksonReader())
+      Json.parse(bytes).as[BaseTestEvent]
     }
 
     override def readState(bytes: Array[Byte]): Option[State] = {
@@ -127,7 +129,7 @@ trait TestBoundedContext {
   val writeFormats: SurgeWriteFormatting[State, BaseTestEvent] = new SurgeWriteFormatting[State, BaseTestEvent] {
     override def writeEvent(evt: BaseTestEvent): SerializedMessage = {
       val key = s"${evt.aggregateId}:${evt.sequenceNumber}"
-      val body = Json.toJson(evt)(JsonFormats.jacksonWriter()).toString().getBytes()
+      val body = Json.toJson(evt).toString().getBytes()
       SerializedMessage(key, body, Map.empty)
     }
 

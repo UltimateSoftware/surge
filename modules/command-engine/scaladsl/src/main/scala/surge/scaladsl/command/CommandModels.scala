@@ -3,7 +3,7 @@
 package surge.scaladsl.command
 
 import surge.core.command.AggregateCommandModelCoreTrait
-
+import surge.internal
 import surge.internal.domain.CommandHandler
 import surge.internal.persistence
 import surge.scaladsl.common.Context
