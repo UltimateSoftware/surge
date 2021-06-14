@@ -26,8 +26,6 @@ class HealthSignalWindowActorSpec
     with Eventually {
   import surge.internal.health.context.TestContext._
 
-  implicit val postOp: postfixOps = postfixOps
-
   implicit override val patienceConfig: PatienceConfig =
     PatienceConfig(timeout = scaled(Span(160, Seconds)), interval = scaled(Span(5, Seconds)))
 
@@ -153,6 +151,8 @@ class HealthSignalWindowActorSpec
 
       probe.expectMsgClass(max = FiniteDuration(10, "seconds"), classOf[WindowClosed])
       probe.expectMsgClass(max = FiniteDuration(10, "seconds"), classOf[WindowAdvanced])
+
+      // todo: verify WindowAdvanced message has expected WindowData captured.
 
       actorRef.stop()
 
