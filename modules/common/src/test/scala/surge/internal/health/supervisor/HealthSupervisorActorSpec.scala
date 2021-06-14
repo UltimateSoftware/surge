@@ -6,6 +6,7 @@ import java.util.regex.Pattern
 
 import akka.actor.ActorSystem
 import akka.testkit.{ TestKit, TestProbe }
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.Eventually
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Seconds, Span }
@@ -20,10 +21,18 @@ import surge.internal.health._
 
 import scala.concurrent.duration._
 
-class HealthSupervisorActorSpec extends TestKit(ActorSystem("HealthSignalSupervisorSpec")) with AnyWordSpecLike with Matchers with Eventually {
-  implicit val postfixOps: languageFeature.postfixOps = scala.language.postfixOps
+class HealthSupervisorActorSpec
+    extends TestKit(ActorSystem("HealthSignalSupervisorSpec"))
+    with AnyWordSpecLike
+    with BeforeAndAfterAll
+    with Matchers
+    with Eventually {
   implicit override val patienceConfig: PatienceConfig =
     PatienceConfig(timeout = scaled(Span(160, Seconds)), interval = scaled(Span(5, Seconds)))
+
+  override def afterAll(): Unit = {
+    TestKit.shutdownActorSystem(system)
+  }
 
   "HealthSupervisorActorSpec" should {
     "sliding stream; attempt to restart registered actor" in {
@@ -50,7 +59,7 @@ class HealthSupervisorActorSpec extends TestKit(ActorSystem("HealthSignalSupervi
 
       eventually {
         // Verify restart
-        val restart = probe.fishForMessage(max = 100 millis) { case msg =>
+        val restart = probe.fishForMessage(max = 100.millis) { case msg =>
           msg.isInstanceOf[RestartComponent]
         }
         Option(restart.asInstanceOf[RestartComponent].replyTo).isDefined shouldEqual true
@@ -73,7 +82,7 @@ class HealthSupervisorActorSpec extends TestKit(ActorSystem("HealthSignalSupervi
       val message = bus.registration(probe.ref, componentName = "boomControl", Seq.empty)
       ref.register(message.underlyingRegistration())
 
-      val received = probe.receiveN(1, max = 10 seconds)
+      val received = probe.receiveN(1, max = 10.seconds)
 
       received.headOption.nonEmpty shouldEqual true
       received.head.isInstanceOf[HealthRegistrationReceived]
@@ -97,7 +106,7 @@ class HealthSupervisorActorSpec extends TestKit(ActorSystem("HealthSignalSupervi
       val message = bus.signalWithTrace(name = "test", Trace("test trace"))
       message.emit()
 
-      val received = probe.fishForMessage(max = 1 second) { case msg =>
+      val received = probe.fishForMessage(max = 1.second) { case msg =>
         msg.isInstanceOf[HealthSignalReceived]
       }
 
