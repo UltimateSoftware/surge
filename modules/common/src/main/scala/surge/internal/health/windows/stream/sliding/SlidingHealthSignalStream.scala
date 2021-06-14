@@ -2,21 +2,21 @@
 
 package surge.internal.health.windows.stream.sliding
 
-import java.util.concurrent.{ArrayBlockingQueue, Callable, Executors}
+import java.util.concurrent.{ ArrayBlockingQueue, Callable, Executors }
 
-import akka.actor.{ActorRef, ActorSystem, Props}
+import akka.actor.{ ActorRef, ActorSystem, Props }
 import akka.stream.scaladsl.Source
-import org.slf4j.{Logger, LoggerFactory}
+import org.slf4j.{ Logger, LoggerFactory }
 import surge.health.config.WindowingStreamConfig
-import surge.health.{HealthSignalListener, SignalHandler}
+import surge.health.{ HealthSignalListener, SignalHandler }
 import surge.health.domain.HealthSignal
 import surge.health.matchers.SignalPatternMatcher
 import surge.health.windows.WindowStreamListener
 import surge.internal.health._
 import surge.internal.health.windows._
-import surge.internal.health.windows.actor.{HealthSignalWindowActor, HealthSignalWindowActorRef}
+import surge.internal.health.windows.actor.{ HealthSignalWindowActor, HealthSignalWindowActorRef }
 import surge.internal.health.windows.stream.actor.HealthSignalStreamActor
-import surge.internal.health.windows.stream.{SignalPatternMatchResultHandler, StreamHandle, WindowingHealthSignalStream}
+import surge.internal.health.windows.stream.{ SignalPatternMatchResultHandler, StreamHandle, WindowingHealthSignalStream }
 
 trait SlidingHealthSignalStream extends WindowingHealthSignalStream
 
