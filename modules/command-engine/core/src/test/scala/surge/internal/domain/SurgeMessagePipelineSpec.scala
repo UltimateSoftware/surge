@@ -3,26 +3,26 @@ package surge.internal.domain
 
 import java.util.regex.Pattern
 
-import akka.actor.{ActorSystem, PoisonPill}
-import akka.testkit.{TestKit, TestProbe}
-import com.typesafe.config.{Config, ConfigFactory}
-import net.manub.embeddedkafka.{EmbeddedKafka, EmbeddedKafkaConfig}
+import akka.actor.{ ActorSystem, PoisonPill }
+import akka.testkit.{ TestKit, TestProbe }
+import com.typesafe.config.{ Config, ConfigFactory }
+import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.streams.KafkaStreams
 import org.scalatest.concurrent.Eventually
 import org.scalatest.matchers.should.Matchers
-import org.scalatest.time.{Seconds, Span}
+import org.scalatest.time.{ Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
-import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
-import play.api.libs.json.{JsValue, Json}
+import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach }
+import play.api.libs.json.{ JsValue, Json }
 import surge.core.TestBoundedContext
-import surge.health.config.{WindowingStreamConfig, WindowingStreamSliderConfig}
+import surge.health.config.{ WindowingStreamConfig, WindowingStreamSliderConfig }
 import surge.health.domain.Error
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.core.SurgePartitionRouterImpl
 import surge.internal.health.StreamMonitoringRef
 import surge.internal.health.supervisor.RestartComponentAttempted
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
-import surge.kafka.streams.{AggregateStateStoreKafkaStreams, MockPartitionTracker, MockState}
+import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, MockPartitionTracker, MockState }
 import surge.metrics.Metrics
 
 import scala.concurrent.Await
@@ -42,7 +42,6 @@ class SurgeMessagePipelineSpec
 
   implicit override val patienceConfig: PatienceConfig =
     PatienceConfig(timeout = scaled(Span(160, Seconds)), interval = scaled(Span(5, Seconds)))
-
 
   private val config: EmbeddedKafkaConfig = EmbeddedKafkaConfig(kafkaPort = 6001)
 
