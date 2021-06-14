@@ -12,9 +12,9 @@ import scala.util.Try
  * WindowStreamConfig encapsulates all the configuration options for a WindowingHealthSignalStream
  */
 case class WindowingStreamConfig(
-    maxDelay: FiniteDuration = 5 seconds,
+    maxDelay: FiniteDuration = 5.seconds,
     maxStreamSize: Int = 500,
-    frequencies: Seq[FiniteDuration] = Seq(10 seconds),
+    frequencies: Seq[FiniteDuration] = Seq(10.seconds),
     advancerConfig: WindowingStreamAdvancerConfig)
 
 trait WindowingStreamAdvancerConfigLoader[T] {
@@ -22,11 +22,11 @@ trait WindowingStreamAdvancerConfigLoader[T] {
 }
 
 sealed trait WindowingStreamAdvancerConfig {
-  def amount: Int
+  def advanceAmount: Int
   def buffer: Int
 }
 
-case class WindowingStreamSliderConfig(buffer: Int = 10, amount: Int = 1) extends WindowingStreamAdvancerConfig
+case class WindowingStreamSliderConfig(buffer: Int = 10, advanceAmount: Int = 1) extends WindowingStreamAdvancerConfig
 
 object WindowingStreamAdvancerConfigLoader {
   def apply(str: String): WindowingStreamAdvancerConfigLoader[WindowingStreamSliderConfig] = {

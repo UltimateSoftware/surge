@@ -31,10 +31,11 @@ class RepeatingSignalMatcherSpec extends TestKit(ActorSystem("RepeatingSignals")
   val signalTopic: String = "topic"
   "RepeatingSignalPatternMatcher" should {
     // fixme: flakey test sometimes fails in build environment
-    "work with a Sliding Stream" ignore {
+    "work with a Sliding Stream" in {
+      val windowBuffer = 10
       val probe = TestProbe()
       val slidingHealthSignalStream = new SlidingHealthSignalStreamProvider(
-        WindowingStreamConfig(advancerConfig = WindowingStreamSliderConfig()),
+        WindowingStreamConfig(advancerConfig = WindowingStreamSliderConfig(buffer = windowBuffer, advanceAmount = 1)),
         filters = Seq(RepeatingSignalMatcher(2, SignalNameEqualsMatcher("99"), None)),
         streamMonitoring = Some(new StreamMonitoringRef(probe.ref)),
         actorSystem = system)
@@ -67,7 +68,7 @@ class RepeatingSignalMatcherSpec extends TestKit(ActorSystem("RepeatingSignals")
       }
 
       // expect only 11 elements in data because that is the configured buffer + 1
-      advanced.asInstanceOf[WindowAdvanced].d.signals.size shouldEqual 10 +- 1
+      advanced.asInstanceOf[WindowAdvanced].d.signals.size shouldEqual 11
       bus.unsupervise()
     }
 
