@@ -570,18 +570,11 @@ class PersistentActorSpec
     "Passivate after the actor idle timeout threshold is exceeded" in {
       val testContext = TestContext.setupDefault
       import testContext._
-
-      probe.send(actor, ReceiveTimeout) // When uninitialized, the actor should ignore a ReceiveTimeout
-      probe.expectNoMessage()
-
       processIncrementCommand(actor, baseState, mockProducer)
-
       probe.watch(actor)
-
       actor ! ReceiveTimeout
       probe.expectMsg(Passivate(Stop))
       probe.reply(Stop)
-
       probe.expectTerminated(actor)
     }
 
