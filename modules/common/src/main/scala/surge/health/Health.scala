@@ -50,6 +50,7 @@ final case class HealthRegistration(
     timestamp: Instant = Instant.now)
     extends HealthMessage
 trait RegistrationProducer {
+  def register(ref: ActorRef, componentName: String, restartSignalPatterns: Seq[Pattern], shutdownSignalPatterns: Seq[Pattern] = Seq.empty): Unit
   def registration(
       ref: ActorRef,
       componentName: String,

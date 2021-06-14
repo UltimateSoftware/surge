@@ -49,7 +49,7 @@ class HealthSupervisorActorSpec
       bus.signalStream().start()
 
       // Register
-      bus.registration(probe.ref, componentName = "boomControl", Seq(Pattern.compile("boom"))).invoke()
+      bus.register(probe.ref, componentName = "boomControl", Seq(Pattern.compile("boom")))
 
       val received = probe.receiveN(1, 10.seconds)
       Option(received).nonEmpty shouldEqual true

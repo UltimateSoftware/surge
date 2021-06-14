@@ -95,13 +95,11 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     kafkaStreamsImpl.start()
 
     // Register an actorRef on behalf of the Pipeline for control.
-    signalBus
-      .registration(
-        ref = pipelineControlActor,
-        componentName = "surge-message-pipeline",
-        restartSignalPatterns = restartSignalPatterns(),
-        shutdownSignalPatterns = shutdownSignalPatterns())
-      .invoke()
+    signalBus.register(
+      ref = pipelineControlActor,
+      componentName = "surge-message-pipeline",
+      restartSignalPatterns = restartSignalPatterns(),
+      shutdownSignalPatterns = shutdownSignalPatterns())
   }
 
   override def restart(): Unit = {

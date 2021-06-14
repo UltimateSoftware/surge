@@ -87,13 +87,11 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
    */
   override def start(): Unit = {
     underlyingActor ! Start
-    signalBus
-      .registration(
-        underlyingActor,
-        componentName = "state-store-kafka-streams",
-        shutdownSignalPatterns = shutdownSignalPatterns(),
-        restartSignalPatterns = restartSignalPatterns())
-      .invoke()
+    signalBus.register(
+      underlyingActor,
+      componentName = "state-store-kafka-streams",
+      shutdownSignalPatterns = shutdownSignalPatterns(),
+      restartSignalPatterns = restartSignalPatterns())
   }
 
   override def shutdown(): Unit = {

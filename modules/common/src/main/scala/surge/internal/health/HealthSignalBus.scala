@@ -216,6 +216,10 @@ private[surge] class HealthSignalBusImpl(config: HealthSignalBusConfig, signalSt
     this
   }
 
+  override def register(ref: ActorRef, componentName: String, restartSignalPatterns: Seq[Pattern], shutdownSignalPatterns: Seq[Pattern] = Seq.empty): Unit = {
+    registration(ref, componentName, restartSignalPatterns, shutdownSignalPatterns).invoke()
+  }
+
   override def registration(
       ref: ActorRef,
       componentName: String,

@@ -45,7 +45,7 @@ private[surge] final class SurgePartitionRouterImpl(
 
   override def start(): Unit = {
     actorRegion ! ActorLifecycleManagerActor.Start
-    signalBus.registration(actorRegion, componentName = "router-actor", restartSignalPatterns()).invoke()
+    signalBus.register(actorRegion, componentName = "router-actor", restartSignalPatterns())
   }
 
   override def stop(): Unit = {
