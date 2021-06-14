@@ -30,7 +30,7 @@ class TimerSpec extends MetricsSpecLike with Eventually {
         // The timing for the future is a little flaky and can sometimes be 10+ ms off in these tests.
         // Just assert that we're at least timing the amount of time we've slept for to prevent this test from being really flaky.
         metricValue(testTimerName) should be >= 10.0
-        metricValue(testTimerName) should be <= 100.0
+        metricValue(testTimerName) should be <= 125.0
       }
     }
 
