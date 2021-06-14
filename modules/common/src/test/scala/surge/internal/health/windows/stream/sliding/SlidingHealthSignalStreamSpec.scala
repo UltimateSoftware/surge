@@ -69,7 +69,7 @@ class SlidingHealthSignalStreamSpec
   }
 
   override def afterAll(): Unit = {
-    system.terminate()
+    TestKit.shutdownActorSystem(system)
   }
 
   "SlidingHealthSignalStreamSpec" should {

@@ -73,7 +73,7 @@ class SurgeMessagePipelineSpec
   }
 
   override def afterAll(): Unit = {
-    system.terminate()
+    TestKit.shutdownActorSystem(system)
   }
 
   "SurgeMessagePipeline" should {

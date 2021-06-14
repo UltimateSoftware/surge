@@ -26,7 +26,7 @@ class RepeatingSignalMatcherSpec extends TestKit(ActorSystem("RepeatingSignals")
   implicit val postOp: postfixOps = postfixOps
 
   override def afterAll(): Unit =
-    system.terminate()
+    TestKit.shutdownActorSystem(system)
 
   val signalTopic: String = "topic"
   "RepeatingSignalPatternMatcher" should {

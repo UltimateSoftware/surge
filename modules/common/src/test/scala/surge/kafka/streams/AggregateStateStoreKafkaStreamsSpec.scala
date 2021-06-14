@@ -5,6 +5,7 @@ package surge.kafka.streams
 import java.util.UUID
 
 import akka.actor.ActorSystem
+import akka.testkit.TestKit
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.common.serialization.StringSerializer
 import org.apache.kafka.streams.{ KafkaStreams, TopologyTestDriver }
@@ -50,7 +51,7 @@ class AggregateStateStoreKafkaStreamsSpec
   private val system = ActorSystem("test-actor-system")
 
   override def afterAll(): Unit = {
-    system.terminate()
+    TestKit.shutdownActorSystem(system)
   }
 
   // Silly mock validator that expects the `string` field of a MockState to be "stateN" where N is the value of the MockState int
