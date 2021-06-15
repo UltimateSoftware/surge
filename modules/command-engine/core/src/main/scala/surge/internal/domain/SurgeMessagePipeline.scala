@@ -4,6 +4,7 @@ package surge.internal.domain
 
 import akka.actor.{ Actor, ActorRef, ActorSystem, Props }
 import com.typesafe.config.Config
+import org.slf4j.{ Logger, LoggerFactory }
 import play.api.libs.json.JsValue
 import surge.core.{ SurgePartitionRouter, SurgeProcessingTrait }
 import surge.health.{ HealthSignalBusAware, HealthSignalBusTrait }
@@ -12,7 +13,6 @@ import surge.internal.akka.actor.ActorLifecycleManagerActor
 import surge.internal.akka.cluster.ActorSystemHostAwareness
 import surge.internal.akka.kafka.{ CustomConsumerGroupRebalanceListener, KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor }
 import surge.internal.core.SurgePartitionRouterImpl
-import surge.internal.domain.SurgeMessagePipeline.PipelineControlActor
 import surge.internal.health.HealthSignalStreamProvider
 import surge.internal.health.supervisor.{ ShutdownComponent, Stop => HealthSupervisedStop }
 import surge.internal.persistence.PersistentActorRegionCreator
@@ -23,6 +23,7 @@ import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.{ Failure, Success }
 
 object SurgeMessagePipeline {
+  val log: Logger = LoggerFactory.getLogger(getClass)
   class PipelineControlActor[S, M, +R, E](pipeline: SurgeMessagePipeline[S, M, R, E]) extends Actor {
     override def receive: Receive = {
       case ShutdownComponent(_) =>
@@ -46,6 +47,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     with HealthSignalBusAware
     with ActorSystemHostAwareness {
 
+  import SurgeMessagePipeline._
   protected implicit val system: ActorSystem = actorSystem
   protected val stateChangeActor: ActorRef = system.actorOf(KafkaConsumerStateTrackingActor.props)
 
@@ -87,7 +89,6 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
   }
 
   override def start(): Unit = {
-    import surge.health._
     signalBus.signalStream().subscribe().start()
 
     actorRouter.start()
