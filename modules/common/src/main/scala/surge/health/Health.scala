@@ -9,7 +9,6 @@ import java.util.regex.Pattern
 import akka.Done
 import akka.actor.{ ActorRef, ActorSystem }
 import akka.event.EventBus
-import surge.core.Controllable
 import surge.health.domain.{ EmittableHealthSignal, Error, HealthSignal, Timed, Trace, Warning }
 import surge.health.matchers.SignalPatternMatcher
 import surge.internal.health.RegistrationHandler
@@ -33,11 +32,6 @@ trait HealthyPublisher extends HealthSignalBusAware {
 
 trait RegistrationConsumer {
   def registrations(): Future[Seq[HealthRegistration]]
-}
-
-trait ControlReference {
-  def componentName(): String
-  def ref(): Controllable
 }
 
 final case class HealthRegistration(

@@ -7,6 +7,10 @@ import akka.actor.{ Actor, ActorRef, Props, Terminated }
 object ActorLifecycleManagerActor {
   case object Start
   case object Stop
+
+  def apply(managedActorProps: Props, managedActorName: Option[String]): ActorLifecycleManagerActor = {
+    new ActorLifecycleManagerActor(managedActorProps, managedActorName)
+  }
 }
 
 class ActorLifecycleManagerActor(managedActorProps: Props, managedActorName: Option[String] = None) extends Actor {

@@ -9,17 +9,16 @@ import akka.pattern.{ ask, BackoffOpts, BackoffSupervisor }
 import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
 import org.apache.kafka.streams.{ LagInfo, Topology }
-
 import surge.health.HealthSignalBusTrait
 import surge.internal.config.{ BackoffConfig, TimeoutConfig }
 import surge.internal.utils.{ BackoffChildActorTerminationWatcher, Logging }
 import surge.kafka.KafkaTopic
 import surge.kafka.streams.AggregateStateStoreKafkaStreamsImpl._
-import surge.kafka.streams.AggregateStreamsWriteBufferSettings.config
 import surge.kafka.streams.KafkaStreamLifeCycleManagement.{ Restart, Start, Stop }
 import surge.metrics.Metrics
 
 import scala.concurrent.{ ExecutionContext, Future }
+import scala.util.{ Failure, Success }
 
 object AggregateStreamsWriteBufferSettings extends WriteBufferSettings {
   private val config = ConfigFactory.load()
@@ -87,11 +86,18 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
    */
   override def start(): Unit = {
     underlyingActor ! Start
-    signalBus.register(
+    val registrationResult = signalBus.register(
       underlyingActor,
       componentName = "state-store-kafka-streams",
       shutdownSignalPatterns = shutdownSignalPatterns(),
       restartSignalPatterns = restartSignalPatterns())
+
+    registrationResult.onComplete {
+      case Failure(exception) =>
+        log.error("AggregateStateStore registration failed", exception)
+      case Success(done) =>
+        log.debug(s"AggregateStateStore registration succeeded - ${done.success}")
+    }(system.dispatcher)
   }
 
   override def shutdown(): Unit = {

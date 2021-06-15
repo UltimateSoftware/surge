@@ -166,7 +166,6 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, filters:
       state.registered.values.foreach(registered => {
         registered.restartSignalPatterns.foreach(p => {
           if (p.matcher(signal.name).matches()) {
-            // todo: Ask to restart.
             registered.ref ! RestartComponent(self)
             state.replyTo.foreach(r => r ! RestartComponentAttempted(registered.name))
           }
@@ -174,7 +173,6 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, filters:
 
         registered.shutdownSignalPatterns.foreach(p => {
           if (p.matcher(signal.name).matches()) {
-            // todo: Ask to shutdown
             registered.ref ! ShutdownComponent(self)
             state.replyTo.foreach(r => r ! ShutdownComponentAttempted(registered.name))
           }

@@ -19,6 +19,7 @@ import surge.kafka.{ KafkaPartitionShardRouterActor, PersistentActorRegionCreato
 
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.languageFeature.postfixOps
+import scala.util.{ Failure, Success }
 
 private[surge] final class SurgePartitionRouterImpl(
     system: ActorSystem,
@@ -45,7 +46,14 @@ private[surge] final class SurgePartitionRouterImpl(
 
   override def start(): Unit = {
     actorRegion ! ActorLifecycleManagerActor.Start
-    signalBus.register(actorRegion, componentName = "router-actor", restartSignalPatterns())
+    val registrationResult = signalBus.register(actorRegion, componentName = "router-actor", restartSignalPatterns())
+
+    registrationResult.onComplete {
+      case Failure(exception) =>
+        log.error("AggregateStateStore registration failed", exception)
+      case Success(done) =>
+        log.debug(s"AggregateStateStore registration succeeded - ${done.success}")
+    }(system.dispatcher)
   }
 
   override def stop(): Unit = {

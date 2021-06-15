@@ -46,8 +46,6 @@ object HealthSignalBus {
   }
 }
 
-trait BusSupervisionTrait extends RegistrationProducer with RegistrationConsumer
-
 trait HealthSignalBusInternal extends HealthSignalBusTrait with LookupClassification {
   def subscriberInfo(): Set[SubscriberInfo]
   def withStreamSupervision(

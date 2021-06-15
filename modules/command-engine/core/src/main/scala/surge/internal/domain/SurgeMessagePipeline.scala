@@ -20,6 +20,7 @@ import surge.kafka.PartitionAssignments
 import surge.kafka.streams._
 
 import scala.concurrent.{ ExecutionContext, Future }
+import scala.util.{ Failure, Success }
 
 object SurgeMessagePipeline {
   class PipelineControlActor[S, M, +R, E](pipeline: SurgeMessagePipeline[S, M, R, E]) extends Actor {
@@ -87,6 +88,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
   }
 
   override def start(): Unit = {
+    import surge.health._
     signalBus.signalStream().subscribe().start()
 
     actorRouter.start()
@@ -95,11 +97,18 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     kafkaStreamsImpl.start()
 
     // Register an actorRef on behalf of the Pipeline for control.
-    signalBus.register(
+    val registrationResult = signalBus.register(
       ref = pipelineControlActor,
       componentName = "surge-message-pipeline",
       restartSignalPatterns = restartSignalPatterns(),
       shutdownSignalPatterns = shutdownSignalPatterns())
+
+    registrationResult.onComplete {
+      case Failure(exception) =>
+        log.error("AggregateStateStore registeration failed", exception)
+      case Success(done) =>
+        log.debug(s"AggregateStateStore registeration succeeded - ${done.success}")
+    }(system.dispatcher)
   }
 
   override def restart(): Unit = {

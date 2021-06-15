@@ -11,7 +11,7 @@ import org.slf4j.LoggerFactory
 import java.time.Instant
 
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
-import surge.health.{ HealthSignalBusAware, HealthSignalBusTrait, InvokableHealthRegistration }
+import surge.health.{ HealthSignalBusAware, HealthSignalBusTrait }
 import surge.internal.SurgeModel
 import surge.internal.akka.actor.ActorLifecycleManagerActor
 import surge.internal.config.TimeoutConfig
@@ -21,6 +21,7 @@ import surge.kafka.streams._
 import surge.metrics.{ MetricInfo, Metrics, Timer }
 
 import scala.concurrent.{ ExecutionContext, Future }
+import scala.util.{ Failure, Success }
 
 /**
  * A stateful producer actor responsible for publishing all states + events for aggregates that belong to a particular state topic partition. The state
@@ -56,11 +57,6 @@ class KafkaProducerActor(
     with HealthSignalBusAware {
   private implicit val executionContext: ExecutionContext = ExecutionContext.global
   private val log = LoggerFactory.getLogger(getClass)
-
-  // Register
-  val doRegistration: InvokableHealthRegistration =
-    signalBus.registration(publisherActor, componentName = "kafka-producer-actor", restartSignalPatterns = restartSignalPatterns())
-  doRegistration.invoke()
 
   def publish(
       aggregateId: String,
@@ -103,6 +99,18 @@ class KafkaProducerActor(
 
   override def start(): Unit = {
     publisherActor ! ActorLifecycleManagerActor.Start
+
+    // todo: Register with reference to Controllable rather than ActorRef
+    // Register
+    val registrationResult =
+      signalBus.register(publisherActor, componentName = "kafka-producer-actor", restartSignalPatterns = restartSignalPatterns())
+
+    registrationResult.onComplete {
+      case Failure(exception) =>
+        log.error("KafkaProducerActor registration failed", exception)
+      case Success(done) =>
+        log.debug(s"KafkaProducerActor registration succeeded - ${done.success}")
+    }
   }
 
   override def stop(): Unit = {
