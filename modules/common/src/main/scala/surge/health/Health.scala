@@ -7,7 +7,7 @@ import java.util.UUID
 import java.util.regex.Pattern
 
 import akka.Done
-import akka.actor.ActorRef
+import akka.actor.{ ActorRef, ActorSystem }
 import akka.event.EventBus
 import surge.core.Controllable
 import surge.health.domain.{ EmittableHealthSignal, Error, HealthSignal, Timed, Trace, Warning }
@@ -18,7 +18,7 @@ import scala.concurrent.Future
 import scala.util.Try
 
 trait InvokableHealthRegistration {
-  def invoke(): InvokableHealthRegistration
+  def invoke(): Future[Ack]
 
   def underlyingRegistration(): HealthRegistration
 }
@@ -53,7 +53,7 @@ final case class HealthRegistration(
 final case class Ack(success: Boolean, error: Option[Any])
 
 trait RegistrationProducer {
-  def register(ref: ActorRef, componentName: String, restartSignalPatterns: Seq[Pattern], shutdownSignalPatterns: Seq[Pattern] = Seq.empty): Unit
+  def register(ref: ActorRef, componentName: String, restartSignalPatterns: Seq[Pattern], shutdownSignalPatterns: Seq[Pattern] = Seq.empty): Future[Ack]
   def registration(
       ref: ActorRef,
       componentName: String,
@@ -112,9 +112,11 @@ trait HealthSupervisorTrait {
   def stop(): HealthSupervisorTrait
   def start(replyTo: Option[ActorRef] = None): HealthSupervisorTrait
 
-  def register(registration: HealthRegistration): HealthSupervisorTrait
+  def register(registration: HealthRegistration): Future[Any]
 
   def registrar(): ActorRef
+
+  def actorSystem(): ActorSystem
 }
 
 trait SignalProducer {

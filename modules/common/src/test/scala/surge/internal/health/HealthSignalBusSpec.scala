@@ -17,6 +17,7 @@ import surge.health.{ HealthSignalListener, SignalHandler }
 import surge.internal.health.context.TestHealthSignalStream
 import surge.internal.health.supervisor.HealthSupervisorActorRef
 
+import scala.concurrent.duration._
 import scala.util.Try
 
 class TestHealthSignalListener(override val signalBus: HealthSignalBusInternal) extends HealthSignalListener {
@@ -50,7 +51,8 @@ class HealthSignalBusSpec extends TestKit(ActorSystem("healthSignalBus")) with A
     "have stream monitoring" in {
       val probe = TestProbe()
       val bus =
-        HealthSignalBus(signalStreamProvider).withStreamSupervision(_ => new HealthSupervisorActorRef(probe.ref), Some(new StreamMonitoringRef(probe.ref)))
+        HealthSignalBus(signalStreamProvider)
+          .withStreamSupervision(_ => new HealthSupervisorActorRef(probe.ref, 30.seconds, system), Some(new StreamMonitoringRef(probe.ref)))
       bus.supervisor().nonEmpty shouldEqual true
 
       bus.unsupervise()

@@ -57,9 +57,8 @@ trait HealthSignalBusInternal extends HealthSignalBusTrait with LookupClassifica
 
 private class InvokableHealthRegistrationImpl(healthRegistration: HealthRegistration, supervisor: HealthSupervisorTrait, signalBus: HealthSignalBusTrait)
     extends InvokableHealthRegistration {
-  override def invoke(): InvokableHealthRegistration = {
-    supervisor.register(healthRegistration)
-    this
+  override def invoke(): Future[Ack] = {
+    supervisor.register(healthRegistration).map(a => a.asInstanceOf[Ack])(supervisor.actorSystem().dispatcher)
   }
 
   override def underlyingRegistration(): HealthRegistration = healthRegistration
@@ -216,7 +215,11 @@ private[surge] class HealthSignalBusImpl(config: HealthSignalBusConfig, signalSt
     this
   }
 
-  override def register(ref: ActorRef, componentName: String, restartSignalPatterns: Seq[Pattern], shutdownSignalPatterns: Seq[Pattern] = Seq.empty): Unit = {
+  override def register(
+      ref: ActorRef,
+      componentName: String,
+      restartSignalPatterns: Seq[Pattern],
+      shutdownSignalPatterns: Seq[Pattern] = Seq.empty): Future[Ack] = {
     registration(ref, componentName, restartSignalPatterns, shutdownSignalPatterns).invoke()
   }
 
@@ -240,7 +243,7 @@ private[surge] class HealthSignalBusImpl(config: HealthSignalBusConfig, signalSt
   override def registrations(): Future[Seq[HealthRegistration]] = {
     supervisorRef match {
       case Some(ref) =>
-        val result = ref.actor.ask(HealthRegistrationRequest)(timeout = 10 seconds)
+        val result = ref.actor.ask(HealthRegistrationRequest)(timeout = 10.seconds)
 
         result.map(a => a.asInstanceOf[List[HealthRegistration]])(actorSystem.dispatcher)
       case None => Future.successful(Seq.empty)

@@ -6,14 +6,16 @@ import java.time.Instant
 
 import akka.Done
 import akka.actor.{ Actor, ActorContext, ActorRef, ActorSystem, PoisonPill, Props, Terminated }
-import akka.pattern.{ BackoffOpts, BackoffSupervisor }
+import akka.pattern.{ ask, BackoffOpts, BackoffSupervisor }
 import org.slf4j.{ Logger, LoggerFactory }
+import surge.health._
 import surge.health.domain.HealthSignal
 import surge.health.matchers.SignalPatternMatcher
-import surge.health._
-import surge.internal.health._
 import surge.internal.config.BackoffConfig
+import surge.internal.health._
 
+import scala.concurrent.duration._
+import scala.concurrent.{ ExecutionContext, Future }
 import scala.languageFeature.postfixOps
 import scala.util.Try
 
@@ -44,8 +46,9 @@ class HealthSignalStreamMonitoringRefWithSupervisionSupport(override val actor: 
  * @param actor
  *   ActorRef
  */
-class HealthSupervisorActorRef(val actor: ActorRef) extends HealthSupervisorTrait {
+class HealthSupervisorActorRef(val actor: ActorRef, askTimeout: FiniteDuration, override val actorSystem: ActorSystem) extends HealthSupervisorTrait {
   private var started: Boolean = false
+  private implicit val executionContext: ExecutionContext = actorSystem.dispatcher
   def start(replyTo: Option[ActorRef] = None): HealthSupervisorActorRef = {
     actor ! Start(replyTo)
     started = true
@@ -69,9 +72,8 @@ class HealthSupervisorActorRef(val actor: ActorRef) extends HealthSupervisorTrai
 
   override def registrar(): ActorRef = actor
 
-  override def register(registration: HealthRegistration): HealthSupervisorTrait = {
-    actor ! registration
-    this
+  override def register(registration: HealthRegistration): Future[Any] = {
+    actor.ask(registration)(askTimeout)
   }
 }
 
@@ -106,7 +108,7 @@ object HealthSupervisorActor {
           randomFactor = BackoffConfig.HealthSupervisorActor.randomFactor)
         .withMaxNrOfRetries(BackoffConfig.HealthSupervisorActor.maxRetries))
     val actorRef = actorSystem.actorOf(props)
-    new HealthSupervisorActorRef(actorRef)
+    new HealthSupervisorActorRef(actorRef, 30.seconds, actorSystem)
   }
 
   protected[supervisor] class ContextForwardingRegistrationHandler(context: ActorContext) extends RegistrationHandler {
@@ -152,10 +154,10 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, filters:
       context.become(receive)
       context.self ! Stop
     case reg: HealthRegistration =>
-      // todo: Ask to register.
       state.replyTo.foreach(r => r ! HealthRegistrationReceived(reg))
       context.watch(reg.ref)
       context.become(monitoring(state.copy(registered = state.registered + (reg.name -> reg))))
+      sender() ! Ack(success = true, None)
     case HealthRegistrationRequest =>
       sender() ! state.registered.values.toList
     case signal: HealthSignal =>
