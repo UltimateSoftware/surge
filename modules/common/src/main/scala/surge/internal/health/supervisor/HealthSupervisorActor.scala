@@ -152,6 +152,7 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, filters:
       context.become(receive)
       context.self ! Stop
     case reg: HealthRegistration =>
+      // todo: Ask to register.
       state.replyTo.foreach(r => r ! HealthRegistrationReceived(reg))
       context.watch(reg.ref)
       context.become(monitoring(state.copy(registered = state.registered + (reg.name -> reg))))

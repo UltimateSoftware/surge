@@ -49,6 +49,9 @@ final case class HealthRegistration(
     id: UUID = UUID.randomUUID(),
     timestamp: Instant = Instant.now)
     extends HealthMessage
+
+final case class Ack(success: Boolean, error: Option[Any])
+
 trait RegistrationProducer {
   def register(ref: ActorRef, componentName: String, restartSignalPatterns: Seq[Pattern], shutdownSignalPatterns: Seq[Pattern] = Seq.empty): Unit
   def registration(
