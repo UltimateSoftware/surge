@@ -2,10 +2,7 @@
 
 package surge.internal.streams
 
-import java.util.UUID
-import java.util.concurrent.atomic.AtomicReference
-
-import akka.actor.{ Actor, ActorRef, ActorSystem, Address, Props, Stash }
+import akka.actor.{ Actor, ActorRef, ActorSystem, Address, NoSerializationVerificationNeeded, Props, Stash }
 import akka.kafka.scaladsl.Consumer
 import akka.kafka.scaladsl.Consumer.DrainingControl
 import akka.kafka.{ ConsumerMessage, _ }
@@ -24,9 +21,12 @@ import surge.internal.akka.cluster.{ ActorHostAwareness, ActorRegistry, ActorSys
 import surge.internal.kafka.{ HeadersHelper, HostAwareCooperativeStickyAssignor, HostAwareRangeAssignor }
 import surge.internal.utils.Logging
 import surge.streams.DataPipeline._
-import surge.streams.{ EventPlusStreamMeta, KafkaStreamMeta }
 import surge.streams.replay.{ EventReplaySettings, EventReplayStrategy, ReplayControl, ReplayControlContext }
+import surge.streams.{ EventPlusStreamMeta, KafkaStreamMeta }
 
+import java.util.UUID
+import java.util.concurrent.atomic.AtomicReference
+import scala.concurrent.ExecutionContext.global
 import scala.concurrent.duration._
 import scala.concurrent.{ Await, ExecutionContext, Future }
 import scala.util.Try
@@ -69,6 +69,12 @@ object KafkaStreamManager {
   }
 }
 
+object MetricsWrapper {
+  def apply(metrics: Future[Map[MetricName, Metric]])(implicit ex: ExecutionContext): Future[MetricsWrapper] = metrics.map(new MetricsWrapper(_))
+  lazy val empty: MetricsWrapper = new MetricsWrapper(Map.empty)
+}
+class MetricsWrapper(val metrics: Map[MetricName, Metric]) extends NoSerializationVerificationNeeded
+
 class KafkaStreamManager[Key, Value](
     topicName: String,
     consumerSettings: ConsumerSettings[Key, Value],
@@ -107,7 +113,7 @@ class KafkaStreamManager[Key, Value](
 
   def getMetrics: Future[Map[MetricName, Metric]] = {
     implicit val timeout: Timeout = Timeout(metricFetchTimeout)
-    (managerActor ? KafkaStreamManagerActor.GetMetrics).mapTo[Map[MetricName, Metric]]
+    (managerActor ? KafkaStreamManagerActor.GetMetrics).mapTo[MetricsWrapper].map(_.metrics)(global)
   }
 
   // TODO is this Await too expensive? Akka streams only exposes the Kafka metrics from a future even though the Kafka client interfaces expose it non-async
@@ -183,7 +189,7 @@ class KafkaStreamManagerActor[Key, Value](
   private def stopped: Receive = {
     case StartConsuming => startConsumer()
     case StopConsuming  => sender() ! SuccessfullyStopped(localAddress, self)
-    case GetMetrics     => sender() ! Map.empty
+    case GetMetrics     => sender() ! MetricsWrapper.empty
     case RegisterSelf   => registerSelf()
   }
 
@@ -233,7 +239,7 @@ class KafkaStreamManagerActor[Key, Value](
 
   private def handleGetMetrics(state: InternalState): Unit = {
     val control = state.control.get()
-    control.metrics.pipeTo(sender())
+    MetricsWrapper(control.metrics).pipeTo(sender())
   }
 
   private def registerSelf(): Unit = {
