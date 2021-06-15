@@ -6,6 +6,7 @@ import io.opentracing.mock.MockTracer
 import play.api.libs.json._
 import surge.core.command.{ SurgeCommandKafkaConfig, SurgeCommandModel }
 import surge.internal.domain.CommandHandler
+import surge.internal.persistence.Context
 import surge.kafka.KafkaTopic
 import surge.metrics.Metrics
 

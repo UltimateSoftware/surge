@@ -5,24 +5,28 @@ package surge.kafka.streams
 import akka.actor.{ ActorRef, ActorSystem }
 import akka.pattern.{ ask, BackoffOpts, BackoffSupervisor }
 import akka.util.Timeout
+import com.typesafe.config.ConfigFactory
 import org.apache.kafka.streams.{ LagInfo, Topology }
 import surge.internal.config.{ BackoffConfig, TimeoutConfig }
 import surge.internal.utils.{ BackoffChildActorTerminationWatcher, Logging }
 import surge.kafka.KafkaTopic
 import surge.kafka.streams.AggregateStateStoreKafkaStreamsImpl._
+import surge.kafka.streams.AggregateStreamsWriteBufferSettings.config
 import surge.kafka.streams.KafkaStreamLifeCycleManagement.{ Restart, Start, Stop }
 import surge.metrics.Metrics
 
 import scala.concurrent.{ ExecutionContext, Future }
 
 object AggregateStreamsWriteBufferSettings extends WriteBufferSettings {
-  override def maxWriteBufferNumber: Int = 2
-  override def writeBufferSizeMb: Int = 32
+  private val config = ConfigFactory.load()
+  override def maxWriteBufferNumber: Int = config.getInt("kafka.streams.rocks-db.num-write-buffers")
+  override def writeBufferSizeMb: Int = config.getInt("kafka.streams.rocks-db.write-buffer-size-mb")
 }
 
 object AggregateStreamsBlockCacheSettings extends BlockCacheSettings {
+  private val config = ConfigFactory.load()
   override def blockSizeKb: Int = 16
-  override def blockCacheSizeMb: Int = 16
+  override def blockCacheSizeMb: Int = config.getInt("kafka.streams.rocks-db.block-cache-size-mb")
   override def cacheIndexAndFilterBlocks: Boolean = true
 }
 

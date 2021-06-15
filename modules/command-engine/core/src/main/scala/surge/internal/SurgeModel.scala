@@ -9,6 +9,9 @@ import surge.internal.kafka.{ ProducerActorContext, SurgeKafkaConfig }
 import surge.kafka.{ KafkaPartitioner, PartitionStringUpToColon }
 import surge.metrics.Metrics
 
+import scala.concurrent.ExecutionContext
+import scala.concurrent.ExecutionContext.global
+
 trait SurgeModel[S, M, +R, E] extends ProducerActorContext {
   override def aggregateName: String
   def aggregateReadFormatting: SurgeAggregateReadFormatting[S]
@@ -20,4 +23,5 @@ trait SurgeModel[S, M, +R, E] extends ProducerActorContext {
   override def tracer: Tracer
   override val kafka: SurgeKafkaConfig
   override val partitioner: KafkaPartitioner[String] = PartitionStringUpToColon
+  val executionContext: ExecutionContext = global
 }
