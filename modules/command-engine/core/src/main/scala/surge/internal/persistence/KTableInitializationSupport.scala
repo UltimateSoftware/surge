@@ -11,7 +11,6 @@ import surge.kafka.streams.AggregateStateStoreKafkaStreams
 import surge.metrics.Timer
 
 import scala.concurrent.ExecutionContext
-import scala.concurrent.duration._
 
 trait KTableInitializationMetrics {
   def stateInitializationTimer: Timer
@@ -42,7 +41,7 @@ trait KTableInitializationSupport[Model] {
         .isAggregateStateCurrent(aggregateId)
         .map { isStateCurrent =>
           if (isStateCurrent) {
-            fetchState(initializationAttempts)(ec, timeout = FiniteDuration(30, "seconds"))
+            fetchState(initializationAttempts)
           } else {
             val retryIn = RetryConfig.AggregateActor.initializeStateInterval
             log.warn("State for {} is not up to date in Kafka streams, retrying initialization in {}", Seq(aggregateId, retryIn): _*)
@@ -50,18 +49,18 @@ trait KTableInitializationSupport[Model] {
             context.system.scheduler.scheduleOnce(retryIn)(initializeState(initializationAttempts + 1, Some(failureReason)))
           }
         }
-        .recover { case _ =>
+        .recover { case exception =>
           val retryIn = RetryConfig.AggregateActor.fetchStateRetryInterval
+          log.error(s"Failed to check if $aggregateName aggregate was up to date for id $aggregateId, retrying in $retryIn", exception)
           val failureReason = AggregateStateNotCurrentInKTableException(aggregateId, kafkaProducerActor.assignedPartition)
           context.system.scheduler.scheduleOnce(retryIn)(initializeState(initializationAttempts + 1, Some(failureReason)))
         }
     }
   }
 
-  private def fetchState(initializationAttempts: Int)(implicit ec: ExecutionContext, timeout: Duration): Unit = {
-    val fetchedStateFut = initializationMetrics.stateInitializationTimer.time {
-      kafkaStreamsCommand.getAggregateBytes(aggregateId.toString)
-    }
+  private def fetchState(initializationAttempts: Int)(implicit ec: ExecutionContext): Unit = {
+    val fetchedStateFut = initializationMetrics.stateInitializationTimer.time(kafkaStreamsCommand.getAggregateBytes(aggregateId))
+
     fetchedStateFut
       .map { state =>
         log.trace("Fetched state from KTable for {}", aggregateId)

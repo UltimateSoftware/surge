@@ -6,7 +6,6 @@ import java.util.concurrent.CompletionStage
 
 import akka.actor.ActorSystem
 import com.typesafe.config.{ Config, ConfigFactory }
-import play.api.libs.json.JsValue
 import surge.core
 import surge.core.command._
 import surge.core.commondsl.{ SurgeCommandBusinessLogicTrait, SurgeRejectableCommandBusinessLogicTrait }
@@ -16,7 +15,6 @@ import surge.internal.domain
 import surge.internal.health.HealthSignalStreamProvider
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
 import surge.javadsl.common.{ HealthCheck, HealthCheckTrait }
-import surge.kafka.streams.AggregateStateStoreKafkaStreams
 import surge.metrics.Metric
 
 import scala.compat.java8.FutureConverters
@@ -84,6 +82,4 @@ private[javadsl] class SurgeCommandImpl[AggId, Agg, Command, Rej, Evt](
       listener.onRebalance(engine = this, javaAssignments)
     }
   }
-
-  override protected lazy val kafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue] = createStateStore()
 }

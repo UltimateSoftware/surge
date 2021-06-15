@@ -11,9 +11,9 @@ import org.scalatest.concurrent.Eventually
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
-import surge.health.{ Ack, HealthSupervisorTrait }
+import surge.health.{ Ack, HealthSupervisorTrait, SignalType }
 import surge.health.config.{ WindowingStreamConfig, WindowingStreamSliderConfig }
-import surge.health.domain.{ HealthSignalBuilder, Trace }
+import surge.health.domain.{ HealthSignal, Trace }
 import surge.health.matchers.SideEffect
 import surge.internal.health.matchers.SignalNameEqualsMatcher
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
@@ -31,6 +31,8 @@ class HealthSupervisorActorSpec
   implicit override val patienceConfig: PatienceConfig =
     PatienceConfig(timeout = scaled(Span(160, Seconds)), interval = scaled(Span(5, Seconds)))
 
+  private val testHealthSignal = HealthSignal(topic = "health.signal", name = "boom", signalType = SignalType.TRACE, data = Trace("test"))
+
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)
   }
@@ -43,8 +45,7 @@ class HealthSupervisorActorSpec
         WindowingStreamConfig(advancerConfig = WindowingStreamSliderConfig()),
         system,
         streamMonitoring = Some(new StreamMonitoringRef(probe.ref)),
-        Seq(SignalNameEqualsMatcher(name = "test.trace", Some(SideEffect(Seq(HealthSignalBuilder("health.signal").withName(name = "boom").build()))))))
-        .busWithSupervision()
+        Seq(SignalNameEqualsMatcher(name = "test.trace", Some(SideEffect(Seq(testHealthSignal)))))).busWithSupervision()
 
       // Start signal streaming
       bus.signalStream().start()
@@ -76,8 +77,7 @@ class HealthSupervisorActorSpec
         WindowingStreamConfig(advancerConfig = WindowingStreamSliderConfig()),
         system,
         streamMonitoring = Some(new StreamMonitoringRef(probe.ref)),
-        Seq(SignalNameEqualsMatcher(name = "test.trace", Some(SideEffect(Seq(HealthSignalBuilder("health.signal").withName(name = "boom").build()))))))
-        .busWithSupervision()
+        Seq(SignalNameEqualsMatcher(name = "test.trace", Some(SideEffect(Seq(testHealthSignal)))))).busWithSupervision()
       val ref: HealthSupervisorTrait = bus.supervisor().get
 
       val message = bus.registration(probe.ref, componentName = "boomControl", Seq.empty)
@@ -100,8 +100,7 @@ class HealthSupervisorActorSpec
         WindowingStreamConfig(advancerConfig = WindowingStreamSliderConfig()),
         system,
         streamMonitoring = Some(new StreamMonitoringRef(probe.ref)),
-        Seq(SignalNameEqualsMatcher(name = "test.trace", Some(SideEffect(Seq(HealthSignalBuilder("health.signal").withName(name = "boom").build()))))))
-        .busWithSupervision()
+        Seq(SignalNameEqualsMatcher(name = "test.trace", Some(SideEffect(Seq(testHealthSignal)))))).busWithSupervision()
       val ref: HealthSupervisorTrait = bus.supervisor().get
 
       bus.signalStream().start()

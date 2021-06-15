@@ -9,7 +9,7 @@ import akka.event.LookupClassification
 import akka.pattern._
 import com.typesafe.config.{ Config, ConfigFactory }
 import org.slf4j.{ Logger, LoggerFactory }
-import surge.health.domain.{ EmittableHealthSignal, Error, HealthSignal, HealthSignalBuilder, Trace, Warning }
+import surge.health.domain.{ EmittableHealthSignal, Error, HealthSignal, Trace, Warning }
 import surge.health._
 import surge.health.config.HealthSignalBusConfig
 import surge.internal.health.HealthSignalBus.log
@@ -124,7 +124,7 @@ private[surge] class HealthSignalBusImpl(config: HealthSignalBusConfig, signalSt
   implicit val postfix: postfixOps = postfixOps
   implicit val actorSystem: ActorSystem = ActorSystem("healthSignalBusActorSystem")
 
-  private var stream: HealthSignalStream = _
+  private lazy val stream: HealthSignalStream = signalStreamSupplier.provide(bus = this).subscribe()
   private var supervisorRef: Option[HealthSupervisorActorRef] = None
   private var monitoringRef: Option[HealthSignalStreamMonitoringRefWithSupervisionSupport] = None
 
@@ -249,28 +249,22 @@ private[surge] class HealthSignalBusImpl(config: HealthSignalBusConfig, signalSt
   }
 
   override def signalWithError(name: String, error: Error, metadata: Map[String, String] = Map.empty): EmittableHealthSignal = {
-    val signal = HealthSignalBuilder(config.signalTopic).withName(name).withData(error).withMetadata(metadata).withSignalType(SignalType.ERROR).build()
+    val signal = HealthSignal(topic = config.signalTopic, name = name, data = error, metadata = metadata, signalType = SignalType.ERROR)
     new EmittableHealthSignalImpl(signal, signalBus = this)
   }
 
   override def signalWithWarning(name: String, warning: Warning, metadata: Map[String, String] = Map.empty): EmittableHealthSignal = {
-    val signal = HealthSignalBuilder(config.signalTopic).withName(name).withData(warning).withMetadata(metadata).withSignalType(SignalType.WARNING).build()
+    val signal = HealthSignal(topic = config.signalTopic, name = name, data = warning, metadata = metadata, signalType = SignalType.WARNING)
     new EmittableHealthSignalImpl(signal, signalBus = this)
   }
 
   override def signalWithTrace(name: String, trace: Trace, metadata: Map[String, String] = Map.empty): EmittableHealthSignal = {
-    val signal = HealthSignalBuilder(config.signalTopic).withName(name).withData(trace).withMetadata(metadata).withSignalType(SignalType.TRACE).build()
+    val signal = HealthSignal(topic = config.signalTopic, name = name, data = trace, metadata = metadata, signalType = SignalType.TRACE)
     new EmittableHealthSignalImpl(signal, signalBus = this)
   }
 
   override def subscriberInfo(): Set[SubscriberInfo] =
     subscribers.values.map(s => SubscriberInfo(s.getClass.getName, s.hashCode().toString))
 
-  override def signalStream(): HealthSignalStream =
-    Option(stream) match {
-      case Some(value) => value
-      case None =>
-        stream = signalStreamSupplier.provide(bus = this).subscribe()
-        stream
-    }
+  override def signalStream(): HealthSignalStream = stream
 }

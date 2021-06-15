@@ -17,7 +17,7 @@ import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
 import surge.health.SignalType
 import surge.health.config.{ WindowingStreamConfig, WindowingStreamSliderConfig }
-import surge.health.domain.{ Error, HealthSignal, HealthSignalBuilder, Trace }
+import surge.health.domain.{ Error, HealthSignal, Trace }
 import surge.health.matchers.SideEffect
 import surge.health.windows.{ AddedToWindow, WindowAdvanced, WindowClosed, WindowOpened }
 import surge.internal.health._
@@ -47,7 +47,7 @@ class SlidingHealthSignalStreamSpec
   private var bus: HealthSignalBusInternal = _
   override def beforeEach(): Unit = {
     probe = TestProbe()
-    val signal = HealthSignalBuilder("health.signal").withName(s"5 in a row").withSignalType(SignalType.TRACE).withData(Trace(s"5 in a row")).build()
+    val signal = HealthSignal(topic = "health.signal", name = s"5 in a row", signalType = SignalType.TRACE, data = Trace(s"5 in a row"))
 
     val filters = Seq(
       RepeatingSignalMatcher(

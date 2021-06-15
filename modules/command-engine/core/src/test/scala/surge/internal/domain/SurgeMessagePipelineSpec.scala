@@ -50,8 +50,8 @@ class SurgeMessagePipelineSpec
   private var pipeline: SurgeMessagePipeline[State, BaseTestCommand, Nothing, BaseTestEvent] = _
 
   override def beforeEach(): Unit = {
-    createCustomTopic(kafkaConfig.eventsTopic.name, Map.empty)
-    createCustomTopic(kafkaConfig.stateTopic.name, Map.empty)
+    createCustomTopic(businessLogic.kafka.eventsTopic.name, Map.empty)
+    createCustomTopic(businessLogic.kafka.stateTopic.name, Map.empty)
 
     val config = ConfigFactory.load()
     probe = TestProbe()
@@ -228,12 +228,12 @@ class SurgeMessagePipelineSpec
           signalStreamProvider.busWithSupervision())
       override protected val kafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue] = new AggregateStateStoreKafkaStreams[JsValue](
         businessLogic.aggregateName,
-        kafkaConfig.stateTopic,
+        businessLogic.kafka.stateTopic,
         (streams: KafkaStreams) => new MockPartitionTracker(streams),
         aggregateValidator = mockValidator,
         applicationHostPort = Some("localhost:1234"),
         applicationId = "test-app",
-        clientId = kafkaConfig.clientId,
+        clientId = businessLogic.kafka.clientId,
         signalStreamProvider.busWithSupervision(),
         system,
         Metrics.globalMetricRegistry)

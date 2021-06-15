@@ -2,21 +2,19 @@
 
 package surge.javadsl.event
 
+import java.util.concurrent.CompletionStage
+
 import akka.actor.ActorSystem
 import com.typesafe.config.{ Config, ConfigFactory }
 import surge.core
 import surge.core.event.SurgeEventServiceModel
-import surge.internal.domain.SurgeEventServiceImpl
-import surge.javadsl.common.{ HealthCheck, HealthCheckTrait }
-import surge.metrics.Metric
-import java.util.concurrent.CompletionStage
-
-import play.api.libs.json.JsValue
 import surge.health.config.WindowingStreamConfigLoader
 import surge.health.matchers.SignalPatternMatcherRegistry
+import surge.internal.domain.SurgeEventServiceImpl
 import surge.internal.health.HealthSignalStreamProvider
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
-import surge.kafka.streams.AggregateStateStoreKafkaStreams
+import surge.javadsl.common.{ HealthCheck, HealthCheckTrait }
+import surge.metrics.Metric
 
 import scala.compat.java8.FutureConverters
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -68,7 +66,4 @@ private[javadsl] class SurgeEventImpl[AggId, Agg, Evt](
       listener.onRebalance(engine = this, javaAssignments)
     }
   }
-
-  override protected lazy val kafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue] = createStateStore()
-
 }

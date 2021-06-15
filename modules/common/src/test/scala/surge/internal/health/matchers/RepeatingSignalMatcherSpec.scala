@@ -12,7 +12,7 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import surge.health.SignalType
 import surge.health.config.{ WindowingStreamConfig, WindowingStreamSliderConfig }
-import surge.health.domain.{ HealthSignalBuilder, Trace }
+import surge.health.domain.{ HealthSignal, Trace }
 import surge.health.matchers.SideEffect
 import surge.health.windows.WindowAdvanced
 import surge.internal.health.StreamMonitoringRef
@@ -27,6 +27,11 @@ class RepeatingSignalMatcherSpec extends TestKit(ActorSystem("RepeatingSignals")
 
   override def afterAll(): Unit =
     TestKit.shutdownActorSystem(system)
+
+  private val testTraceSignal = HealthSignal(topic = "topic", name = "test.trace", signalType = SignalType.TRACE, data = Trace("test"))
+  private val testSignal1 = HealthSignal(topic = "topic", name = "foo", signalType = SignalType.TRACE, data = Trace("test"))
+  private val testSignal2 = HealthSignal(topic = "topic", name = "bar", signalType = SignalType.TRACE, data = Trace("test"))
+  private val fiveInARowSignal = HealthSignal(topic = "topic", name = "5 in a row", signalType = SignalType.TRACE, data = Trace("test"))
 
   val signalTopic: String = "topic"
   "RepeatingSignalPatternMatcher" should {
@@ -71,71 +76,47 @@ class RepeatingSignalMatcherSpec extends TestKit(ActorSystem("RepeatingSignals")
     }
 
     "Find 5 matching signals - using nameEquals" in {
-      val signal = HealthSignalBuilder("topic").withName(name = s"5 in a row").withSignalType(SignalType.TRACE).withData(Trace(s"5 in a row")).build()
-
-      val matcher = RepeatingSignalMatcher(times = 5, atomicMatcher = SignalNameEqualsMatcher(name = "test.trace"), Some(SideEffect(Seq(signal))))
+      val matcher = RepeatingSignalMatcher(times = 5, atomicMatcher = SignalNameEqualsMatcher(name = "test.trace"), Some(SideEffect(Seq(fiveInARowSignal))))
 
       val result = matcher.searchForMatch(
-        Seq(
-          HealthSignalBuilder("topic").withName(name = "test.trace").build(),
-          HealthSignalBuilder("topic").withName(name = "test.trace").build(),
-          HealthSignalBuilder("topic").withName(name = "foo").build(),
-          HealthSignalBuilder("topic").withName(name = "test.trace").build(),
-          HealthSignalBuilder("topic").withName(name = "bar").build(),
-          HealthSignalBuilder("topic").withName(name = "test.trace").build(),
-          HealthSignalBuilder("topic").withName(name = "test.trace").build()),
+        Seq(testTraceSignal, testTraceSignal, testSignal1, testTraceSignal, testSignal2, testTraceSignal, testTraceSignal),
         frequency = 10.seconds)
 
       result.matches.size shouldEqual 5
     }
 
     "Find 5 matching signals - using pattern" in {
-      val signal = HealthSignalBuilder("topic").withName(name = s"5 in a row").withSignalType(SignalType.TRACE).withData(Trace(s"5 in a row")).build()
-
       val matcher =
-        RepeatingSignalMatcher(times = 5, atomicMatcher = SignalNamePatternMatcher(pattern = Pattern.compile("test.trace")), Some(SideEffect(Seq(signal))))
+        RepeatingSignalMatcher(
+          times = 5,
+          atomicMatcher = SignalNamePatternMatcher(pattern = Pattern.compile("test.trace")),
+          Some(SideEffect(Seq(fiveInARowSignal))))
 
       val result = matcher.searchForMatch(
-        Seq(
-          HealthSignalBuilder("topic").withName(name = "test.trace").build(),
-          HealthSignalBuilder("topic").withName(name = "test.trace").build(),
-          HealthSignalBuilder("topic").withName(name = "foo").build(),
-          HealthSignalBuilder("topic").withName(name = "test.trace").build(),
-          HealthSignalBuilder("topic").withName(name = "bar").build(),
-          HealthSignalBuilder("topic").withName(name = "test.trace").build(),
-          HealthSignalBuilder("topic").withName(name = "test.trace").build()),
+        Seq(testTraceSignal, testTraceSignal, testSignal1, testTraceSignal, testSignal2, testTraceSignal, testTraceSignal),
         frequency = 10.seconds)
 
       result.matches.size shouldEqual 5
     }
 
     "Find 0 matching signals - using nameEquals" in {
-      val signal = HealthSignalBuilder("topic").withName(s"5 in a row").withSignalType(SignalType.TRACE).withData(Trace(s"5 in a row")).build()
+      val matcher = RepeatingSignalMatcher(times = 5, atomicMatcher = SignalNameEqualsMatcher(name = "test_trace"), Some(SideEffect(Seq(fiveInARowSignal))))
 
-      val matcher = RepeatingSignalMatcher(times = 5, atomicMatcher = SignalNameEqualsMatcher(name = "test_trace"), Some(SideEffect(Seq(signal))))
-
-      val result = matcher.searchForMatch(
-        Seq(
-          HealthSignalBuilder("topic").withName(name = "foo").build(),
-          HealthSignalBuilder("topic").withName(name = "test.trace").build(),
-          HealthSignalBuilder("topic").withName(name = "bar").build()),
-        frequency = 10.seconds)
+      val result =
+        matcher.searchForMatch(Seq(testSignal1, testTraceSignal, testSignal2), frequency = 10.seconds)
 
       result.matches.size shouldEqual 0
     }
 
     "Find 0 matching signals - using pattern" in {
-      val signal = HealthSignalBuilder("topic").withName(s"5 in a row").withSignalType(SignalType.TRACE).withData(Trace(s"5 in a row")).build()
-
       val matcher =
-        RepeatingSignalMatcher(times = 5, atomicMatcher = SignalNamePatternMatcher(pattern = Pattern.compile("test_trace")), Some(SideEffect(Seq(signal))))
+        RepeatingSignalMatcher(
+          times = 5,
+          atomicMatcher = SignalNamePatternMatcher(pattern = Pattern.compile("test_trace")),
+          Some(SideEffect(Seq(fiveInARowSignal))))
 
-      val result = matcher.searchForMatch(
-        Seq(
-          HealthSignalBuilder("topic").withName(name = "foo").build(),
-          HealthSignalBuilder("topic").withName(name = "test.trace").build(),
-          HealthSignalBuilder("topic").withName(name = "bar").build()),
-        frequency = 10.seconds)
+      val result =
+        matcher.searchForMatch(Seq(testSignal1, testTraceSignal, testSignal2), frequency = 10.seconds)
 
       result.matches.size shouldEqual 0
     }

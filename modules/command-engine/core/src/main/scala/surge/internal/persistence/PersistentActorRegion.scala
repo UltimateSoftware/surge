@@ -72,16 +72,11 @@ class PersistentActorRegion[M](
     actorId: String => PersistentActor.props(actorId, businessLogic, signalBus, sharedResources, config)
   }
 
-  override def restart(): Unit = {
-    kafkaProducerActor.restart()
-  }
+  override def restart(): Unit = kafkaProducerActor.restart()
 
-  override def start(): Unit = {
-    kafkaProducerActor.start()
-  }
+  override def start(): Unit = kafkaProducerActor.start()
 
-  override def stop(): Unit =
-    Option(kafkaProducerActor).foreach(producer => producer.stop())
+  override def stop(): Unit = kafkaProducerActor.stop()
 
   override def shutdown(): Unit = stop()
 }

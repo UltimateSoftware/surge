@@ -26,10 +26,6 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event](val aggregateId: AggId, pro
 
   private implicit val ec: ExecutionContext = ExecutionContext.global
 
-  override def getState: CompletionStage[Optional[Agg]] = {
-    FutureConverters.toJava(queryState.map(_.asJava))
-  }
-
   def sendCommand(command: Cmd): CompletionStage[CommandResult[Agg]] = {
     val envelope = PersistentActor.ProcessMessage[Cmd](aggregateId.toString, command)
     val result = sendCommandWithRetries(envelope).map {

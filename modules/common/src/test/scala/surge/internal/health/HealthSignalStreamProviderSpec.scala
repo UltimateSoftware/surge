@@ -7,7 +7,7 @@ import akka.testkit.{ TestKit, TestProbe }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import surge.health.config.{ WindowingStreamConfig, WindowingStreamSliderConfig }
-import surge.health.domain.{ HealthSignal, HealthSignalBuilder, Trace }
+import surge.health.domain.{ HealthSignal, Trace }
 import surge.health.matchers.{ SideEffect, SignalPatternMatcher }
 import surge.health.windows.{ AddedToWindow, Window, WindowAdvanced, WindowClosed, WindowOpened, WindowStopped }
 import surge.health.{ HealthSignalStream, SignalType }
@@ -25,12 +25,11 @@ class HealthSignalStreamProviderSpec extends TestKit(ActorSystem("HealthSignalSt
     "have filters from ctor" in {
       val initialFilters = Seq(SignalNameEqualsMatcher(name = "foo"))
       val provider = testHealthSignalStreamProvider(initialFilters)
-      // fixme: In Scala 3, an unapplied method like this will be eta-expanded into a function.
-      provider.filters shouldEqual initialFilters
+      provider.filters() shouldEqual initialFilters
     }
 
     "return bus" in {
-      val signal = HealthSignalBuilder("topic").withName(name = s"5 in a row").withSignalType(SignalType.TRACE).withData(Trace(s"5 in a row")).build()
+      val signal = HealthSignal(topic = "topic", name = "5 in a row", signalType = SignalType.TRACE, data = Trace("test"))
       val initialFilters: Seq[SignalPatternMatcher] = Seq(
         SignalNameEqualsMatcher(name = "foo"),
         RepeatingSignalMatcher(times = 5, atomicMatcher = SignalNameEqualsMatcher(name = "bar"), Some(SideEffect(Seq(signal)))))

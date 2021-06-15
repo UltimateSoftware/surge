@@ -4,7 +4,6 @@ package surge.scaladsl.event
 
 import akka.actor.ActorSystem
 import com.typesafe.config.{ Config, ConfigFactory }
-import play.api.libs.json.JsValue
 import surge.core
 import surge.core.event.SurgeEventServiceModel
 import surge.health.config.WindowingStreamConfigLoader
@@ -12,7 +11,6 @@ import surge.health.matchers.SignalPatternMatcherRegistry
 import surge.internal.domain.SurgeEventServiceImpl
 import surge.internal.health.HealthSignalStreamProvider
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
-import surge.kafka.streams.AggregateStateStoreKafkaStreams
 import surge.metrics.Metric
 import surge.scaladsl.common.HealthCheckTrait
 
@@ -54,6 +52,4 @@ private[scaladsl] class SurgeEventImpl[AggId, Agg, Evt](
   def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Evt]): Unit = {
     registerRebalanceCallback { assignments => listener.onRebalance(engine = this, assignments.partitionAssignments) }
   }
-
-  override protected lazy val kafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue] = createStateStore()
 }

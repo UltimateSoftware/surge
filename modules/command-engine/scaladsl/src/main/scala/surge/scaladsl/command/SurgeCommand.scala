@@ -4,7 +4,6 @@ package surge.scaladsl.command
 
 import akka.actor.ActorSystem
 import com.typesafe.config.{ Config, ConfigFactory }
-import play.api.libs.json.JsValue
 import surge.core
 import surge.core.command.SurgeCommandModel
 import surge.core.commondsl.{ SurgeCommandBusinessLogicTrait, SurgeRejectableCommandBusinessLogicTrait }
@@ -13,7 +12,6 @@ import surge.health.matchers.SignalPatternMatcherRegistry
 import surge.internal.domain
 import surge.internal.health.HealthSignalStreamProvider
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
-import surge.kafka.streams.AggregateStateStoreKafkaStreams
 import surge.metrics.Metric
 import surge.scaladsl.common.HealthCheckTrait
 
@@ -73,6 +71,4 @@ private[scaladsl] class SurgeCommandImpl[AggId, Agg, Command, Rej, Event](
   def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Command, Rej, Event]): Unit = {
     registerRebalanceCallback { assignments => listener.onRebalance(engine = this, assignments.partitionAssignments) }
   }
-
-  override protected lazy val kafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue] = createStateStore()
 }

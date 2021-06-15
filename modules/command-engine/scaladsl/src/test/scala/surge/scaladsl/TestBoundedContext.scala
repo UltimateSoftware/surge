@@ -108,10 +108,10 @@ trait TestBoundedContext {
 
   object BusinessLogic extends BusinessLogicTrait
   val consumerGroup: String = "count-aggregate-consumer-group-name"
-  val stateTopic = KafkaTopic("testStateTopic")
-  val eventTopic = KafkaTopic("testEventsTopic")
+  val stateTopic: KafkaTopic = KafkaTopic("testStateTopic")
+  val eventTopic: KafkaTopic = KafkaTopic("testEventsTopic")
   val aggregateName = "CountAggregate"
-  val kafkaConfig = SurgeCommandKafkaConfig(
+  val kafkaConfig: SurgeCommandKafkaConfig = SurgeCommandKafkaConfig(
     stateTopic = stateTopic,
     eventsTopic = eventTopic,
     publishStateOnly = false,
@@ -119,21 +119,21 @@ trait TestBoundedContext {
     clientId = "",
     transactionalIdPrefix = "test-transaction-id-prefix")
 
-  val readFormats: SurgeReadFormatting[State, BaseTestEvent] = new SurgeReadFormatting[State, BaseTestEvent] {
+  val eventFormat: SurgeEventFormatting[BaseTestEvent] = new SurgeEventFormatting[BaseTestEvent] {
     override def readEvent(bytes: Array[Byte]): BaseTestEvent = {
       Json.parse(bytes).as[BaseTestEvent]
     }
 
-    override def readState(bytes: Array[Byte]): Option[State] = {
-      Json.parse(bytes).asOpt[State]
-    }
-  }
-
-  val writeFormats: SurgeWriteFormatting[State, BaseTestEvent] = new SurgeWriteFormatting[State, BaseTestEvent] {
     override def writeEvent(evt: BaseTestEvent): SerializedMessage = {
       val key = s"${evt.aggregateId}:${evt.sequenceNumber}"
       val body = Json.toJson(evt).toString().getBytes()
       SerializedMessage(key, body, Map.empty)
+    }
+  }
+
+  val aggregateFormat: SurgeAggregateFormatting[State] = new SurgeAggregateFormatting[State] {
+    override def readState(bytes: Array[Byte]): Option[State] = {
+      Json.parse(bytes).asOpt[State]
     }
 
     override def writeState(agg: State): SerializedAggregate = SerializedAggregate(Json.toJson(agg).toString().getBytes(), Map.empty)
@@ -141,7 +141,6 @@ trait TestBoundedContext {
   val businessLogic: SurgeCommandBusinessLogic[String, State, BaseTestCommand, BaseTestEvent] =
     new SurgeCommandBusinessLogic[String, State, BaseTestCommand, BaseTestEvent]() {
       val businessLogicTrait: BusinessLogicTrait = new BusinessLogicTrait {}
-      //override def aggregateIdToString: String => String = (aggId) => aggId
 
       override def aggregateName: String = "CounterAggregate"
 
@@ -151,10 +150,10 @@ trait TestBoundedContext {
 
       override def commandModel: AggregateCommandModel[State, BaseTestCommand, BaseTestEvent] = businessLogicTrait
 
-      override def aggregateReadFormatting: SurgeAggregateReadFormatting[State] = readFormats
+      override def aggregateReadFormatting: SurgeAggregateReadFormatting[State] = aggregateFormat
 
-      override def aggregateWriteFormatting: SurgeAggregateWriteFormatting[State] = writeFormats
+      override def aggregateWriteFormatting: SurgeAggregateWriteFormatting[State] = aggregateFormat
 
-      override def eventWriteFormatting: SurgeEventWriteFormatting[BaseTestEvent] = writeFormats
+      override def eventWriteFormatting: SurgeEventWriteFormatting[BaseTestEvent] = eventFormat
     }
 }

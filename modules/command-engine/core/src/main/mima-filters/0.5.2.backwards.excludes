@@ -1,6 +1,0 @@
-ProblemFilters.exclude[IncompatibleTemplateDefProblem]("surge.core.SurgePartitionRouter")
-
-ProblemFilters.exclude[DirectMissingMethodProblem]("surge.core.KafkaProducerActor.apply")
-ProblemFilters.exclude[DirectMissingMethodProblem]("surge.core.command.SurgeCommandImpl.this")
-
-ProblemFilters.exclude[InheritedNewAbstractMethodProblem]("surge.core.SurgeProcessingTrait.shutdown")

@@ -4,7 +4,6 @@ package surge.core
 
 import io.opentracing.mock.MockTracer
 import play.api.libs.json._
-
 import surge.core.command.{ SurgeCommandKafkaConfig, SurgeCommandModel }
 import surge.internal.domain.CommandHandler
 import surge.internal.persistence.Context
@@ -32,8 +31,6 @@ object TestBoundedContext {
 
   case class DoNothing(aggregateId: String) extends BaseTestCommand
   case class CreateNoOpEvent(aggregateId: String) extends BaseTestCommand
-
-  case class MimicHungProcess(aggregateId: String) extends BaseTestCommand
 
   case class FailCommandProcessing(failProcessingId: String, withError: Throwable) extends BaseTestCommand {
     val aggregateId: String = failProcessingId
@@ -126,7 +123,7 @@ trait TestBoundedContext {
 
   object BusinessLogic extends BusinessLogicTrait
 
-  val kafkaConfig = SurgeCommandKafkaConfig(
+  private val kafkaConfig = SurgeCommandKafkaConfig(
     stateTopic = KafkaTopic("testStateTopic"),
     eventsTopic = KafkaTopic("testEventsTopic"),
     publishStateOnly = false,

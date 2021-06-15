@@ -9,6 +9,7 @@ import java.util.regex.Pattern
 import akka.Done
 import akka.actor.{ ActorRef, ActorSystem }
 import akka.event.EventBus
+import org.slf4j.LoggerFactory
 import surge.health.domain.{ EmittableHealthSignal, Error, HealthSignal, Timed, Trace, Warning }
 import surge.health.matchers.SignalPatternMatcher
 import surge.internal.health.RegistrationHandler
@@ -64,6 +65,7 @@ trait HealthMessage extends Timed {
 trait BusSupervisionTrait extends RegistrationProducer with RegistrationConsumer
 
 trait HealthRegistrationListener extends HealthListener {
+  private val log = LoggerFactory.getLogger(getClass)
   private var handler: RegistrationHandler = _
   def signalBus(): HealthSignalBusTrait
   def id(): String
@@ -145,6 +147,7 @@ trait HealthListener extends Comparable[String] {
 }
 
 trait HealthSignalListener extends HealthListener {
+  private val log = LoggerFactory.getLogger(getClass)
   private var handler: SignalHandler = _
   def signalBus(): HealthSignalBusTrait
 

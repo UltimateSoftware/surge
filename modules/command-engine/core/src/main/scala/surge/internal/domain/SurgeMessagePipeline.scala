@@ -49,13 +49,23 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
   protected implicit val system: ActorSystem = actorSystem
   protected val stateChangeActor: ActorRef = system.actorOf(KafkaConsumerStateTrackingActor.props)
 
-  protected val partitionTracker: KafkaConsumerPartitionAssignmentTracker = new KafkaConsumerPartitionAssignmentTracker(stateChangeActor)
-
-  protected val kafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue]
+  private val partitionTracker: KafkaConsumerPartitionAssignmentTracker = new KafkaConsumerPartitionAssignmentTracker(stateChangeActor)
 
   // Get a supervised HealthSignalBus from the HealthSignalStream Provider.
   //  Intentionally do not start on init i.e. startStreamOnInit = false.  Delegate start to pipeline lifecycle.
   override val signalBus: HealthSignalBusTrait = signalStreamProvider.busWithSupervision()
+
+  protected val kafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue] = new AggregateStateStoreKafkaStreams[JsValue](
+    aggregateName = businessLogic.aggregateName,
+    stateTopic = businessLogic.kafka.stateTopic,
+    partitionTrackerProvider = new KafkaStreamsPartitionTrackerActorProvider(stateChangeActor),
+    aggregateValidator = businessLogic.aggregateValidator,
+    applicationHostPort = applicationHostPort,
+    applicationId = businessLogic.kafka.streamsApplicationId,
+    clientId = businessLogic.kafka.clientId,
+    system = system,
+    metrics = businessLogic.metrics,
+    signalBus = signalBus)
 
   private var pipelineControlActor: ActorRef = _
 
@@ -67,17 +77,6 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
   protected val surgeHealthCheck: SurgeHealthCheck = new SurgeHealthCheck(businessLogic.aggregateName, kafkaStreamsImpl, actorRouter)(ExecutionContext.global)
   protected def createPartitionRouter(): SurgePartitionRouter =
     new SurgePartitionRouterImpl(actorSystem, partitionTracker, businessLogic, cqrsRegionCreator, signalBus)
-  protected def createStateStore() = new AggregateStateStoreKafkaStreams[JsValue](
-    aggregateName = businessLogic.aggregateName,
-    stateTopic = businessLogic.kafka.stateTopic,
-    partitionTrackerProvider = new KafkaStreamsPartitionTrackerActorProvider(stateChangeActor),
-    aggregateValidator = businessLogic.aggregateValidator,
-    applicationHostPort = applicationHostPort,
-    applicationId = businessLogic.kafka.streamsApplicationId,
-    clientId = businessLogic.kafka.clientId,
-    system = system,
-    metrics = businessLogic.metrics,
-    signalBus = signalBus)
 
   override def healthCheck(): Future[HealthCheck] = {
     surgeHealthCheck.healthCheck()
