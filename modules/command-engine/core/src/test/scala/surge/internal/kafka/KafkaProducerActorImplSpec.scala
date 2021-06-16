@@ -356,7 +356,7 @@ class KafkaProducerActorImplSpec
       when(mockProducerFailsCommit.initTransactions()(any[ExecutionContext])).thenReturn(Future.unit)
       doNothing().when(mockProducerFailsCommit).beginTransaction()
       doNothing().when(mockProducerFailsCommit).abortTransaction()
-      doThrow(new RuntimeException("This is expected")).when(mockProducerFailsCommit).commitTransaction()
+      when(mockProducerFailsCommit.commitTransaction()).thenThrow(new RuntimeException("This is expected"))
 
       val mockMetadata = mockRecordMetadata(assignedPartition)
       when(mockProducerFailsCommit.putRecords(any[Seq[ProducerRecord[String, Array[Byte]]]])).thenReturn(Seq(Future.successful(mockMetadata)))
