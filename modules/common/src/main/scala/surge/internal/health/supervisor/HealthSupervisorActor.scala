@@ -82,7 +82,7 @@ case class Start(replyTo: Option[ActorRef] = None)
 case class RestartComponent(replyTo: ActorRef)
 case class ShutdownComponent(replyTo: ActorRef)
 case class HealthRegistrationRequest()
-object Stop
+case class Stop()
 
 // State
 case class HealthState(registered: Map[String, HealthRegistration] = Map.empty, replyTo: Option[ActorRef] = None)

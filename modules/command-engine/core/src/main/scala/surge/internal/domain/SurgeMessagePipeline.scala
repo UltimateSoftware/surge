@@ -28,7 +28,7 @@ object SurgeMessagePipeline {
     override def receive: Receive = {
       case ShutdownComponent(_) =>
         pipeline.shutdown()
-      case HealthSupervisedStop            => context.self ! ActorLifecycleManagerActor.Stop
+      case HealthSupervisedStop()          => context.self ! ActorLifecycleManagerActor.Stop
       case ActorLifecycleManagerActor.Stop => context.stop(self)
     }
   }
@@ -124,7 +124,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     kafkaStreamsImpl.stop()
 
     // Stop Pipeline Control
-    Option(pipelineControlActor).foreach(a => a ! HealthSupervisedStop)
+    Option(pipelineControlActor).foreach(a => a ! HealthSupervisedStop())
 
     // Stop Signal Stream
     signalBus.signalStream().unsubscribe().stop()

@@ -24,7 +24,7 @@ object HealthSignalWindowActor {
   case class Start(window: Window, replyTo: ActorRef)
   case class Tick()
 
-  object Stop
+  case class Stop()
 
   def apply(actorSystem: ActorSystem, windowFrequency: FiniteDuration, advancer: Advancer[Window]): HealthSignalWindowActorRef = {
 
@@ -67,7 +67,7 @@ class HealthSignalWindowActorRef(val actor: ActorRef, windowFreq: FiniteDuration
   }
 
   def stop(): HealthSignalWindowActorRef = {
-    actor ! Stop
+    actor ! Stop()
     scheduledTask.cancel()
     this
   }
@@ -116,7 +116,7 @@ class HealthSignalWindowActor(frequency: FiniteDuration, windowAdvanceStrategy: 
       unstashAll()
       context.self ! OpenWindow(window, None)
       context.become(ready(WindowState().copy(replyTo = Some(replyTo))))
-    case Stop =>
+    case Stop() =>
       context.stop(self)
     case HealthSignal => stash()
   }
@@ -135,7 +135,7 @@ class HealthSignalWindowActor(frequency: FiniteDuration, windowAdvanceStrategy: 
       context.become(ready(state), discardOld = true)
     case OpenWindow(w, maybeSignal) =>
       context.become(handleOpenWindow(w, maybeSignal, state), discardOld = true)
-    case Stop => handleStop(state)
+    case Stop() => handleStop(state)
 
     case _ => stash()
   }
@@ -157,7 +157,7 @@ class HealthSignalWindowActor(frequency: FiniteDuration, windowAdvanceStrategy: 
       context.become(handleAddToWindow(window, signal, state))
     case CloseWindow(window, advance) =>
       context.become(handleCloseWindow(window, advance, state))
-    case Stop   => context.become(handleStop(state))
+    case Stop() => context.become(handleStop(state))
     case Tick() => handleTick(state)
 
     case CloseCurrentWindow =>
