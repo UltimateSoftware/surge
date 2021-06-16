@@ -32,7 +32,7 @@ class HealthSignalWindowActorSpec
   val bus: HealthSignalBusInternal = HealthSignalBus(testHealthSignalStreamProvider(Seq.empty))
 
   override def afterAll(): Unit = {
-    system.classicSystem.terminate()
+    TestKit.shutdownActorSystem(system)
   }
 
   "HealthSignalWindowActor" should {
