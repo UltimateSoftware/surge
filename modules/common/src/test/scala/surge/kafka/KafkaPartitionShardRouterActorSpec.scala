@@ -31,10 +31,22 @@ object KafkaPartitionShardRouterActorSpecModels {
   }
 
   class ProbeInterceptorRegionCreator(probe: TestProbe) extends PersistentActorRegionCreator[String] {
-    override def regionFromTopicPartition(topicPartition: TopicPartition): PerShardLogicProvider[String] = new PerShardLogicProvider[String] {
-      override def actorProvider(context: ActorContext): EntityPropsProvider[String] = (_: String) => Props(new ProbeInterceptorActor(topicPartition, probe))
-      override def onShardTerminated(): Unit = {}
-      override def healthCheck(): Future[HealthCheck] = Future.successful(HealthCheck("test", "test", HealthCheckStatus.UP))
+
+    override def regionFromTopicPartition(topicPartition: TopicPartition): PerShardLogicProvider[String] = {
+      val provider = new PerShardLogicProvider[String] {
+        override def actorProvider(context: ActorContext): EntityPropsProvider[String] = (_: String) => Props(new ProbeInterceptorActor(topicPartition, probe))
+        override def onShardTerminated(): Unit = {}
+        override def healthCheck(): Future[HealthCheck] = Future.successful(HealthCheck("test", "test", HealthCheckStatus.UP))
+
+        override def restart(): Unit = {}
+        override def start(): Unit = {}
+        override def stop(): Unit = {}
+
+        override def shutdown(): Unit = stop()
+      }
+
+      provider.start()
+      provider
     }
   }
 }

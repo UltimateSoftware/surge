@@ -19,11 +19,17 @@ object TestActor {
   sealed trait Message {
     def actorIdentifier: String
   }
+
   case class Update(actorIdentifier: String, value: Int) extends Message
+
   case class Delete(actorIdentifier: String) extends Message
+
   case class Get(actorIdentifier: String) extends Message
+
   case class DoPassivate(actorIdentifier: String) extends Message
+
   case class StopActor(originalSender: ActorRef)
+
   case class Crash(actorIdentifier: String, exception: Exception) extends Message
 
   def idExtractor: PartialFunction[Any, String] = { case m: Message =>
@@ -39,8 +45,17 @@ object TestActor {
 
     override def onShardTerminated(): Unit =
       onShardTerminatedCallback()
+
+    override def start(): Unit = {}
+
+    override def restart(): Unit = {}
+
+    override def stop(): Unit = {}
+
+    override def shutdown(): Unit = {}
   }
 }
+
 class TestActor(id: String) extends Actor {
   import TestActor._
 

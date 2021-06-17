@@ -124,7 +124,14 @@ trait KafkaProducerTrait[K, V] extends KafkaSecurityConfiguration with KafkaProd
   }
 
   def initTransactions()(implicit ec: ExecutionContext): Future[Unit] = Future {
-    producer.initTransactions()
+    try {
+      producer.initTransactions()
+    } catch {
+      case e: Exception => {
+        println(e)
+        throw e
+      }
+    }
   }
 }
 

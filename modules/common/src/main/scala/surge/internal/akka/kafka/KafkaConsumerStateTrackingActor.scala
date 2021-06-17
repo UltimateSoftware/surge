@@ -7,13 +7,14 @@ import akka.pattern.ask
 import akka.util.Timeout
 import org.apache.kafka.common.TopicPartition
 import org.slf4j.LoggerFactory
+import surge.core.ControllableAdapter
 import surge.internal.config.TimeoutConfig
 import surge.kafka.streams.{ HealthCheck, HealthCheckStatus, HealthyActor, HealthyComponent }
 import surge.kafka.{ HostPort, PartitionAssignments }
 
 import scala.concurrent.Future
 
-class KafkaConsumerPartitionAssignmentTracker(val underlyingActor: ActorRef) extends HealthyComponent {
+class KafkaConsumerPartitionAssignmentTracker(val underlyingActor: ActorRef) extends ControllableAdapter with HealthyComponent {
   def register(implicit actorRef: ActorRef): Unit = {
     underlyingActor ! KafkaConsumerStateTrackingActor.Register(actorRef)
   }
@@ -32,7 +33,6 @@ object KafkaConsumerStateTrackingActor {
   case class StateUpdated(newClusterState: Map[HostPort, List[TopicPartition]]) extends Message
   case object GetPartitionAssignments extends Message
   case class Register(actor: ActorRef) extends Message
-
   case object Ack extends Message
 
   def props: Props = {

@@ -59,8 +59,9 @@ class BankAccountCommandEngineSpec extends AnyWordSpec with Matchers with Embedd
         // #rebalance_listener
         val rebalanceListener = new BankAccountRebalanceListener
         BankAccountEngine.surgeEngine.registerRebalanceListener(rebalanceListener)
-      // #rebalance_listener
+        // #rebalance_listener
 
+        BankAccountEngine.surgeEngine.stop()
       }
     }
   }

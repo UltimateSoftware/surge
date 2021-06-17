@@ -2,20 +2,23 @@
 
 package surge.kafka.streams
 
+import java.util.regex.Pattern
+
 import akka.actor.{ ActorRef, ActorSystem }
 import akka.pattern.{ ask, BackoffOpts, BackoffSupervisor }
 import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
 import org.apache.kafka.streams.{ LagInfo, Topology }
+import surge.health.HealthSignalBusTrait
 import surge.internal.config.{ BackoffConfig, TimeoutConfig }
 import surge.internal.utils.{ BackoffChildActorTerminationWatcher, Logging }
 import surge.kafka.KafkaTopic
 import surge.kafka.streams.AggregateStateStoreKafkaStreamsImpl._
-import surge.kafka.streams.AggregateStreamsWriteBufferSettings.config
 import surge.kafka.streams.KafkaStreamLifeCycleManagement.{ Restart, Start, Stop }
 import surge.metrics.Metrics
 
 import scala.concurrent.{ ExecutionContext, Future }
+import scala.util.{ Failure, Success }
 
 object AggregateStreamsWriteBufferSettings extends WriteBufferSettings {
   private val config = ConfigFactory.load()
@@ -62,39 +65,55 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
     applicationHostPort: Option[String],
     applicationId: String,
     clientId: String,
+    signalBus: HealthSignalBusTrait,
     system: ActorSystem,
     metrics: Metrics)
     extends HealthyComponent
     with Logging {
-
   private[streams] lazy val settings = AggregateStateStoreKafkaStreamsImplSettings(applicationId, aggregateName, clientId)
 
   private[streams] val underlyingActor = createUnderlyingActorWithBackOff()
 
   private implicit val askTimeoutDuration: Timeout = TimeoutConfig.StateStoreKafkaStreamActor.askTimeout
 
+  override def restartSignalPatterns(): Seq[Pattern] = {
+    Seq(Pattern.compile("kafka.streams.fatal.error"))
+  }
+
   /**
    * Used to actually start the Kafka Streams process. Optionally cleans up persistent state directories left behind by previous runs if
    * `kafka.streams.wipe-state-on-start` config setting is set to true.
    */
-  def start(): Unit = {
+  override def start(): Unit = {
     underlyingActor ! Start
+    val registrationResult = signalBus.register(
+      underlyingActor,
+      componentName = "state-store-kafka-streams",
+      shutdownSignalPatterns = shutdownSignalPatterns(),
+      restartSignalPatterns = restartSignalPatterns())
+
+    registrationResult.onComplete {
+      case Failure(exception) =>
+        log.error("AggregateStateStore registration failed", exception)
+      case Success(done) =>
+        log.debug(s"AggregateStateStore registration succeeded - ${done.success}")
+    }(system.dispatcher)
   }
 
-  def stop(): Unit = {
+  override def shutdown(): Unit = {
+    stop()
+  }
+
+  override def stop(): Unit = {
     underlyingActor ! Stop
   }
 
-  def restart(): Unit = {
+  override def restart(): Unit = {
     underlyingActor ! Restart
   }
 
   def partitionLags()(implicit ec: ExecutionContext): Future[Map[String, Map[java.lang.Integer, LagInfo]]] = {
     underlyingActor.ask(GetLocalStorePartitionLags).mapTo[LocalStorePartitionLags].map(_.lags)
-  }
-
-  def substatesForAggregate(aggregateId: String)(implicit ec: ExecutionContext): Future[List[(String, Array[Byte])]] = {
-    underlyingActor.ask(GetSubstatesForAggregate(aggregateId)).mapTo[List[(String, Array[Byte])]]
   }
 
   def getAggregateBytes(aggregateId: String): Future[Option[Array[Byte]]] = {
@@ -103,6 +122,10 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
 
   override def healthCheck(): Future[HealthCheck] = {
     underlyingActor.ask(HealthyActor.GetHealth).mapTo[HealthCheck]
+  }
+
+  def substatesForAggregate(aggregateId: String)(implicit ec: ExecutionContext): Future[List[(String, Array[Byte])]] = {
+    underlyingActor.ask(GetSubstatesForAggregate(aggregateId)).mapTo[List[(String, Array[Byte])]]
   }
 
   private def createUnderlyingActorWithBackOff(): ActorRef = {

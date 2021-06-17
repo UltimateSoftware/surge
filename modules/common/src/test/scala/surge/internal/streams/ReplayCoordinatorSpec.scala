@@ -14,7 +14,6 @@ import surge.internal.akka.cluster.{ ActorRegistry, ActorSystemHostAwareness }
 import surge.internal.streams.ReplayCoordinator.{ ReplayCompleted, ReplayFailed, StartReplay }
 import surge.kafka.HostPort
 import surge.streams.replay.ReplayControl
-import surge.streams.{ DataSink, DataSinkExceptionHandler }
 
 import scala.concurrent.{ ExecutionContext, Future }
 

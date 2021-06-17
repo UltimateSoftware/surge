@@ -21,6 +21,7 @@ import java.time.Instant
 import java.util.concurrent.TimeUnit
 
 import akka.util.Timeout
+import surge.health.{ HealthSignalBusTrait, HealthyPublisher }
 import surge.internal.akka.cluster.ActorHostAwareness
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 
@@ -29,6 +30,10 @@ import scala.concurrent.duration._
 import scala.util.{ Failure, Success, Try }
 
 object KafkaProducerActorImpl {
+  val KAFKA_PRODUCER_KTABLE_ERROR_SIGNAL_NAME: String = "kafka.producer.actor.ktable.error"
+  val KAFKA_PRODUCER_ABORT_TX_FAILED_SIGNAL_NAME: String = "kafka.producer.actor.abort.tx.failed"
+  val KAFKA_PRODUCER_FENCED_SIGNAL_NAME: String = "kafka.producer.actor.fenced"
+
   sealed trait KafkaProducerActorMessage extends NoSerializationVerificationNeeded
   case class Publish(state: KafkaProducerActor.MessageToPublish, eventsToPublish: Seq[KafkaProducerActor.MessageToPublish]) extends KafkaProducerActorMessage
   case class IsAggregateStateCurrent(aggregateId: String, expirationTime: Instant) extends KafkaProducerActorMessage
@@ -70,12 +75,14 @@ class KafkaProducerActorImpl(
     producerContext: ProducerActorContext,
     kStreams: AggregateStateStoreKafkaStreams[_],
     partitionTracker: KafkaConsumerPartitionAssignmentTracker,
+    override val signalBus: HealthSignalBusTrait,
     config: Config = ConfigFactory.load(),
     kafkaProducerOverride: Option[KafkaBytesProducer] = None)
     extends ActorWithTracing
     with ActorHostAwareness
     with Stash
-    with Timers {
+    with Timers
+    with HealthyPublisher {
 
   import KafkaProducerActorImpl._
   import context.dispatcher
@@ -145,6 +152,10 @@ class KafkaProducerActorImpl(
   }
 
   override def receive: Receive = uninitialized
+
+  override def signalMetadata(): Map[String, String] = {
+    Map[String, String](elems = "aggregateName" -> aggregateName)
+  }
 
   private def uninitialized: Receive = {
     case InitTransactions => initializeTransactions()

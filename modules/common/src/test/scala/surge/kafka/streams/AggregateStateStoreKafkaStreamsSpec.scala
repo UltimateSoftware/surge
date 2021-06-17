@@ -5,6 +5,7 @@ package surge.kafka.streams
 import java.util.UUID
 
 import akka.actor.ActorSystem
+import akka.testkit.TestKit
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.common.serialization.StringSerializer
 import org.apache.kafka.streams.{ KafkaStreams, TopologyTestDriver }
@@ -15,6 +16,7 @@ import org.scalatest.wordspec.AnyWordSpec
 import org.scalatest.{ Assertion, BeforeAndAfterAll }
 import org.scalatestplus.mockito.MockitoSugar
 import play.api.libs.json.{ Format, JsValue, Json }
+import surge.internal.health.HealthSignalBus
 import surge.internal.kafka.JsonSerdes
 import surge.kafka.KafkaTopic
 import surge.kafka.streams.AggregateStateStoreKafkaStreamsImpl.AggregateStateStoreKafkaStreamsImplSettings
@@ -42,14 +44,14 @@ class AggregateStateStoreKafkaStreamsSpec
     with EmbeddedKafka
     with MockitoSugar
     with PatienceConfiguration {
-
+  import surge.internal.health.context.TestContext._
   override implicit val patienceConfig: PatienceConfig =
     PatienceConfig(timeout = Span(30, Seconds), interval = Span(10, Millis)) // scalastyle:ignore magic.number
 
   private val system = ActorSystem("test-actor-system")
 
   override def afterAll(): Unit = {
-    system.terminate()
+    TestKit.shutdownActorSystem(system)
   }
 
   // Silly mock validator that expects the `string` field of a MockState to be "stateN" where N is the value of the MockState int
@@ -103,6 +105,7 @@ class AggregateStateStoreKafkaStreamsSpec
           applicationHostPort = Some("localhost:1234"),
           applicationId = appId,
           clientId = "",
+          HealthSignalBus(testHealthSignalStreamProvider(Seq.empty)),
           system,
           Metrics.globalMetricRegistry) {
           override lazy val settings: AggregateStateStoreKafkaStreamsImplSettings =
@@ -141,6 +144,7 @@ class AggregateStateStoreKafkaStreamsSpec
           applicationHostPort = Some("localhost:1234"),
           applicationId = appId,
           clientId = "",
+          HealthSignalBus(testHealthSignalStreamProvider(Seq.empty)),
           system,
           Metrics.globalMetricRegistry) {
           override lazy val settings: AggregateStateStoreKafkaStreamsImplSettings =

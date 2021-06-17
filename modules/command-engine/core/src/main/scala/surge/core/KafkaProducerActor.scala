@@ -8,16 +8,20 @@ import akka.util.Timeout
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.header.Headers
 import org.slf4j.LoggerFactory
-import surge.internal.SurgeModel
-import surge.internal.config.TimeoutConfig
-import surge.internal.kafka.KafkaProducerActorImpl
-import surge.kafka.streams._
-import surge.metrics.{ MetricInfo, Metrics, Timer }
 import java.time.Instant
 
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
+import surge.health.{ HealthSignalBusAware, HealthSignalBusTrait }
+import surge.internal.SurgeModel
+import surge.internal.akka.actor.ActorLifecycleManagerActor
+import surge.internal.config.TimeoutConfig
+import surge.internal.kafka.KafkaProducerActorImpl
+import surge.kafka.KafkaBytesProducer
+import surge.kafka.streams._
+import surge.metrics.{ MetricInfo, Metrics, Timer }
 
 import scala.concurrent.{ ExecutionContext, Future }
+import scala.util.{ Failure, Success }
 
 /**
  * A stateful producer actor responsible for publishing all states + events for aggregates that belong to a particular state topic partition. The state
@@ -43,8 +47,15 @@ import scala.concurrent.{ ExecutionContext, Future }
  * @param aggregateName
  *   The name of the aggregate this publisher is responsible for
  */
-class KafkaProducerActor(publisherActor: ActorRef, metrics: Metrics, aggregateName: String, val assignedPartition: TopicPartition) extends HealthyComponent {
-
+class KafkaProducerActor(
+    publisherActor: ActorRef,
+    metrics: Metrics,
+    aggregateName: String,
+    val assignedPartition: TopicPartition,
+    override val signalBus: HealthSignalBusTrait)
+    extends HealthyComponent
+    with HealthSignalBusAware {
+  private implicit val executionContext: ExecutionContext = ExecutionContext.global
   private val log = LoggerFactory.getLogger(getClass)
 
   def publish(
@@ -83,21 +94,61 @@ class KafkaProducerActor(publisherActor: ActorRef, metrics: Metrics, aggregateNa
         Future.successful(HealthCheck(name = "publisher-actor", id = aggregateName, status = HealthCheckStatus.DOWN))
       }(ExecutionContext.global)
   }
+
+  override def restart(): Unit = {}
+
+  override def start(): Unit = {
+    publisherActor ! ActorLifecycleManagerActor.Start
+
+    // todo: Register with reference to Controllable rather than ActorRef
+    // Register
+    val registrationResult =
+      signalBus.register(publisherActor, componentName = "kafka-producer-actor", restartSignalPatterns = restartSignalPatterns())
+
+    registrationResult.onComplete {
+      case Failure(exception) =>
+        log.error("KafkaProducerActor registration failed", exception)
+      case Success(done) =>
+        log.debug(s"KafkaProducerActor registration succeeded - ${done.success}")
+    }
+  }
+
+  override def stop(): Unit = {
+    publisherActor ! ActorLifecycleManagerActor.Stop
+  }
+
+  override def shutdown(): Unit = stop()
 }
 
 object KafkaProducerActor {
+  private val dispatcherName: String = "kafka-publisher-actor-dispatcher"
+
   def apply(
       actorSystem: ActorSystem,
       assignedPartition: TopicPartition,
       metrics: Metrics,
       businessLogic: SurgeModel[_, _, _, _],
       kStreams: AggregateStateStoreKafkaStreams[_],
-      partitionTracker: KafkaConsumerPartitionAssignmentTracker): KafkaProducerActor = {
-    val publisherActor = actorSystem.actorOf(
-      Props(new KafkaProducerActorImpl(assignedPartition, metrics, businessLogic, kStreams, partitionTracker))
-        .withDispatcher("kafka-publisher-actor-dispatcher"))
+      partitionTracker: KafkaConsumerPartitionAssignmentTracker,
+      signalBus: HealthSignalBusTrait,
+      kafkaProducerOverride: Option[KafkaBytesProducer] = None): KafkaProducerActor = {
 
-    new KafkaProducerActor(publisherActor, metrics, businessLogic.aggregateName, assignedPartition)
+    val kafkaProducerProps = Props(
+      new KafkaProducerActorImpl(
+        assignedPartition = assignedPartition,
+        metrics = metrics,
+        businessLogic,
+        kStreams = kStreams,
+        partitionTracker = partitionTracker,
+        signalBus = signalBus,
+        kafkaProducerOverride = kafkaProducerOverride)).withDispatcher(dispatcherName)
+
+    new KafkaProducerActor(
+      actorSystem.actorOf(Props(new ActorLifecycleManagerActor(kafkaProducerProps))),
+      metrics,
+      businessLogic.aggregateName,
+      assignedPartition,
+      signalBus)
   }
 
   sealed trait PublishResult

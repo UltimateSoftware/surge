@@ -2,8 +2,11 @@
 
 package surge.kafka.streams
 
+import java.util.regex.Pattern
+
 import org.slf4j.LoggerFactory
 import play.api.libs.json.{ Format, Json }
+import surge.core.Controllable
 
 import scala.concurrent.{ ExecutionContext, Future }
 
@@ -44,8 +47,11 @@ class SurgeHealthCheck(healthCheckId: String, components: HealthyComponent*)(imp
   }
 }
 
-trait HealthyComponent {
+trait HealthyComponent extends Controllable {
   def healthCheck(): Future[HealthCheck]
+
+  def restartSignalPatterns(): Seq[Pattern] = Seq.empty
+  def shutdownSignalPatterns(): Seq[Pattern] = Seq.empty
 }
 
 case class HealthCheck(
@@ -66,7 +72,7 @@ object HealthCheckStatus {
   val UP = "up"
   val DOWN = "down"
 
-  val validStatuses = Seq(HealthCheckStatus.UP, HealthCheckStatus.DOWN)
+  val validStatuses: Seq[String] = Seq(HealthCheckStatus.UP, HealthCheckStatus.DOWN)
 }
 
 object HealthyActor {

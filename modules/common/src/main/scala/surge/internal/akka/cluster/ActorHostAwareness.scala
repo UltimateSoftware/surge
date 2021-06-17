@@ -37,11 +37,11 @@ trait ActorSystemHostAwareness {
   }
 
   protected def remotePath(path: String, hostPort: HostPort): String = {
-    remotePath(path, hostPort.toAddress())
+    remotePath(path, hostPort.toAddress)
   }
 
   implicit class HostPortToActorAddress(hostPort: HostPort) {
-    def toAddress(): Address = {
+    def toAddress: Address = {
       Address(akkaProtocol, actorSystem.name, hostPort.host, hostPort.port)
     }
   }

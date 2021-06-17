@@ -10,6 +10,7 @@ import io.opentracing.{ Span, Tracer }
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.akka.cluster.{ JacksonSerializable, Passivate }
 import surge.core._
+import surge.health.HealthSignalBusTrait
 import surge.internal.SurgeModel
 import surge.internal.akka.ActorWithTracing
 import surge.internal.config.{ RetryConfig, TimeoutConfig }
@@ -21,6 +22,7 @@ import surge.metrics.{ MetricInfo, Metrics, Timer }
 
 import java.time.Instant
 import java.util.concurrent.Executors
+
 import scala.concurrent.duration.{ Duration, FiniteDuration }
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.{ Failure, Success, Try }
@@ -121,9 +123,10 @@ object PersistentActor {
   def props[S, M, R, E](
       aggregateId: String,
       businessLogic: SurgeModel[S, M, R, E],
+      signalBus: HealthSignalBusTrait,
       regionSharedResources: PersistentEntitySharedResources,
       config: Config): Props = {
-    Props(new PersistentActor(aggregateId, businessLogic, regionSharedResources, config)).withDispatcher("surge-persistence-actor-dispatcher")
+    Props(new PersistentActor(aggregateId, businessLogic, regionSharedResources, signalBus, config)).withDispatcher("surge-persistence-actor-dispatcher")
   }
 
   val serializationThreadPoolSize: Int = ConfigFactory.load().getInt("surge.serialization.thread-pool-size")
@@ -135,6 +138,7 @@ class PersistentActor[S, M, R, E](
     val aggregateId: String,
     val businessLogic: SurgeModel[S, M, R, E],
     val regionSharedResources: PersistentEntitySharedResources,
+    val signalBus: HealthSignalBusTrait,
     implicit val config: Config)
     extends ActorWithTracing
     with Stash
@@ -380,5 +384,4 @@ class PersistentActor[S, M, R, E](
     val stateHeaders = serializedStateOpt.map(ser => HeadersHelper.createHeaders(ser.headers)).orNull
     KafkaProducerActor.MessageToPublish(aggregateId, stateValue, stateHeaders)
   }(serializationExecutionContext)
-
 }
