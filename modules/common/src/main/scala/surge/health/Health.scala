@@ -144,6 +144,10 @@ trait HealthListener extends Comparable[String] {
   def handleMessage(message: HealthMessage): Unit
 
   override def toString: String = id()
+
+  override def compareTo(o: String): Int = {
+    o.compareTo(this.id())
+  }
 }
 
 trait HealthSignalListener extends HealthListener {
@@ -158,10 +162,6 @@ trait HealthSignalListener extends HealthListener {
 
   def handleSignal(signal: HealthSignal): Unit = {
     Option(this.handler).foreach(h => h.handle(signal))
-  }
-
-  override def compareTo(o: String): Int = {
-    o.compareTo(this.id())
   }
 
   override def handleMessage(message: HealthMessage): Unit = {

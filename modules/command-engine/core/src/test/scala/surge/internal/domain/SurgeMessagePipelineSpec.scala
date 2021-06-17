@@ -18,7 +18,7 @@ import surge.core.TestBoundedContext
 import surge.health.config.{ WindowingStreamConfig, WindowingStreamSliderConfig }
 import surge.health.domain.{ Error, HealthSignal }
 import surge.health.matchers.{ SideEffectBuilder, SignalPatternMatcher, SignalPatternMatcherDefinition }
-import surge.health.{ HealthSignalBusTrait, HealthSignalListener, SignalHandler, SignalType }
+import surge.health.{ HealthListener, HealthMessage, HealthRegistration, HealthSignalBusTrait, HealthSignalListener, SignalHandler, SignalType }
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.core.SurgePartitionRouterImpl
 import surge.internal.health.StreamMonitoringRef
@@ -224,22 +224,18 @@ class SurgeMessagePipelineSpec
 
         var captured: Option[HealthSignal] = None
         pipeline.signalBus.subscribe(
-          subscriber = new HealthSignalListener() {
+          subscriber = new HealthListener() {
             override def id(): String = "pipelineTestSignalListener"
-            override def signalBus(): HealthSignalBusTrait = pipeline.signalBus
 
-            override def handleSignal(signal: HealthSignal): Unit = {
-              if (signal.name == "it.failed") {
-                captured = Some(signal)
+            override def handleMessage(message: HealthMessage): Unit = {
+              message match {
+                case signal: HealthSignal =>
+                  if (signal.name == "it.failed") {
+                    captured = Some(signal)
+                  }
+                case _ =>
               }
             }
-
-            override def stop(): HealthSignalListener = this
-
-            override def start(maybeSideEffect: Option[() => Unit]): HealthSignalListener = this
-
-            override def subscribeWithFilters(signalHandler: SignalHandler, filters: Seq[SignalPatternMatcher]): HealthSignalListener = this
-
           },
           to = pipeline.signalBus.signalTopic())
 
