@@ -50,9 +50,13 @@ object SurgeCommand {
   def create[AggId, Agg, Command, Rej, Evt](
       actorSystem: ActorSystem,
       businessLogic: SurgeRejectableCommandBusinessLogicTrait[AggId, Agg, Command, Rej, Evt],
-      signalStreamProvider: HealthSignalStreamProvider,
       config: Config): SurgeCommand[AggId, Agg, Command, Rej, Evt] = {
-    new SurgeCommandImpl(actorSystem, SurgeCommandModel(businessLogic), signalStreamProvider, businessLogic.aggregateIdToString, config)
+    new SurgeCommandImpl(
+      actorSystem,
+      SurgeCommandModel(businessLogic),
+      new SlidingHealthSignalStreamProvider(WindowingStreamConfigLoader.load(), actorSystem, filters = SignalPatternMatcherRegistry.load().toSeq),
+      businessLogic.aggregateIdToString,
+      config)
   }
 }
 

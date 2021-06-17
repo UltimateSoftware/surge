@@ -16,7 +16,9 @@ import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach }
 import play.api.libs.json.{ JsValue, Json }
 import surge.core.TestBoundedContext
 import surge.health.config.{ WindowingStreamConfig, WindowingStreamSliderConfig }
-import surge.health.domain.Error
+import surge.health.domain.{ Error, HealthSignal }
+import surge.health.matchers.{ SideEffectBuilder, SignalPatternMatcher, SignalPatternMatcherDefinition }
+import surge.health.{ HealthSignalBusTrait, HealthSignalListener, SignalHandler, SignalType }
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.core.SurgePartitionRouterImpl
 import surge.internal.health.StreamMonitoringRef
@@ -60,7 +62,16 @@ class SurgeMessagePipelineSpec
     signalStreamProvider = new SlidingHealthSignalStreamProvider(
       WindowingStreamConfig(advancerConfig = WindowingStreamSliderConfig()),
       system,
-      Some(new StreamMonitoringRef(probe.ref)))
+      Some(new StreamMonitoringRef(probe.ref)),
+      filters = Seq(
+        SignalPatternMatcherDefinition
+          .repeating(times = 1, Pattern.compile("baz"))
+          .withSideEffect(
+            SideEffectBuilder()
+              .addSideEffectSignal(HealthSignal(topic = "health.signal", name = "it.failed", data = Error("it.failed", None), signalType = SignalType.ERROR))
+              .buildSideEffect())
+          .toMatcher))
+
     // Create SurgeMessagePipeline
     pipeline = pipeline(signalStreamProvider, config)
     // Start Pipeline
@@ -203,6 +214,37 @@ class SurgeMessagePipelineSpec
 
           Option(restartAttempt).nonEmpty shouldEqual true
           restartAttempt.asInstanceOf[RestartComponentAttempted].componentName shouldEqual "router-actor"
+        }
+      }
+    }
+
+    "inject signal named `it.failed` into signal stream" in {
+      withRunningKafkaOnFoundPort(config) { _ =>
+        pipeline.signalBus.signalWithError(name = "baz", Error("baz happened", None)).emit()
+
+        var captured: Option[HealthSignal] = None
+        pipeline.signalBus.subscribe(
+          subscriber = new HealthSignalListener() {
+            override def id(): String = "pipelineTestSignalListener"
+            override def signalBus(): HealthSignalBusTrait = pipeline.signalBus
+
+            override def handleSignal(signal: HealthSignal): Unit = {
+              if (signal.name == "it.failed") {
+                captured = Some(signal)
+              }
+            }
+
+            override def stop(): HealthSignalListener = this
+
+            override def start(maybeSideEffect: Option[() => Unit]): HealthSignalListener = this
+
+            override def subscribeWithFilters(signalHandler: SignalHandler, filters: Seq[SignalPatternMatcher]): HealthSignalListener = this
+
+          },
+          to = pipeline.signalBus.signalTopic())
+
+        eventually {
+          captured.nonEmpty shouldEqual true
         }
       }
     }
