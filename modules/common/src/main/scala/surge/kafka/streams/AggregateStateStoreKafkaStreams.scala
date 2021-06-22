@@ -9,6 +9,7 @@ import akka.pattern.{ ask, BackoffOpts, BackoffSupervisor }
 import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
 import org.apache.kafka.streams.{ LagInfo, Topology }
+import surge.core.ControllableAdapter
 import surge.health.HealthSignalBusTrait
 import surge.internal.config.{ BackoffConfig, TimeoutConfig }
 import surge.internal.utils.{ BackoffChildActorTerminationWatcher, Logging }
@@ -87,7 +88,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
   override def start(): Unit = {
     underlyingActor ! Start
     val registrationResult = signalBus.register(
-      underlyingActor,
+      control = this,
       componentName = "state-store-kafka-streams",
       shutdownSignalPatterns = shutdownSignalPatterns(),
       restartSignalPatterns = restartSignalPatterns())
@@ -102,6 +103,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
 
   override def shutdown(): Unit = {
     stop()
+    super.shutdown()
   }
 
   override def stop(): Unit = {
@@ -110,6 +112,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
 
   override def restart(): Unit = {
     underlyingActor ! Restart
+    super.restart()
   }
 
   def partitionLags()(implicit ec: ExecutionContext): Future[Map[String, Map[java.lang.Integer, LagInfo]]] = {

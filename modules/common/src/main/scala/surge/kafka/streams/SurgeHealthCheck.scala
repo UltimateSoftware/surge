@@ -6,7 +6,7 @@ import java.util.regex.Pattern
 
 import org.slf4j.LoggerFactory
 import play.api.libs.json.{ Format, Json }
-import surge.core.Controllable
+import surge.core.ControllableWithHooks
 
 import scala.concurrent.{ ExecutionContext, Future }
 
@@ -47,7 +47,7 @@ class SurgeHealthCheck(healthCheckId: String, components: HealthyComponent*)(imp
   }
 }
 
-trait HealthyComponent extends Controllable {
+trait HealthyComponent extends ControllableWithHooks {
   def healthCheck(): Future[HealthCheck]
 
   def restartSignalPatterns(): Seq[Pattern] = Seq.empty

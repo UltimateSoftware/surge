@@ -100,10 +100,9 @@ class KafkaProducerActor(
   override def start(): Unit = {
     publisherActor ! ActorLifecycleManagerActor.Start
 
-    // todo: Register with reference to Controllable rather than ActorRef
     // Register
     val registrationResult =
-      signalBus.register(publisherActor, componentName = "kafka-producer-actor", restartSignalPatterns = restartSignalPatterns())
+      signalBus.register(control = this, componentName = "kafka-producer-actor", restartSignalPatterns = restartSignalPatterns())
 
     registrationResult.onComplete {
       case Failure(exception) =>
@@ -117,7 +116,10 @@ class KafkaProducerActor(
     publisherActor ! ActorLifecycleManagerActor.Stop
   }
 
-  override def shutdown(): Unit = stop()
+  override def shutdown(): Unit = {
+    stop()
+    super.shutdown()
+  }
 }
 
 object KafkaProducerActor {

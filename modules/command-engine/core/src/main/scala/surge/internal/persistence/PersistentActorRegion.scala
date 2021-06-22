@@ -78,5 +78,8 @@ class PersistentActorRegion[M](
 
   override def stop(): Unit = kafkaProducerActor.stop()
 
-  override def shutdown(): Unit = stop()
+  override def shutdown(): Unit = {
+    stop()
+    super.shutdown()
+  }
 }

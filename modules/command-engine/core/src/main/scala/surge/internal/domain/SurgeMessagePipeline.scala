@@ -2,19 +2,17 @@
 
 package surge.internal.domain
 
-import akka.actor.{ Actor, ActorRef, ActorSystem, Props }
+import akka.actor.{ ActorRef, ActorSystem }
 import com.typesafe.config.Config
 import org.slf4j.{ Logger, LoggerFactory }
 import play.api.libs.json.JsValue
 import surge.core.{ SurgePartitionRouter, SurgeProcessingTrait }
 import surge.health.{ HealthSignalBusAware, HealthSignalBusTrait }
 import surge.internal.SurgeModel
-import surge.internal.akka.actor.ActorLifecycleManagerActor
 import surge.internal.akka.cluster.ActorSystemHostAwareness
 import surge.internal.akka.kafka.{ CustomConsumerGroupRebalanceListener, KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor }
 import surge.internal.core.SurgePartitionRouterImpl
 import surge.internal.health.HealthSignalStreamProvider
-import surge.internal.health.supervisor.{ ShutdownComponent, Stop => HealthSupervisedStop }
 import surge.internal.persistence.PersistentActorRegionCreator
 import surge.kafka.PartitionAssignments
 import surge.kafka.streams._
@@ -24,14 +22,14 @@ import scala.util.{ Failure, Success }
 
 object SurgeMessagePipeline {
   val log: Logger = LoggerFactory.getLogger(getClass)
-  class PipelineControlActor[S, M, +R, E](pipeline: SurgeMessagePipeline[S, M, R, E]) extends Actor {
-    override def receive: Receive = {
-      case ShutdownComponent(_) =>
-        pipeline.shutdown()
-      case HealthSupervisedStop()          => context.self ! ActorLifecycleManagerActor.Stop
-      case ActorLifecycleManagerActor.Stop => context.stop(self)
-    }
-  }
+//  class PipelineControlActor[S, M, +R, E](pipeline: SurgeMessagePipeline[S, M, R, E]) extends Actor {
+//    override def receive: Receive = {
+//      case ShutdownComponent(_) =>
+//        pipeline.shutdown()
+//      case HealthSupervisedStop()          => context.self ! ActorLifecycleManagerActor.Stop
+//      case ActorLifecycleManagerActor.Stop => context.stop(self)
+//    }
+//  }
 }
 
 /**
@@ -69,8 +67,6 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     metrics = businessLogic.metrics,
     signalBus = signalBus)
 
-  private var pipelineControlActor: ActorRef = _
-
   protected val cqrsRegionCreator: PersistentActorRegionCreator[M] =
     new PersistentActorRegionCreator[M](actorSystem, businessLogic, kafkaStreamsImpl, partitionTracker, businessLogic.metrics, signalBus, config = config)
 
@@ -93,12 +89,12 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
 
     actorRouter.start()
 
-    pipelineControlActor = system.actorOf(Props(new PipelineControlActor(pipeline = this)))
+    //pipelineControlActor = system.actorOf(Props(new PipelineControlActor(pipeline = this)))
     kafkaStreamsImpl.start()
 
     // Register an actorRef on behalf of the Pipeline for control.
     val registrationResult = signalBus.register(
-      ref = pipelineControlActor,
+      control = this,
       componentName = "surge-message-pipeline",
       restartSignalPatterns = restartSignalPatterns(),
       shutdownSignalPatterns = shutdownSignalPatterns())
@@ -115,6 +111,8 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     signalBus.signalStream().unsubscribe().stop()
     kafkaStreamsImpl.restart()
     signalBus.signalStream().subscribe().start()
+
+    super.restart()
   }
 
   override def stop(): Unit = {
@@ -123,12 +121,12 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     // Stop Kafka Streams
     kafkaStreamsImpl.stop()
 
-    // Stop Pipeline Control
-    Option(pipelineControlActor).foreach(a => a ! HealthSupervisedStop())
-
     // Stop Signal Stream
     signalBus.signalStream().unsubscribe().stop()
   }
 
-  override def shutdown(): Unit = stop()
+  override def shutdown(): Unit = {
+    stop()
+    super.shutdown()
+  }
 }

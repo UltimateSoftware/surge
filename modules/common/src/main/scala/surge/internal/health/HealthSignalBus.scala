@@ -4,14 +4,15 @@ package surge.internal.health
 
 import java.util.regex.Pattern
 
-import akka.actor.{ Actor, ActorRef, ActorSystem, Props }
+import akka.actor.{ Actor, ActorSystem, Props }
 import akka.event.LookupClassification
 import akka.pattern._
 import com.typesafe.config.{ Config, ConfigFactory }
 import org.slf4j.{ Logger, LoggerFactory }
-import surge.health.domain.{ EmittableHealthSignal, Error, HealthSignal, Trace, Warning }
+import surge.core.{ Controllable, ControllableWithHooks }
 import surge.health._
 import surge.health.config.HealthSignalBusConfig
+import surge.health.domain.{ EmittableHealthSignal, Error, HealthRegistration, HealthSignal, Trace, Warning }
 import surge.internal.health.HealthSignalBus.log
 import surge.internal.health.supervisor._
 
@@ -56,6 +57,18 @@ trait HealthSignalBusInternal extends HealthSignalBusTrait with LookupClassifica
 private class InvokableHealthRegistrationImpl(healthRegistration: HealthRegistration, supervisor: HealthSupervisorTrait, signalBus: HealthSignalBusTrait)
     extends InvokableHealthRegistration {
   override def invoke(): Future[Ack] = {
+    healthRegistration.control match {
+      case hooks: ControllableWithHooks =>
+        hooks.onShutdown(control => {
+          supervisor.unregister(control)
+          log.debug("Controllable {} was shutdown", control)
+        })
+
+        hooks.onRestart(control => {
+          log.debug("Controllable {} was restarted", control)
+        })
+      case _ =>
+    }
     supervisor.register(healthRegistration).map(a => a.asInstanceOf[Ack])(supervisor.actorSystem().dispatcher)
   }
 
@@ -214,22 +227,24 @@ private[surge] class HealthSignalBusImpl(config: HealthSignalBusConfig, signalSt
   }
 
   override def register(
-      ref: ActorRef,
+      //ref: ActorRef,
+      control: Controllable,
       componentName: String,
       restartSignalPatterns: Seq[Pattern],
       shutdownSignalPatterns: Seq[Pattern] = Seq.empty): Future[Ack] = {
-    registration(ref, componentName, restartSignalPatterns, shutdownSignalPatterns).invoke()
+    registration(control, componentName, restartSignalPatterns, shutdownSignalPatterns).invoke()
   }
 
   override def registration(
-      ref: ActorRef,
+      //ref: ActorRef,
+      control: Controllable,
       componentName: String,
       restartSignalPatterns: Seq[Pattern],
       shutdownSignalPatterns: Seq[Pattern]): InvokableHealthRegistration = {
     supervisor() match {
       case Some(exists) =>
         new InvokableHealthRegistrationImpl(
-          HealthRegistration(ref, config.registrationTopic, componentName, restartSignalPatterns, shutdownSignalPatterns),
+          HealthRegistration(control, config.registrationTopic, componentName, restartSignalPatterns, shutdownSignalPatterns),
           exists,
           signalBus = this)
       case None =>

@@ -5,11 +5,12 @@ package surge.internal.health.supervisor
 import java.time.Instant
 
 import akka.Done
-import akka.actor.{ Actor, ActorContext, ActorRef, ActorSystem, PoisonPill, Props, Terminated }
+import akka.actor.{ Actor, ActorContext, ActorRef, ActorSystem, PoisonPill, Props }
 import akka.pattern.{ ask, BackoffOpts, BackoffSupervisor }
 import org.slf4j.{ Logger, LoggerFactory }
+import surge.core.Controllable
 import surge.health._
-import surge.health.domain.HealthSignal
+import surge.health.domain.{ HealthMessage, HealthRegistration, HealthSignal }
 import surge.health.matchers.SignalPatternMatcher
 import surge.internal.config.BackoffConfig
 import surge.internal.health._
@@ -75,13 +76,18 @@ class HealthSupervisorActorRef(val actor: ActorRef, askTimeout: FiniteDuration, 
   override def register(registration: HealthRegistration): Future[Any] = {
     actor.ask(registration)(askTimeout)
   }
+
+  override def unregister(control: Controllable): Future[Any] = {
+    actor.ask(RevokeHealthRegistrationRequest(control))(askTimeout)
+  }
 }
 
 // Commands
 case class Start(replyTo: Option[ActorRef] = None)
-case class RestartComponent(replyTo: ActorRef)
-case class ShutdownComponent(replyTo: ActorRef)
+//case class RestartComponent(replyTo: ActorRef)
+//case class ShutdownComponent(replyTo: ActorRef)
 case class HealthRegistrationRequest()
+case class RevokeHealthRegistrationRequest(control: Controllable)
 case class Stop()
 
 // State
@@ -138,7 +144,7 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, filters:
   val signalHandler: SignalHandler = new ContextForwardingSignalHandler(context)
   val registrationHandler: RegistrationHandler = new ContextForwardingRegistrationHandler(context)
 
-  override def id(): String = "HealthSuperVisorActor_1"
+  override def id(): String = s"HealthSuperVisorActor_${context.system.name}"
 
   override def receive: Receive = {
     case Start(replyTo) =>
@@ -155,39 +161,35 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, filters:
       context.self ! Stop
     case reg: HealthRegistration =>
       state.replyTo.foreach(r => r ! HealthRegistrationReceived(reg))
-      context.watch(reg.ref)
+      // todo: track by id
       context.become(monitoring(state.copy(registered = state.registered + (reg.name -> reg))))
       sender() ! Ack(success = true, None)
+    case revoke: RevokeHealthRegistrationRequest =>
+      val maybeToRemove: Option[String] = state.registered.values.find(reg => reg.control == revoke.control).map(r => r.name)
+      var nextState = state
+      maybeToRemove match {
+        case Some(componentName) =>
+          nextState = state.copy(registered = state.registered - componentName)
+        case None =>
+          log.debug("HealthRegistration with control {} not found", revoke.control)
+      }
+      context.become(monitoring(nextState))
     case HealthRegistrationRequest =>
       sender() ! state.registered.values.toList
     case signal: HealthSignal =>
-      state.replyTo.foreach(r => r ! HealthSignalReceived(signal))
+      processHealthSignal(signal, state)
 
-      state.registered.values.foreach(registered => {
-        registered.restartSignalPatterns.foreach(p => {
-          if (p.matcher(signal.name).matches()) {
-            registered.ref ! RestartComponent(self)
-            state.replyTo.foreach(r => r ! RestartComponentAttempted(registered.name))
-          }
-        })
-
-        registered.shutdownSignalPatterns.foreach(p => {
-          if (p.matcher(signal.name).matches()) {
-            registered.ref ! ShutdownComponent(self)
-            state.replyTo.foreach(r => r ! ShutdownComponentAttempted(registered.name))
-          }
-        })
-      })
-    case term: Terminated =>
-      context.unwatch(term.actor)
-      val remove: Option[(String, HealthRegistration)] = state.registered.find(t => t._2.ref == term.actor)
-      remove match {
-        case Some(m) =>
-          val nextState = state.copy(registered = state.registered - m._1)
-          context.become(monitoring(nextState))
-        case None =>
-          context.become(monitoring(state))
-      }
+    // todo: unregister on controllable stop or shutdown
+//    case term: Terminated =>
+//      context.unwatch(term.actor)
+//      val remove: Option[(String, HealthRegistration)] = state.registered.find(t => t._2.control == term.actor)
+//      remove match {
+//        case Some(m) =>
+//          val nextState = state.copy(registered = state.registered - m._1)
+//          context.become(monitoring(nextState))
+//        case None =>
+//          context.become(monitoring(state))
+//      }
   }
 
   override def start(maybeSideEffect: Option[() => Unit]): HealthSignalListener = {
@@ -227,5 +229,27 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, filters:
       case other =>
         log.error(s"Unable to handle message of type $other.getClass()")
     }
+  }
+
+  private def processHealthSignal(signal: HealthSignal, state: HealthState): Unit = {
+    state.replyTo.foreach(r => r ! HealthSignalReceived(signal))
+
+    state.registered.values.foreach(registered => {
+      registered.restartSignalPatterns.foreach(p => {
+        if (p.matcher(signal.name).matches()) {
+          //registered.ref ! RestartComponent(self)
+          registered.control.restart()
+          state.replyTo.foreach(r => r ! RestartComponentAttempted(registered.name))
+        }
+      })
+
+      registered.shutdownSignalPatterns.foreach(p => {
+        if (p.matcher(signal.name).matches()) {
+          //registered.ref ! ShutdownComponent(self)
+          registered.control.shutdown()
+          state.replyTo.foreach(r => r ! ShutdownComponentAttempted(registered.name))
+        }
+      })
+    })
   }
 }

@@ -2,15 +2,13 @@
 
 package surge.core
 
-import java.util.regex.Pattern
-
-import akka.actor.{ ActorRef, ActorSystem }
+import akka.actor.ActorSystem
 import akka.actor.Status.Failure
 import akka.pattern.AskTimeoutException
 import akka.testkit.{ TestKit, TestProbe }
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.header.internals.RecordHeaders
-import org.mockito.{ ArgumentMatchers, Mockito }
+import org.mockito.Mockito
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.{ PatienceConfiguration, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
@@ -43,13 +41,13 @@ class KafkaProducerActorSpec
   }
 
   "KafkaProducerActor" should {
+    import org.mockito.ArgumentMatchers._
+
     def producerMock(testProbe: TestProbe): KafkaProducerActor = {
       val signalBus: HealthSignalBusTrait = Mockito.mock(classOf[HealthSignalBusTrait])
       val invokable: InvokableHealthRegistration = Mockito.mock(classOf[InvokableHealthRegistration])
 
-      Mockito
-        .when(signalBus.registration(ArgumentMatchers.any(classOf[ActorRef]), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any()))
-        .thenReturn(invokable)
+      Mockito.when(signalBus.registration(any(classOf[Controllable]), any(), any(), any())).thenReturn(invokable)
       new KafkaProducerActor(testProbe.ref, Metrics.globalMetricRegistry, "test-aggregate-name", new TopicPartition("testTopic", 1), signalBus)
     }
     "Terminate an underlying actor by sending a PoisonPill" in {

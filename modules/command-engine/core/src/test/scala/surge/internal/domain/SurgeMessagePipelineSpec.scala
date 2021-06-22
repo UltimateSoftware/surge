@@ -3,11 +3,12 @@ package surge.internal.domain
 
 import java.util.regex.Pattern
 
-import akka.actor.{ ActorSystem, PoisonPill }
+import akka.actor.ActorSystem
 import akka.testkit.{ TestKit, TestProbe }
 import com.typesafe.config.{ Config, ConfigFactory }
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.streams.KafkaStreams
+import org.mockito.Mockito
 import org.scalatest.concurrent.Eventually
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Seconds, Span }
@@ -16,9 +17,9 @@ import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach }
 import play.api.libs.json.{ JsValue, Json }
 import surge.core.TestBoundedContext
 import surge.health.config.{ WindowingStreamConfig, WindowingStreamSliderConfig }
-import surge.health.domain.{ Error, HealthSignal }
-import surge.health.matchers.{ SideEffectBuilder, SignalPatternMatcher, SignalPatternMatcherDefinition }
-import surge.health.{ HealthListener, HealthMessage, HealthRegistration, HealthSignalBusTrait, HealthSignalListener, SignalHandler, SignalType }
+import surge.health.domain.{ Error, HealthMessage, HealthSignal }
+import surge.health.matchers.{ SideEffectBuilder, SignalPatternMatcherDefinition }
+import surge.health.{ HealthListener, SignalType }
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.core.SurgePartitionRouterImpl
 import surge.internal.health.StreamMonitoringRef
@@ -62,7 +63,7 @@ class SurgeMessagePipelineSpec
     signalStreamProvider = new SlidingHealthSignalStreamProvider(
       WindowingStreamConfig(advancerConfig = WindowingStreamSliderConfig()),
       system,
-      Some(new StreamMonitoringRef(probe.ref)),
+      Option(new StreamMonitoringRef(probe.ref)),
       filters = Seq(
         SignalPatternMatcherDefinition
           .repeating(times = 1, Pattern.compile("baz"))
@@ -73,7 +74,8 @@ class SurgeMessagePipelineSpec
           .toMatcher))
 
     // Create SurgeMessagePipeline
-    pipeline = pipeline(signalStreamProvider, config)
+    pipeline = Mockito.spy(pipeline(signalStreamProvider, config))
+    Mockito.when(pipeline.shutdown()).thenCallRealMethod()
     // Start Pipeline
     pipeline.start()
   }
@@ -175,8 +177,7 @@ class SurgeMessagePipelineSpec
           val registration = registrations.find(r => r.name == "router-actor")
 
           registration.nonEmpty shouldEqual true
-          // Poison the router-actor
-          registration.get.ref ! PoisonPill
+          registration.get.control.shutdown()
 
           // Wait for the router-actor to be unregistered on termination.
           eventually {
@@ -220,8 +221,6 @@ class SurgeMessagePipelineSpec
 
     "inject signal named `it.failed` into signal stream" in {
       withRunningKafkaOnFoundPort(config) { _ =>
-        pipeline.signalBus.signalWithError(name = "baz", Error("baz happened", None)).emit()
-
         var captured: Option[HealthSignal] = None
         pipeline.signalBus.subscribe(
           subscriber = new HealthListener() {
@@ -230,14 +229,18 @@ class SurgeMessagePipelineSpec
             override def handleMessage(message: HealthMessage): Unit = {
               message match {
                 case signal: HealthSignal =>
-                  if (signal.name == "it.failed") {
-                    captured = Some(signal)
+                  if (signal.name == "baz") {
+                    pipeline.signalBus.publish(signal.copy(name = "it.failed"))
+                  } else if (signal.name == "it.failed") {
+                    captured = Some(signal.copy(name = "it.failed"))
                   }
                 case _ =>
               }
             }
           },
           to = pipeline.signalBus.signalTopic())
+
+        pipeline.signalBus.signalWithError(name = "baz", Error("baz happened", None)).emit()
 
         eventually {
           captured.nonEmpty shouldEqual true

@@ -52,7 +52,10 @@ object TestActor {
 
     override def stop(): Unit = {}
 
-    override def shutdown(): Unit = {}
+    override def shutdown(): Unit = {
+      stop()
+      super.shutdown()
+    }
   }
 }
 

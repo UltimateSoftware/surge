@@ -3,7 +3,7 @@
 package surge.internal.health
 
 import akka.Done
-import akka.actor.{ ActorRef, ActorSystem }
+import akka.actor.ActorSystem
 import akka.testkit.{ TestKit, TestProbe }
 import org.mockito.Mockito._
 import org.mockito.stubbing.Stubber
@@ -11,7 +11,8 @@ import org.mockito.{ ArgumentMatchers, Mockito }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
-import surge.health.domain.{ EmittableHealthSignal, Error, HealthSignal, Trace, Warning }
+import surge.core.Controllable
+import surge.health.domain._
 import surge.health.matchers.SignalPatternMatcher
 import surge.health.{ HealthSignalListener, SignalHandler }
 import surge.internal.health.context.TestHealthSignalStream
@@ -67,7 +68,7 @@ class HealthSignalBusSpec extends TestKit(ActorSystem("healthSignalBus")) with A
       val spy = Mockito.spy(bus)
 
       doReturn(None).when(spy).supervisor()
-      a[RuntimeException] should be thrownBy spy.registration(Mockito.mock(classOf[ActorRef]), "foo", Seq.empty, Seq.empty)
+      a[RuntimeException] should be thrownBy spy.registration(Mockito.mock(classOf[Controllable]), "foo", Seq.empty, Seq.empty)
     }
 
     "not fail on repeated supervise calls" in {

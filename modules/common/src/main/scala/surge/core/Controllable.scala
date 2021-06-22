@@ -2,19 +2,46 @@
 
 package surge.core
 
+import scala.collection.mutable
+
 trait Controllable {
   def start(): Unit
-  def restart(): Unit
   def stop(): Unit
+  def restart(): Unit
   def shutdown(): Unit
 }
 
-class ControllableAdapter extends Controllable {
+trait ControllableWithHooks extends Controllable {
+  type ShutdownHook = Controllable => Unit
+  type RestartHook = Controllable => Unit
+  def restart(): Unit = {
+    handleRestart()
+  }
+
+  def shutdown(): Unit = {
+    handleShutdown()
+  }
+
+  def onShutdown(shutdownHook: ShutdownHook): Unit =
+    shutdownHooks.add(shutdownHook)
+
+  def onRestart(restartHook: RestartHook): Unit =
+    restartHooks.add(restartHook)
+
+  private def handleShutdown(): Unit = {
+    shutdownHooks.foreach(doIt => doIt(this))
+  }
+
+  private def handleRestart(): Unit = {
+    restartHooks.foreach(doIt => doIt(this))
+  }
+
+  private val shutdownHooks: mutable.Set[ShutdownHook] = mutable.Set.empty
+  private val restartHooks: mutable.Set[RestartHook] = mutable.Set.empty
+}
+
+class ControllableAdapter extends ControllableWithHooks {
   override def start(): Unit = {}
 
-  override def restart(): Unit = {}
-
   override def stop(): Unit = {}
-
-  override def shutdown(): Unit = {}
 }

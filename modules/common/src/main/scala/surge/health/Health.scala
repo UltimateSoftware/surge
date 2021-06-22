@@ -2,17 +2,15 @@
 
 package surge.health
 
-import java.time.Instant
-import java.util.UUID
 import java.util.regex.Pattern
 
 import akka.Done
 import akka.actor.{ ActorRef, ActorSystem }
 import akka.event.EventBus
 import org.slf4j.LoggerFactory
-import surge.health.domain.{ EmittableHealthSignal, Error, HealthSignal, Timed, Trace, Warning }
+import surge.core.Controllable
+import surge.health.domain.{ EmittableHealthSignal, Error, HealthMessage, HealthRegistration, HealthSignal, Trace, Warning }
 import surge.health.matchers.SignalPatternMatcher
-import surge.internal.health.RegistrationHandler
 
 import scala.concurrent.Future
 import scala.util.Try
@@ -35,31 +33,16 @@ trait RegistrationConsumer {
   def registrations(): Future[Seq[HealthRegistration]]
 }
 
-final case class HealthRegistration(
-    ref: ActorRef,
-    topic: String,
-    name: String,
-    restartSignalPatterns: Seq[Pattern] = Seq.empty,
-    shutdownSignalPatterns: Seq[Pattern] = Seq.empty,
-    id: UUID = UUID.randomUUID(),
-    timestamp: Instant = Instant.now)
-    extends HealthMessage
-
 final case class Ack(success: Boolean, error: Option[Any])
 
 trait RegistrationProducer {
-  def register(ref: ActorRef, componentName: String, restartSignalPatterns: Seq[Pattern], shutdownSignalPatterns: Seq[Pattern] = Seq.empty): Future[Ack]
+  def register(control: Controllable, componentName: String, restartSignalPatterns: Seq[Pattern], shutdownSignalPatterns: Seq[Pattern] = Seq.empty): Future[Ack]
+
   def registration(
-      ref: ActorRef,
+      control: Controllable,
       componentName: String,
       restartSignalPatterns: Seq[Pattern],
       shutdownSignalPatterns: Seq[Pattern] = Seq.empty): InvokableHealthRegistration
-}
-
-trait HealthMessage extends Timed {
-  def topic(): String
-  def id(): UUID
-  def timestamp: Instant
 }
 
 trait BusSupervisionTrait extends RegistrationProducer with RegistrationConsumer
@@ -109,7 +92,7 @@ trait HealthSupervisorTrait {
   def start(replyTo: Option[ActorRef] = None): HealthSupervisorTrait
 
   def register(registration: HealthRegistration): Future[Any]
-
+  def unregister(control: Controllable): Future[Any]
   def registrar(): ActorRef
 
   def actorSystem(): ActorSystem
@@ -186,6 +169,10 @@ trait HealthSignalListener extends HealthListener {
 
 trait SignalHandler {
   def handle(signal: HealthSignal): Try[Done]
+}
+
+trait RegistrationHandler {
+  def handle(registration: HealthRegistration): Try[Done]
 }
 
 trait HealthSignalStream extends HealthSignalListener {

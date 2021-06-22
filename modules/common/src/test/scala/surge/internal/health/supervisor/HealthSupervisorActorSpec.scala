@@ -6,11 +6,13 @@ import java.util.regex.Pattern
 
 import akka.actor.ActorSystem
 import akka.testkit.{ TestKit, TestProbe }
+import org.mockito.Mockito
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.Eventually
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
+import surge.core.{ Controllable, ControllableWithHooks }
 import surge.health.{ Ack, HealthSupervisorTrait, SignalType }
 import surge.health.config.{ WindowingStreamConfig, WindowingStreamSliderConfig }
 import surge.health.domain.{ HealthSignal, Trace }
@@ -39,6 +41,8 @@ class HealthSupervisorActorSpec
 
   "HealthSupervisorActorSpec" should {
     "sliding stream; attempt to restart registered actor" in {
+      import org.mockito.Mockito._
+
       val probe = TestProbe()
 
       val bus: HealthSignalBusInternal = new SlidingHealthSignalStreamProvider(
@@ -51,7 +55,9 @@ class HealthSupervisorActorSpec
       bus.signalStream().start()
 
       // Register
-      val done = bus.register(probe.ref, componentName = "boomControl", Seq(Pattern.compile("boom")))
+      val controllable: ControllableWithHooks = mock(classOf[ControllableWithHooks])
+      Mockito.when(controllable.restart()).thenCallRealMethod()
+      val done = bus.register(controllable, componentName = "boomControl", Seq(Pattern.compile("boom")))
       done shouldBe a[Future[Ack]]
       val received = probe.receiveN(1, 10.seconds)
       Option(received).nonEmpty shouldEqual true
@@ -60,17 +66,15 @@ class HealthSupervisorActorSpec
       bus.signalWithTrace(name = "test.trace", Trace("test trace")).emit()
 
       eventually {
-        // Verify restart
-        val restart = probe.fishForMessage(max = 100.millis) { case msg =>
-          msg.isInstanceOf[RestartComponent]
-        }
-        Option(restart.asInstanceOf[RestartComponent].replyTo).isDefined shouldEqual true
+        verify(controllable, times(1)).restart()
       }
 
       bus.unsupervise().signalStream().stop()
     }
 
     "receive registration" in {
+      import org.mockito.Mockito._
+
       val probe = TestProbe()
 
       val bus = new SlidingHealthSignalStreamProvider(
@@ -80,7 +84,9 @@ class HealthSupervisorActorSpec
         Seq(SignalNameEqualsMatcher(name = "test.trace", Some(SideEffect(Seq(testHealthSignal)))))).busWithSupervision()
       val ref: HealthSupervisorTrait = bus.supervisor().get
 
-      val message = bus.registration(probe.ref, componentName = "boomControl", Seq.empty)
+      val controllable: ControllableWithHooks = mock(classOf[ControllableWithHooks])
+      Mockito.when(controllable.restart()).thenCallRealMethod()
+      val message = bus.registration(controllable, componentName = "boomControl", Seq.empty)
       val done = ref.register(message.underlyingRegistration())
       done shouldBe a[Future[Ack]]
 

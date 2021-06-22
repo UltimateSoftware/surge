@@ -46,7 +46,7 @@ private[surge] final class SurgePartitionRouterImpl(
 
   override def start(): Unit = {
     actorRegion ! ActorLifecycleManagerActor.Start
-    val registrationResult = signalBus.register(actorRegion, componentName = "router-actor", restartSignalPatterns())
+    val registrationResult = signalBus.register(control = this, componentName = "router-actor", restartSignalPatterns())
 
     registrationResult.onComplete {
       case Failure(exception) =>
@@ -60,13 +60,18 @@ private[surge] final class SurgePartitionRouterImpl(
     actorRegion ! ActorLifecycleManagerActor.Stop
   }
 
-  override def shutdown(): Unit = stop()
+  override def shutdown(): Unit = {
+    stop()
+    super.shutdown()
+  }
 
   override def restartSignalPatterns(): Seq[Pattern] = Seq(Pattern.compile("kafka.fatal.error"))
 
   override def restart(): Unit = {
     stop()
     start()
+
+    super.restart()
   }
 
   override def healthCheck(): Future[HealthCheck] = {

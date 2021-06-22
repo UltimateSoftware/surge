@@ -47,8 +47,11 @@ class SlidingHealthSignalStreamSpec
   private var bus: HealthSignalBusInternal = _
   override def beforeEach(): Unit = {
     probe = TestProbe()
+
+    // 5 in a row signal
     val signal = HealthSignal(topic = "health.signal", name = s"5 in a row", signalType = SignalType.TRACE, data = Trace(s"5 in a row"))
 
+    // RepeatingSignalMatcher to detect 5 in a row of 'test.trace'
     val filters = Seq(
       RepeatingSignalMatcher(
         times = 5,
