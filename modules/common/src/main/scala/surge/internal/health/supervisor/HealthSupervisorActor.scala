@@ -10,7 +10,7 @@ import akka.pattern.{ ask, BackoffOpts, BackoffSupervisor }
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.core.{ Controllable, ControllableWithHooks }
 import surge.health._
-import surge.health.domain.{ HealthMessage, HealthRegistration, HealthSignal }
+import surge.health.domain.{ HealthMessage, HealthRegistration, HealthSignal, HealthSupervisionEvent }
 import surge.health.matchers.SignalPatternMatcher
 import surge.internal.config.BackoffConfig
 import surge.internal.health.HealthSignalBus.log
@@ -108,11 +108,11 @@ case class Stop()
 case class HealthState(registered: Map[String, HealthRegistration] = Map.empty, replyTo: Option[ActorRef] = None)
 
 // Reply
-case class HealthRegistrationReceived(registration: HealthRegistration)
-case class HealthSignalReceived(signal: HealthSignal)
-case class HealthSignalStreamAdvanced()
-case class RestartComponentAttempted(componentName: String, timestamp: Instant = Instant.now())
-case class ShutdownComponentAttempted(componentName: String, timestamp: Instant = Instant.now())
+case class HealthRegistrationReceived(registration: HealthRegistration) extends HealthSupervisionEvent
+case class HealthSignalReceived(signal: HealthSignal) extends HealthSupervisionEvent
+case class HealthSignalStreamAdvanced() extends HealthSupervisionEvent
+case class RestartComponentAttempted(componentName: String, timestamp: Instant = Instant.now()) extends HealthSupervisionEvent
+case class ShutdownComponentAttempted(componentName: String, timestamp: Instant = Instant.now()) extends HealthSupervisionEvent
 
 object HealthSupervisorActor {
   val log: Logger = LoggerFactory.getLogger(getClass)
@@ -175,7 +175,7 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, filters:
       context.self ! Stop
     case reg: HealthRegistration =>
       state.replyTo.foreach(r => r ! HealthRegistrationReceived(reg))
-      // todo: track by id
+      // todo: track by id rather than component name?
       context.become(monitoring(state.copy(registered = state.registered + (reg.name -> reg))))
       sender() ! Ack(success = true, None)
     case revoke: RevokeHealthRegistrationRequest =>
@@ -192,18 +192,6 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, filters:
       sender() ! state.registered.values.toList
     case signal: HealthSignal =>
       processHealthSignal(signal, state)
-
-    // todo: unregister on controllable stop or shutdown
-//    case term: Terminated =>
-//      context.unwatch(term.actor)
-//      val remove: Option[(String, HealthRegistration)] = state.registered.find(t => t._2.control == term.actor)
-//      remove match {
-//        case Some(m) =>
-//          val nextState = state.copy(registered = state.registered - m._1)
-//          context.become(monitoring(nextState))
-//        case None =>
-//          context.become(monitoring(state))
-//      }
   }
 
   override def start(maybeSideEffect: Option[() => Unit]): HealthSignalListener = {

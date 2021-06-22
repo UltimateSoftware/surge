@@ -2,9 +2,9 @@
 
 package surge.health.windows
 
-import surge.health.domain.HealthSignal
+import surge.health.domain.{ HealthSignal, HealthSignalStreamEvent }
 
-sealed trait WindowEvent {
+sealed trait WindowEvent extends HealthSignalStreamEvent {
   def window(): Option[Window]
 }
 

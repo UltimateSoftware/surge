@@ -10,7 +10,7 @@ import surge.health.windows.{ WindowStreamListener, _ }
 import surge.internal.health.supervisor.HealthSupervisorActor
 
 /**
- * StreamMonitoringRef holds a reference to an Actor responsible for forwarding stream processing events to an underlying akka Actor via the provided ActorRef.
+ * StreamMonitoringRef holds a reference to an Actor responsible for processing HealthSignalStreamEvent(s)
  *
  * @param actor
  *   ActorRef
@@ -20,9 +20,9 @@ class StreamMonitoringRef(override val actor: ActorRef) extends WindowStreamList
   /**
    * Forward WindowAdvanced to provided actor
    * @param window
-   *   Window[EVENT]
+   *   Window
    * @param data
-   *   Seq[EVENT]
+   *   Seq[HealthSignal]
    */
   override def windowAdvanced(window: Window, data: Seq[HealthSignal]): Unit = {
     actor ! WindowAdvanced(window, WindowData(data, window.duration))
@@ -31,9 +31,9 @@ class StreamMonitoringRef(override val actor: ActorRef) extends WindowStreamList
   /**
    * Forward WindowClosed to provided actor
    * @param window
-   *   Window[EVENT]
+   *   Window
    * @param data
-   *   Seq[EVENT]
+   *   Seq[HealthSignal]
    */
   override def windowClosed(window: Window, data: Seq[HealthSignal]): Unit = {
     actor ! WindowClosed(window, WindowData(data, window.duration))
@@ -42,7 +42,7 @@ class StreamMonitoringRef(override val actor: ActorRef) extends WindowStreamList
   /**
    * Forward WindowOpened to provided actor
    * @param window
-   *   Window[EVENT]
+   *   Window
    */
   override def windowOpened(window: Window): Unit = {
     actor ! WindowOpened(window)
@@ -51,7 +51,7 @@ class StreamMonitoringRef(override val actor: ActorRef) extends WindowStreamList
   /**
    * Forward WindowStopped to provided actor
    * @param window
-   *   Window[EVENT]
+   *   Window
    */
   override def windowStopped(window: Option[Window]): Unit = {
     actor ! WindowStopped(window)
@@ -62,13 +62,17 @@ class StreamMonitoringRef(override val actor: ActorRef) extends WindowStreamList
    * @param data
    *   EVENT
    * @param window
-   *   Window[EVENT]
+   *   Window
    */
   override def dataAddedToWindow(data: HealthSignal, window: Window): Unit = {
     actor ! AddedToWindow(data, window)
   }
 }
 
+/**
+ * HealthSignalStreamProvider provides a supervised HealthSignalStream that is bound to a HealthSignalBus. An optional StreamMonitoringRef is provided to
+ * monitor and act on HealthSignalStreamEvent(s)
+ */
 trait HealthSignalStreamProvider {
   private var signalBus: HealthSignalBusInternal = _
 

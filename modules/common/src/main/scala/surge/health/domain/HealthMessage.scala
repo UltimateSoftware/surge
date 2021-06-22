@@ -15,6 +15,9 @@ sealed trait HealthMessage extends Timed {
   def timestamp: Instant
 }
 
+trait HealthSignalStreamEvent {}
+trait HealthSupervisionEvent {}
+
 case class HealthSignal(
     topic: String,
     name: String,
