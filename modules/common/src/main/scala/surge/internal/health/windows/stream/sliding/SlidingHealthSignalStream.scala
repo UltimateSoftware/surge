@@ -5,7 +5,6 @@ package surge.internal.health.windows.stream.sliding
 import java.util.concurrent.{ ArrayBlockingQueue, Callable, Executors }
 
 import akka.actor.{ ActorRef, ActorSystem, Props }
-import akka.stream.scaladsl.Source
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.health.config.WindowingStreamConfig
 import surge.health.{ HealthSignalListener, SignalHandler }
@@ -86,6 +85,7 @@ private class SlidingHealthSignalStreamImpl(
     }
 
     // todo: consider using an akka source
+    //  see issue https://github.com/UltimateSoftware/surge-ukg/issues/148
     val future = Executors
       .newCachedThreadPool()
       .submit(new Callable[Unit] {

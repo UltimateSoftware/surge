@@ -129,7 +129,7 @@ private[surge] class HealthSignalBusImpl(config: HealthSignalBusConfig, signalSt
   private var supervisorRef: Option[HealthSupervisorActorRef] = None
   private var monitoringRef: Option[HealthSignalStreamMonitoringRefWithSupervisionSupport] = None
 
-  override protected def mapSize(): Int = 128
+  override protected def mapSize(): Int = config.allowedSubscriberCount
   override protected def compareSubscribers(a: Subscriber, b: Subscriber): Int =
     a.compareTo(b.id())
 
