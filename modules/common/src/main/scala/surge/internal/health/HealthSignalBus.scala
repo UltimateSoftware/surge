@@ -57,18 +57,6 @@ trait HealthSignalBusInternal extends HealthSignalBusTrait with LookupClassifica
 private class InvokableHealthRegistrationImpl(healthRegistration: HealthRegistration, supervisor: HealthSupervisorTrait, signalBus: HealthSignalBusTrait)
     extends InvokableHealthRegistration {
   override def invoke(): Future[Ack] = {
-    healthRegistration.control match {
-      case hooks: ControllableWithHooks =>
-        hooks.onShutdown(control => {
-          supervisor.unregister(control)
-          log.debug("Controllable {} was shutdown", control)
-        })
-
-        hooks.onRestart(control => {
-          log.debug("Controllable {} was restarted", control)
-        })
-      case _ =>
-    }
     supervisor.register(healthRegistration).map(a => a.asInstanceOf[Ack])(supervisor.actorSystem().dispatcher)
   }
 

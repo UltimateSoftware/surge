@@ -6,20 +6,20 @@ import java.util.regex.Pattern
 
 import akka.actor.ActorSystem
 import akka.testkit.{ TestKit, TestProbe }
-import org.mockito.Mockito
+import org.mockito.{ ArgumentMatchers, Mockito }
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.Eventually
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
-import surge.core.{ Controllable, ControllableWithHooks }
-import surge.health.{ Ack, HealthSupervisorTrait, SignalType }
+import surge.core.ControllableWithHooks
 import surge.health.config.{ WindowingStreamConfig, WindowingStreamSliderConfig }
 import surge.health.domain.{ HealthSignal, Trace }
 import surge.health.matchers.SideEffect
+import surge.health.{ Ack, HealthSupervisorTrait, SignalType }
+import surge.internal.health._
 import surge.internal.health.matchers.SignalNameEqualsMatcher
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
-import surge.internal.health._
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -90,12 +90,17 @@ class HealthSupervisorActorSpec
       val done = ref.register(message.underlyingRegistration())
       done shouldBe a[Future[Ack]]
 
+      Mockito.verify(controllable, times(1)).onShutdown(ArgumentMatchers.any())
+      Mockito.verify(controllable, times(1)).onRestart(ArgumentMatchers.any())
+
       val received = probe.receiveN(1, max = 10.seconds)
 
       received.headOption.nonEmpty shouldEqual true
       received.head.isInstanceOf[HealthRegistrationReceived]
 
       received.head.asInstanceOf[HealthRegistrationReceived].registration shouldEqual message.underlyingRegistration()
+
+      message.underlyingRegistration().control shouldBe a[ControllableWithHooks]
 
       ref.stop()
     }

@@ -8,11 +8,12 @@ import akka.Done
 import akka.actor.{ Actor, ActorContext, ActorRef, ActorSystem, PoisonPill, Props }
 import akka.pattern.{ ask, BackoffOpts, BackoffSupervisor }
 import org.slf4j.{ Logger, LoggerFactory }
-import surge.core.Controllable
+import surge.core.{ Controllable, ControllableWithHooks }
 import surge.health._
 import surge.health.domain.{ HealthMessage, HealthRegistration, HealthSignal }
 import surge.health.matchers.SignalPatternMatcher
 import surge.internal.config.BackoffConfig
+import surge.internal.health.HealthSignalBus.log
 import surge.internal.health._
 
 import scala.concurrent.duration._
@@ -74,6 +75,19 @@ class HealthSupervisorActorRef(val actor: ActorRef, askTimeout: FiniteDuration, 
   override def registrar(): ActorRef = actor
 
   override def register(registration: HealthRegistration): Future[Any] = {
+    registration.control match {
+      case hooks: ControllableWithHooks =>
+        hooks.onShutdown(control => {
+          unregister(control)
+          log.debug("Controllable {} was shutdown", control)
+        })
+
+        hooks.onRestart(control => {
+          log.debug("Controllable {} was restarted", control)
+        })
+      case _ =>
+    }
+
     actor.ask(registration)(askTimeout)
   }
 
@@ -171,7 +185,7 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, filters:
         case Some(componentName) =>
           nextState = state.copy(registered = state.registered - componentName)
         case None =>
-          log.debug("HealthRegistration with control {} not found", revoke.control)
+          HealthSupervisorActor.log.debug("HealthRegistration with control {} not found", revoke.control)
       }
       context.become(monitoring(nextState))
     case HealthRegistrationRequest =>
@@ -227,7 +241,7 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, filters:
       case sig: HealthSignal =>
         handleSignal(sig)
       case other =>
-        log.error(s"Unable to handle message of type $other.getClass()")
+        HealthSupervisorActor.log.error(s"Unable to handle message of type $other.getClass()")
     }
   }
 
@@ -237,7 +251,6 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, filters:
     state.registered.values.foreach(registered => {
       registered.restartSignalPatterns.foreach(p => {
         if (p.matcher(signal.name).matches()) {
-          //registered.ref ! RestartComponent(self)
           registered.control.restart()
           state.replyTo.foreach(r => r ! RestartComponentAttempted(registered.name))
         }
@@ -245,7 +258,6 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, filters:
 
       registered.shutdownSignalPatterns.foreach(p => {
         if (p.matcher(signal.name).matches()) {
-          //registered.ref ! ShutdownComponent(self)
           registered.control.shutdown()
           state.replyTo.foreach(r => r ! ShutdownComponentAttempted(registered.name))
         }

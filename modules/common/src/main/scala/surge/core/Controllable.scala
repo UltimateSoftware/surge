@@ -22,6 +22,12 @@ trait ControllableWithHooks extends Controllable {
     handleShutdown()
   }
 
+  def hasShutdownHooks: Boolean =
+    shutdownHooks.nonEmpty
+
+  def hasRestartHooks: Boolean =
+    restartHooks.nonEmpty
+
   def onShutdown(shutdownHook: ShutdownHook): Unit =
     shutdownHooks.add(shutdownHook)
 
