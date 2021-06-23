@@ -9,7 +9,7 @@ and interact with a Surge command engine.
 
 @@dependency[sbt,Maven,Gradle] {
   symbol="SurgeVersion"
-  value="0.5.12"
+  value="$project.version$"
   group="com.ukg"
   artifact="surge-engine-command-scaladsl_$scala.binary.version$"
   version="SurgeVersion"
