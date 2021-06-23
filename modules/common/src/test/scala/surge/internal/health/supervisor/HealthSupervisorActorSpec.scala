@@ -58,7 +58,7 @@ class HealthSupervisorActorSpec
       val controllable: ControllableWithHooks = mock(classOf[ControllableWithHooks])
       Mockito.when(controllable.restart()).thenCallRealMethod()
       val done = bus.register(controllable, componentName = "boomControl", Seq(Pattern.compile("boom")))
-      done shouldBe a[Future[Ack]]
+      done shouldBe a[Future[_]]
       val received = probe.receiveN(1, 10.seconds)
       Option(received).nonEmpty shouldEqual true
 
@@ -88,7 +88,7 @@ class HealthSupervisorActorSpec
       Mockito.when(controllable.restart()).thenCallRealMethod()
       val message = bus.registration(controllable, componentName = "boomControl", Seq.empty)
       val done = ref.register(message.underlyingRegistration())
-      done shouldBe a[Future[Ack]]
+      done shouldBe a[Future[_]]
 
       Mockito.verify(controllable, times(1)).onShutdown(ArgumentMatchers.any())
       Mockito.verify(controllable, times(1)).onRestart(ArgumentMatchers.any())

@@ -64,7 +64,7 @@ import scala.util.Try
  */
 object SignalPatternMatcherRegistry {
   private val signalPatternMatcherRegistryConfigField: String = "surge.health.signal-pattern-matcher-registry"
-  private val healthSignalTopicConfigField: String = "surge.health.signal-topic"
+  private val healthSignalTopicConfigField: String = "surge.health.bus.signal-topic"
 
   def load(configName: Option[String] = None): SignalPatternMatcherRegistry = {
     val config: Config = ConfigFactory.load(configName.getOrElse("application"))
