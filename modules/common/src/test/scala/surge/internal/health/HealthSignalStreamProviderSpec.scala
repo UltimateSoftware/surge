@@ -12,6 +12,7 @@ import surge.health.matchers.{ SideEffect, SignalPatternMatcher }
 import surge.health.windows.{ AddedToWindow, Window, WindowAdvanced, WindowClosed, WindowOpened, WindowStopped }
 import surge.health.{ HealthSignalStream, SignalType }
 import surge.internal.health.matchers.{ RepeatingSignalMatcher, SignalNameEqualsMatcher }
+import surge.internal.health.windows.stream.WindowingHealthSignalStream
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
 
 import scala.languageFeature.postfixOps
@@ -65,7 +66,7 @@ class HealthSignalStreamProviderSpec extends TestKit(ActorSystem("HealthSignalSt
       val initialFilters = Seq(SignalNameEqualsMatcher(name = "foo"))
 
       val provider = new SlidingHealthSignalStreamProvider(
-        WindowingStreamConfig(advancerConfig = WindowingStreamSliderConfig()),
+        WindowingStreamConfig(advancerConfig = WindowingStreamSliderConfig(), restartBackoff = WindowingHealthSignalStream.defaultRestartBackoff),
         system,
         streamMonitoring = None,
         initialFilters)

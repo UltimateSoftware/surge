@@ -3,6 +3,7 @@
 package surge.health.config
 
 import com.typesafe.config.{ Config, ConfigFactory }
+import surge.internal.health.windows.stream.{ RestartBackoff, WindowingHealthSignalStream }
 
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
@@ -15,6 +16,7 @@ case class WindowingStreamConfig(
     maxDelay: FiniteDuration = 5.seconds,
     maxStreamSize: Int = 500,
     frequencies: Seq[FiniteDuration] = Seq(10.seconds),
+    restartBackoff: RestartBackoff = WindowingHealthSignalStream.defaultRestartBackoff,
     advancerConfig: WindowingStreamAdvancerConfig)
 
 trait WindowingStreamAdvancerConfigLoader[T] {
@@ -53,7 +55,21 @@ object WindowingStreamConfigLoader {
 
     val advancerConfig = config.getConfig("surge.health.window.stream.advancer")
     val windowStreamAdvancerConfig = WindowingStreamAdvancerConfigLoader(advancerConfig.getString("type")).load(advancerConfig)
-    WindowingStreamConfig(maxDelay, maxStreamSize, frequencies.toSeq, windowStreamAdvancerConfig)
+
+    val windowStreamRestartBackOffConfig: Option[RestartBackoff] = Try {
+      config.getConfig("surge.health.window.stream.restart-backoff")
+    }.toOption.map(c =>
+      RestartBackoff(
+        FiniteDuration(c.getDuration("min-backoff").toMillis, "millis"),
+        FiniteDuration(c.getDuration("max-backoff").toMillis, "millis"),
+        c.getDouble("random-factor")))
+
+    WindowingStreamConfig(
+      maxDelay,
+      maxStreamSize,
+      frequencies.toSeq,
+      windowStreamRestartBackOffConfig.getOrElse(WindowingHealthSignalStream.defaultRestartBackoff),
+      windowStreamAdvancerConfig)
   }
 
   def load(): WindowingStreamConfig = {

@@ -18,6 +18,7 @@ import surge.health.matchers.SideEffect
 import surge.internal.health.matchers.SignalNameEqualsMatcher
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
 import surge.internal.health._
+import surge.internal.health.windows.stream.WindowingHealthSignalStream
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -42,7 +43,7 @@ class HealthSupervisorActorSpec
       val probe = TestProbe()
 
       val bus: HealthSignalBusInternal = new SlidingHealthSignalStreamProvider(
-        WindowingStreamConfig(advancerConfig = WindowingStreamSliderConfig()),
+        WindowingStreamConfig(advancerConfig = WindowingStreamSliderConfig(), restartBackoff = WindowingHealthSignalStream.defaultRestartBackoff),
         system,
         streamMonitoring = Some(new StreamMonitoringRef(probe.ref)),
         Seq(SignalNameEqualsMatcher(name = "test.trace", Some(SideEffect(Seq(testHealthSignal)))))).busWithSupervision()
@@ -74,7 +75,7 @@ class HealthSupervisorActorSpec
       val probe = TestProbe()
 
       val bus = new SlidingHealthSignalStreamProvider(
-        WindowingStreamConfig(advancerConfig = WindowingStreamSliderConfig()),
+        WindowingStreamConfig(advancerConfig = WindowingStreamSliderConfig(), restartBackoff = WindowingHealthSignalStream.defaultRestartBackoff),
         system,
         streamMonitoring = Some(new StreamMonitoringRef(probe.ref)),
         Seq(SignalNameEqualsMatcher(name = "test.trace", Some(SideEffect(Seq(testHealthSignal)))))).busWithSupervision()
@@ -97,7 +98,7 @@ class HealthSupervisorActorSpec
     "receive signal" in {
       val probe: TestProbe = TestProbe()
       val bus = new SlidingHealthSignalStreamProvider(
-        WindowingStreamConfig(advancerConfig = WindowingStreamSliderConfig()),
+        WindowingStreamConfig(advancerConfig = WindowingStreamSliderConfig(), restartBackoff = WindowingHealthSignalStream.defaultRestartBackoff),
         system,
         streamMonitoring = Some(new StreamMonitoringRef(probe.ref)),
         Seq(SignalNameEqualsMatcher(name = "test.trace", Some(SideEffect(Seq(testHealthSignal)))))).busWithSupervision()

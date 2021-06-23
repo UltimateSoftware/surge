@@ -2,16 +2,17 @@
 
 package surge.internal.health.windows.stream.sliding
 
-import java.util.concurrent.{ ArrayBlockingQueue, Callable, Executors }
+import java.util.concurrent.ArrayBlockingQueue
 
 import akka.actor.{ ActorRef, ActorSystem, Props }
-import akka.stream.scaladsl.Source
+import akka.stream.scaladsl.{ Keep, RestartSource, Sink, Source }
+import akka.stream.{ KillSwitches, Materializer, UniqueKillSwitch }
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.health.config.WindowingStreamConfig
-import surge.health.{ HealthSignalListener, SignalHandler }
 import surge.health.domain.HealthSignal
 import surge.health.matchers.SignalPatternMatcher
 import surge.health.windows.WindowStreamListener
+import surge.health.{ HealthSignalListener, SignalHandler }
 import surge.internal.health._
 import surge.internal.health.windows._
 import surge.internal.health.windows.actor.{ HealthSignalWindowActor, HealthSignalWindowActorRef }
@@ -85,21 +86,17 @@ private class SlidingHealthSignalStreamImpl(
         .map(ref => ref.start(monitoringActor))
     }
 
-    // todo: consider using an akka source
-    val future = Executors
-      .newCachedThreadPool()
-      .submit(new Callable[Unit] {
-        override def call: Unit = {
-          while (true) {
-            val signal = signals.take()
-            windowActors.foreach(a => a.processSignal(signal))
-          }
-        }
-      })
+    val blockingSource = Source.unfoldResource[HealthSignal, ArrayBlockingQueue[HealthSignal]](() => signals, signals => Option(signals.take()), _ => {})
 
+    val killSwitch: UniqueKillSwitch = RestartSource
+      .onFailuresWithBackoff(windowingConfig.restartBackoff.minBackoff, windowingConfig.restartBackoff.maxBackoff, windowingConfig.restartBackoff.randomFactor)(
+        () => blockingSource)
+      .viaMat(KillSwitches.single)(Keep.right)
+      .toMat(Sink.foreach(signal => windowActors.foreach(a => a.processSignal(signal))))(Keep.left)
+      .run()(Materializer(actorSystem))
     // Stream Handle
     () => {
-      future.cancel(true)
+      killSwitch.shutdown()
       windowActors.foreach(actor => actor.stop())
     }
   }

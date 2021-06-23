@@ -11,10 +11,17 @@ import surge.health.domain.HealthSignal
 import surge.health.matchers.SignalPatternMatcher
 import surge.health.windows.Window
 
+import scala.concurrent.duration._
 import scala.util.Try
 
 trait StreamHandle {
   def release(): Unit
+}
+
+case class RestartBackoff(minBackoff: FiniteDuration, maxBackoff: FiniteDuration, randomFactor: Double)
+
+object WindowingHealthSignalStream {
+  val defaultRestartBackoff: RestartBackoff = RestartBackoff(2.seconds, 5.seconds, 0.2)
 }
 
 trait WindowingHealthSignalStream extends HealthSignalStream with ReleasableStream {

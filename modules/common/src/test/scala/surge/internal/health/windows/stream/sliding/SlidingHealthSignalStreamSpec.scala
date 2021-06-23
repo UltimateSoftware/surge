@@ -23,6 +23,7 @@ import surge.health.windows.{ AddedToWindow, WindowAdvanced, WindowClosed, Windo
 import surge.internal.health._
 import surge.internal.health.matchers.{ RepeatingSignalMatcher, SignalNameEqualsMatcher }
 import surge.internal.health.supervisor.HealthSignalReceived
+import surge.internal.health.windows.stream.WindowingHealthSignalStream
 
 import scala.concurrent.duration._
 
@@ -56,7 +57,10 @@ class SlidingHealthSignalStreamSpec
           SignalNameEqualsMatcher("test.trace", Some(SideEffect(Seq(HealthSignal("health.signal", "boom", SignalType.ERROR, Error("bah", None)))))),
         Some(SideEffect(Seq(signal)))))
     val signalStreamProvider = new SlidingHealthSignalStreamProvider(
-      WindowingStreamConfig(maxDelay = FiniteDuration(1, "second"), advancerConfig = WindowingStreamSliderConfig()),
+      WindowingStreamConfig(
+        maxDelay = FiniteDuration(1, "second"),
+        restartBackoff = WindowingHealthSignalStream.defaultRestartBackoff,
+        advancerConfig = WindowingStreamSliderConfig()),
       system,
       streamMonitoring = Some(new StreamMonitoringRef(probe.ref)),
       filters)

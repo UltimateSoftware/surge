@@ -17,8 +17,8 @@ import play.api.libs.json.{ JsValue, Json }
 import surge.core.TestBoundedContext
 import surge.health.config.{ WindowingStreamConfig, WindowingStreamSliderConfig }
 import surge.health.domain.{ Error, HealthSignal }
-import surge.health.matchers.{ SideEffectBuilder, SignalPatternMatcher, SignalPatternMatcherDefinition }
-import surge.health.{ HealthListener, HealthMessage, HealthRegistration, HealthSignalBusTrait, HealthSignalListener, SignalHandler, SignalType }
+import surge.health.matchers.{ SideEffectBuilder, SignalPatternMatcherDefinition }
+import surge.health.{ HealthListener, HealthMessage, SignalType }
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.core.SurgePartitionRouterImpl
 import surge.internal.health.StreamMonitoringRef
