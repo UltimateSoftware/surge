@@ -11,7 +11,6 @@ import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.serialization.Serdes.ByteArraySerde
 import org.apache.kafka.streams.errors.InvalidStateStoreException
 import org.apache.kafka.streams.kstream.Materialized
-import org.apache.kafka.streams.kstream.internals.{ KTableImpl, KTableImplExtensions }
 import org.apache.kafka.streams.state.QueryableStoreTypes
 import org.apache.kafka.streams.{ LagInfo, StoreQueryParameters, StreamsConfig }
 import surge.kafka.KafkaTopic
@@ -26,7 +25,6 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
     aggregateName: String,
     stateTopic: KafkaTopic,
     partitionTrackerProvider: KafkaStreamsPartitionTrackerProvider,
-    aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) => Boolean,
     applicationHostPort: Option[String],
     override val settings: AggregateStateStoreKafkaStreamsImplSettings,
     override val metrics: Metrics)
@@ -34,7 +32,6 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
 
   import DefaultSerdes._
   import ImplicitConversions._
-  import KTableImplExtensions._
   import context.dispatcher
 
   private val persistencePlugin = SurgeKafkaStreamsPersistencePluginLoader.load()
@@ -56,8 +53,6 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
     StreamsConfig.STATE_DIR_CONFIG -> settings.stateDirectory,
     StreamsConfig.ROCKSDB_CONFIG_SETTER_CLASS_CONFIG -> classOf[AggregateStreamsRocksDBConfig].getName)
 
-  val validationProcessor = new ValidationProcessor[Array[Byte]](aggregateName, aggregateValidator)
-
   override def subscribeListeners(consumer: KafkaByteStreamsConsumer): Unit = {
     // In addition to the listener added by the KafkaStreamLifeCycleManagement we need to also subscribe this one
     val partitionTrackerListener =
@@ -77,16 +72,7 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
       aggregateStoreMaterializedBase
     }
 
-    val aggKTable = consumer.builder.table(stateTopic.name, aggregateStoreMaterialized)
-
-    // Reach into the underlying implementation and tell it to send the old value for an aggregate
-    // along with the newly updated value. The old value is only used for validation
-    val aggKTableJavaImpl = aggKTable.inner.asInstanceOf[KTableImpl[String, Array[Byte], Array[Byte]]]
-    aggKTableJavaImpl.sendOldValues()
-
-    // Run business logic validation and transform values from an aggregate into metadata about
-    // the processed record including topic/partition, and offset of the message in Kafka
-    aggKTableJavaImpl.toStreamWithChanges.transformValues(validationProcessor.supplier)
+    consumer.builder.table(stateTopic.name, aggregateStoreMaterialized)
   }
 
   override def createQueryableStore(consumer: KafkaByteStreamsConsumer): KafkaStreamsKeyValueStore[String, Array[Byte]] = {
@@ -186,12 +172,10 @@ private[streams] object AggregateStateStoreKafkaStreamsImpl {
       aggregateName: String,
       stateTopic: KafkaTopic,
       partitionTrackerProvider: KafkaStreamsPartitionTrackerProvider,
-      aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) => Boolean,
       applicationHostPort: Option[String],
       settings: AggregateStateStoreKafkaStreamsImplSettings,
       metrics: Metrics): Props = {
-    Props(
-      new AggregateStateStoreKafkaStreamsImpl(aggregateName, stateTopic, partitionTrackerProvider, aggregateValidator, applicationHostPort, settings, metrics))
+    Props(new AggregateStateStoreKafkaStreamsImpl(aggregateName, stateTopic, partitionTrackerProvider, applicationHostPort, settings, metrics))
   }
 
   case class AggregateStateStoreKafkaStreamsImplSettings(

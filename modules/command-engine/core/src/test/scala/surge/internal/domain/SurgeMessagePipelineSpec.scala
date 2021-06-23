@@ -1,4 +1,5 @@
 // Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
+
 package surge.internal.domain
 
 import java.util.regex.Pattern
@@ -13,18 +14,18 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach }
-import play.api.libs.json.{ JsValue, Json }
+import play.api.libs.json.JsValue
 import surge.core.TestBoundedContext
 import surge.health.config.{ WindowingStreamConfig, WindowingStreamSliderConfig }
 import surge.health.domain.{ Error, HealthSignal }
-import surge.health.matchers.{ SideEffectBuilder, SignalPatternMatcher, SignalPatternMatcherDefinition }
-import surge.health.{ HealthListener, HealthMessage, HealthRegistration, HealthSignalBusTrait, HealthSignalListener, SignalHandler, SignalType }
+import surge.health.matchers.{ SideEffectBuilder, SignalPatternMatcherDefinition }
+import surge.health.{ HealthListener, HealthMessage, SignalType }
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.core.SurgePartitionRouterImpl
 import surge.internal.health.StreamMonitoringRef
 import surge.internal.health.supervisor.RestartComponentAttempted
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
-import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, MockPartitionTracker, MockState }
+import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, MockPartitionTracker }
 import surge.metrics.Metrics
 
 import scala.concurrent.Await
@@ -246,11 +247,6 @@ class SurgeMessagePipelineSpec
     }
   }
 
-  private def mockValidator(key: String, newValue: Array[Byte], oldValue: Option[Array[Byte]]): Boolean = {
-    val newValueObj = Json.parse(newValue).as[MockState]
-    newValueObj.string == "state" + newValueObj.int
-  }
-
   private def pipeline(
       signalStreamProvider: SlidingHealthSignalStreamProvider,
       config: Config): SurgeMessagePipeline[State, BaseTestCommand, Nothing, BaseTestEvent] = {
@@ -268,7 +264,6 @@ class SurgeMessagePipelineSpec
         businessLogic.aggregateName,
         businessLogic.kafka.stateTopic,
         (streams: KafkaStreams) => new MockPartitionTracker(streams),
-        aggregateValidator = mockValidator,
         applicationHostPort = Some("localhost:1234"),
         applicationId = "test-app",
         clientId = businessLogic.kafka.clientId,

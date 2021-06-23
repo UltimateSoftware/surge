@@ -11,15 +11,15 @@ import org.scalatest.concurrent.Eventually
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
-import surge.health.{ Ack, HealthSupervisorTrait, SignalType }
 import surge.health.config.{ WindowingStreamConfig, WindowingStreamSliderConfig }
 import surge.health.domain.{ HealthSignal, Trace }
 import surge.health.matchers.SideEffect
+import surge.health.{ Ack, HealthSupervisorTrait, SignalType }
+import surge.internal.health._
 import surge.internal.health.matchers.SignalNameEqualsMatcher
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
-import surge.internal.health._
 
-import scala.concurrent.Future
+import scala.concurrent.Await
 import scala.concurrent.duration._
 
 class HealthSupervisorActorSpec
@@ -51,8 +51,8 @@ class HealthSupervisorActorSpec
       bus.signalStream().start()
 
       // Register
-      val done = bus.register(probe.ref, componentName = "boomControl", Seq(Pattern.compile("boom")))
-      done shouldBe a[Future[Ack]]
+      val done = Await.result(bus.register(probe.ref, componentName = "boomControl", Seq(Pattern.compile("boom"))), 10.seconds)
+      done shouldBe an[Ack]
       val received = probe.receiveN(1, 10.seconds)
       Option(received).nonEmpty shouldEqual true
 
@@ -81,8 +81,8 @@ class HealthSupervisorActorSpec
       val ref: HealthSupervisorTrait = bus.supervisor().get
 
       val message = bus.registration(probe.ref, componentName = "boomControl", Seq.empty)
-      val done = ref.register(message.underlyingRegistration())
-      done shouldBe a[Future[Ack]]
+      val done = Await.result(ref.register(message.underlyingRegistration()), 10.seconds)
+      done shouldBe an[Ack]
 
       val received = probe.receiveN(1, max = 10.seconds)
 

@@ -48,9 +48,6 @@ class AggregateStreamsRocksDBConfig
      *   Registered within a Kafka Streams state change listener to track updates to the Kafka Streams consumer group. When the consumer group transitions from
      *   rebalancing to running, the partition tracker provided will be notified automatically. This can be used for notifying other processes/interested
      *   parties that a consumer group change has occurred.
-     * @param aggregateValidator
-     *   Validation function used for each consumed message from Kafka to check if a change from previous aggregate state to new aggregate state is valid or
-     *   not. Just emits a warning if the change is not valid.
      * @param applicationHostPort
      *   Optional string to use for a host/port exposed by this application. This information is exposed to the partition tracker provider as mappings from
      *   application host/port to assigned partitions.
@@ -61,7 +58,6 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
     aggregateName: String,
     stateTopic: KafkaTopic,
     partitionTrackerProvider: KafkaStreamsPartitionTrackerProvider,
-    aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) => Boolean,
     applicationHostPort: Option[String],
     applicationId: String,
     clientId: String,
@@ -135,7 +131,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
     }
 
     val aggregateStateStoreKafkaStreamsImplProps =
-      AggregateStateStoreKafkaStreamsImpl.props(aggregateName, stateTopic, partitionTrackerProvider, aggregateValidator, applicationHostPort, settings, metrics)
+      AggregateStateStoreKafkaStreamsImpl.props(aggregateName, stateTopic, partitionTrackerProvider, applicationHostPort, settings, metrics)
 
     val underlyingActorProps = BackoffSupervisor.props(
       BackoffOpts

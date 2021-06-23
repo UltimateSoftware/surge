@@ -150,7 +150,6 @@ trait TestBoundedContext {
       aggregateReadFormatting = aggregateFormatting,
       aggregateWriteFormatting = aggregateFormatting,
       eventWriteFormatting = eventWriter,
-      aggregateValidator = { (_, _, _) => true },
       metrics = Metrics.globalMetricRegistry,
       tracer = new MockTracer())
 }
