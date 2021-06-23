@@ -5,6 +5,16 @@ under the hood to determine what events should be emitted based on a command and
 the state of an aggregate based on those events.  This page describes how to configure, create,
 and interact with a Surge command engine.
 
+## Module Info
+
+@@dependency[sbt,Maven,Gradle] {
+  symbol="SurgeVersion"
+  value="0.5.12"
+  group="com.ukg"
+  artifact="surge-engine-command-scaladsl_$scala.binary.version$"
+  version="SurgeVersion"
+}
+
 ## Domain Logic
 
 ### Aggregates
