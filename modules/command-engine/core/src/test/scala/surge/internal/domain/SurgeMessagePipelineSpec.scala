@@ -181,7 +181,6 @@ class SurgeMessagePipelineSpec
             eventually {
               whenReady(pipeline.signalBus.registrations()) { registrations =>
                 registrations.exists(r => r.name == "router-actor") shouldEqual false
-
               }
             }
           }
