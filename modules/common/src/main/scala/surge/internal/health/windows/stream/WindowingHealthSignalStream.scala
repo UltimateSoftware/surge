@@ -41,7 +41,7 @@ trait WindowingHealthSignalStream extends HealthSignalStream with ReleasableStre
   override def signalHandler: SignalHandler = (signal: HealthSignal) => {
     // todo: consider ways to handle failed offer to add signal to blocking queue
     Try {
-      if (!signals().add(signal)) {
+      if (!signals().offer(signal)) {
         throw new RuntimeException("failed to add signal. need too handle this case")
       }
       Done
