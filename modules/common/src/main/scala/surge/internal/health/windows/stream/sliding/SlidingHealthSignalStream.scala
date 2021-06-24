@@ -79,6 +79,7 @@ private class SlidingHealthSignalStreamImpl(
   }
 
   override def processWindows(signalPatternMatchers: Seq[SignalPatternMatcher], monitoringActor: Option[ActorRef]): StreamHandle = {
+    // Create a windowActor for each configured windowing frequency
     val windowActors: Seq[HealthSignalWindowActorRef] = {
       val advancerConfig = windowingConfig.advancerConfig
       windowingConfig.frequencies
