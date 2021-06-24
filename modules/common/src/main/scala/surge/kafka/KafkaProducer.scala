@@ -127,10 +127,8 @@ trait KafkaProducerTrait[K, V] extends KafkaSecurityConfiguration with KafkaProd
     try {
       producer.initTransactions()
     } catch {
-      case e: Exception => {
-        println(e)
+      case e: Exception =>
         throw e
-      }
     }
   }
 }
