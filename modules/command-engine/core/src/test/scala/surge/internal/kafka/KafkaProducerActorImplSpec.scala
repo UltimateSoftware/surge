@@ -2,10 +2,12 @@
 
 package surge.internal.kafka
 
+import java.time.Instant
+
 import akka.actor.{ ActorRef, ActorSystem, Props }
-import akka.pattern.ask
 import akka.testkit.{ TestKit, TestProbe }
 import akka.util.Timeout
+import com.typesafe.config.{ Config, ConfigFactory, ConfigValueFactory }
 import org.apache.kafka.clients.producer.{ ProducerRecord, RecordMetadata }
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.{ AuthorizationException, ProducerFencedException }
@@ -24,18 +26,15 @@ import surge.core.KafkaProducerActor.{ PublishFailure, PublishSuccess }
 import surge.core.{ KafkaProducerActor, TestBoundedContext }
 import surge.health.HealthSignalBusTrait
 import surge.health.domain.EmittableHealthSignal
+import surge.internal.akka.cluster.ActorSystemHostAwareness
+import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.kafka.KafkaProducerActorImpl.{ AggregateStateRates, KTableProgressUpdate }
 import surge.kafka.streams.AggregateStateStoreKafkaStreams
 import surge.kafka.{ KafkaBytesProducer, KafkaRecordMetadata, PartitionAssignments }
 import surge.metrics.Metrics
-import java.time.Instant
-
-import com.typesafe.config.{ Config, ConfigFactory, ConfigValueFactory }
-import surge.internal.akka.cluster.ActorSystemHostAwareness
-import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 
 import scala.concurrent.duration._
-import scala.concurrent.{ Await, ExecutionContext, Future }
+import scala.concurrent.{ ExecutionContext, Future }
 
 class KafkaProducerActorImplSpec
     extends TestKit(ActorSystem("KafkaProducerActorImplSpec"))
@@ -267,9 +266,7 @@ class KafkaProducerActorImplSpec
       probe.send(actor, isAggregateStateCurrent)
       // Verify that we haven't initialized transactions yet so we are in the uninitialized state and messages were stashed
       verify(mockProducer, times(0)).initTransactions()(any[ExecutionContext])
-      val response =
-        actor.ask(isAggregateStateCurrent)(10.seconds).map(Some(_))(system.dispatcher).recoverWith { case _ => Future.successful(None) }(system.dispatcher)
-      assert(Await.result(response, 10.seconds).isDefined)
+      probe.expectMsg(true)
     }
 
     "Answer to IsAggregateStateCurrent when messages in flight" in {
@@ -293,9 +290,9 @@ class KafkaProducerActorImplSpec
       val barRecord1 = KafkaRecordMetadata(Some("bar"), createRecordMeta("testTopic", 0, 0))
       probe.send(actor, KafkaProducerActorImpl.EventsPublished(Seq(probe.ref), Seq(barRecord1)))
       val isAggregateStateCurrent = KafkaProducerActorImpl.IsAggregateStateCurrent("bar", Instant.now.plusSeconds(10L))
-      val response =
-        actor.ask(isAggregateStateCurrent)(10.seconds).map(Some(_))(system.dispatcher).recoverWith { case _ => Future.successful(None) }(system.dispatcher)
-      assert(Await.result(response, 3.second).isDefined)
+      val stateCurrentProbe = TestProbe()
+      stateCurrentProbe.send(actor, isAggregateStateCurrent)
+      stateCurrentProbe.expectMsg(true)
     }
 
     "Stash Publish messages and publish them when fully initialized" in {

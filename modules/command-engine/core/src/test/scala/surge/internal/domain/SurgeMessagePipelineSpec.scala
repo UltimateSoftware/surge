@@ -9,9 +9,9 @@ import akka.testkit.{ TestKit, TestProbe }
 import com.typesafe.config.{ Config, ConfigFactory }
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.streams.KafkaStreams
-import org.scalatest.concurrent.Eventually
+import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
-import org.scalatest.time.{ Seconds, Span }
+import org.scalatest.time.{ Milliseconds, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach }
 import play.api.libs.json.JsValue
@@ -28,7 +28,6 @@ import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamPro
 import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, MockPartitionTracker }
 import surge.metrics.Metrics
 
-import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.languageFeature.postfixOps
 
@@ -40,11 +39,13 @@ class SurgeMessagePipelineSpec
     with TestBoundedContext
     with BeforeAndAfterAll
     with BeforeAndAfterEach
+    with ScalaFutures
     with Matchers {
   import TestBoundedContext._
 
+  // FIXME Does this really take up to 160 seconds???
   implicit override val patienceConfig: PatienceConfig =
-    PatienceConfig(timeout = scaled(Span(160, Seconds)), interval = scaled(Span(5, Seconds)))
+    PatienceConfig(timeout = scaled(Span(160, Seconds)), interval = scaled(Span(50, Milliseconds)))
 
   private val config: EmbeddedKafkaConfig = EmbeddedKafkaConfig(kafkaPort = 6001)
 
@@ -104,7 +105,7 @@ class SurgeMessagePipelineSpec
         val bus = pipeline.signalBus
         // Retrieve Registrations and verify SurgeMessagePipeline is registered
         eventually {
-          val registrations = Await.result(bus.registrations(), 10.seconds)
+          val registrations = bus.registrations().futureValue
           val registration = registrations.find(r => r.name == "surge-message-pipeline")
 
           registration.nonEmpty shouldEqual true
@@ -120,7 +121,7 @@ class SurgeMessagePipelineSpec
         // Retrieve Registrations and verify AggregateStateStore is registered
         //  Verify the restartSignalPatterns are as expected
         eventually {
-          val registrations = Await.result(bus.registrations(), 10.seconds)
+          val registrations = bus.registrations().futureValue
           val registration = registrations.find(r => r.name == "state-store-kafka-streams")
 
           registration.nonEmpty shouldEqual true
@@ -136,7 +137,7 @@ class SurgeMessagePipelineSpec
         val bus = pipeline.signalBus
 
         eventually {
-          val registrations = Await.result(bus.registrations(), 10.seconds)
+          val registrations = bus.registrations().futureValue
           val registration = registrations.find(r => r.name == "surge-message-pipeline")
 
           registration.nonEmpty shouldEqual true
@@ -145,7 +146,7 @@ class SurgeMessagePipelineSpec
 
           // Wait for the surge-message-pipeline to be unregistered on termination.
           eventually {
-            val registrations = Await.result(pipeline.signalBus.registrations(), atMost = FiniteDuration(20, "seconds"))
+            val registrations = pipeline.signalBus.registrations().futureValue
             registrations.exists(r => r.name == "surge-message-pipeline") shouldEqual false
           }
         }
@@ -158,7 +159,7 @@ class SurgeMessagePipelineSpec
         val bus = pipeline.signalBus
 
         eventually {
-          val registrations = Await.result(bus.registrations(), 10.seconds)
+          val registrations = bus.registrations().futureValue
           val registration = registrations.find(r => r.name == "router-actor")
 
           registration.nonEmpty shouldEqual true
@@ -172,7 +173,7 @@ class SurgeMessagePipelineSpec
       withRunningKafkaOnFoundPort(config) { _ =>
         // wait for router-actor to be registered
         eventually {
-          val registrations = Await.result(pipeline.signalBus.registrations(), FiniteDuration(10, "seconds"))
+          val registrations = pipeline.signalBus.registrations().futureValue
           val registration = registrations.find(r => r.name == "router-actor")
 
           registration.nonEmpty shouldEqual true
@@ -181,10 +182,9 @@ class SurgeMessagePipelineSpec
 
           // Wait for the router-actor to be unregistered on termination.
           eventually {
-            val registrations = Await.result(pipeline.signalBus.registrations(), FiniteDuration(10, "seconds"))
+            val registrations = pipeline.signalBus.registrations().futureValue
             registrations.exists(r => r.name == "router-actor") shouldEqual false
           }
-
         }
       }
     }

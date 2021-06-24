@@ -7,9 +7,9 @@ import java.util.regex.Pattern
 import akka.actor.ActorSystem
 import akka.testkit.{ TestKit, TestProbe }
 import org.scalatest.BeforeAndAfterAll
-import org.scalatest.concurrent.Eventually
+import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
-import org.scalatest.time.{ Seconds, Span }
+import org.scalatest.time.{ Milliseconds, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
 import surge.health.config.{ WindowingStreamConfig, WindowingStreamSliderConfig }
 import surge.health.domain.{ HealthSignal, Trace }
@@ -19,7 +19,6 @@ import surge.internal.health._
 import surge.internal.health.matchers.SignalNameEqualsMatcher
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
 
-import scala.concurrent.Await
 import scala.concurrent.duration._
 
 class HealthSupervisorActorSpec
@@ -27,9 +26,11 @@ class HealthSupervisorActorSpec
     with AnyWordSpecLike
     with BeforeAndAfterAll
     with Matchers
+    with ScalaFutures
     with Eventually {
+
   implicit override val patienceConfig: PatienceConfig =
-    PatienceConfig(timeout = scaled(Span(160, Seconds)), interval = scaled(Span(5, Seconds)))
+    PatienceConfig(timeout = scaled(Span(160, Seconds)), interval = scaled(Span(50, Milliseconds)))
 
   private val testHealthSignal = HealthSignal(topic = "health.signal", name = "boom", signalType = SignalType.TRACE, data = Trace("test"))
 
@@ -51,8 +52,7 @@ class HealthSupervisorActorSpec
       bus.signalStream().start()
 
       // Register
-      val done = Await.result(bus.register(probe.ref, componentName = "boomControl", Seq(Pattern.compile("boom"))), 10.seconds)
-      done shouldBe an[Ack]
+      bus.register(probe.ref, componentName = "boomControl", Seq(Pattern.compile("boom"))).futureValue shouldBe an[Ack]
       val received = probe.receiveN(1, 10.seconds)
       Option(received).nonEmpty shouldEqual true
 
@@ -81,8 +81,7 @@ class HealthSupervisorActorSpec
       val ref: HealthSupervisorTrait = bus.supervisor().get
 
       val message = bus.registration(probe.ref, componentName = "boomControl", Seq.empty)
-      val done = Await.result(ref.register(message.underlyingRegistration()), 10.seconds)
-      done shouldBe an[Ack]
+      ref.register(message.underlyingRegistration()).futureValue shouldBe an[Ack]
 
       val received = probe.receiveN(1, max = 10.seconds)
 
