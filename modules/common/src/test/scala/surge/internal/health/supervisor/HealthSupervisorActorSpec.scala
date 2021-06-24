@@ -7,7 +7,7 @@ import java.util.regex.Pattern
 import akka.actor.ActorSystem
 import akka.testkit.{ TestKit, TestProbe }
 import org.scalatest.BeforeAndAfterAll
-import org.scalatest.concurrent.Eventually
+import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
@@ -20,12 +20,12 @@ import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamPro
 import surge.internal.health._
 import surge.internal.health.windows.stream.WindowingHealthSignalStream
 
-import scala.concurrent.Future
 import scala.concurrent.duration._
 
 class HealthSupervisorActorSpec
     extends TestKit(ActorSystem("HealthSignalSupervisorSpec"))
     with AnyWordSpecLike
+    with ScalaFutures
     with BeforeAndAfterAll
     with Matchers
     with Eventually {
@@ -52,23 +52,24 @@ class HealthSupervisorActorSpec
       bus.signalStream().start()
 
       // Register
-      val done = bus.register(probe.ref, componentName = "boomControl", Seq(Pattern.compile("boom")))
-      done shouldBe a[Future[Ack]]
-      val received = probe.receiveN(1, 10.seconds)
-      Option(received).nonEmpty shouldEqual true
+      whenReady(bus.register(probe.ref, componentName = "boomControl", Seq(Pattern.compile("boom")))) { done =>
+        done shouldBe a[Ack]
+        val received = probe.receiveN(1, 10.seconds)
+        Option(received).nonEmpty shouldEqual true
 
-      // Signal
-      bus.signalWithTrace(name = "test.trace", Trace("test trace")).emit()
+        // Signal
+        bus.signalWithTrace(name = "test.trace", Trace("test trace")).emit()
 
-      eventually {
-        // Verify restart
-        val restart = probe.fishForMessage(max = 100.millis) { case msg =>
-          msg.isInstanceOf[RestartComponent]
+        eventually {
+          // Verify restart
+          val restart = probe.fishForMessage(max = 100.millis) { case msg =>
+            msg.isInstanceOf[RestartComponent]
+          }
+          Option(restart.asInstanceOf[RestartComponent].replyTo).isDefined shouldEqual true
         }
-        Option(restart.asInstanceOf[RestartComponent].replyTo).isDefined shouldEqual true
-      }
 
-      bus.unsupervise().signalStream().stop()
+        bus.unsupervise().signalStream().stop()
+      }
     }
 
     "receive registration" in {
@@ -82,8 +83,10 @@ class HealthSupervisorActorSpec
       val ref: HealthSupervisorTrait = bus.supervisor().get
 
       val message = bus.registration(probe.ref, componentName = "boomControl", Seq.empty)
-      val done = ref.register(message.underlyingRegistration())
-      done shouldBe a[Future[Ack]]
+
+      whenReady(ref.register(message.underlyingRegistration())) { done =>
+        done shouldBe a[Ack]
+      }
 
       val received = probe.receiveN(1, max = 10.seconds)
 

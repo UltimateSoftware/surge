@@ -15,7 +15,7 @@ import surge.health.config.HealthSignalBusConfig
 import surge.internal.health.HealthSignalBus.log
 import surge.internal.health.supervisor._
 
-import scala.concurrent.Future
+import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration._
 import scala.languageFeature.postfixOps
 import scala.util.Try
@@ -246,6 +246,10 @@ private[surge] class HealthSignalBusImpl(config: HealthSignalBusConfig, signalSt
         result.map(a => a.asInstanceOf[List[HealthRegistration]])(actorSystem.dispatcher)
       case None => Future.successful(Seq.empty)
     }
+  }
+
+  override def registrations(matching: Pattern): Future[Seq[HealthRegistration]] = {
+    registrations().map(r => r.filter(f => matching.matcher(f.name).matches()))(ExecutionContext.global)
   }
 
   override def signalWithError(name: String, error: Error, metadata: Map[String, String] = Map.empty): EmittableHealthSignal = {

@@ -33,6 +33,7 @@ trait HealthyPublisher extends HealthSignalBusAware {
 
 trait RegistrationConsumer {
   def registrations(): Future[Seq[HealthRegistration]]
+  def registrations(matching: Pattern): Future[Seq[HealthRegistration]]
 }
 
 final case class HealthRegistration(
