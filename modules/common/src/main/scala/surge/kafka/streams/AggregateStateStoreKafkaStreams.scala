@@ -7,7 +7,7 @@ import java.util.regex.Pattern
 import akka.actor.{ ActorRef, ActorSystem }
 import akka.pattern.{ ask, BackoffOpts, BackoffSupervisor }
 import akka.util.Timeout
-import com.typesafe.config.ConfigFactory
+import com.typesafe.config.{ Config, ConfigFactory }
 import org.apache.kafka.streams.{ LagInfo, Topology }
 import surge.health.HealthSignalBusTrait
 import surge.internal.config.{ BackoffConfig, TimeoutConfig }
@@ -63,7 +63,8 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
     clientId: String,
     signalBus: HealthSignalBusTrait,
     system: ActorSystem,
-    metrics: Metrics)
+    metrics: Metrics,
+    config: Config = ConfigFactory.load())
     extends HealthyComponent
     with Logging {
   private[streams] lazy val settings = AggregateStateStoreKafkaStreamsImplSettings(applicationId, aggregateName, clientId)
@@ -131,7 +132,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
     }
 
     val aggregateStateStoreKafkaStreamsImplProps =
-      AggregateStateStoreKafkaStreamsImpl.props(aggregateName, stateTopic, partitionTrackerProvider, applicationHostPort, settings, metrics)
+      AggregateStateStoreKafkaStreamsImpl.props(aggregateName, stateTopic, partitionTrackerProvider, applicationHostPort, settings, metrics, config)
 
     val underlyingActorProps = BackoffSupervisor.props(
       BackoffOpts

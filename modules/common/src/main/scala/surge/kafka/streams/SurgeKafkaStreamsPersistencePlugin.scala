@@ -2,7 +2,7 @@
 
 package surge.kafka.streams
 
-import com.typesafe.config.ConfigFactory
+import com.typesafe.config.{ Config, ConfigFactory }
 import org.apache.kafka.streams.state.KeyValueBytesStoreSupplier
 import org.apache.kafka.streams.state.internals.RocksDbKeyValueBytesStoreSupplier
 import org.slf4j.LoggerFactory
@@ -23,12 +23,16 @@ class RocksDBPersistencePlugin extends SurgeKafkaStreamsPersistencePlugin {
 
 object SurgeKafkaStreamsPersistencePluginLoader {
   private val log = LoggerFactory.getLogger(getClass)
-  private val config = ConfigFactory.load()
-  private val persistencePluginName = config.getString("surge.kafka-streams.state-store-plugin")
+  private val defaultConfig = ConfigFactory.load()
   private val defaultPersistencePluginName = "rocksdb"
   private lazy val defaultPersistencePlugin = new RocksDBPersistencePlugin
 
   def load(): SurgeKafkaStreamsPersistencePlugin = {
+    load(defaultConfig)
+  }
+
+  def load(config: Config): SurgeKafkaStreamsPersistencePlugin = {
+    val persistencePluginName = config.getString("surge.kafka-streams.state-store-plugin")
     Try(config.getString(s"$persistencePluginName.plugin-class")) match {
       case Failure(_) =>
         log.error(

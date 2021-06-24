@@ -6,8 +6,10 @@ import java.util.UUID
 
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
+import com.typesafe.config.ConfigFactory
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.common.serialization.StringSerializer
+import org.apache.kafka.streams.state.KeyValueBytesStoreSupplier
 import org.apache.kafka.streams.{ KafkaStreams, TopologyTestDriver }
 import org.scalatest.concurrent.{ PatienceConfiguration, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
@@ -113,7 +115,14 @@ class AggregateStateStoreKafkaStreamsSpec
       }
     }
     "Restart the stream on any errors" in {
-      var errorCount = 0
+      val exceptionThrowingConfig = ConfigFactory
+        .parseString("""
+          exception-throwing {
+            plugin-class = "surge.kafka.streams.SingleExceptionThrowingPersistenceProvider"
+          }
+          surge.kafka-streams.state-store-plugin = exception-throwing
+          """.stripMargin)
+        .withFallback(ConfigFactory.load())
       withRunningKafkaOnFoundPort(config) { implicit actualConfig =>
         val topicName = "testStateTopic"
         createCustomTopic(topicName)
@@ -130,7 +139,8 @@ class AggregateStateStoreKafkaStreamsSpec
           clientId = "",
           HealthSignalBus(testHealthSignalStreamProvider(Seq.empty)),
           system,
-          Metrics.globalMetricRegistry) {
+          Metrics.globalMetricRegistry,
+          exceptionThrowingConfig) {
           override lazy val settings: AggregateStateStoreKafkaStreamsImplSettings =
             AggregateStateStoreKafkaStreamsImplSettings(appId, testAggregateName, "").copy(brokers = Seq(s"localhost:${actualConfig.kafkaPort}"))
         }
@@ -145,4 +155,9 @@ class AggregateStateStoreKafkaStreamsSpec
       }
     }
   }
+}
+
+class SingleExceptionThrowingPersistenceProvider extends SurgeKafkaStreamsPersistencePlugin {
+  override def createSupplier(storeName: String): KeyValueBytesStoreSupplier = new SingleExceptionThrowingKeyValueStoreSupplier(storeName)
+  override def enableLogging: Boolean = true
 }

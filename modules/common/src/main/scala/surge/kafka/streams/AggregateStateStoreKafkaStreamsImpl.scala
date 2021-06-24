@@ -6,7 +6,7 @@ import java.util.Properties
 
 import akka.actor.Props
 import akka.pattern.pipe
-import com.typesafe.config.ConfigFactory
+import com.typesafe.config.{ Config, ConfigFactory }
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.serialization.Serdes.ByteArraySerde
 import org.apache.kafka.streams.errors.InvalidStateStoreException
@@ -27,14 +27,15 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
     partitionTrackerProvider: KafkaStreamsPartitionTrackerProvider,
     applicationHostPort: Option[String],
     override val settings: AggregateStateStoreKafkaStreamsImplSettings,
-    override val metrics: Metrics)
+    override val metrics: Metrics,
+    config: Config)
     extends KafkaStreamLifeCycleManagement[String, Array[Byte], KafkaByteStreamsConsumer, Array[Byte]] {
 
   import DefaultSerdes._
   import ImplicitConversions._
   import context.dispatcher
 
-  private val persistencePlugin = SurgeKafkaStreamsPersistencePluginLoader.load()
+  private val persistencePlugin = SurgeKafkaStreamsPersistencePluginLoader.load(config)
 
   val aggregateStateStoreName: String = settings.storeName
 
@@ -174,8 +175,9 @@ private[streams] object AggregateStateStoreKafkaStreamsImpl {
       partitionTrackerProvider: KafkaStreamsPartitionTrackerProvider,
       applicationHostPort: Option[String],
       settings: AggregateStateStoreKafkaStreamsImplSettings,
-      metrics: Metrics): Props = {
-    Props(new AggregateStateStoreKafkaStreamsImpl(aggregateName, stateTopic, partitionTrackerProvider, applicationHostPort, settings, metrics))
+      metrics: Metrics,
+      config: Config): Props = {
+    Props(new AggregateStateStoreKafkaStreamsImpl(aggregateName, stateTopic, partitionTrackerProvider, applicationHostPort, settings, metrics, config))
   }
 
   case class AggregateStateStoreKafkaStreamsImplSettings(
