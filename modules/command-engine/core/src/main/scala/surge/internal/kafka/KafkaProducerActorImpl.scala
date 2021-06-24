@@ -218,14 +218,10 @@ class KafkaProducerActorImpl(
   }
 
   private def checkKTableProgress(): Unit = {
-    // avoid attempting to process an empty collection of partitionLags
-    kStreams.partitionLags().filter(allLags => allLags.nonEmpty).foreach { allLags =>
+    kStreams.partitionLags().foreach { allLags =>
       allLags.values.headOption.foreach { lagsForStateStore =>
-        lagsForStateStore.get(assignedPartition.partition()) match {
-          case Some(lagForThisPartition) =>
-            self ! KTableProgressUpdate(assignedPartition, lagForThisPartition)
-          case None =>
-            log.debug("Lag not found for partition {}", assignedPartition.partition())
+        lagsForStateStore.get(assignedPartition.partition()).foreach { lagForThisPartition =>
+          self ! KTableProgressUpdate(assignedPartition, lagForThisPartition)
         }
       }
     }
