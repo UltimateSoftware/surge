@@ -7,7 +7,7 @@ on:
 
 jobs:
   release:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
       - uses: release-drafter/release-drafter@v5
         id: draft_release
