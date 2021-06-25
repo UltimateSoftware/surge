@@ -14,7 +14,7 @@ import scala.concurrent.duration.{ FiniteDuration, _ }
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.language.postfixOps
 
-case class ExecutionContextProberSettings(
+final case class ExecutionContextProberSettings(
     targetEc: ExecutionContext,
     initialDelay: FiniteDuration,
     timeout: FiniteDuration,
