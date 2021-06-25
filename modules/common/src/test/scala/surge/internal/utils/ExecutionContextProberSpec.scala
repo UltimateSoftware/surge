@@ -3,8 +3,8 @@
 package surge.internal.utils
 
 import akka.Done
-import akka.actor.{ActorRef, ActorSystem}
-import akka.testkit.{EventFilter, ImplicitSender, TestKit}
+import akka.actor.{ ActorRef, ActorSystem }
+import akka.testkit.{ EventFilter, ImplicitSender, TestKit }
 import com.typesafe.config.ConfigFactory
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.ScalaFutures
@@ -12,7 +12,7 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 
 import scala.concurrent.duration._
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ ExecutionContext, Future }
 import scala.language.postfixOps
 
 class ExecutionContextProberSpec
@@ -50,7 +50,9 @@ class ExecutionContextProberSpec
 
       val prober = createProberActor(starvedEc, name = "prober-1")
 
-      EventFilter.warning(pattern = s".*${ExecutionContextProberActor.warningText}.*", occurrences = 1).intercept {} // waits max 3 seconds (akka.test.filter-leeway)
+      EventFilter
+        .warning(pattern = s".*${ExecutionContextProberActor.warningText}.*", occurrences = 1)
+        .intercept {} // waits max 3 seconds (akka.test.filter-leeway)
 
       prober ! ExecutionContextProberActor.Messages.HasIssues
       expectMsg(true)
@@ -76,7 +78,7 @@ class ExecutionContextProberSpec
 
   }
 
-  "The Execution Context Prober extension" can {
+  "The Execution Context Prober extension".can {
 
     "start / stop successfully" in {
       val proberExtension = ExecutionContextProber(system)
