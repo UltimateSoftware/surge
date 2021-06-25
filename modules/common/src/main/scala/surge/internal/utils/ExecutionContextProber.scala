@@ -53,6 +53,8 @@ object ExecutionContextProberActor {
     Ack(id)
   }
 
+  val warningText = "Possible thread starvation issue"
+
 }
 
 class ExecutionContextProberActor(settings: ExecutionContextProberSettings) extends Actor with ActorLogging with Timers {
@@ -86,14 +88,14 @@ class ExecutionContextProberActor(settings: ExecutionContextProberSettings) exte
 
   def collect(count: Int, expectedId: UUID): Receive = {
     case Timeout =>
-      log.warning(s"One of our probes timed out. Possible thread starvation issue.")
+      log.warning(s"One of our probes timed out.${warningText}.")
       // the execution context is potentially unhealthy so we want to suspend our checks for a bit (to give
       // it time to recover in case it's just a hiccup), hence interval * 3.
       detectedIssue = true
       timers.startSingleTimer(SendProbesKey, msg = SendProbes, settings.interval * 3)
       context.become(receive)
     case Status.Failure(e) =>
-      log.error(e, "One of our probes resulted in a failed future. Possible thread starvation issue.")
+      log.error(e, s"One of our probes resulted in a failed future. ${warningText}.")
       detectedIssue = true
       timers.startSingleTimer(SendProbesKey, msg = SendProbes, settings.interval * 3)
       timers.cancel(TimeoutKey)

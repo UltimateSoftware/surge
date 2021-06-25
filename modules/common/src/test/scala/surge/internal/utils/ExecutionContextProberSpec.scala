@@ -50,7 +50,7 @@ class ExecutionContextProberSpec
 
       val prober = createProberActor(starvedEc, name = "prober-1")
 
-      EventFilter.warning(pattern = ".*Possible thread starvation issue.*", occurrences = 1).intercept {} // waits max 3 seconds (akka.test.filter-leeway)
+      EventFilter.warning(pattern = s".*${ExecutionContextProberActor.warningText}.*", occurrences = 1).intercept {} // waits max 3 seconds (akka.test.filter-leeway)
 
       prober ! ExecutionContextProberActor.Messages.HasIssues
       expectMsg(true)
