@@ -88,7 +88,7 @@ class ExecutionContextProberActor(settings: ExecutionContextProberSettings) exte
 
   def collect(count: Int, expectedId: UUID): Receive = {
     case Timeout =>
-      log.warning(s"One of our probes timed out.${warningText}.")
+      log.warning(s"One of our probes timed out. ${warningText}.")
       // the execution context is potentially unhealthy so we want to suspend our checks for a bit (to give
       // it time to recover in case it's just a hiccup), hence interval * 3.
       detectedIssue = true
