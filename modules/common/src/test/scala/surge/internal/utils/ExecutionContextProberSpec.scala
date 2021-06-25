@@ -76,7 +76,7 @@ class ExecutionContextProberSpec
 
   }
 
-  "The Execution Context Prober extension".can {
+  "The Execution Context Prober extension" can {
 
     "start / stop successfully" in {
       val proberExtension = ExecutionContextProber(system)
