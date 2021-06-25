@@ -73,7 +73,6 @@ class SlidingHealthSignalStreamSpec
   }
 
   "SlidingHealthSignalStreamSpec" should {
-
     "subscribe to HealthSignalBus" in {
       eventually {
         bus.subscriberInfo().exists(info => info.name == "surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamImpl") shouldEqual true
