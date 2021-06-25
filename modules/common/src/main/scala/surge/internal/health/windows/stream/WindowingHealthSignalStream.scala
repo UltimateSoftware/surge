@@ -8,25 +8,23 @@ import akka.Done
 import akka.actor.ActorRef
 import surge.health.{ HealthSignalStream, SignalHandler }
 import surge.health.domain.HealthSignal
-import surge.health.matchers.SignalPatternMatcher
 import surge.health.windows.Window
 
-import scala.concurrent.duration._
 import scala.util.Try
 
 trait StreamHandle {
-  def release(): Unit
-}
-
-case class RestartBackoff(minBackoff: FiniteDuration, maxBackoff: FiniteDuration, randomFactor: Double)
-
-object WindowingHealthSignalStream {
-  val defaultRestartBackoff: RestartBackoff = RestartBackoff(2.seconds, 5.seconds, 0.2)
+  def close(): Unit
 }
 
 trait WindowingHealthSignalStream extends HealthSignalStream with ReleasableStream {
   def underlyingActor: ActorRef
-  def processWindows(filters: Seq[SignalPatternMatcher], monitoringActor: Option[ActorRef]): StreamHandle
+
+  /**
+   * Start a long running task to process data in windows
+   * @return
+   *   StreamHandle used for releasing the stream
+   */
+  def processWindows(): StreamHandle
 
   def signalAddedToWindow(signal: HealthSignal, window: Window): Unit = {}
 
@@ -39,11 +37,10 @@ trait WindowingHealthSignalStream extends HealthSignalStream with ReleasableStre
    *   SignalHandler
    */
   override def signalHandler: SignalHandler = (signal: HealthSignal) => {
-    // todo: consider ways to handle failed offer to add signal to blocking queue
     Try {
-      if (!signals().offer(signal)) {
-        throw new RuntimeException("failed to add signal. need too handle this case")
-      }
+      // wait for space to be available providing
+      // naive back pressure on producer.
+      signals().put(signal)
       Done
     }
   }

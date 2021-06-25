@@ -3,7 +3,6 @@
 package surge.health.config
 
 import com.typesafe.config.{ Config, ConfigFactory }
-import surge.internal.health.windows.stream.{ RestartBackoff, WindowingHealthSignalStream }
 
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
@@ -15,8 +14,10 @@ import scala.util.Try
 case class WindowingStreamConfig(
     maxDelay: FiniteDuration = 5.seconds,
     maxStreamSize: Int = 500,
+    drainPerTick: Int = 10,
+    initialTickDelay: FiniteDuration = 1.second,
+    tickInterval: FiniteDuration = 250.millis,
     frequencies: Seq[FiniteDuration] = Seq(10.seconds),
-    restartBackoff: RestartBackoff = WindowingHealthSignalStream.defaultRestartBackoff,
     advancerConfig: WindowingStreamAdvancerConfig)
 
 trait WindowingStreamAdvancerConfigLoader[T] {
@@ -53,23 +54,18 @@ object WindowingStreamConfigLoader {
     val maxStreamSize = config.getInt("surge.health.window.stream.max-size")
     val frequencies = config.getDurationList("surge.health.window.stream.frequencies").asScala.map(d => FiniteDuration(d.toMillis, "millis"))
 
+    val drainPerTick = Try { config.getInt("surge.health.stream.drain-per-tick") }.toOption.getOrElse(10)
+
+    val tickInterval =
+      Try { config.getDuration("surge.health.stream.tick-duration") }.toOption.map(d => FiniteDuration(d.toMillis, "millis")).getOrElse(250.millis)
+
+    val initialTickDelay =
+      Try { config.getDuration("surge.health.stream.initial-tick-delay") }.toOption.map(d => FiniteDuration(d.toMillis, "millis")).getOrElse(1.second)
+
     val advancerConfig = config.getConfig("surge.health.window.stream.advancer")
     val windowStreamAdvancerConfig = WindowingStreamAdvancerConfigLoader(advancerConfig.getString("type")).load(advancerConfig)
 
-    val windowStreamRestartBackOffConfig: Option[RestartBackoff] = Try {
-      config.getConfig("surge.health.window.stream.restart-backoff")
-    }.toOption.map(c =>
-      RestartBackoff(
-        FiniteDuration(c.getDuration("min-backoff").toMillis, "millis"),
-        FiniteDuration(c.getDuration("max-backoff").toMillis, "millis"),
-        c.getDouble("random-factor")))
-
-    WindowingStreamConfig(
-      maxDelay,
-      maxStreamSize,
-      frequencies.toSeq,
-      windowStreamRestartBackOffConfig.getOrElse(WindowingHealthSignalStream.defaultRestartBackoff),
-      windowStreamAdvancerConfig)
+    WindowingStreamConfig(maxDelay, maxStreamSize, drainPerTick, initialTickDelay, tickInterval, frequencies.toSeq, windowStreamAdvancerConfig)
   }
 
   def load(): WindowingStreamConfig = {

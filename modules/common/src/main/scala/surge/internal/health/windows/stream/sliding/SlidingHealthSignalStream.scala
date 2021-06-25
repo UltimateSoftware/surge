@@ -4,9 +4,9 @@ package surge.internal.health.windows.stream.sliding
 
 import java.util.concurrent.ArrayBlockingQueue
 
-import akka.actor.{ ActorRef, ActorSystem, Props }
-import akka.stream.scaladsl.{ Keep, RestartSource, Sink, Source }
-import akka.stream.{ KillSwitches, Materializer, UniqueKillSwitch }
+import akka.actor.{ ActorRef, ActorSystem, Cancellable, Props }
+import akka.stream.Materializer
+import akka.stream.scaladsl.{ Keep, Sink, Source }
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.health.config.WindowingStreamConfig
 import surge.health.domain.HealthSignal
@@ -18,6 +18,8 @@ import surge.internal.health.windows._
 import surge.internal.health.windows.actor.{ HealthSignalWindowActor, HealthSignalWindowActorRef }
 import surge.internal.health.windows.stream.actor.HealthSignalStreamActor
 import surge.internal.health.windows.stream.{ SignalPatternMatchResultHandler, StreamHandle, WindowingHealthSignalStream }
+
+import scala.concurrent.duration._
 
 trait SlidingHealthSignalStream extends WindowingHealthSignalStream
 
@@ -67,7 +69,7 @@ private class SlidingHealthSignalStreamImpl(
       case Some(_) =>
         this
       case None =>
-        this.windowHandle = processWindows(filters, Some(underlyingActor))
+        this.windowHandle = processWindows()
         maybeSideEffect.foreach(m => m())
         this
     }
@@ -78,26 +80,22 @@ private class SlidingHealthSignalStreamImpl(
     this
   }
 
-  override def processWindows(signalPatternMatchers: Seq[SignalPatternMatcher], monitoringActor: Option[ActorRef]): StreamHandle = {
+  override def processWindows(): StreamHandle = {
     // Create a windowActor for each configured windowing frequency
-    val windowActors: Seq[HealthSignalWindowActorRef] = {
-      val advancerConfig = windowingConfig.advancerConfig
-      windowingConfig.frequencies
-        .map(freq => HealthSignalWindowActor(actorSystem, freq, WindowSlider(advancerConfig.advanceAmount, advancerConfig.buffer)))
-        .map(ref => ref.start(monitoringActor))
-    }
+    val windowActors: Seq[HealthSignalWindowActorRef] = createWindowActors()
 
-    val blockingSource = Source.unfoldResource[HealthSignal, ArrayBlockingQueue[HealthSignal]](() => signals, signals => Option(signals.take()), _ => {})
+    val drainAmountPerTick: Int = 10
+    val tickInitialDelay: FiniteDuration = 1.millis
+    val tickInterval: FiniteDuration = 250.millis
+    val blockingSource: Source[HealthSignal, Cancellable] =
+      Source.tick(tickInitialDelay, tickInterval, tick = 1).mapConcat(_ => getNDataFromTheQueue(drainAmountPerTick))
 
-    val killSwitch: UniqueKillSwitch = RestartSource
-      .onFailuresWithBackoff(windowingConfig.restartBackoff.minBackoff, windowingConfig.restartBackoff.maxBackoff, windowingConfig.restartBackoff.randomFactor)(
-        () => blockingSource)
-      .viaMat(KillSwitches.single)(Keep.right)
-      .toMat(Sink.foreach(signal => windowActors.foreach(a => a.processSignal(signal))))(Keep.left)
-      .run()(Materializer(actorSystem))
+    val cancellable: Cancellable =
+      blockingSource.toMat(Sink.foreach(signal => windowActors.foreach(a => a.processSignal(signal))))(Keep.left).run()(Materializer(actorSystem))
+
     // Stream Handle
     () => {
-      killSwitch.shutdown()
+      cancellable.cancel()
       windowActors.foreach(actor => actor.stop())
     }
   }
@@ -109,6 +107,20 @@ private class SlidingHealthSignalStreamImpl(
   }
 
   protected[health] def releaseWindowHandle(): Unit = {
-    Option(this.windowHandle).foreach(h => h.release())
+    Option(this.windowHandle).foreach(h => h.close())
+  }
+
+  private def getNDataFromTheQueue(n: Int): List[HealthSignal] = {
+    import scala.jdk.CollectionConverters._
+    val arrayList = new java.util.ArrayList[HealthSignal]()
+    signals.drainTo(arrayList, n)
+    arrayList.asScala.toList
+  }
+
+  private def createWindowActors(): Seq[HealthSignalWindowActorRef] = {
+    val advancerConfig = windowingConfig.advancerConfig
+    windowingConfig.frequencies
+      .map(freq => HealthSignalWindowActor(actorSystem, freq, WindowSlider(advancerConfig.advanceAmount, advancerConfig.buffer)))
+      .map(ref => ref.start(Some(underlyingActor)))
   }
 }

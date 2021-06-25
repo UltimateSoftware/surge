@@ -16,7 +16,6 @@ import surge.health.domain.{ HealthSignal, Trace }
 import surge.health.matchers.SideEffect
 import surge.health.windows.WindowAdvanced
 import surge.internal.health.StreamMonitoringRef
-import surge.internal.health.windows.stream.WindowingHealthSignalStream
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
 
 import scala.concurrent.Future
@@ -40,9 +39,7 @@ class RepeatingSignalMatcherSpec extends TestKit(ActorSystem("RepeatingSignals")
       val windowBuffer = 10
       val probe = TestProbe()
       val slidingHealthSignalStream = new SlidingHealthSignalStreamProvider(
-        WindowingStreamConfig(
-          advancerConfig = WindowingStreamSliderConfig(buffer = windowBuffer),
-          restartBackoff = WindowingHealthSignalStream.defaultRestartBackoff),
+        WindowingStreamConfig(advancerConfig = WindowingStreamSliderConfig(buffer = windowBuffer)),
         filters = Seq(RepeatingSignalMatcher(2, SignalNameEqualsMatcher("99"), None)),
         streamMonitoring = Some(new StreamMonitoringRef(probe.ref)),
         actorSystem = system)
