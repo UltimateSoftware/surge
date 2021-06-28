@@ -10,7 +10,12 @@ import scala.jdk.CollectionConverters._
 /**
  * WindowStreamConfig encapsulates all the configuration options for a WindowingHealthSignalStream
  */
-case class WindowingStreamConfig(maxDelay: FiniteDuration, maxStreamSize: Int, frequencies: Seq[FiniteDuration], advancerConfig: WindowingStreamAdvancerConfig)
+case class WindowingStreamConfig(
+    maxDelay: FiniteDuration,
+    maxStreamSize: Int,
+    frequencies: Seq[FiniteDuration],
+    throttleConfig: WindowingStreamThrottleConfig,
+    advancerConfig: WindowingStreamAdvancerConfig)
 
 trait WindowingStreamAdvancerConfigLoader[T] {
   def load(config: Config): T
@@ -20,6 +25,19 @@ sealed trait WindowingStreamAdvancerConfig {
   def advanceAmount: Int
   def buffer: Int
 }
+
+sealed trait WindowingStreamThrottleConfig {
+  def elements: Int
+  def duration: FiniteDuration
+}
+
+object WindowingStreamThrottleConfig {
+  def apply(elements: Int, duration: FiniteDuration): WindowingStreamThrottleConfig = {
+    WindowingStreamThrottleConfigImpl(elements, duration)
+  }
+}
+
+private case class WindowingStreamThrottleConfigImpl(elements: Int, duration: FiniteDuration) extends WindowingStreamThrottleConfig
 
 case class WindowingStreamSliderConfig(buffer: Int, advanceAmount: Int) extends WindowingStreamAdvancerConfig
 
@@ -46,10 +64,12 @@ object WindowingStreamConfigLoader {
     val maxStreamSize = config.getInt("max-size")
     val frequencies = config.getDurationList("frequencies").asScala.map(d => d.toMillis.millis)
 
+    val throttleConfig = config.getConfig("throttle")
+    val windowStreamThrottleConfig = WindowingStreamThrottleConfig(throttleConfig.getInt("elements"), throttleConfig.getDuration("duration").toMillis.millis)
     val advancerConfig = config.getConfig("advancer")
     val windowStreamAdvancerConfig = WindowingStreamAdvancerConfigLoader(advancerConfig.getString("type")).load(advancerConfig)
 
-    WindowingStreamConfig(maxDelay, maxStreamSize, frequencies.toSeq, windowStreamAdvancerConfig)
+    WindowingStreamConfig(maxDelay, maxStreamSize, frequencies.toSeq, windowStreamThrottleConfig, windowStreamAdvancerConfig)
   }
 
   def load(): WindowingStreamConfig = {

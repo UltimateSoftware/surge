@@ -2,6 +2,7 @@
 
 package surge.internal.health.windows.stream.sliding
 
+import java.time.Instant
 import java.util.concurrent.{ Executors, TimeUnit }
 
 import akka.actor.ActorSystem
@@ -9,14 +10,14 @@ import akka.testkit.{ TestKit, TestProbe }
 import com.typesafe.config.ConfigFactory
 import org.mockito.Mockito
 import org.mockito.stubbing.Stubber
-import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach }
 import org.scalatest.concurrent.Eventually
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Milliseconds, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
+import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach }
 import org.scalatestplus.mockito.MockitoSugar
 import surge.health.SignalType
-import surge.health.config.{ WindowingStreamConfig, WindowingStreamSliderConfig }
+import surge.health.config.{ WindowingStreamConfig, WindowingStreamSliderConfig, WindowingStreamThrottleConfig }
 import surge.health.domain.{ Error, HealthSignal, Trace }
 import surge.health.matchers.SideEffect
 import surge.health.windows.{ AddedToWindow, WindowAdvanced, WindowClosed, WindowOpened }
@@ -32,6 +33,7 @@ trait MockitoHelper extends MockitoSugar {
   }
 }
 
+case class TimedCount(count: Int, time: Option[Instant])
 class SlidingHealthSignalStreamSpec
     extends TestKit(ActorSystem("SlidingHealthSignalStreamSpec", ConfigFactory.load("sliding-health-signal-stream-spec")))
     with AnyWordSpecLike
@@ -58,6 +60,7 @@ class SlidingHealthSignalStreamSpec
     val signalStreamProvider = new SlidingHealthSignalStreamProvider(
       WindowingStreamConfig(
         advancerConfig = WindowingStreamSliderConfig(buffer = 10, advanceAmount = 1),
+        throttleConfig = WindowingStreamThrottleConfig(100, 5.seconds),
         maxDelay = 1.seconds,
         maxStreamSize = 500,
         frequencies = Seq(10.seconds)),

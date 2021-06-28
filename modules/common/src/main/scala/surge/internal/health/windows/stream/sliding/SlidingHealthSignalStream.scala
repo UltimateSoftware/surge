@@ -101,6 +101,7 @@ private class SlidingHealthSignalStreamImpl(
     signalData = Some(
       Source
         .queue[HealthSignal](windowingConfig.maxStreamSize, OverflowStrategy.backpressure)
+        .throttle(windowingConfig.throttleConfig.elements, windowingConfig.throttleConfig.duration)
         .toMat(Sink.foreach(signal => {
           windowActors.foreach(actor => actor.processSignal(signal))
         }))(Keep.left)

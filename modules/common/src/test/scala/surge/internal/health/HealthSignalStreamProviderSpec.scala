@@ -6,7 +6,7 @@ import akka.actor.ActorSystem
 import akka.testkit.{ TestKit, TestProbe }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
-import surge.health.config.{ WindowingStreamConfig, WindowingStreamSliderConfig }
+import surge.health.config.{ WindowingStreamConfig, WindowingStreamSliderConfig, WindowingStreamThrottleConfig }
 import surge.health.domain.{ HealthSignal, Trace }
 import surge.health.matchers.{ SideEffect, SignalPatternMatcher }
 import surge.health.windows.{ AddedToWindow, Window, WindowAdvanced, WindowClosed, WindowOpened, WindowStopped }
@@ -65,6 +65,7 @@ class HealthSignalStreamProviderSpec extends TestKit(ActorSystem("HealthSignalSt
       val provider = new SlidingHealthSignalStreamProvider(
         WindowingStreamConfig(
           advancerConfig = WindowingStreamSliderConfig(buffer = 10, advanceAmount = 1),
+          throttleConfig = WindowingStreamThrottleConfig(elements = 100, duration = 5.seconds),
           maxDelay = 5.seconds,
           maxStreamSize = 500,
           frequencies = Seq(10.seconds)),
