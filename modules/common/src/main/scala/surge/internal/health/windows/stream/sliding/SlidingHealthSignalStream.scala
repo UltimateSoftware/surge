@@ -92,7 +92,7 @@ private class SlidingHealthSignalStreamImpl(
     if (Option(windowHandle).exists(h => h.isRunning)) {
       throw new RuntimeException(
         "SlidingHealthSignalStream is already processing signals." +
-          "Be sure to close the stream prior to processing again.")
+          "Be sure to release the stream prior to processing again.")
     }
 
     // Create a windowActor for each configured windowing frequency
@@ -106,12 +106,8 @@ private class SlidingHealthSignalStreamImpl(
       .run()(Materializer(actorSystem))
 
     // Stream Handle
-    new SlidingHealthSignalStreamHandle(
-      windowActors,
-      () => {
-        signalData = null
-      },
-      sourceQueue())
+    val signalDataCleanup = () => { signalData = null }
+    new SlidingHealthSignalStreamHandle(windowActors, signalDataCleanup, sourceQueue())
   }
 
   override def release(): Unit = {
