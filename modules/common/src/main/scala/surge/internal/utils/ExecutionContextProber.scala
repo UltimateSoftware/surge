@@ -15,7 +15,7 @@ import scala.concurrent.{ ExecutionContext, Future }
 import scala.language.postfixOps
 
 final case class ExecutionContextProberSettings(
-    targetEc: ExecutionContext,
+    targetEcName: String,
     initialDelay: FiniteDuration,
     timeout: FiniteDuration,
     interval: FiniteDuration,
@@ -73,7 +73,7 @@ class ExecutionContextProberActor(settings: ExecutionContextProberSettings) exte
   override def receive: Receive = {
     case SendProbes =>
       val id = UUID.randomUUID()
-      implicit val ec: ExecutionContext = settings.targetEc
+      implicit val ec: ExecutionContext = system.dispatchers.lookup(settings.targetEcName)
       (1 to settings.numProbes).foreach(_ => pipe(noOpFuture(id)).to(self))
       timers.startSingleTimer(TimeoutKey, msg = Timeout, settings.timeout)
       context.become(collect(count = 0, expectedId = id))
@@ -88,14 +88,19 @@ class ExecutionContextProberActor(settings: ExecutionContextProberSettings) exte
 
   def collect(count: Int, expectedId: UUID): Receive = {
     case Timeout =>
-      log.warning(s"One of our probes timed out. ${warningText}.")
+      log.warning(
+        s"One of our (${settings.numProbes}) probes timed out (after ${settings.timeout}) " +
+          s"on execution context ${settings.targetEcName}. ${warningText}.")
       // the execution context is potentially unhealthy so we want to suspend our checks for a bit (to give
       // it time to recover in case it's just a hiccup), hence interval * 3.
       detectedIssue = true
       timers.startSingleTimer(SendProbesKey, msg = SendProbes, settings.interval * 3)
       context.become(receive)
     case Status.Failure(e) =>
-      log.error(e, s"One of our probes resulted in a failed future. ${warningText}.")
+      log.error(
+        e,
+        s"One of our (${settings.numProbes}) probes resulted in a failed future " +
+          s"on execution context ${settings.targetEcName}. ${warningText}.")
       detectedIssue = true
       timers.startSingleTimer(SendProbesKey, msg = SendProbes, settings.interval * 3)
       timers.cancel(TimeoutKey)
@@ -123,8 +128,8 @@ class ExecutionContextProberActor(settings: ExecutionContextProberSettings) exte
 // See: https://doc.akka.io/docs/akka/current/typed/extending.html
 class ExecutionContextProberImpl(system: ActorSystem) extends Extension {
 
-  val targetEc = system.dispatcher // the target EC is the main dispatcher of the actor system
-  val proberConfig = system.settings.config.getConfig("prober")
+  val targetEc = "akka.actor.default-dispatcher" // TODO: make this configurable and support multiple ECs
+  val proberConfig = system.settings.config.getConfig("execution-context-prober")
   val initialDelay = proberConfig.getDuration("initial-delay", TimeUnit.MILLISECONDS) millis
   val timeout = proberConfig.getDuration("timeout", TimeUnit.MILLISECONDS) millis
   val interval = proberConfig.getDuration("interval", TimeUnit.MILLISECONDS) millis
