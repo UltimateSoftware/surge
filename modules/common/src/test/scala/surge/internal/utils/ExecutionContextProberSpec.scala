@@ -34,7 +34,8 @@ class ExecutionContextProberSpec
       ExecutionContextProberActor
         .props(
           ExecutionContextProberSettings(
-            targetEcName = "akka.actor.default-dispatcher",
+            targetEc = targetEc,
+            targetEcName = "test-dispatcher",
             initialDelay = 100 millis,
             timeout = 50 millis,
             interval,

@@ -15,6 +15,7 @@ import scala.concurrent.{ ExecutionContext, Future }
 import scala.language.postfixOps
 
 final case class ExecutionContextProberSettings(
+    targetEc: ExecutionContext,
     targetEcName: String,
     initialDelay: FiniteDuration,
     timeout: FiniteDuration,
@@ -73,7 +74,7 @@ class ExecutionContextProberActor(settings: ExecutionContextProberSettings) exte
   override def receive: Receive = {
     case SendProbes =>
       val id = UUID.randomUUID()
-      implicit val ec: ExecutionContext = system.dispatchers.lookup(settings.targetEcName)
+      implicit val ec: ExecutionContext = settings.targetEc
       (1 to settings.numProbes).foreach(_ => pipe(noOpFuture(id)).to(self))
       timers.startSingleTimer(TimeoutKey, msg = Timeout, settings.timeout)
       context.become(collect(count = 0, expectedId = id))
@@ -128,14 +129,15 @@ class ExecutionContextProberActor(settings: ExecutionContextProberSettings) exte
 // See: https://doc.akka.io/docs/akka/current/typed/extending.html
 class ExecutionContextProberImpl(system: ActorSystem) extends Extension {
 
-  private val targetEc = "akka.actor.default-dispatcher" // TODO: make this configurable and support multiple ECs
+  private val targetEcName = "akka.actor.default-dispatcher" // TODO: make this configurable and support multiple ECs
+  private val targetEc = system.dispatchers.lookup(targetEcName)
   private val proberConfig = system.settings.config.getConfig("execution-context-prober")
   private val initialDelay = proberConfig.getDuration("initial-delay", TimeUnit.MILLISECONDS) millis
   private val timeout = proberConfig.getDuration("timeout", TimeUnit.MILLISECONDS) millis
   private val interval = proberConfig.getDuration("interval", TimeUnit.MILLISECONDS) millis
   private val numProbes = proberConfig.getInt("num-probes")
 
-  private val settings = ExecutionContextProberSettings(targetEc, initialDelay, timeout, interval, numProbes)
+  private val settings = ExecutionContextProberSettings(targetEc, targetEcName, initialDelay, timeout, interval, numProbes)
 
   private val actor = system.actorOf(ExecutionContextProberActor.props(settings).withDispatcher("execution-context-prober.dispatcher"), name = "prober")
 
