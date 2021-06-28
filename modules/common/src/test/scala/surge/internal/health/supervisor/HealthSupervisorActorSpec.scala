@@ -42,7 +42,11 @@ class HealthSupervisorActorSpec
       val probe = TestProbe()
 
       val bus: HealthSignalBusInternal = new SlidingHealthSignalStreamProvider(
-        WindowingStreamConfig(advancerConfig = WindowingStreamSliderConfig()),
+        WindowingStreamConfig(
+          advancerConfig = WindowingStreamSliderConfig(buffer = 10, advanceAmount = 1),
+          maxDelay = 5.seconds,
+          maxStreamSize = 500,
+          frequencies = Seq(10.seconds)),
         system,
         streamMonitoring = Some(new StreamMonitoringRef(probe.ref)),
         Seq(SignalNameEqualsMatcher(name = "test.trace", Some(SideEffect(Seq(testHealthSignal)))))).busWithSupervision()
@@ -75,7 +79,11 @@ class HealthSupervisorActorSpec
       val probe = TestProbe()
 
       val bus = new SlidingHealthSignalStreamProvider(
-        WindowingStreamConfig(advancerConfig = WindowingStreamSliderConfig()),
+        WindowingStreamConfig(
+          advancerConfig = WindowingStreamSliderConfig(buffer = 10, advanceAmount = 1),
+          maxDelay = 5.seconds,
+          maxStreamSize = 500,
+          frequencies = Seq(10.seconds)),
         system,
         streamMonitoring = Some(new StreamMonitoringRef(probe.ref)),
         Seq(SignalNameEqualsMatcher(name = "test.trace", Some(SideEffect(Seq(testHealthSignal)))))).busWithSupervision()
@@ -100,7 +108,11 @@ class HealthSupervisorActorSpec
     "receive signal" in {
       val probe: TestProbe = TestProbe()
       val bus = new SlidingHealthSignalStreamProvider(
-        WindowingStreamConfig(advancerConfig = WindowingStreamSliderConfig()),
+        WindowingStreamConfig(
+          advancerConfig = WindowingStreamSliderConfig(buffer = 10, advanceAmount = 1),
+          maxDelay = 5.seconds,
+          maxStreamSize = 500,
+          frequencies = Seq(10.seconds)),
         system,
         streamMonitoring = Some(new StreamMonitoringRef(probe.ref)),
         Seq(SignalNameEqualsMatcher(name = "test.trace", Some(SideEffect(Seq(testHealthSignal)))))).busWithSupervision()

@@ -26,15 +26,15 @@ object HealthSignalBus {
   implicit val system: ActorSystem = ActorSystem("HealthSignalBusActorSystem")
   val log: Logger = LoggerFactory.getLogger(getClass)
 
-  val config: Config = ConfigFactory.load().atPath("surge.health")
+  val config: Config = ConfigFactory.load().getConfig("surge.health")
 
   def apply(signalStream: HealthSignalStreamProvider, startStreamOnInit: Boolean = false): HealthSignalBusInternal = {
     val stopStreamOnUnsubscribe = startStreamOnInit
     val bus = new HealthSignalBusImpl(
       HealthSignalBusConfig(
-        signalTopic = Try { config.getString("bus.signalTopic") }.getOrElse("health.signal"),
-        registrationTopic = Try { config.getString("bus.registrationTopic") }.getOrElse("health.registration"),
-        allowedSubscriberCount = Try { config.getInt("bus.allowedSubscriberCount") }.getOrElse(128)),
+        signalTopic = config.getString("bus.signal-topic"),
+        registrationTopic = config.getString("bus.registration-topic"),
+        allowedSubscriberCount = config.getInt("bus.allowed-subscriber-count")),
       signalStream,
       stopStreamOnUnsubscribe)
 

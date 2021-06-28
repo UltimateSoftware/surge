@@ -14,11 +14,9 @@ import surge.health.{ HealthSignalStream, SignalType }
 import surge.internal.health.matchers.{ RepeatingSignalMatcher, SignalNameEqualsMatcher }
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
 
-import scala.languageFeature.postfixOps
-
+import scala.concurrent.duration._
 class HealthSignalStreamProviderSpec extends TestKit(ActorSystem("HealthSignalStreamProviderSpec")) with AnyWordSpecLike with Matchers {
   import surge.internal.health.context.TestContext._
-  implicit val postOp: postfixOps = postfixOps
 
   "HealthSignalStreamProvider" should {
     import org.mockito.Mockito._
@@ -65,7 +63,11 @@ class HealthSignalStreamProviderSpec extends TestKit(ActorSystem("HealthSignalSt
       val initialFilters = Seq(SignalNameEqualsMatcher(name = "foo"))
 
       val provider = new SlidingHealthSignalStreamProvider(
-        WindowingStreamConfig(advancerConfig = WindowingStreamSliderConfig()),
+        WindowingStreamConfig(
+          advancerConfig = WindowingStreamSliderConfig(buffer = 10, advanceAmount = 1),
+          maxDelay = 5.seconds,
+          maxStreamSize = 500,
+          frequencies = Seq(10.seconds)),
         system,
         streamMonitoring = None,
         initialFilters)

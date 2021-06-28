@@ -54,7 +54,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
   private val partitionTracker: KafkaConsumerPartitionAssignmentTracker = new KafkaConsumerPartitionAssignmentTracker(stateChangeActor)
 
   // Get a supervised HealthSignalBus from the HealthSignalStream Provider.
-  //  Intentionally do not start on init i.e. startStreamOnInit = false.  Delegate start to pipeline lifecycle.
+  //  Intentionally do not start on init i.e. busWithSupervision(startStreamOnInit = false).  Delegate start to pipeline lifecycle.
   override val signalBus: HealthSignalBusTrait = signalStreamProvider.busWithSupervision()
 
   protected val kafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue] = new AggregateStateStoreKafkaStreams[JsValue](

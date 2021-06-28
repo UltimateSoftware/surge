@@ -39,7 +39,11 @@ class RepeatingSignalMatcherSpec extends TestKit(ActorSystem("RepeatingSignals")
       val windowBuffer = 10
       val probe = TestProbe()
       val slidingHealthSignalStream = new SlidingHealthSignalStreamProvider(
-        WindowingStreamConfig(advancerConfig = WindowingStreamSliderConfig(buffer = windowBuffer)),
+        WindowingStreamConfig(
+          advancerConfig = WindowingStreamSliderConfig(buffer = windowBuffer, advanceAmount = 1),
+          maxDelay = 5.seconds,
+          maxStreamSize = 500,
+          frequencies = Seq(10.seconds)),
         filters = Seq(RepeatingSignalMatcher(2, SignalNameEqualsMatcher("99"), None)),
         streamMonitoring = Some(new StreamMonitoringRef(probe.ref)),
         actorSystem = system)

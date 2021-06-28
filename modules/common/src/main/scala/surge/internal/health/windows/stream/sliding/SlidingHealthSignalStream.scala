@@ -58,11 +58,11 @@ private class SlidingHealthSignalStreamImpl(
     extends SlidingHealthSignalStream {
 
   private var windowHandle: StreamHandle = _
-  private var signalData: SourceQueueWithComplete[HealthSignal] = _
+  private var signalData: Option[SourceQueueWithComplete[HealthSignal]] = None
 
   override def id(): String = "sliding-window-signal-listener"
 
-  override protected[health] def sourceQueue(): Option[SourceQueueWithComplete[HealthSignal]] = Option(signalData)
+  override protected[health] def sourceQueue(): Option[SourceQueueWithComplete[HealthSignal]] = signalData
 
   override def subscribeWithFilters(signalHandler: SignalHandler, filters: Seq[SignalPatternMatcher] = Seq.empty): HealthSignalListener = {
     if (!signalBus.subscriberInfo().exists(p => p.name == id())) {
@@ -98,15 +98,16 @@ private class SlidingHealthSignalStreamImpl(
     // Create a windowActor for each configured windowing frequency
     val windowActors: Seq[HealthSignalWindowActorRef] = createWindowActors()
 
-    signalData = Source
-      .queue[HealthSignal](windowingConfig.maxStreamSize, OverflowStrategy.backpressure)
-      .toMat(Sink.foreach(signal => {
-        windowActors.foreach(actor => actor.processSignal(signal))
-      }))(Keep.left)
-      .run()(Materializer(actorSystem))
+    signalData = Some(
+      Source
+        .queue[HealthSignal](windowingConfig.maxStreamSize, OverflowStrategy.backpressure)
+        .toMat(Sink.foreach(signal => {
+          windowActors.foreach(actor => actor.processSignal(signal))
+        }))(Keep.left)
+        .run()(Materializer(actorSystem)))
 
     // Stream Handle
-    val signalDataCleanup = () => { signalData = null }
+    val signalDataCleanup = () => { signalData = None }
     new SlidingHealthSignalStreamHandle(windowActors, signalDataCleanup, sourceQueue())
   }
 
