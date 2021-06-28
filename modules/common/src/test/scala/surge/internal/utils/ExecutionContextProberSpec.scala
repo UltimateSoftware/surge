@@ -32,8 +32,14 @@ class ExecutionContextProberSpec
   def createProberActor(targetEc: ExecutionContext, interval: FiniteDuration = 7 seconds, name: String): ActorRef = {
     system.actorOf(
       ExecutionContextProberActor
-        .props(ExecutionContextProberSettings(targetEc, initialDelay = 100 millis, timeout = 50 millis, interval, numProbes = 7))
-        .withDispatcher("prober.dispatcher"),
+        .props(
+          ExecutionContextProberSettings(
+            targetEcName = "akka.actor.default-dispatcher",
+            initialDelay = 100 millis,
+            timeout = 50 millis,
+            interval,
+            numProbes = 7))
+        .withDispatcher("execution-context-prober.dispatcher"),
       name)
   }
 

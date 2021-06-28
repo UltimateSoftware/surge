@@ -128,16 +128,16 @@ class ExecutionContextProberActor(settings: ExecutionContextProberSettings) exte
 // See: https://doc.akka.io/docs/akka/current/typed/extending.html
 class ExecutionContextProberImpl(system: ActorSystem) extends Extension {
 
-  val targetEc = "akka.actor.default-dispatcher" // TODO: make this configurable and support multiple ECs
-  val proberConfig = system.settings.config.getConfig("execution-context-prober")
-  val initialDelay = proberConfig.getDuration("initial-delay", TimeUnit.MILLISECONDS) millis
-  val timeout = proberConfig.getDuration("timeout", TimeUnit.MILLISECONDS) millis
-  val interval = proberConfig.getDuration("interval", TimeUnit.MILLISECONDS) millis
-  val numProbes = proberConfig.getInt("num-probes")
+  private val targetEc = "akka.actor.default-dispatcher" // TODO: make this configurable and support multiple ECs
+  private val proberConfig = system.settings.config.getConfig("execution-context-prober")
+  private val initialDelay = proberConfig.getDuration("initial-delay", TimeUnit.MILLISECONDS) millis
+  private val timeout = proberConfig.getDuration("timeout", TimeUnit.MILLISECONDS) millis
+  private val interval = proberConfig.getDuration("interval", TimeUnit.MILLISECONDS) millis
+  private val numProbes = proberConfig.getInt("num-probes")
 
-  val settings = ExecutionContextProberSettings(targetEc, initialDelay, timeout, interval, numProbes)
+  private val settings = ExecutionContextProberSettings(targetEc, initialDelay, timeout, interval, numProbes)
 
-  val actor = system.actorOf(ExecutionContextProberActor.props(settings), name = "prober")
+  private val actor = system.actorOf(ExecutionContextProberActor.props(settings).withDispatcher("execution-context-prober.dispatcher"), name = "prober")
 
   CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseBeforeServiceUnbind, "stopProber") { () =>
     stop()
