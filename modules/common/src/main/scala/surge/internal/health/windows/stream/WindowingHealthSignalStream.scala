@@ -4,8 +4,9 @@ package surge.internal.health.windows.stream
 
 import akka.Done
 import akka.actor.{ ActorRef, ActorSystem }
-import akka.stream.Materializer
+import akka.stream.{ Materializer, QueueOfferResult }
 import akka.stream.scaladsl.{ Sink, Source, SourceQueueWithComplete }
+import org.slf4j.{ Logger, LoggerFactory }
 import surge.health.{ HealthSignalStream, SignalHandler }
 import surge.health.domain.HealthSignal
 
@@ -21,7 +22,12 @@ trait StreamHandle {
   }
 }
 
+object WindowingHealthSignalStream {
+  val log: Logger = LoggerFactory.getLogger(getClass)
+}
+
 trait WindowingHealthSignalStream extends HealthSignalStream with ReleasableStream {
+  import WindowingHealthSignalStream._
   def underlyingActor: ActorRef
   def actorSystem: ActorSystem
 
@@ -48,7 +54,22 @@ trait WindowingHealthSignalStream extends HealthSignalStream with ReleasableStre
   final override def signalHandler: SignalHandler = (signal: HealthSignal) => {
     Try {
       sourceQueue().foreach(queue => {
-        Source.single(signal).runWith(Sink.foreach(s => queue.offer(s)))(Materializer(actorSystem))
+        Source
+          .single(signal)
+          .runWith(
+            Sink.foreach(s =>
+              queue
+                .offer(s)
+                .map {
+                  case QueueOfferResult.Enqueued =>
+                    log.debug("signal enqueued {}", s)
+                  case QueueOfferResult.Dropped =>
+                    log.warn("signal dropped {}", s)
+                  case QueueOfferResult.Failure(cause) =>
+                    log.error("signal failed {}", s, cause)
+                  case QueueOfferResult.QueueClosed =>
+                    log.debug("queue closed")
+                }(actorSystem.dispatcher)))(Materializer(actorSystem))
       })
       Done
     }
