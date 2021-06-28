@@ -8,17 +8,16 @@ import akka.stream.Materializer
 import akka.stream.scaladsl.{ Sink, Source, SourceQueueWithComplete }
 import surge.health.{ HealthSignalStream, SignalHandler }
 import surge.health.domain.HealthSignal
-import surge.utils.BooleanWrapper
 
 import scala.util.Try
 
 trait StreamHandle {
-  private val running: BooleanWrapper = new BooleanWrapper().asTrue()
+  private var running: Boolean = true
 
-  final def isRunning: Boolean = running.wrapped()
+  final def isRunning: Boolean = running
 
   def close(): Unit = {
-    this.running.setFalse()
+    this.running = false
   }
 }
 
