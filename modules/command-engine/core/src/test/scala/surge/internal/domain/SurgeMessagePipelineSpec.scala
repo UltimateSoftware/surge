@@ -18,11 +18,10 @@ import surge.core.TestBoundedContext
 import surge.health.config.{ WindowingStreamConfig, WindowingStreamSliderConfig, WindowingStreamThrottleConfig }
 import surge.health.domain.{ Error, HealthSignal }
 import surge.health.matchers.{ SideEffectBuilder, SignalPatternMatcherDefinition }
-import surge.health.{ HealthListener, HealthMessage, SignalType }
+import surge.health.{ HealthListener, HealthMessage, RestartComponentAttempted, SignalType }
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.core.SurgePartitionRouterImpl
 import surge.internal.health.StreamMonitoringRef
-import surge.internal.health.supervisor.RestartComponentAttempted
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
 import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, MockPartitionTracker, MockState }
 import surge.metrics.Metrics

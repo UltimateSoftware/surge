@@ -106,8 +106,6 @@ class HealthSignalWindowActorRef(val actor: ActorRef, initialWindowProcessingDel
 class HealthSignalWindowActor(frequency: FiniteDuration, windowAdvanceStrategy: Advancer[Window]) extends Actor with Stash {
   import HealthSignalWindowActor._
 
-  implicit val postfix: postfixOps = postfixOps
-
   /**
    * Initialization
    * @return

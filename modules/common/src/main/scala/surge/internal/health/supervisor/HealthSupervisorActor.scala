@@ -2,8 +2,6 @@
 
 package surge.internal.health.supervisor
 
-import java.time.Instant
-
 import akka.Done
 import akka.actor.{ Actor, ActorContext, ActorRef, ActorSystem, PoisonPill, Props, Terminated }
 import akka.pattern.{ ask, BackoffOpts, BackoffSupervisor }
@@ -86,13 +84,6 @@ case class Stop()
 
 // State
 case class HealthState(registered: Map[String, HealthRegistration] = Map.empty, replyTo: Option[ActorRef] = None)
-
-// Reply
-case class HealthRegistrationReceived(registration: HealthRegistration)
-case class HealthSignalReceived(signal: HealthSignal)
-case class HealthSignalStreamAdvanced()
-case class RestartComponentAttempted(componentName: String, timestamp: Instant = Instant.now())
-case class ShutdownComponentAttempted(componentName: String, timestamp: Instant = Instant.now())
 
 object HealthSupervisorActor {
   val log: Logger = LoggerFactory.getLogger(getClass)

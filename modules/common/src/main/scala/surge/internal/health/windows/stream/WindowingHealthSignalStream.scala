@@ -2,13 +2,14 @@
 
 package surge.internal.health.windows.stream
 
-import akka.Done
+import akka.{ Done, NotUsed }
 import akka.actor.{ ActorRef, ActorSystem }
-import akka.stream.{ Materializer, QueueOfferResult }
 import akka.stream.scaladsl.{ Sink, Source, SourceQueueWithComplete }
+import akka.stream.{ Materializer, QueueOfferResult }
 import org.slf4j.{ Logger, LoggerFactory }
-import surge.health.{ HealthSignalStream, SignalHandler }
 import surge.health.domain.HealthSignal
+import surge.health.windows.WindowEvent
+import surge.health.{ HealthSignalStream, SignalHandler }
 
 import scala.util.Try
 
@@ -39,11 +40,25 @@ trait WindowingHealthSignalStream extends HealthSignalStream with ReleasableStre
   protected[health] def processWindows(): StreamHandle
 
   /**
+   * Provide WindowEvent(s) in a Source for stream operations
+   * @return
+   *   Source[WindowEvent, NotUsed]
+   */
+  def windowEventSource(): Source[WindowEvent, NotUsed]
+
+  /**
    * Provide SourceQueue for processing
    * @return
    *   Option[SourceQueueWithComplete]
    */
-  protected[health] def sourceQueue(): Option[SourceQueueWithComplete[HealthSignal]]
+  protected[health] def signalSourceQueue(): Option[SourceQueueWithComplete[HealthSignal]]
+
+  /**
+   * Provide SourceQueue of WindowEvents
+   * @return
+   *   Option[SourceQueueWithComplete]
+   */
+  protected[health] def windowEventsSourceQueue(): Option[SourceQueueWithComplete[WindowEvent]]
 
   /**
    * Add Signal to Source Queue for processing
@@ -53,7 +68,7 @@ trait WindowingHealthSignalStream extends HealthSignalStream with ReleasableStre
    */
   final override def signalHandler: SignalHandler = (signal: HealthSignal) => {
     Try {
-      sourceQueue().foreach(queue => {
+      signalSourceQueue().foreach(queue => {
         Source
           .single(signal)
           .runWith(

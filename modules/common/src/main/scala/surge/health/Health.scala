@@ -102,6 +102,13 @@ trait HealthRegistrationListener extends HealthListener {
 
 }
 
+sealed trait HealthSupervisionEvent {}
+case class HealthRegistrationReceived(registration: HealthRegistration) extends HealthSupervisionEvent
+case class HealthSignalReceived(signal: HealthSignal) extends HealthSupervisionEvent
+case class HealthSignalStreamAdvanced() extends HealthSupervisionEvent
+case class RestartComponentAttempted(componentName: String, timestamp: Instant = Instant.now()) extends HealthSupervisionEvent
+case class ShutdownComponentAttempted(componentName: String, timestamp: Instant = Instant.now()) extends HealthSupervisionEvent
+
 case class HealthSupervisorState(started: Boolean)
 
 trait HealthSupervisorTrait {

@@ -5,7 +5,9 @@ package surge.internal.health.windows.stream.sliding
 import java.time.Instant
 import java.util.concurrent.{ Executors, TimeUnit }
 
+import akka.NotUsed
 import akka.actor.ActorSystem
+import akka.stream.scaladsl.{ Sink, Source }
 import akka.testkit.{ TestKit, TestProbe }
 import com.typesafe.config.ConfigFactory
 import org.mockito.Mockito
@@ -16,15 +18,16 @@ import org.scalatest.time.{ Milliseconds, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach }
 import org.scalatestplus.mockito.MockitoSugar
-import surge.health.SignalType
 import surge.health.config.{ WindowingStreamConfig, WindowingStreamSliderConfig, WindowingStreamThrottleConfig }
 import surge.health.domain.{ Error, HealthSignal, Trace }
 import surge.health.matchers.SideEffect
-import surge.health.windows.{ AddedToWindow, WindowAdvanced, WindowClosed, WindowOpened }
+import surge.health.windows._
+import surge.health.{ HealthSignalReceived, HealthSignalStream, SignalType }
 import surge.internal.health._
 import surge.internal.health.matchers.{ RepeatingSignalMatcher, SignalNameEqualsMatcher }
-import surge.internal.health.supervisor.HealthSignalReceived
+import surge.internal.health.windows.stream.WindowingHealthSignalStream
 
+import scala.collection.mutable
 import scala.concurrent.duration._
 
 trait MockitoHelper extends MockitoSugar {
@@ -47,6 +50,8 @@ class SlidingHealthSignalStreamSpec
     PatienceConfig(timeout = scaled(Span(10, Seconds)), interval = scaled(Span(10, Milliseconds)))
   private var probe: TestProbe = _
   private var bus: HealthSignalBusInternal = _
+  private var signalStreamProvider: SlidingHealthSignalStreamProvider = _
+
   override def beforeEach(): Unit = {
     probe = TestProbe()
     val signal = HealthSignal(topic = "health.signal", name = s"5 in a row", signalType = SignalType.TRACE, data = Trace(s"5 in a row"))
@@ -57,7 +62,7 @@ class SlidingHealthSignalStreamSpec
         atomicMatcher =
           SignalNameEqualsMatcher("test.trace", Some(SideEffect(Seq(HealthSignal("health.signal", "boom", SignalType.ERROR, Error("bah", None)))))),
         Some(SideEffect(Seq(signal)))))
-    val signalStreamProvider = new SlidingHealthSignalStreamProvider(
+    signalStreamProvider = new SlidingHealthSignalStreamProvider(
       WindowingStreamConfig(
         advancerConfig = WindowingStreamSliderConfig(buffer = 10, advanceAmount = 1),
         throttleConfig = WindowingStreamThrottleConfig(100, 5.seconds),
@@ -79,7 +84,7 @@ class SlidingHealthSignalStreamSpec
     TestKit.shutdownActorSystem(system)
   }
 
-  "SlidingHealthSignalStreamSpec" should {
+  "SlidingHealthSignalStream" should {
     "subscribe to HealthSignalBus" in {
       eventually {
         bus.subscriberInfo().exists(info => info.name == "surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamImpl") shouldEqual true
@@ -100,6 +105,33 @@ class SlidingHealthSignalStreamSpec
           msg.isInstanceOf[WindowAdvanced]
         }
         advanced.asInstanceOf[WindowAdvanced].d.signals.size shouldEqual 3
+      }
+    }
+
+    "provide source of WindowEvents" in {
+      val signalStream: Option[HealthSignalStream] = bus.backingSignalStream()
+
+      signalStream.isDefined shouldEqual true
+      signalStream.get shouldBe a[WindowingHealthSignalStream]
+
+      val windowEventSource: Source[WindowEvent, NotUsed] =
+        signalStream.get.asInstanceOf[WindowingHealthSignalStream].windowEventSource()
+
+      val receivedWindowEvents: mutable.ArrayBuffer[WindowEvent] = new mutable.ArrayBuffer[WindowEvent]()
+
+      windowEventSource.runWith(Sink.foreach(event => {
+        println(event)
+        receivedWindowEvents.addOne(event)
+      }))
+
+      bus.signalWithError(name = "test.error", Error("error to test close-open-window", None)).emit()
+
+      eventually {
+        receivedWindowEvents.nonEmpty shouldEqual true
+
+        receivedWindowEvents.exists(e => {
+          e.isInstanceOf[AddedToWindow] && e.asInstanceOf[AddedToWindow].s.name == "test.error"
+        }) shouldEqual true
       }
     }
 

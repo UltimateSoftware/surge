@@ -2,14 +2,15 @@
 
 package surge.internal.health.windows.stream.sliding
 
-import akka.actor.{ ActorRef, ActorSystem, Props }
-import akka.stream.scaladsl.{ Keep, Sink, Source, SourceQueueWithComplete }
+import akka.NotUsed
+import akka.actor.{ Actor, ActorRef, ActorSystem, Props }
+import akka.stream.scaladsl.{ Flow, Keep, Sink, Source, SourceQueue, SourceQueueWithComplete }
 import akka.stream.{ Materializer, OverflowStrategy }
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.health.config.WindowingStreamConfig
 import surge.health.domain.HealthSignal
 import surge.health.matchers.SignalPatternMatcher
-import surge.health.windows.WindowStreamListener
+import surge.health.windows.{ WindowEvent, WindowStreamListener }
 import surge.health.{ HealthSignalListener, SignalHandler }
 import surge.internal.health._
 import surge.internal.health.windows._
@@ -49,6 +50,24 @@ class SlidingHealthSignalStreamHandle(
   }
 }
 
+object WindowEventInterceptorActor {
+  val log: Logger = LoggerFactory.getLogger(getClass)
+}
+
+// Actor interceptor for WindowEvents
+class WindowEventInterceptorActor(actorSystem: ActorSystem, backingActor: ActorRef, windowEventQueueProvider: () => Option[SourceQueue[WindowEvent]])
+    extends Actor {
+
+  override def receive: Receive = {
+    case windowEvent: surge.health.windows.WindowEvent =>
+      windowEventQueueProvider
+        .apply()
+        .foreach(queue => Source.single(windowEvent).runWith(Sink.foreach(event => queue.offer(event)))(Materializer(actorSystem)))
+      backingActor ! windowEvent
+    case other => backingActor ! other
+  }
+}
+
 private class SlidingHealthSignalStreamImpl(
     windowingConfig: WindowingStreamConfig,
     override val signalBus: HealthSignalBusInternal,
@@ -60,9 +79,12 @@ private class SlidingHealthSignalStreamImpl(
   private var windowHandle: StreamHandle = _
   private var signalData: Option[SourceQueueWithComplete[HealthSignal]] = None
 
+  private var windowEvents: Option[SourceQueueWithComplete[WindowEvent]] = None
+
   override def id(): String = "sliding-window-signal-listener"
 
-  override protected[health] def sourceQueue(): Option[SourceQueueWithComplete[HealthSignal]] = signalData
+  override protected[health] def signalSourceQueue(): Option[SourceQueueWithComplete[HealthSignal]] = signalData
+  override protected[health] def windowEventsSourceQueue(): Option[SourceQueueWithComplete[WindowEvent]] = windowEvents
 
   override def subscribeWithFilters(signalHandler: SignalHandler, filters: Seq[SignalPatternMatcher] = Seq.empty): HealthSignalListener = {
     if (!signalBus.subscriberInfo().exists(p => p.name == id())) {
@@ -88,6 +110,18 @@ private class SlidingHealthSignalStreamImpl(
     this
   }
 
+  override def windowEventSource(): Source[WindowEvent, NotUsed] = {
+    val eventSource = Source
+      .queue[WindowEvent](windowingConfig.maxWindowSize, OverflowStrategy.backpressure)
+      .throttle(windowingConfig.throttleConfig.elements, windowingConfig.throttleConfig.duration)
+
+    val (sourceMat, source) = eventSource.preMaterialize()(Materializer(actorSystem))
+
+    windowEvents = Some(sourceMat)
+
+    source
+  }
+
   final override protected[health] def processWindows(): StreamHandle = {
     if (Option(windowHandle).exists(h => h.isRunning)) {
       throw new RuntimeException(
@@ -96,7 +130,7 @@ private class SlidingHealthSignalStreamImpl(
     }
 
     // Create a windowActor for each configured windowing frequency
-    val windowActors: Seq[HealthSignalWindowActorRef] = createWindowActors()
+    val windowActors: Seq[HealthSignalWindowActorRef] = createWindowActors(windowEventSourceProvider = () => windowEvents)
 
     signalData = Some(
       Source
@@ -109,7 +143,7 @@ private class SlidingHealthSignalStreamImpl(
 
     // Stream Handle
     val signalDataCleanup = () => { signalData = None }
-    new SlidingHealthSignalStreamHandle(windowActors, signalDataCleanup, sourceQueue())
+    new SlidingHealthSignalStreamHandle(windowActors, signalDataCleanup, signalSourceQueue())
   }
 
   override def release(): Unit = {
@@ -122,8 +156,11 @@ private class SlidingHealthSignalStreamImpl(
     Option(this.windowHandle).foreach(h => h.close())
   }
 
-  private def createWindowActors(): Seq[HealthSignalWindowActorRef] = {
+  private def createWindowActors(windowEventSourceProvider: () => Option[SourceQueue[WindowEvent]]): Seq[HealthSignalWindowActorRef] = {
     val advancerConfig = windowingConfig.advancerConfig
+
+    val windowEventInterceptorActor = actorSystem.actorOf(Props(new WindowEventInterceptorActor(actorSystem, underlyingActor, () => windowEvents)))
+
     windowingConfig.frequencies
       .map(freq =>
         HealthSignalWindowActor(
@@ -131,6 +168,6 @@ private class SlidingHealthSignalStreamImpl(
           initialWindowProcessingDelay = windowingConfig.windowingDelay,
           windowFrequency = freq,
           WindowSlider(advancerConfig.advanceAmount, advancerConfig.buffer)))
-      .map(ref => ref.start(Some(underlyingActor)))
+      .map(ref => ref.start(Some(windowEventInterceptorActor)))
   }
 }

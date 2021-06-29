@@ -11,7 +11,7 @@ import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
-import surge.health.{ Ack, HealthSupervisorTrait, SignalType }
+import surge.health.{ Ack, HealthRegistrationReceived, HealthSignalReceived, HealthSupervisorTrait, SignalType }
 import surge.health.config.{ WindowingStreamConfig, WindowingStreamSliderConfig, WindowingStreamThrottleConfig }
 import surge.health.domain.{ HealthSignal, Trace }
 import surge.health.matchers.SideEffect

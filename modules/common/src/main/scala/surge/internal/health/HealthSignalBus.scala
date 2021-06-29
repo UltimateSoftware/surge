@@ -48,6 +48,7 @@ object HealthSignalBus {
 
 trait HealthSignalBusInternal extends HealthSignalBusTrait with LookupClassification {
   def subscriberInfo(): Set[SubscriberInfo]
+  def backingSignalStream(): Option[HealthSignalStream]
   def withStreamSupervision(
       provider: HealthSignalBusInternal => HealthSupervisorActorRef,
       monitorRef: Option[StreamMonitoringRef] = None): HealthSignalBusInternal
@@ -121,7 +122,6 @@ private class EmittableHealthSignalImpl(healthSignal: HealthSignal, signalBus: H
 
 private[surge] class HealthSignalBusImpl(config: HealthSignalBusConfig, signalStreamSupplier: HealthSignalStreamProvider, stopStreamOnUnsubscribe: Boolean)
     extends HealthSignalBusInternal {
-  implicit val postfix: postfixOps = postfixOps
   implicit val actorSystem: ActorSystem = ActorSystem("healthSignalBusActorSystem")
 
   private lazy val stream: HealthSignalStream = signalStreamSupplier.provide(bus = this).subscribe()
@@ -147,6 +147,10 @@ private[surge] class HealthSignalBusImpl(config: HealthSignalBusConfig, signalSt
   override def signalTopic(): String = config.signalTopic
 
   override def registrationTopic(): String = config.registrationTopic
+
+  override def backingSignalStream(): Option[HealthSignalStream] = {
+    Some(stream)
+  }
 
   override def withStreamSupervision(
       provider: HealthSignalBusInternal => HealthSupervisorActorRef,
