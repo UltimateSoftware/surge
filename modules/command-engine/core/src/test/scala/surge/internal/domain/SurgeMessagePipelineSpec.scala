@@ -63,8 +63,8 @@ class SurgeMessagePipelineSpec
       WindowingStreamConfig(
         advancerConfig = WindowingStreamSliderConfig(buffer = 10, advanceAmount = 1),
         throttleConfig = WindowingStreamThrottleConfig(elements = 100, duration = 5.seconds),
-        maxDelay = 5.seconds,
-        maxStreamSize = 500,
+        windowingDelay = 1.seconds,
+        maxWindowSize = 500,
         frequencies = Seq(10.seconds)),
       system,
       Some(new StreamMonitoringRef(probe.ref)),

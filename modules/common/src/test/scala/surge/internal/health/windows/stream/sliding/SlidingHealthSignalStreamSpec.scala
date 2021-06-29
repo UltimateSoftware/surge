@@ -61,8 +61,8 @@ class SlidingHealthSignalStreamSpec
       WindowingStreamConfig(
         advancerConfig = WindowingStreamSliderConfig(buffer = 10, advanceAmount = 1),
         throttleConfig = WindowingStreamThrottleConfig(100, 5.seconds),
-        maxDelay = 1.seconds,
-        maxStreamSize = 500,
+        windowingDelay = 1.seconds,
+        maxWindowSize = 500,
         frequencies = Seq(10.seconds)),
       system,
       streamMonitoring = Some(new StreamMonitoringRef(probe.ref)),

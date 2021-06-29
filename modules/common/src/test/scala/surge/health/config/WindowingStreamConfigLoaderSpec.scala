@@ -18,8 +18,8 @@ class WindowingStreamConfigLoaderSpec extends AnyWordSpec with Matchers {
       windowingStreamConfig.advancerConfig.advanceAmount shouldEqual 2
       windowingStreamConfig.advancerConfig.buffer shouldEqual 15
 
-      windowingStreamConfig.maxDelay shouldEqual 10.seconds
-      windowingStreamConfig.maxStreamSize shouldEqual 200
+      windowingStreamConfig.windowingDelay shouldEqual 10.seconds
+      windowingStreamConfig.maxWindowSize shouldEqual 200
       windowingStreamConfig.frequencies shouldEqual Seq(20.seconds)
     }
   }

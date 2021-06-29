@@ -9,10 +9,16 @@ import scala.jdk.CollectionConverters._
 
 /**
  * WindowStreamConfig encapsulates all the configuration options for a WindowingHealthSignalStream
+ * @param windowingDelay
+ *   Initial Delay between start and the processing of window data.
+ * @param maxWindowSize
+ *   The maximum number of data elements in a window at any given time.
+ * @param frequencies
+ *   The time to live for windows, a window will either advance or close or both when ttl expires.
  */
 case class WindowingStreamConfig(
-    maxDelay: FiniteDuration,
-    maxStreamSize: Int,
+    windowingDelay: FiniteDuration,
+    maxWindowSize: Int,
     frequencies: Seq[FiniteDuration],
     throttleConfig: WindowingStreamThrottleConfig,
     advancerConfig: WindowingStreamAdvancerConfig)
@@ -60,7 +66,7 @@ object WindowingStreamConfigLoader {
   private val config = ConfigFactory.load().getConfig("surge.health.window.stream")
 
   def load(config: Config): WindowingStreamConfig = {
-    val maxDelay = config.getDuration("max-delay").toMillis.millis
+    val maxDelay = config.getDuration("delay").toMillis.millis
     val maxStreamSize = config.getInt("max-size")
     val frequencies = config.getDurationList("frequencies").asScala.map(d => d.toMillis.millis)
 

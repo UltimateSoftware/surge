@@ -42,8 +42,8 @@ class RepeatingSignalMatcherSpec extends TestKit(ActorSystem("RepeatingSignals")
         WindowingStreamConfig(
           advancerConfig = WindowingStreamSliderConfig(buffer = windowBuffer, advanceAmount = 1),
           throttleConfig = WindowingStreamThrottleConfig(elements = 100, duration = 5.seconds),
-          maxDelay = 5.seconds,
-          maxStreamSize = 500,
+          windowingDelay = 5.seconds,
+          maxWindowSize = 500,
           frequencies = Seq(10.seconds)),
         filters = Seq(RepeatingSignalMatcher(2, SignalNameEqualsMatcher("99"), None)),
         streamMonitoring = Some(new StreamMonitoringRef(probe.ref)),

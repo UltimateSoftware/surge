@@ -26,7 +26,11 @@ object HealthSignalWindowActor {
 
   case class Stop()
 
-  def apply(actorSystem: ActorSystem, windowFrequency: FiniteDuration, advancer: Advancer[Window]): HealthSignalWindowActorRef = {
+  def apply(
+      actorSystem: ActorSystem,
+      initialWindowProcessingDelay: FiniteDuration,
+      windowFrequency: FiniteDuration,
+      advancer: Advancer[Window]): HealthSignalWindowActorRef = {
 
     // note: we lose the window data on restarts
     val props = BackoffSupervisor.props(
@@ -40,18 +44,17 @@ object HealthSignalWindowActor {
         .withMaxNrOfRetries(BackoffConfig.HealthSignalWindowActor.maxRetries))
 
     val windowActor = actorSystem.actorOf(props, name = "healthyWindow")
-    new HealthSignalWindowActorRef(windowActor, windowFrequency, actorSystem)
+    new HealthSignalWindowActorRef(windowActor, initialWindowProcessingDelay, windowFrequency, actorSystem)
   }
 }
 
-class HealthSignalWindowActorRef(val actor: ActorRef, windowFreq: FiniteDuration, actorSystem: ActorSystem) {
+class HealthSignalWindowActorRef(val actor: ActorRef, initialWindowProcessingDelay: FiniteDuration, windowFreq: FiniteDuration, actorSystem: ActorSystem) {
   import HealthSignalWindowActor._
 
   private var listener: WindowStreamListeningActorRef = _
 
   private val scheduledTask: Cancellable =
-    actorSystem.scheduler.scheduleAtFixedRate(initialDelay = FiniteDuration(1, "second"), interval = FiniteDuration(1, "second"))(() => actor ! Tick())(
-      ExecutionContext.global)
+    actorSystem.scheduler.scheduleAtFixedRate(initialDelay = initialWindowProcessingDelay, interval = 1.second)(() => actor ! Tick())(ExecutionContext.global)
 
   def start(replyTo: Option[ActorRef]): HealthSignalWindowActorRef = {
     val window: Window = Window.windowFor(Instant.now(), windowFreq)

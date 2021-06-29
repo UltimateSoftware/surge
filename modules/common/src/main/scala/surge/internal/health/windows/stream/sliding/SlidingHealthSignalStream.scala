@@ -100,7 +100,7 @@ private class SlidingHealthSignalStreamImpl(
 
     signalData = Some(
       Source
-        .queue[HealthSignal](windowingConfig.maxStreamSize, OverflowStrategy.backpressure)
+        .queue[HealthSignal](windowingConfig.maxWindowSize, OverflowStrategy.backpressure)
         .throttle(windowingConfig.throttleConfig.elements, windowingConfig.throttleConfig.duration)
         .toMat(Sink.foreach(signal => {
           windowActors.foreach(actor => actor.processSignal(signal))
@@ -125,7 +125,12 @@ private class SlidingHealthSignalStreamImpl(
   private def createWindowActors(): Seq[HealthSignalWindowActorRef] = {
     val advancerConfig = windowingConfig.advancerConfig
     windowingConfig.frequencies
-      .map(freq => HealthSignalWindowActor(actorSystem, freq, WindowSlider(advancerConfig.advanceAmount, advancerConfig.buffer)))
+      .map(freq =>
+        HealthSignalWindowActor(
+          actorSystem,
+          initialWindowProcessingDelay = windowingConfig.windowingDelay,
+          windowFrequency = freq,
+          WindowSlider(advancerConfig.advanceAmount, advancerConfig.buffer)))
       .map(ref => ref.start(Some(underlyingActor)))
   }
 }
