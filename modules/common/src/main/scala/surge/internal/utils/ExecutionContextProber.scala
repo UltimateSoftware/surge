@@ -71,6 +71,9 @@ class ExecutionContextProberActor(settings: ExecutionContextProberSettings) exte
 
   override def receive: Receive = ready(detectedIssue = false)
 
+  /**
+   * @param detectedIssue have we detected a starvation issue so far ? used solely by the unit test
+   */
   def ready(detectedIssue: Boolean): Receive = {
     case SendProbes =>
       val id = UUID.randomUUID()
@@ -78,7 +81,7 @@ class ExecutionContextProberActor(settings: ExecutionContextProberSettings) exte
       (1 to settings.numProbes).foreach(_ => pipe(noOpFuture(id)).to(self))
       timers.startSingleTimer(TimeoutKey, msg = Timeout, settings.timeout)
       context.become(collect(count = 0, expectedId = id, detectedIssue))
-    case HasIssues =>
+    case HasIssues => // used solely by the unit test
       sender() ! detectedIssue
     case Stop =>
       timers.cancel(SendProbesKey)
@@ -87,6 +90,11 @@ class ExecutionContextProberActor(settings: ExecutionContextProberSettings) exte
     case _ => // ignore (the uncancelled futures we didn't collect from previous check(s) ...)
   }
 
+  /**
+   * @param count number of probe responses we have collected so far
+   * @param expectedId expected id of the probe response
+   * @param detectedIssue have we detected a starvation issue so far ? used solely by the unit test
+   */
   def collect(count: Int, expectedId: UUID, detectedIssue: Boolean): Receive = {
     case Timeout =>
       log.warning(
@@ -117,7 +125,7 @@ class ExecutionContextProberActor(settings: ExecutionContextProberSettings) exte
       timers.cancel(TimeoutKey)
       sender() ! Done
       context.stop(self)
-    case HasIssues =>
+    case HasIssues => // used solely by the unit test
       sender() ! detectedIssue
     case _ => // ignore (the uncancelled futures we didn't collect from previous check(s) ...)
   }
