@@ -18,7 +18,7 @@ import org.scalatest.time.{ Milliseconds, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach }
 import org.scalatestplus.mockito.MockitoSugar
-import surge.health.config.{ WindowingStreamConfig, WindowingStreamSliderConfig, WindowingStreamThrottleConfig }
+import surge.health.config.{ ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig }
 import surge.health.domain.{ Error, HealthSignal, Trace }
 import surge.health.matchers.SideEffect
 import surge.health.windows._
@@ -65,7 +65,7 @@ class SlidingHealthSignalStreamSpec
     signalStreamProvider = new SlidingHealthSignalStreamProvider(
       WindowingStreamConfig(
         advancerConfig = WindowingStreamSliderConfig(buffer = 10, advanceAmount = 1),
-        throttleConfig = WindowingStreamThrottleConfig(100, 5.seconds),
+        throttleConfig = ThrottleConfig(100, 5.seconds),
         windowingDelay = 1.seconds,
         maxWindowSize = 500,
         frequencies = Seq(10.seconds)),
@@ -115,12 +115,11 @@ class SlidingHealthSignalStreamSpec
       signalStream.get shouldBe a[WindowingHealthSignalStream]
 
       val windowEventSource: Source[WindowEvent, NotUsed] =
-        signalStream.get.asInstanceOf[WindowingHealthSignalStream].windowEventSource()
+        signalStream.get.asInstanceOf[WindowingHealthSignalStream].windowEventSource().source
 
       val receivedWindowEvents: mutable.ArrayBuffer[WindowEvent] = new mutable.ArrayBuffer[WindowEvent]()
 
       windowEventSource.runWith(Sink.foreach(event => {
-        println(event)
         receivedWindowEvents.addOne(event)
       }))
 

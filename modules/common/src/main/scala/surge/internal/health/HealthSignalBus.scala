@@ -9,14 +9,14 @@ import akka.event.LookupClassification
 import akka.pattern._
 import com.typesafe.config.{ Config, ConfigFactory }
 import org.slf4j.{ Logger, LoggerFactory }
-import surge.health.domain.{ EmittableHealthSignal, Error, HealthSignal, Trace, Warning }
 import surge.health._
 import surge.health.config.HealthSignalBusConfig
+import surge.health.domain.{ EmittableHealthSignal, Error, HealthSignal, Trace, Warning }
 import surge.internal.health.HealthSignalBus.log
 import surge.internal.health.supervisor._
 
-import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration._
+import scala.concurrent.{ ExecutionContext, Future }
 import scala.languageFeature.postfixOps
 import scala.util.Try
 

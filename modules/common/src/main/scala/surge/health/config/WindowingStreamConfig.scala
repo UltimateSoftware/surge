@@ -15,12 +15,16 @@ import scala.jdk.CollectionConverters._
  *   The maximum number of data elements in a window at any given time.
  * @param frequencies
  *   The time to live for windows, a window will either advance or close or both when ttl expires.
+ * @param throttleConfig
+ *   ThrottleConfig
+ * @param advancerConfig
+ *   WindowingStreamAdvancerConfig
  */
 case class WindowingStreamConfig(
     windowingDelay: FiniteDuration,
     maxWindowSize: Int,
     frequencies: Seq[FiniteDuration],
-    throttleConfig: WindowingStreamThrottleConfig,
+    throttleConfig: ThrottleConfig,
     advancerConfig: WindowingStreamAdvancerConfig)
 
 trait WindowingStreamAdvancerConfigLoader[T] {
@@ -32,18 +36,18 @@ sealed trait WindowingStreamAdvancerConfig {
   def buffer: Int
 }
 
-sealed trait WindowingStreamThrottleConfig {
+sealed trait ThrottleConfig {
   def elements: Int
   def duration: FiniteDuration
 }
 
-object WindowingStreamThrottleConfig {
-  def apply(elements: Int, duration: FiniteDuration): WindowingStreamThrottleConfig = {
-    WindowingStreamThrottleConfigImpl(elements, duration)
+object ThrottleConfig {
+  def apply(elements: Int, duration: FiniteDuration): ThrottleConfig = {
+    ThrottleConfigImpl(elements, duration)
   }
 }
 
-private case class WindowingStreamThrottleConfigImpl(elements: Int, duration: FiniteDuration) extends WindowingStreamThrottleConfig
+private case class ThrottleConfigImpl(elements: Int, duration: FiniteDuration) extends ThrottleConfig
 
 case class WindowingStreamSliderConfig(buffer: Int, advanceAmount: Int) extends WindowingStreamAdvancerConfig
 
@@ -71,7 +75,7 @@ object WindowingStreamConfigLoader {
     val frequencies = config.getDurationList("frequencies").asScala.map(d => d.toMillis.millis)
 
     val throttleConfig = config.getConfig("throttle")
-    val windowStreamThrottleConfig = WindowingStreamThrottleConfig(throttleConfig.getInt("elements"), throttleConfig.getDuration("duration").toMillis.millis)
+    val windowStreamThrottleConfig = ThrottleConfig(throttleConfig.getInt("elements"), throttleConfig.getDuration("duration").toMillis.millis)
     val advancerConfig = config.getConfig("advancer")
     val windowStreamAdvancerConfig = WindowingStreamAdvancerConfigLoader(advancerConfig.getString("type")).load(advancerConfig)
 

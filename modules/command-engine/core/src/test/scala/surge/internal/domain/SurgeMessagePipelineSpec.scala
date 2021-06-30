@@ -15,7 +15,7 @@ import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach }
 import play.api.libs.json.{ JsValue, Json }
 import surge.core.TestBoundedContext
-import surge.health.config.{ WindowingStreamConfig, WindowingStreamSliderConfig, WindowingStreamThrottleConfig }
+import surge.health.config.{ ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig }
 import surge.health.domain.{ Error, HealthSignal }
 import surge.health.matchers.{ SideEffectBuilder, SignalPatternMatcherDefinition }
 import surge.health.{ HealthListener, HealthMessage, RestartComponentAttempted, SignalType }
@@ -61,7 +61,7 @@ class SurgeMessagePipelineSpec
     signalStreamProvider = new SlidingHealthSignalStreamProvider(
       WindowingStreamConfig(
         advancerConfig = WindowingStreamSliderConfig(buffer = 10, advanceAmount = 1),
-        throttleConfig = WindowingStreamThrottleConfig(elements = 100, duration = 5.seconds),
+        throttleConfig = ThrottleConfig(elements = 100, duration = 5.seconds),
         windowingDelay = 1.seconds,
         maxWindowSize = 500,
         frequencies = Seq(10.seconds)),

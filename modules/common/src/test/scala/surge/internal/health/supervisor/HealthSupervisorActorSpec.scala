@@ -12,7 +12,7 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
 import surge.health.{ Ack, HealthRegistrationReceived, HealthSignalReceived, HealthSupervisorTrait, SignalType }
-import surge.health.config.{ WindowingStreamConfig, WindowingStreamSliderConfig, WindowingStreamThrottleConfig }
+import surge.health.config.{ ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig }
 import surge.health.domain.{ HealthSignal, Trace }
 import surge.health.matchers.SideEffect
 import surge.internal.health.matchers.SignalNameEqualsMatcher
@@ -44,7 +44,7 @@ class HealthSupervisorActorSpec
       val bus: HealthSignalBusInternal = new SlidingHealthSignalStreamProvider(
         WindowingStreamConfig(
           advancerConfig = WindowingStreamSliderConfig(buffer = 10, advanceAmount = 1),
-          throttleConfig = WindowingStreamThrottleConfig(elements = 100, duration = 5.seconds),
+          throttleConfig = ThrottleConfig(elements = 100, duration = 5.seconds),
           windowingDelay = 5.seconds,
           maxWindowSize = 500,
           frequencies = Seq(10.seconds)),
@@ -82,7 +82,7 @@ class HealthSupervisorActorSpec
       val bus = new SlidingHealthSignalStreamProvider(
         WindowingStreamConfig(
           advancerConfig = WindowingStreamSliderConfig(buffer = 10, advanceAmount = 1),
-          throttleConfig = WindowingStreamThrottleConfig(elements = 100, duration = 5.seconds),
+          throttleConfig = ThrottleConfig(elements = 100, duration = 5.seconds),
           windowingDelay = 5.seconds,
           maxWindowSize = 500,
           frequencies = Seq(10.seconds)),
@@ -112,7 +112,7 @@ class HealthSupervisorActorSpec
       val bus = new SlidingHealthSignalStreamProvider(
         WindowingStreamConfig(
           advancerConfig = WindowingStreamSliderConfig(buffer = 10, advanceAmount = 1),
-          throttleConfig = WindowingStreamThrottleConfig(elements = 100, duration = 5.seconds),
+          throttleConfig = ThrottleConfig(elements = 100, duration = 5.seconds),
           windowingDelay = 5.seconds,
           maxWindowSize = 500,
           frequencies = Seq(10.seconds)),

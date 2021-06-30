@@ -89,14 +89,18 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
   }
 
   override def start(): Unit = {
-    signalBus.signalStream().subscribe().start()
-
+    val signalStream = signalBus.signalStream()
+    log.debug("Starting Health Signal Stream")
+    signalStream.start()
+    log.debug("Starting Actor Router")
     actorRouter.start()
 
     pipelineControlActor = system.actorOf(Props(new PipelineControlActor(pipeline = this)))
+    log.debug("Starting Kafka Streams")
     kafkaStreamsImpl.start()
 
     // Register an actorRef on behalf of the Pipeline for control.
+    log.debug("Registering Health Signal Bus with Health Supervisor")
     val registrationResult = signalBus.register(
       ref = pipelineControlActor,
       componentName = "surge-message-pipeline",
@@ -119,14 +123,17 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
 
   override def stop(): Unit = {
     // Stop router
+    log.debug("Stopping Actor Router")
     actorRouter.stop()
     // Stop Kafka Streams
+    log.debug("Stopping Kafka Streams")
     kafkaStreamsImpl.stop()
 
     // Stop Pipeline Control
     Option(pipelineControlActor).foreach(a => a ! HealthSupervisedStop())
 
     // Stop Signal Stream
+    log.debug("Stopping Health Signal Stream")
     signalBus.signalStream().unsubscribe().stop()
   }
 

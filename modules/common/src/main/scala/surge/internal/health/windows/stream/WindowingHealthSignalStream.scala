@@ -2,16 +2,13 @@
 
 package surge.internal.health.windows.stream
 
-import akka.{ Done, NotUsed }
 import akka.actor.{ ActorRef, ActorSystem }
-import akka.stream.scaladsl.{ Sink, Source, SourceQueueWithComplete }
-import akka.stream.{ Materializer, QueueOfferResult }
+import akka.stream.scaladsl.{ Source, SourceQueueWithComplete }
+import akka.stream.{ Materializer, OverflowStrategy }
 import org.slf4j.{ Logger, LoggerFactory }
-import surge.health.domain.HealthSignal
+import surge.health.config.WindowingStreamConfig
 import surge.health.windows.WindowEvent
-import surge.health.{ HealthSignalStream, SignalHandler }
-
-import scala.util.Try
+import surge.health.{ HealthSignalStream, SignalSourceQueueProvider, SourcePlusQueue }
 
 trait StreamHandle {
   private var running: Boolean = true
@@ -23,35 +20,37 @@ trait StreamHandle {
   }
 }
 
+case class SourcePlusQueueWithStreamHandle[T](sourcePlusQueue: SourcePlusQueue[T], streamHandle: StreamHandle)
+
 object WindowingHealthSignalStream {
   val log: Logger = LoggerFactory.getLogger(getClass)
 }
 
-trait WindowingHealthSignalStream extends HealthSignalStream with ReleasableStream {
-  import WindowingHealthSignalStream._
+trait WindowingHealthSignalStream extends HealthSignalStream with SignalSourceQueueProvider with ReleasableStream {
   def underlyingActor: ActorRef
   def actorSystem: ActorSystem
+  def windowingConfig: WindowingStreamConfig
 
   /**
    * Start a long running task to process data in windows
    * @return
-   *   StreamHandle used for closing the stream
+   *   SourcePlusQueueWithStreamHandle used for closing the stream
    */
-  protected[health] def processWindows(): StreamHandle
+  protected[health] def doWindowing(maybeSideEffect: Option[() => Unit]): SourcePlusQueueWithStreamHandle[WindowEvent]
 
   /**
    * Provide WindowEvent(s) in a Source for stream operations
    * @return
-   *   Source[WindowEvent, NotUsed]
+   *   SourcePlusQueue[WindowEvent]
    */
-  def windowEventSource(): Source[WindowEvent, NotUsed]
+  def windowEventSource(): SourcePlusQueue[WindowEvent] = {
+    val eventSource = Source
+      .queue[WindowEvent](windowingConfig.maxWindowSize, OverflowStrategy.backpressure)
+      .throttle(windowingConfig.throttleConfig.elements, windowingConfig.throttleConfig.duration)
 
-  /**
-   * Provide SourceQueue for processing
-   * @return
-   *   Option[SourceQueueWithComplete]
-   */
-  protected[health] def signalSourceQueue(): Option[SourceQueueWithComplete[HealthSignal]]
+    val (sourceMat, source) = eventSource.preMaterialize()(Materializer(actorSystem))
+    SourcePlusQueue(source, sourceMat)
+  }
 
   /**
    * Provide SourceQueue of WindowEvents
@@ -59,34 +58,4 @@ trait WindowingHealthSignalStream extends HealthSignalStream with ReleasableStre
    *   Option[SourceQueueWithComplete]
    */
   protected[health] def windowEventsSourceQueue(): Option[SourceQueueWithComplete[WindowEvent]]
-
-  /**
-   * Add Signal to Source Queue for processing
-   *
-   * @return
-   *   SignalHandler
-   */
-  final override def signalHandler: SignalHandler = (signal: HealthSignal) => {
-    Try {
-      signalSourceQueue().foreach(queue => {
-        Source
-          .single(signal)
-          .runWith(
-            Sink.foreach(s =>
-              queue
-                .offer(s)
-                .map {
-                  case QueueOfferResult.Enqueued =>
-                    log.debug("signal enqueued {}", s)
-                  case QueueOfferResult.Dropped =>
-                    log.warn("signal dropped {}", s)
-                  case QueueOfferResult.Failure(cause) =>
-                    log.error("signal failed {}", s, cause)
-                  case QueueOfferResult.QueueClosed =>
-                    log.debug("queue closed")
-                }(actorSystem.dispatcher)))(Materializer(actorSystem))
-      })
-      Done
-    }
-  }
 }

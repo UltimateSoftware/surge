@@ -12,7 +12,6 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
 import surge.health.domain.{ EmittableHealthSignal, Error, HealthSignal, Trace, Warning }
-import surge.health.matchers.SignalPatternMatcher
 import surge.health.{ HealthSignalListener, SignalHandler }
 import surge.internal.health.context.TestHealthSignalStream
 import surge.internal.health.supervisor.HealthSupervisorActorRef
@@ -26,7 +25,7 @@ class TestHealthSignalListener(override val signalBus: HealthSignalBusInternal) 
   override def start(maybeSideEffect: Option[() => Unit]): HealthSignalListener = this
 
   override def stop(): HealthSignalListener = this
-  override def subscribeWithFilters(signalHandler: SignalHandler, filters: Seq[SignalPatternMatcher]): HealthSignalListener = {
+  override def subscribe(signalHandler: SignalHandler): HealthSignalListener = {
     this.bindSignalHandler(signalHandler)
     signalBus.subscribe(subscriber = this, signalBus.signalTopic())
     this
@@ -135,7 +134,7 @@ class HealthSignalBusSpec extends TestKit(ActorSystem("healthSignalBus")) with A
       val handler: SignalHandler = testSignalHandler()
       val signalHandler = spy(handler)
 
-      listener.subscribeWithFilters(signalHandler)
+      listener.subscribe(signalHandler)
 
       val emitSignal: EmittableHealthSignal = bus.signalWithWarning(name = "warning", Warning("a warning", None, None))
 
@@ -151,7 +150,7 @@ class HealthSignalBusSpec extends TestKit(ActorSystem("healthSignalBus")) with A
       val handler: SignalHandler = testSignalHandler()
       val signalHandler = spy(handler)
 
-      listener.subscribeWithFilters(signalHandler)
+      listener.subscribe(signalHandler)
 
       val emitSignal: EmittableHealthSignal = bus.signalWithError(name = "error", Error("an error", None, None))
 

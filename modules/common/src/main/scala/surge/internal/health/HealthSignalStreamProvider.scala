@@ -90,7 +90,8 @@ trait HealthSignalStreamProvider {
     Option(signalBus) match {
       case Some(bus) => bus
       case None =>
-        signalBus = HealthSignalBus(this, startStreamOnInit).withStreamSupervision(bus => HealthSupervisorActor(bus, filters(), actorSystem), streamMonitoring)
+        signalBus = HealthSignalBus(signalStream = this, startStreamOnInit = startStreamOnInit)
+          .withStreamSupervision(bus => HealthSupervisorActor(bus, filters(), actorSystem), streamMonitoring)
 
         signalBus
     }
