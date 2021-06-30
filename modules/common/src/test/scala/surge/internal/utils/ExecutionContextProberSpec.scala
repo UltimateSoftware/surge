@@ -15,7 +15,6 @@ import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.language.postfixOps
 
-/*
 class ExecutionContextProberSpec
     extends TestKit(ActorSystem("ExecutionContextProberSpec", ConfigFactory.parseString("""akka.loggers = ["akka.testkit.TestEventListener"]""")))
     with ImplicitSender
@@ -27,7 +26,7 @@ class ExecutionContextProberSpec
   import system.dispatcher
 
   override def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system)
+    TestKit.shutdownActorSystem(system, duration = 15 seconds, verifySystemShutdown = true)
   }
 
   def createProberActor(targetEc: ExecutionContext, interval: FiniteDuration = 7 seconds, name: String): ActorRef = {
@@ -96,4 +95,4 @@ class ExecutionContextProberSpec
   }
 
 }
- */
+
