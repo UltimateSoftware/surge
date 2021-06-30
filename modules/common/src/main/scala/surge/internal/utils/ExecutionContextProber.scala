@@ -72,7 +72,8 @@ class ExecutionContextProberActor(settings: ExecutionContextProberSettings) exte
   override def receive: Receive = ready(detectedIssue = false)
 
   /**
-   * @param detectedIssue have we detected a starvation issue so far ? used solely by the unit test
+   * @param detectedIssue
+   *   have we detected a starvation issue so far ? used solely by the unit test
    */
   def ready(detectedIssue: Boolean): Receive = {
     case SendProbes =>
@@ -91,9 +92,12 @@ class ExecutionContextProberActor(settings: ExecutionContextProberSettings) exte
   }
 
   /**
-   * @param count number of probe responses we have collected so far
-   * @param expectedId expected id of the probe response
-   * @param detectedIssue have we detected a starvation issue so far ? used solely by the unit test
+   * @param count
+   *   number of probe responses we have collected so far
+   * @param expectedId
+   *   expected id of the probe response
+   * @param detectedIssue
+   *   have we detected a starvation issue so far ? used solely by the unit test
    */
   def collect(count: Int, expectedId: UUID, detectedIssue: Boolean): Receive = {
     case Timeout =>
