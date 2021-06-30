@@ -65,19 +65,19 @@ class ExecutionContextProberActor(settings: ExecutionContextProberSettings) exte
 
   implicit val system: ActorSystem = context.system
 
-  var detectedIssue = false // used by the unit test
-
   override def preStart(): Unit = {
     timers.startSingleTimer(SendProbesKey, SendProbes, settings.initialDelay)
   }
 
-  override def receive: Receive = {
+  override def receive: Receive = ready(detectedIssue = false)
+
+  def ready(detectedIssue: Boolean): Receive = {
     case SendProbes =>
       val id = UUID.randomUUID()
       implicit val ec: ExecutionContext = settings.targetEc
       (1 to settings.numProbes).foreach(_ => pipe(noOpFuture(id)).to(self))
       timers.startSingleTimer(TimeoutKey, msg = Timeout, settings.timeout)
-      context.become(collect(count = 0, expectedId = id))
+      context.become(collect(count = 0, expectedId = id, detectedIssue))
     case HasIssues =>
       sender() ! detectedIssue
     case Stop =>
@@ -87,33 +87,31 @@ class ExecutionContextProberActor(settings: ExecutionContextProberSettings) exte
     case _ => // ignore (the uncancelled futures we didn't collect from previous check(s) ...)
   }
 
-  def collect(count: Int, expectedId: UUID): Receive = {
+  def collect(count: Int, expectedId: UUID, detectedIssue: Boolean): Receive = {
     case Timeout =>
       log.warning(
         s"One of our (${settings.numProbes}) probes timed out (after ${settings.timeout}) " +
           s"on execution context ${settings.targetEcName}. ${warningText}.")
       // the execution context is potentially unhealthy so we want to suspend our checks for a bit (to give
       // it time to recover in case it's just a hiccup), hence interval * 3.
-      detectedIssue = true
       timers.startSingleTimer(SendProbesKey, msg = SendProbes, settings.interval * 3)
-      context.become(receive)
+      context.become(ready(detectedIssue = true))
     case Status.Failure(e) =>
       log.error(
         e,
         s"One of our (${settings.numProbes}) probes resulted in a failed future " +
           s"on execution context ${settings.targetEcName}. ${warningText}.")
-      detectedIssue = true
       timers.startSingleTimer(SendProbesKey, msg = SendProbes, settings.interval * 3)
       timers.cancel(TimeoutKey)
-      context.become(receive)
+      context.become(ready(detectedIssue = true))
     case Ack(id: UUID) if id == expectedId =>
       if (count == settings.numProbes - 1) {
         // we successfully collected every probe, so we are done and we schedule the next check
         timers.cancel(TimeoutKey)
         timers.startSingleTimer(SendProbesKey, msg = SendProbes, settings.interval)
-        context.become(receive)
+        context.become(ready(detectedIssue))
       } else {
-        context.become(collect(count + 1, expectedId))
+        context.become(collect(count + 1, expectedId, detectedIssue))
       }
     case Stop =>
       timers.cancel(TimeoutKey)
