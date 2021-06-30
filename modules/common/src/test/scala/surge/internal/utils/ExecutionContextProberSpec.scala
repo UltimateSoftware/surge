@@ -48,7 +48,7 @@ class ExecutionContextProberSpec
 
     "detect a 'starved' execution context and log a warning" in {
 
-      val starvedEc = new ExecutionContext {
+      val starvedEc: ExecutionContext = new ExecutionContext {
         override def execute(runnable: Runnable): Unit = {
           // we do nothing
         }
