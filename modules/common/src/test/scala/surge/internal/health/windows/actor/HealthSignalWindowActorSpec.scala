@@ -39,7 +39,7 @@ class HealthSignalWindowActorSpec
     "tick" in {
       var tickCount: Int = 0
       // override handleTick to track times tick was received
-      val actorRef = TestActorRef(new HealthSignalWindowActor(frequency = FiniteDuration(5, "seconds"), WindowSlider(1, 0)) {
+      val actorRef = TestActorRef(new HealthSignalWindowActor(frequency = 5.seconds, WindowSlider(1, 0)) {
         override def handleTick(state: WindowState): Unit = {
           tickCount += 1
         }
@@ -50,7 +50,8 @@ class HealthSignalWindowActorSpec
 
       // WindowActorRef that will tick every 1 second
       val windowRef =
-        new HealthSignalWindowActorRef(actor = actorRef, windowFreq = FiniteDuration(1, "second"), actorSystem = system).start(Some(probe.ref))
+        new HealthSignalWindowActorRef(actor = actorRef, windowFreq = 1.second, initialWindowProcessingDelay = 1.second, actorSystem = system)
+          .start(Some(probe.ref))
 
       eventually {
         // HealthSignalWindowActor should handleTick 5 times; 1 tick per second
@@ -65,14 +66,15 @@ class HealthSignalWindowActorSpec
     }
 
     "when sliding configured; advance on Window Expired" in {
-      val actorRef: HealthSignalWindowActorRef = HealthSignalWindowActor(system, FiniteDuration(5, "seconds"), WindowSlider(1, 0))
+      val actorRef: HealthSignalWindowActorRef =
+        HealthSignalWindowActor(actorSystem = system, windowFrequency = 5.seconds, initialWindowProcessingDelay = 1.second, advancer = WindowSlider(1, 0))
       val probe = TestProbe()
       probe.watch(actorRef.actor)
 
       actorRef.start(Some(probe.ref))
 
       // Open Window
-      val openedWindow = probe.fishForMessage(max = FiniteDuration(1, "second")) { case _: WindowOpened =>
+      val openedWindow = probe.fishForMessage(max = 1.second) { case _: WindowOpened =>
         true
       }
 
@@ -82,7 +84,7 @@ class HealthSignalWindowActorSpec
 
       // Wait for window to expire
       eventually {
-        val advancedWindow = probe.fishForMessage(max = FiniteDuration(1, "second")) { case _: WindowAdvanced =>
+        val advancedWindow = probe.fishForMessage(max = 1.second) { case _: WindowAdvanced =>
           true
         }
 
@@ -104,7 +106,8 @@ class HealthSignalWindowActorSpec
     }
 
     "when sliding configured with no buffer; advance on AddedToWindow" in {
-      val actorRef = HealthSignalWindowActor(system, FiniteDuration(5, "seconds"), WindowSlider(1, 0))
+      val actorRef =
+        HealthSignalWindowActor(actorSystem = system, initialWindowProcessingDelay = 1.second, windowFrequency = 5.seconds, advancer = WindowSlider(1, 0))
       val probe = TestProbe()
       probe.watch(actorRef.actor)
       actorRef.start(Some(probe.ref))
@@ -114,13 +117,13 @@ class HealthSignalWindowActorSpec
 
       actorRef.processSignal(mock(classOf[HealthSignal]))
 
-      val maybeAddedEvent = probe.fishForMessage(FiniteDuration(10, "seconds")) { case msg =>
+      val maybeAddedEvent = probe.fishForMessage(10.seconds) { case msg =>
         msg.isInstanceOf[AddedToWindow]
       }
 
       maybeAddedEvent shouldBe a[AddedToWindow]
 
-      probe.expectMsgClass(FiniteDuration(10, "seconds"), classOf[WindowAdvanced])
+      probe.expectMsgClass(10.seconds, classOf[WindowAdvanced])
 
       actorRef.stop()
 
@@ -130,7 +133,9 @@ class HealthSignalWindowActorSpec
     }
 
     "when sliding configured with buffer; advance on CloseWindow" in {
-      val actorRef = HealthSignalWindowActor(system, FiniteDuration(5, "seconds"), WindowSlider(1))
+      val actorRef =
+        HealthSignalWindowActor(actorSystem = system, initialWindowProcessingDelay = 1.second, windowFrequency = 5.seconds, advancer = WindowSlider(1))
+
       val probe = TestProbe()
       probe.watch(actorRef.actor)
 
@@ -143,14 +148,14 @@ class HealthSignalWindowActorSpec
 
       actorRef.closeWindow()
 
-      val maybeAddedEvent = probe.fishForMessage(FiniteDuration(10, "seconds")) { case msg =>
+      val maybeAddedEvent = probe.fishForMessage(10.seconds) { case msg =>
         msg.isInstanceOf[AddedToWindow]
       }
 
       maybeAddedEvent shouldBe a[AddedToWindow]
 
-      probe.expectMsgClass(max = FiniteDuration(10, "seconds"), classOf[WindowClosed])
-      probe.expectMsgClass(max = FiniteDuration(10, "seconds"), classOf[WindowAdvanced])
+      probe.expectMsgClass(max = 10.seconds, classOf[WindowClosed])
+      probe.expectMsgClass(max = 10.seconds, classOf[WindowAdvanced])
 
       // todo: verify WindowAdvanced message has expected WindowData captured.
 

@@ -5,8 +5,8 @@ package surge.internal.health.context
 import akka.Done
 import akka.actor.ActorSystem
 import surge.health.domain.HealthSignal
-import surge.health.{ HealthSignalListener, HealthSignalStream, SignalHandler }
 import surge.health.matchers.SignalPatternMatcher
+import surge.health.{ HealthSignalListener, HealthSignalStream, SignalHandler }
 import surge.internal.health._
 
 import scala.util.Try
@@ -17,7 +17,8 @@ object TestContext {
   }
 }
 
-class TestHealthSignalStream(bus: HealthSignalBusInternal, matchers: Seq[SignalPatternMatcher]) extends HealthSignalStream {
+class TestHealthSignalStream(bus: HealthSignalBusInternal, matchers: Seq[SignalPatternMatcher], override val actorSystem: ActorSystem)
+    extends HealthSignalStream {
   override def signalHandler: SignalHandler = (_: HealthSignal) =>
     Try[Done] {
       Done
@@ -30,7 +31,7 @@ class TestHealthSignalStream(bus: HealthSignalBusInternal, matchers: Seq[SignalP
   override def filters(): Seq[SignalPatternMatcher] = matchers
 
   override def start(maybeSideEffect: Option[() => Unit] = None): HealthSignalStream = {
-    subscribeWithFilters(signalHandler, filters())
+    subscribe(signalHandler)
     maybeSideEffect.foreach(m => m())
     this
   }
@@ -40,7 +41,7 @@ class TestHealthSignalStream(bus: HealthSignalBusInternal, matchers: Seq[SignalP
     this
   }
 
-  override def subscribeWithFilters(signalHandler: SignalHandler, filters: Seq[SignalPatternMatcher]): HealthSignalListener = {
+  override def subscribe(signalHandler: SignalHandler): HealthSignalListener = {
     bindSignalHandler(signalHandler)
     signalBus().subscribe(subscriber = this, signalBus().signalTopic())
     this
@@ -52,5 +53,5 @@ class TestHealthSignalStreamProvider(
     override val actorSystem: ActorSystem = ActorSystem("TestHealthSignalStream"))
     extends HealthSignalStreamProvider {
   override def provide(bus: HealthSignalBusInternal): HealthSignalStream =
-    new TestHealthSignalStream(bus, this.filters)
+    new TestHealthSignalStream(bus, this.filters, actorSystem)
 }

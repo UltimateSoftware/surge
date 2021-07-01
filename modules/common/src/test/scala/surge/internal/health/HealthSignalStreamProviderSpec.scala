@@ -6,19 +6,17 @@ import akka.actor.ActorSystem
 import akka.testkit.{ TestKit, TestProbe }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
-import surge.health.config.{ WindowingStreamConfig, WindowingStreamSliderConfig }
+import surge.health.config.{ ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig }
 import surge.health.domain.{ HealthSignal, Trace }
 import surge.health.matchers.{ SideEffect, SignalPatternMatcher }
-import surge.health.windows.{ AddedToWindow, Window, WindowAdvanced, WindowClosed, WindowOpened, WindowStopped }
+import surge.health.windows._
 import surge.health.{ HealthSignalStream, SignalType }
 import surge.internal.health.matchers.{ RepeatingSignalMatcher, SignalNameEqualsMatcher }
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
 
-import scala.languageFeature.postfixOps
-
+import scala.concurrent.duration._
 class HealthSignalStreamProviderSpec extends TestKit(ActorSystem("HealthSignalStreamProviderSpec")) with AnyWordSpecLike with Matchers {
   import surge.internal.health.context.TestContext._
-  implicit val postOp: postfixOps = postfixOps
 
   "HealthSignalStreamProvider" should {
     import org.mockito.Mockito._
@@ -65,7 +63,12 @@ class HealthSignalStreamProviderSpec extends TestKit(ActorSystem("HealthSignalSt
       val initialFilters = Seq(SignalNameEqualsMatcher(name = "foo"))
 
       val provider = new SlidingHealthSignalStreamProvider(
-        WindowingStreamConfig(advancerConfig = WindowingStreamSliderConfig()),
+        WindowingStreamConfig(
+          advancerConfig = WindowingStreamSliderConfig(buffer = 10, advanceAmount = 1),
+          throttleConfig = ThrottleConfig(elements = 100, duration = 5.seconds),
+          windowingDelay = 5.seconds,
+          maxWindowSize = 500,
+          frequencies = Seq(10.seconds)),
         system,
         streamMonitoring = None,
         initialFilters)

@@ -9,14 +9,14 @@ import akka.event.LookupClassification
 import akka.pattern._
 import com.typesafe.config.{ Config, ConfigFactory }
 import org.slf4j.{ Logger, LoggerFactory }
-import surge.health.domain.{ EmittableHealthSignal, Error, HealthSignal, Trace, Warning }
 import surge.health._
 import surge.health.config.HealthSignalBusConfig
+import surge.health.domain.{ EmittableHealthSignal, Error, HealthSignal, Trace, Warning }
 import surge.internal.health.HealthSignalBus.log
 import surge.internal.health.supervisor._
 
-import scala.concurrent.Future
 import scala.concurrent.duration._
+import scala.concurrent.{ ExecutionContext, Future }
 import scala.languageFeature.postfixOps
 import scala.util.Try
 
@@ -26,15 +26,15 @@ object HealthSignalBus {
   implicit val system: ActorSystem = ActorSystem("HealthSignalBusActorSystem")
   val log: Logger = LoggerFactory.getLogger(getClass)
 
-  val config: Config = ConfigFactory.load().atPath("surge.health")
+  val config: Config = ConfigFactory.load().getConfig("surge.health")
 
   def apply(signalStream: HealthSignalStreamProvider, startStreamOnInit: Boolean = false): HealthSignalBusInternal = {
     val stopStreamOnUnsubscribe = startStreamOnInit
     val bus = new HealthSignalBusImpl(
       HealthSignalBusConfig(
-        signalTopic = Try { config.getString("bus.signalTopic") }.getOrElse("health.signal"),
-        registrationTopic = Try { config.getString("bus.registrationTopic") }.getOrElse("health.registration"),
-        allowedSubscriberCount = Try { config.getInt("bus.allowedSubscriberCount") }.getOrElse(128)),
+        signalTopic = config.getString("bus.signal-topic"),
+        registrationTopic = config.getString("bus.registration-topic"),
+        allowedSubscriberCount = config.getInt("bus.allowed-subscriber-count")),
       signalStream,
       stopStreamOnUnsubscribe)
 
@@ -48,6 +48,7 @@ object HealthSignalBus {
 
 trait HealthSignalBusInternal extends HealthSignalBusTrait with LookupClassification {
   def subscriberInfo(): Set[SubscriberInfo]
+  def backingSignalStream(): Option[HealthSignalStream]
   def withStreamSupervision(
       provider: HealthSignalBusInternal => HealthSupervisorActorRef,
       monitorRef: Option[StreamMonitoringRef] = None): HealthSignalBusInternal
@@ -121,7 +122,6 @@ private class EmittableHealthSignalImpl(healthSignal: HealthSignal, signalBus: H
 
 private[surge] class HealthSignalBusImpl(config: HealthSignalBusConfig, signalStreamSupplier: HealthSignalStreamProvider, stopStreamOnUnsubscribe: Boolean)
     extends HealthSignalBusInternal {
-  implicit val postfix: postfixOps = postfixOps
   implicit val actorSystem: ActorSystem = ActorSystem("healthSignalBusActorSystem")
 
   private lazy val stream: HealthSignalStream = signalStreamSupplier.provide(bus = this).subscribe()
@@ -147,6 +147,10 @@ private[surge] class HealthSignalBusImpl(config: HealthSignalBusConfig, signalSt
   override def signalTopic(): String = config.signalTopic
 
   override def registrationTopic(): String = config.registrationTopic
+
+  override def backingSignalStream(): Option[HealthSignalStream] = {
+    Some(stream)
+  }
 
   override def withStreamSupervision(
       provider: HealthSignalBusInternal => HealthSupervisorActorRef,
@@ -246,6 +250,10 @@ private[surge] class HealthSignalBusImpl(config: HealthSignalBusConfig, signalSt
         result.map(a => a.asInstanceOf[List[HealthRegistration]])(actorSystem.dispatcher)
       case None => Future.successful(Seq.empty)
     }
+  }
+
+  override def registrations(matching: Pattern): Future[Seq[HealthRegistration]] = {
+    registrations().map(r => r.filter(f => matching.matcher(f.name).matches()))(ExecutionContext.global)
   }
 
   override def signalWithError(name: String, error: Error, metadata: Map[String, String] = Map.empty): EmittableHealthSignal = {

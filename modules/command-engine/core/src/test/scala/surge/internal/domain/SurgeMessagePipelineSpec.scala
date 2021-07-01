@@ -8,32 +8,31 @@ import akka.testkit.{ TestKit, TestProbe }
 import com.typesafe.config.{ Config, ConfigFactory }
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.streams.KafkaStreams
-import org.scalatest.concurrent.Eventually
+import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach }
 import play.api.libs.json.{ JsValue, Json }
 import surge.core.TestBoundedContext
-import surge.health.config.{ WindowingStreamConfig, WindowingStreamSliderConfig }
+import surge.health.config.{ ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig }
 import surge.health.domain.{ Error, HealthSignal }
-import surge.health.matchers.{ SideEffectBuilder, SignalPatternMatcher, SignalPatternMatcherDefinition }
-import surge.health.{ HealthListener, HealthMessage, HealthRegistration, HealthSignalBusTrait, HealthSignalListener, SignalHandler, SignalType }
+import surge.health.matchers.{ SideEffectBuilder, SignalPatternMatcherDefinition }
+import surge.health.{ HealthListener, HealthMessage, RestartComponentAttempted, SignalType }
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.core.SurgePartitionRouterImpl
 import surge.internal.health.StreamMonitoringRef
-import surge.internal.health.supervisor.RestartComponentAttempted
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
 import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, MockPartitionTracker, MockState }
 import surge.metrics.Metrics
 
-import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.languageFeature.postfixOps
 
 class SurgeMessagePipelineSpec
     extends TestKit(ActorSystem("SurgeMessagePipelineSpec", ConfigFactory.load("artery-test-config")))
     with AnyWordSpecLike
+    with ScalaFutures
     with EmbeddedKafka
     with Eventually
     with TestBoundedContext
@@ -60,7 +59,12 @@ class SurgeMessagePipelineSpec
 
     // Create a SignalStreamProvider
     signalStreamProvider = new SlidingHealthSignalStreamProvider(
-      WindowingStreamConfig(advancerConfig = WindowingStreamSliderConfig()),
+      WindowingStreamConfig(
+        advancerConfig = WindowingStreamSliderConfig(buffer = 10, advanceAmount = 1),
+        throttleConfig = ThrottleConfig(elements = 100, duration = 5.seconds),
+        windowingDelay = 1.seconds,
+        maxWindowSize = 500,
+        frequencies = Seq(10.seconds)),
       system,
       Some(new StreamMonitoringRef(probe.ref)),
       filters = Seq(
@@ -103,10 +107,11 @@ class SurgeMessagePipelineSpec
         val bus = pipeline.signalBus
         // Retrieve Registrations and verify SurgeMessagePipeline is registered
         eventually {
-          val registrations = Await.result(bus.registrations(), 10.seconds)
-          val registration = registrations.find(r => r.name == "surge-message-pipeline")
+          whenReady(bus.registrations()) { registrations =>
+            val registration = registrations.find(r => r.name == "surge-message-pipeline")
 
-          registration.nonEmpty shouldEqual true
+            registration.nonEmpty shouldEqual true
+          }
         }
       }
     }
@@ -119,12 +124,11 @@ class SurgeMessagePipelineSpec
         // Retrieve Registrations and verify AggregateStateStore is registered
         //  Verify the restartSignalPatterns are as expected
         eventually {
-          val registrations = Await.result(bus.registrations(), 10.seconds)
-          val registration = registrations.find(r => r.name == "state-store-kafka-streams")
-
-          registration.nonEmpty shouldEqual true
-
-          registration.get.restartSignalPatterns.map(p => p.pattern()).contains("kafka.streams.fatal.error") shouldEqual true
+          whenReady(bus.registrations()) { registrations =>
+            val registration = registrations.find(r => r.name == "state-store-kafka-streams")
+            registration.nonEmpty shouldEqual true
+            registration.get.restartSignalPatterns.map(p => p.pattern()).contains("kafka.streams.fatal.error") shouldEqual true
+          }
         }
       }
     }
@@ -135,17 +139,17 @@ class SurgeMessagePipelineSpec
         val bus = pipeline.signalBus
 
         eventually {
-          val registrations = Await.result(bus.registrations(), 10.seconds)
-          val registration = registrations.find(r => r.name == "surge-message-pipeline")
+          whenReady(bus.registrations(matching = Pattern.compile("surge-message-pipeline"))) { registrations =>
+            registrations.size shouldEqual 1
 
-          registration.nonEmpty shouldEqual true
+            bus.signalWithError(name = "kafka.streams.fatal.retries.exceeded.error", Error("fake shutdown trigger", None)).emit()
 
-          bus.signalWithError(name = "kafka.streams.fatal.retries.exceeded.error", Error("fake shutdown trigger", None)).emit()
-
-          // Wait for the surge-message-pipeline to be unregistered on termination.
-          eventually {
-            val registrations = Await.result(pipeline.signalBus.registrations(), atMost = FiniteDuration(20, "seconds"))
-            registrations.exists(r => r.name == "surge-message-pipeline") shouldEqual false
+            // Wait for the surge-message-pipeline to be unregistered on termination.
+            eventually {
+              whenReady(bus.registrations()) { registrations =>
+                registrations.exists(r => r.name == "surge-message-pipeline") shouldEqual false
+              }
+            }
           }
         }
       }
@@ -157,12 +161,11 @@ class SurgeMessagePipelineSpec
         val bus = pipeline.signalBus
 
         eventually {
-          val registrations = Await.result(bus.registrations(), 10.seconds)
-          val registration = registrations.find(r => r.name == "router-actor")
-
-          registration.nonEmpty shouldEqual true
-
-          registration.get.restartSignalPatterns.map(p => p.pattern()).contains("kafka.fatal.error") shouldEqual true
+          whenReady(bus.registrations()) { registrations =>
+            val registration = registrations.find(r => r.name == "router-actor")
+            registration.nonEmpty shouldEqual true
+            registration.get.restartSignalPatterns.map(p => p.pattern()).contains("kafka.fatal.error") shouldEqual true
+          }
         }
       }
     }
@@ -171,19 +174,20 @@ class SurgeMessagePipelineSpec
       withRunningKafkaOnFoundPort(config) { _ =>
         // wait for router-actor to be registered
         eventually {
-          val registrations = Await.result(pipeline.signalBus.registrations(), FiniteDuration(10, "seconds"))
-          val registration = registrations.find(r => r.name == "router-actor")
+          whenReady(pipeline.signalBus.registrations()) { registrations =>
+            val registration = registrations.find(r => r.name == "router-actor")
 
-          registration.nonEmpty shouldEqual true
-          // Poison the router-actor
-          registration.get.ref ! PoisonPill
+            registration.nonEmpty shouldEqual true
+            // Poison the router-actor
+            registration.get.ref ! PoisonPill
 
-          // Wait for the router-actor to be unregistered on termination.
-          eventually {
-            val registrations = Await.result(pipeline.signalBus.registrations(), FiniteDuration(10, "seconds"))
-            registrations.exists(r => r.name == "router-actor") shouldEqual false
+            // Wait for the router-actor to be unregistered on termination.
+            eventually {
+              whenReady(pipeline.signalBus.registrations()) { registrations =>
+                registrations.exists(r => r.name == "router-actor") shouldEqual false
+              }
+            }
           }
-
         }
       }
     }
