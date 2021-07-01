@@ -168,7 +168,6 @@ private class SlidingHealthSignalStreamImpl(
 
   override def release(): Unit = {
     releaseWindowHandle()
-    // revisit - shouldn't creator stop this actor?
     underlyingActor ! surge.internal.health.windows.stream.actor.Stop
   }
 
