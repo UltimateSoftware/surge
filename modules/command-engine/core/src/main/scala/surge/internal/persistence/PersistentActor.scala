@@ -126,7 +126,7 @@ object PersistentActor {
       signalBus: HealthSignalBusTrait,
       regionSharedResources: PersistentEntitySharedResources,
       config: Config): Props = {
-    Props(new PersistentActor(aggregateId, businessLogic, regionSharedResources, signalBus, config)).withDispatcher("surge-persistence-actor-dispatcher")
+    Props(new PersistentActor(aggregateId, businessLogic, regionSharedResources, signalBus, config))
   }
 
   val serializationThreadPoolSize: Int = ConfigFactory.load().getInt("surge.serialization.thread-pool-size")
