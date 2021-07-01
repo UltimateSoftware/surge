@@ -80,6 +80,8 @@ private class SlidingHealthSignalStreamImpl(
     extends SourceQueueBackedSignalHandler(actorSystem)
     with SlidingHealthSignalStream {
   import SlidingHealthSignalStream._
+
+  // todo: see if immutability is feasible
   private var windowHandle: StreamHandle = _
   private var windowEvents: Option[SourceQueueWithComplete[WindowEvent]] = None
 
