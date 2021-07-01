@@ -31,9 +31,8 @@ object SlidingHealthSignalStream {
       filters: Seq[SignalPatternMatcher],
       streamMonitoringRef: Option[StreamMonitoringRef] = None,
       actorSystem: ActorSystem): SlidingHealthSignalStream = {
-    // fixme: weird indirection where an actor delegates to a listener that in turn delegates to another
-    //  actor.
-    val listener: WindowStreamListener = SignalPatternMatchResultHandler.asListener(signalBus, filters, streamMonitoringRef.map(r => r.actor))
+    val listener: WindowStreamListener =
+      SignalPatternMatchResultHandler.asListener(signalBus, filters, streamMonitoringRef.map(r => r.actor))
     val ref = actorSystem.actorOf(Props(HealthSignalStreamActor(Some(listener))), name = "slidingHealthSignalStreamActor")
     new SlidingHealthSignalStreamImpl(slidingConfig, signalBus, filters, ref, actorSystem)
   }
@@ -144,6 +143,8 @@ private class SlidingHealthSignalStreamImpl(
     // WindowEvent Source
     val windowQueue = windowEventSource()
 
+    // todo: handle pattern matching here instead of nesting away behind and actor (HealthSignalStreamActor) that simply
+    //  delegates to SignalPatternMatchResultHandler.asListener
     windowQueue.source.runWith[Future[Done]](Sink.foreach(event => {
       log.trace("WindowEvent {}", event)
     }))(Materializer(actorSystem))
