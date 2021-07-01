@@ -2,8 +2,6 @@
 
 package surge.internal.health.supervisor
 
-import java.time.Instant
-
 import akka.Done
 import akka.actor.{ Actor, ActorContext, ActorRef, ActorSystem, PoisonPill, Props, Terminated }
 import akka.pattern.{ ask, BackoffOpts, BackoffSupervisor }
@@ -87,13 +85,6 @@ case class Stop()
 // State
 case class HealthState(registered: Map[String, HealthRegistration] = Map.empty, replyTo: Option[ActorRef] = None)
 
-// Reply
-case class HealthRegistrationReceived(registration: HealthRegistration)
-case class HealthSignalReceived(signal: HealthSignal)
-case class HealthSignalStreamAdvanced()
-case class RestartComponentAttempted(componentName: String, timestamp: Instant = Instant.now())
-case class ShutdownComponentAttempted(componentName: String, timestamp: Instant = Instant.now())
-
 object HealthSupervisorActor {
   val log: Logger = LoggerFactory.getLogger(getClass)
 
@@ -131,7 +122,6 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, filters:
     with HealthSignalListener
     with HealthRegistrationListener {
   import HealthSupervisorActor._
-  implicit val postfix: postfixOps = postfixOps
 
   val state: HealthState = HealthState()
 
@@ -191,7 +181,7 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, filters:
   }
 
   override def start(maybeSideEffect: Option[() => Unit]): HealthSignalListener = {
-    this.subscribeWithFilters(signalHandler, filters)
+    this.subscribe(signalHandler)
     this.listen(registrationHandler)
 
     maybeSideEffect.foreach(m => m())
@@ -206,7 +196,7 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, filters:
 
   override def signalBus(): HealthSignalBusInternal = internalSignalBus
 
-  override def subscribeWithFilters(signalHandler: SignalHandler, filters: Seq[SignalPatternMatcher]): HealthSignalListener = {
+  override def subscribe(signalHandler: SignalHandler): HealthSignalListener = {
     super.bindSignalHandler(signalHandler)
     signalBus().subscribe(subscriber = this, signalTopic)
     this

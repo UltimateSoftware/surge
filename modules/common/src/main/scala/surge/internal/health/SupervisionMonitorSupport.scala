@@ -2,7 +2,7 @@
 
 package surge.internal.health
 
-import surge.internal.health.supervisor.{ HealthRegistrationReceived, HealthSignalReceived }
+import surge.health.{ HealthRegistrationReceived, HealthSignalReceived }
 
 trait SupervisionMonitorSupport {
   def healthSignalReceived(signal: HealthSignalReceived): Unit

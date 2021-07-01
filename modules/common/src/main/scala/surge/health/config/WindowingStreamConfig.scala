@@ -6,15 +6,25 @@ import com.typesafe.config.{ Config, ConfigFactory }
 
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
-import scala.util.Try
 
 /**
  * WindowStreamConfig encapsulates all the configuration options for a WindowingHealthSignalStream
+ * @param windowingDelay
+ *   Initial Delay between start and the processing of window data.
+ * @param maxWindowSize
+ *   The maximum number of data elements in a window at any given time.
+ * @param frequencies
+ *   The time to live for windows, a window will either advance or close or both when ttl expires.
+ * @param throttleConfig
+ *   ThrottleConfig
+ * @param advancerConfig
+ *   WindowingStreamAdvancerConfig
  */
 case class WindowingStreamConfig(
-    maxDelay: FiniteDuration = 5.seconds,
-    maxStreamSize: Int = 500,
-    frequencies: Seq[FiniteDuration] = Seq(10.seconds),
+    windowingDelay: FiniteDuration,
+    maxWindowSize: Int,
+    frequencies: Seq[FiniteDuration],
+    throttleConfig: ThrottleConfig,
     advancerConfig: WindowingStreamAdvancerConfig)
 
 trait WindowingStreamAdvancerConfigLoader[T] {
@@ -26,7 +36,20 @@ sealed trait WindowingStreamAdvancerConfig {
   def buffer: Int
 }
 
-case class WindowingStreamSliderConfig(buffer: Int = 10, advanceAmount: Int = 1) extends WindowingStreamAdvancerConfig
+sealed trait ThrottleConfig {
+  def elements: Int
+  def duration: FiniteDuration
+}
+
+object ThrottleConfig {
+  def apply(elements: Int, duration: FiniteDuration): ThrottleConfig = {
+    ThrottleConfigImpl(elements, duration)
+  }
+}
+
+private case class ThrottleConfigImpl(elements: Int, duration: FiniteDuration) extends ThrottleConfig
+
+case class WindowingStreamSliderConfig(buffer: Int, advanceAmount: Int) extends WindowingStreamAdvancerConfig
 
 object WindowingStreamAdvancerConfigLoader {
   def apply(advancerType: String): WindowingStreamAdvancerConfigLoader[WindowingStreamSliderConfig] = {
@@ -36,24 +59,27 @@ object WindowingStreamAdvancerConfigLoader {
 
 object WindowingStreamSliderConfigLoader extends WindowingStreamAdvancerConfigLoader[WindowingStreamSliderConfig] {
   def load(advancerConfig: Config): WindowingStreamSliderConfig = {
-    val configuredSlideAmount: Int = Try { advancerConfig.getInt("amount") }.getOrElse(1)
-    val configuredBufferSize: Int = Try { advancerConfig.getInt("buffer") }.getOrElse(10)
+    val configuredSlideAmount: Int = advancerConfig.getInt("amount")
+    val configuredBufferSize: Int = advancerConfig.getInt("buffer")
 
     WindowingStreamSliderConfig(configuredBufferSize, configuredSlideAmount)
   }
 }
 
 object WindowingStreamConfigLoader {
-  private val config = ConfigFactory.load()
+  private val config = ConfigFactory.load().getConfig("surge.health.window.stream")
 
   def load(config: Config): WindowingStreamConfig = {
-    val maxDelay = FiniteDuration(config.getDuration("surge.health.window.stream.max-delay").toMillis, "millis")
-    val maxStreamSize = config.getInt("surge.health.window.stream.max-size")
-    val frequencies = config.getDurationList("surge.health.window.stream.frequencies").asScala.map(d => FiniteDuration(d.toMillis, "millis"))
+    val maxDelay = config.getDuration("delay").toMillis.millis
+    val maxStreamSize = config.getInt("max-size")
+    val frequencies = config.getDurationList("frequencies").asScala.map(d => d.toMillis.millis)
 
-    val advancerConfig = config.getConfig("surge.health.window.stream.advancer")
+    val throttleConfig = config.getConfig("throttle")
+    val windowStreamThrottleConfig = ThrottleConfig(throttleConfig.getInt("elements"), throttleConfig.getDuration("duration").toMillis.millis)
+    val advancerConfig = config.getConfig("advancer")
     val windowStreamAdvancerConfig = WindowingStreamAdvancerConfigLoader(advancerConfig.getString("type")).load(advancerConfig)
-    WindowingStreamConfig(maxDelay, maxStreamSize, frequencies.toSeq, windowStreamAdvancerConfig)
+
+    WindowingStreamConfig(maxDelay, maxStreamSize, frequencies.toSeq, windowStreamThrottleConfig, windowStreamAdvancerConfig)
   }
 
   def load(): WindowingStreamConfig = {

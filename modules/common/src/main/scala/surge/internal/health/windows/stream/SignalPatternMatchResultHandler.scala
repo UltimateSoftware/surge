@@ -10,7 +10,7 @@ import surge.health.windows.{ AddedToWindow, Window, WindowAdvanced, WindowClose
 import surge.internal.health._
 
 trait SignalPatternMatchResultHandler {
-  def handleSignalPatternMatchResult(result: SignalPatternMatchResult): Unit
+  def injectSignalPatternMatchResultIntoStream(result: SignalPatternMatchResult): Unit
 }
 
 object SignalPatternMatchResultHandler {
@@ -42,7 +42,7 @@ private class SignalPatternMatchResultHandlerImpl(signalBus: HealthSignalBusInte
       })
     })
 
-    handleSignalPatternMatchResult(result.copy(sideEffect = sideEffectBuilder.buildSideEffect()))
+    injectSignalPatternMatchResultIntoStream(result.copy(sideEffect = sideEffectBuilder.buildSideEffect()))
     monitoringRef.foreach(m => m ! WindowAdvanced(it, WindowData(data, freq)))
   }
 
@@ -67,7 +67,7 @@ private class SignalPatternMatchResultHandlerImpl(signalBus: HealthSignalBusInte
       })
     })
 
-    handleSignalPatternMatchResult(result.copy(sideEffect = sideEffectBuilder.buildSideEffect()))
+    injectSignalPatternMatchResultIntoStream(result.copy(sideEffect = sideEffectBuilder.buildSideEffect()))
     monitoringRef.foreach(m => m ! WindowClosed(window, WindowData(data, freq)))
   }
 
@@ -75,7 +75,7 @@ private class SignalPatternMatchResultHandlerImpl(signalBus: HealthSignalBusInte
     monitoringRef.foreach(m => m ! AddedToWindow(data, window))
   }
 
-  override def handleSignalPatternMatchResult(result: SignalPatternMatchResult): Unit = {
+  override def injectSignalPatternMatchResultIntoStream(result: SignalPatternMatchResult): Unit = {
     result.sideEffect.signals.foreach(s => {
       signalBus.publish(s.copy())
     })

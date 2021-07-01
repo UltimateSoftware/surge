@@ -6,10 +6,13 @@ import java.time.Instant
 import java.util.UUID
 import java.util.regex.Pattern
 
-import akka.Done
 import akka.actor.{ ActorRef, ActorSystem }
 import akka.event.EventBus
+import akka.stream.scaladsl.{ Source, SourceQueueWithComplete }
+import akka.stream.{ Materializer, OverflowStrategy }
+import akka.{ Done, NotUsed }
 import org.slf4j.LoggerFactory
+import surge.health.config.ThrottleConfig
 import surge.health.domain.{ EmittableHealthSignal, Error, HealthSignal, Timed, Trace, Warning }
 import surge.health.matchers.SignalPatternMatcher
 import surge.internal.health.RegistrationHandler
@@ -33,6 +36,7 @@ trait HealthyPublisher extends HealthSignalBusAware {
 
 trait RegistrationConsumer {
   def registrations(): Future[Seq[HealthRegistration]]
+  def registrations(matching: Pattern): Future[Seq[HealthRegistration]]
 }
 
 final case class HealthRegistration(
@@ -100,6 +104,13 @@ trait HealthRegistrationListener extends HealthListener {
   }
 
 }
+
+sealed trait HealthSupervisionEvent {}
+case class HealthRegistrationReceived(registration: HealthRegistration) extends HealthSupervisionEvent
+case class HealthSignalReceived(signal: HealthSignal) extends HealthSupervisionEvent
+case class HealthSignalStreamAdvanced() extends HealthSupervisionEvent
+case class RestartComponentAttempted(componentName: String, timestamp: Instant = Instant.now()) extends HealthSupervisionEvent
+case class ShutdownComponentAttempted(componentName: String, timestamp: Instant = Instant.now()) extends HealthSupervisionEvent
 
 case class HealthSupervisorState(started: Boolean)
 
@@ -173,7 +184,7 @@ trait HealthSignalListener extends HealthListener {
     }
   }
 
-  def subscribeWithFilters(signalHandler: SignalHandler, filters: Seq[SignalPatternMatcher] = Seq.empty): HealthSignalListener
+  def subscribe(signalHandler: SignalHandler): HealthSignalListener
 
   def unsubscribe(): HealthSignalListener = {
     signalBus().unsubscribe(subscriber = this)
@@ -188,12 +199,58 @@ trait SignalHandler {
   def handle(signal: HealthSignal): Try[Done]
 }
 
+trait SignalSourceQueueProvider {
+  def signalSourceQueue(): Option[SourceQueueWithComplete[HealthSignal]]
+}
+
+class SourceQueueBackedSignalHandler(actorSystem: ActorSystem) extends SignalHandler with SignalSourceQueueProvider {
+  private var backingQueue: Option[SourceQueueWithComplete[HealthSignal]] = None
+  def queue: Option[SourceQueueWithComplete[HealthSignal]] = backingQueue
+
+  def bindQueue(queue: SourceQueueWithComplete[HealthSignal]): Unit =
+    backingQueue = Some(queue)
+
+  def unbindQueue(): Unit = {
+    backingQueue = None
+  }
+
+  override def signalSourceQueue(): Option[SourceQueueWithComplete[HealthSignal]] = backingQueue
+
+  override def handle(signal: HealthSignal): Try[Done] = {
+    Try {
+      queue.foreach(q => q.offer(signal))
+      Done
+    }
+  }
+}
+
+case class SourcePlusQueue[T](source: Source[T, NotUsed], queue: SourceQueueWithComplete[T])
+
+trait HealthSignalStreamControl {
+  def stop(): Unit
+}
+
 trait HealthSignalStream extends HealthSignalListener {
+  def actorSystem: ActorSystem
   def signalTopic: String
   def signalHandler: SignalHandler
 
   def filters(): Seq[SignalPatternMatcher]
+
+  /**
+   * Provide HealthSignal(s) in a Source for stream operations
+   * @return
+   *   SourcePlusQueue[HealthSignal]
+   */
+  def signalSource(buffer: Int, throttleConfig: ThrottleConfig): SourcePlusQueue[HealthSignal] = {
+    val signalSource = Source.queue[HealthSignal](buffer, OverflowStrategy.backpressure).throttle(throttleConfig.elements, throttleConfig.duration)
+
+    val (sourceMat, source) = signalSource.preMaterialize()(Materializer(actorSystem))
+
+    SourcePlusQueue(source, sourceMat)
+  }
+
   def subscribe(): HealthSignalStream = {
-    subscribeWithFilters(signalHandler, filters()).asInstanceOf[HealthSignalStream]
+    subscribe(signalHandler).asInstanceOf[HealthSignalStream]
   }
 }
