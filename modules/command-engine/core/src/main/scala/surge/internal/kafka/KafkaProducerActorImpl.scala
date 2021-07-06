@@ -9,13 +9,12 @@ import io.opentracing.Tracer
 import org.apache.kafka.clients.producer.{ ProducerConfig, ProducerRecord }
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.{ AuthorizationException, ProducerFencedException }
-import org.apache.kafka.streams.LagInfo
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.core.KafkaProducerActor
 import surge.internal.akka.ActorWithTracing
 import surge.kafka.streams.HealthyActor.GetHealth
 import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, HealthCheck, HealthCheckStatus }
-import surge.kafka.{ KafkaBytesProducer, KafkaRecordMetadata, KafkaTopicTrait }
+import surge.kafka.{ KafkaBytesProducer, KafkaRecordMetadata, KafkaTopicTrait, LagInfo }
 import surge.metrics.{ MetricInfo, Metrics, Rate, Timer }
 import java.time.Instant
 import java.util.concurrent.TimeUnit
@@ -218,11 +217,9 @@ class KafkaProducerActorImpl(
   }
 
   private def checkKTableProgress(): Unit = {
-    kStreams.partitionLags().foreach { allLags =>
-      allLags.values.headOption.foreach { lagsForStateStore =>
-        lagsForStateStore.get(assignedPartition.partition()).foreach { lagForThisPartition =>
-          self ! KTableProgressUpdate(assignedPartition, lagForThisPartition)
-        }
+    kStreams.partitionLag(assignedPartition).foreach { lagOpt =>
+      lagOpt.foreach { lag =>
+        self ! KTableProgressUpdate(assignedPartition, lag)
       }
     }
   }
@@ -269,7 +266,7 @@ class KafkaProducerActorImpl(
   }
 
   private def handleFromWaitingForKTableIndexingState(kTableProgressUpdate: KTableProgressUpdate): Unit = {
-    val currentLag = kTableProgressUpdate.lagInfo.offsetLag()
+    val currentLag = kTableProgressUpdate.lagInfo.offsetLag
     if (currentLag == 0L) {
       log.info(s"KafkaPublisherActor partition {} is fully up to date on processing", assignedPartition)
       unstashAll()
@@ -518,7 +515,7 @@ private[internal] case class KafkaProducerActorState(
   }
 
   def processedUpTo(kTableProgressUpdate: KTableProgressUpdate): KafkaProducerActorState = {
-    val kTableCurrentOffset = kTableProgressUpdate.lagInfo.currentOffsetPosition()
+    val kTableCurrentOffset = kTableProgressUpdate.lagInfo.currentOffsetPosition
     val topicPartition = kTableProgressUpdate.topicPartition
     val processedRecordsFromPartition = inFlight.filter(record => record.wrapped.offset() <= kTableCurrentOffset)
 
