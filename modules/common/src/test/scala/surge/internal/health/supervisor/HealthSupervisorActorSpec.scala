@@ -11,7 +11,8 @@ import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Milliseconds, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
-import surge.health.config.{ WindowingStreamConfig, WindowingStreamSliderConfig }
+import surge.health.{ Ack, HealthRegistrationReceived, HealthSignalReceived, HealthSupervisorTrait, SignalType }
+import surge.health.config.{ ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig }
 import surge.health.domain.{ HealthSignal, Trace }
 import surge.health.matchers.SideEffect
 import surge.health.{ Ack, HealthSupervisorTrait, SignalType }
@@ -24,6 +25,7 @@ import scala.concurrent.duration._
 class HealthSupervisorActorSpec
     extends TestKit(ActorSystem("HealthSignalSupervisorSpec"))
     with AnyWordSpecLike
+    with ScalaFutures
     with BeforeAndAfterAll
     with Matchers
     with ScalaFutures
@@ -43,7 +45,12 @@ class HealthSupervisorActorSpec
       val probe = TestProbe()
 
       val bus: HealthSignalBusInternal = new SlidingHealthSignalStreamProvider(
-        WindowingStreamConfig(advancerConfig = WindowingStreamSliderConfig()),
+        WindowingStreamConfig(
+          advancerConfig = WindowingStreamSliderConfig(buffer = 10, advanceAmount = 1),
+          throttleConfig = ThrottleConfig(elements = 100, duration = 5.seconds),
+          windowingDelay = 5.seconds,
+          maxWindowSize = 500,
+          frequencies = Seq(10.seconds)),
         system,
         streamMonitoring = Some(new StreamMonitoringRef(probe.ref)),
         Seq(SignalNameEqualsMatcher(name = "test.trace", Some(SideEffect(Seq(testHealthSignal)))))).busWithSupervision()
@@ -52,36 +59,45 @@ class HealthSupervisorActorSpec
       bus.signalStream().start()
 
       // Register
-      bus.register(probe.ref, componentName = "boomControl", Seq(Pattern.compile("boom"))).futureValue shouldBe an[Ack]
-      val received = probe.receiveN(1, 10.seconds)
-      Option(received).nonEmpty shouldEqual true
+      whenReady(bus.register(probe.ref, componentName = "boomControl", Seq(Pattern.compile("boom")))) { done =>
+        done shouldBe a[Ack]
+        val received = probe.receiveN(1, 10.seconds)
+        Option(received).nonEmpty shouldEqual true
 
-      // Signal
-      bus.signalWithTrace(name = "test.trace", Trace("test trace")).emit()
+        // Signal
+        bus.signalWithTrace(name = "test.trace", Trace("test trace")).emit()
 
-      eventually {
-        // Verify restart
-        val restart = probe.fishForMessage(max = 100.millis) { case msg =>
-          msg.isInstanceOf[RestartComponent]
+        eventually {
+          // Verify restart
+          val restart = probe.fishForMessage(max = 100.millis) { case msg =>
+            msg.isInstanceOf[RestartComponent]
+          }
+          Option(restart.asInstanceOf[RestartComponent].replyTo).isDefined shouldEqual true
         }
-        Option(restart.asInstanceOf[RestartComponent].replyTo).isDefined shouldEqual true
-      }
 
-      bus.unsupervise().signalStream().stop()
+        bus.unsupervise().signalStream().stop()
+      }
     }
 
     "receive registration" in {
       val probe = TestProbe()
 
       val bus = new SlidingHealthSignalStreamProvider(
-        WindowingStreamConfig(advancerConfig = WindowingStreamSliderConfig()),
+        WindowingStreamConfig(
+          advancerConfig = WindowingStreamSliderConfig(buffer = 10, advanceAmount = 1),
+          throttleConfig = ThrottleConfig(elements = 100, duration = 5.seconds),
+          windowingDelay = 5.seconds,
+          maxWindowSize = 500,
+          frequencies = Seq(10.seconds)),
         system,
         streamMonitoring = Some(new StreamMonitoringRef(probe.ref)),
         Seq(SignalNameEqualsMatcher(name = "test.trace", Some(SideEffect(Seq(testHealthSignal)))))).busWithSupervision()
       val ref: HealthSupervisorTrait = bus.supervisor().get
 
       val message = bus.registration(probe.ref, componentName = "boomControl", Seq.empty)
-      ref.register(message.underlyingRegistration()).futureValue shouldBe an[Ack]
+      whenReady(ref.register(message.underlyingRegistration())) { done =>
+        done shouldBe a[Ack]
+      }
 
       val received = probe.receiveN(1, max = 10.seconds)
 
@@ -96,7 +112,12 @@ class HealthSupervisorActorSpec
     "receive signal" in {
       val probe: TestProbe = TestProbe()
       val bus = new SlidingHealthSignalStreamProvider(
-        WindowingStreamConfig(advancerConfig = WindowingStreamSliderConfig()),
+        WindowingStreamConfig(
+          advancerConfig = WindowingStreamSliderConfig(buffer = 10, advanceAmount = 1),
+          throttleConfig = ThrottleConfig(elements = 100, duration = 5.seconds),
+          windowingDelay = 5.seconds,
+          maxWindowSize = 500,
+          frequencies = Seq(10.seconds)),
         system,
         streamMonitoring = Some(new StreamMonitoringRef(probe.ref)),
         Seq(SignalNameEqualsMatcher(name = "test.trace", Some(SideEffect(Seq(testHealthSignal)))))).busWithSupervision()

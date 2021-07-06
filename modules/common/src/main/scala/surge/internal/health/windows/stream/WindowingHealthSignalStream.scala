@@ -2,42 +2,60 @@
 
 package surge.internal.health.windows.stream
 
-import java.util.concurrent.ArrayBlockingQueue
-
-import akka.Done
-import akka.actor.ActorRef
-import surge.health.{ HealthSignalStream, SignalHandler }
-import surge.health.domain.HealthSignal
-import surge.health.matchers.SignalPatternMatcher
-import surge.health.windows.Window
-
-import scala.util.Try
+import akka.actor.{ ActorRef, ActorSystem }
+import akka.stream.scaladsl.{ Source, SourceQueueWithComplete }
+import akka.stream.{ Materializer, OverflowStrategy }
+import org.slf4j.{ Logger, LoggerFactory }
+import surge.health.config.WindowingStreamConfig
+import surge.health.windows.WindowEvent
+import surge.health.{ HealthSignalStream, SignalSourceQueueProvider, SourcePlusQueue }
 
 trait StreamHandle {
-  def release(): Unit
+  private var running: Boolean = true
+
+  final def isRunning: Boolean = running
+
+  def close(): Unit = {
+    this.running = false
+  }
 }
 
-trait WindowingHealthSignalStream extends HealthSignalStream with ReleasableStream {
+case class SourcePlusQueueWithStreamHandle[T](sourcePlusQueue: SourcePlusQueue[T], streamHandle: StreamHandle)
+
+object WindowingHealthSignalStream {
+  val log: Logger = LoggerFactory.getLogger(getClass)
+}
+
+trait WindowingHealthSignalStream extends HealthSignalStream with SignalSourceQueueProvider with ReleasableStream {
   def underlyingActor: ActorRef
-  def processWindows(filters: Seq[SignalPatternMatcher], monitoringActor: Option[ActorRef]): StreamHandle
-
-  def signalAddedToWindow(signal: HealthSignal, window: Window): Unit = {}
-
-  protected[health] def signals(): ArrayBlockingQueue[HealthSignal]
+  def actorSystem: ActorSystem
+  def windowingConfig: WindowingStreamConfig
 
   /**
-   * Add Signal to Blocking Queue for processing
-   *
+   * Start a long running task to process data in windows
    * @return
-   *   SignalHandler
+   *   SourcePlusQueueWithStreamHandle used for closing the stream
    */
-  override def signalHandler: SignalHandler = (signal: HealthSignal) => {
-    // todo: consider ways to handle failed offer to add signal to blocking queue
-    Try {
-      if (!signals().add(signal)) {
-        throw new RuntimeException("failed to add signal. need too handle this case")
-      }
-      Done
-    }
+  protected[health] def doWindowing(maybeSideEffect: Option[() => Unit]): SourcePlusQueueWithStreamHandle[WindowEvent]
+
+  /**
+   * Provide WindowEvent(s) in a Source for stream operations
+   * @return
+   *   SourcePlusQueue[WindowEvent]
+   */
+  def windowEventSource(): SourcePlusQueue[WindowEvent] = {
+    val eventSource = Source
+      .queue[WindowEvent](windowingConfig.maxWindowSize, OverflowStrategy.backpressure)
+      .throttle(windowingConfig.throttleConfig.elements, windowingConfig.throttleConfig.duration)
+
+    val (sourceMat, source) = eventSource.preMaterialize()(Materializer(actorSystem))
+    SourcePlusQueue(source, sourceMat)
   }
+
+  /**
+   * Provide SourceQueue of WindowEvents
+   * @return
+   *   Option[SourceQueueWithComplete]
+   */
+  protected[health] def windowEventsSourceQueue(): Option[SourceQueueWithComplete[WindowEvent]]
 }

@@ -188,19 +188,33 @@ class KafkaProducerActorImpl(
   }
 
   private def processing(state: KafkaProducerActorState): Receive = {
-    case msg: KTableProgressUpdate    => handle(state, msg)
-    case msg: Publish                 => handle(state, msg)
-    case msg: EventsPublished         => handle(state, msg)
-    case msg: EventsFailedToPublish   => handleFailedToPublish(state, msg)
-    case msg: IsAggregateStateCurrent => handle(state, msg)
-    case GetHealth                    => doHealthCheck(state)
-    case FlushMessages                => handleFlushMessages(state)
-    case msg: AbortTransactionFailed  => handle(msg)
-    case msg: ProducerFenced =>
-      context.become(fenced(state))
-      self ! msg
+    case msg: InternalMessage                                  => handleProcessingInternalMessage(msg, state)
+    case msg: KafkaProducerActorImpl.KafkaProducerActorMessage => handleProcessingProducerMessage(msg, state)
+    case GetHealth                                             => doHealthCheck(state)
     case Status.Failure(e) =>
       log.error(s"Saw unhandled exception in producer for $assignedPartition", e)
+  }
+
+  private def handleProcessingProducerMessage(message: KafkaProducerActorImpl.KafkaProducerActorMessage, state: KafkaProducerActorState): Unit = {
+    message match {
+      case msg: Publish                 => handle(state, msg)
+      case msg: IsAggregateStateCurrent => handle(state, msg)
+      case other                        => unhandled(other)
+    }
+  }
+
+  private def handleProcessingInternalMessage(message: InternalMessage, state: KafkaProducerActorState): Unit = {
+    message match {
+      case msg: KTableProgressUpdate   => handle(state, msg)
+      case msg: EventsPublished        => handle(state, msg)
+      case msg: EventsFailedToPublish  => handleFailedToPublish(state, msg)
+      case FlushMessages               => handleFlushMessages(state)
+      case msg: AbortTransactionFailed => handle(msg)
+      case msg: ProducerFenced =>
+        context.become(fenced(state))
+        self ! msg
+      case other => unhandled(other)
+    }
   }
 
   private def checkKTableProgress(): Unit = {

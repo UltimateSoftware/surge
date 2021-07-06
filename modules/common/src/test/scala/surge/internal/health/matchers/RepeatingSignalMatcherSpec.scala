@@ -11,7 +11,7 @@ import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import surge.health.SignalType
-import surge.health.config.{ WindowingStreamConfig, WindowingStreamSliderConfig }
+import surge.health.config.{ ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig }
 import surge.health.domain.{ HealthSignal, Trace }
 import surge.health.matchers.SideEffect
 import surge.health.windows.WindowAdvanced
@@ -39,7 +39,12 @@ class RepeatingSignalMatcherSpec extends TestKit(ActorSystem("RepeatingSignals")
       val windowBuffer = 10
       val probe = TestProbe()
       val slidingHealthSignalStream = new SlidingHealthSignalStreamProvider(
-        WindowingStreamConfig(advancerConfig = WindowingStreamSliderConfig(buffer = windowBuffer)),
+        WindowingStreamConfig(
+          advancerConfig = WindowingStreamSliderConfig(buffer = windowBuffer, advanceAmount = 1),
+          throttleConfig = ThrottleConfig(elements = 100, duration = 5.seconds),
+          windowingDelay = 5.seconds,
+          maxWindowSize = 500,
+          frequencies = Seq(10.seconds)),
         filters = Seq(RepeatingSignalMatcher(2, SignalNameEqualsMatcher("99"), None)),
         streamMonitoring = Some(new StreamMonitoringRef(probe.ref)),
         actorSystem = system)
