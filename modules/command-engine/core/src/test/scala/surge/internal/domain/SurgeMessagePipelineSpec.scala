@@ -3,7 +3,7 @@ package surge.internal.domain
 
 import java.util.regex.Pattern
 
-import akka.actor.{ ActorSystem, PoisonPill }
+import akka.actor.ActorSystem
 import akka.testkit.{ TestKit, TestProbe }
 import com.typesafe.config.{ Config, ConfigFactory }
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
@@ -22,6 +22,7 @@ import surge.health.{ HealthListener, HealthMessage, RestartComponentAttempted, 
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.core.SurgePartitionRouterImpl
 import surge.internal.health.StreamMonitoringRef
+import surge.internal.health.supervisor.ShutdownComponent
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
 import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, MockPartitionTracker, MockState }
 import surge.metrics.Metrics
@@ -51,8 +52,6 @@ class SurgeMessagePipelineSpec
   private var pipeline: SurgeMessagePipeline[State, BaseTestCommand, Nothing, BaseTestEvent] = _
 
   override def beforeEach(): Unit = {
-    createCustomTopic(businessLogic.kafka.eventsTopic.name, Map.empty)
-    createCustomTopic(businessLogic.kafka.stateTopic.name, Map.empty)
 
     val config = ConfigFactory.load()
     probe = TestProbe()
@@ -94,6 +93,9 @@ class SurgeMessagePipelineSpec
   "SurgeMessagePipeline" should {
     "subscribe to health.signals via stream on start" in {
       withRunningKafkaOnFoundPort(config) { _ =>
+        createCustomTopic(businessLogic.kafka.eventsTopic.name, Map.empty)
+        createCustomTopic(businessLogic.kafka.stateTopic.name, Map.empty)
+
         // Stream should be a subscriber
         signalStreamProvider
           .busWithSupervision()
@@ -104,11 +106,14 @@ class SurgeMessagePipelineSpec
 
     "have self registered with HealthSignalBus" in {
       withRunningKafkaOnFoundPort(config) { _ =>
+        createCustomTopic(businessLogic.kafka.eventsTopic.name, Map.empty)
+        createCustomTopic(businessLogic.kafka.stateTopic.name, Map.empty)
+
         val bus = pipeline.signalBus
         // Retrieve Registrations and verify SurgeMessagePipeline is registered
         eventually {
           whenReady(bus.registrations()) { registrations =>
-            val registration = registrations.find(r => r.name == "surge-message-pipeline")
+            val registration = registrations.find(r => r.componentName == "surge-message-pipeline")
 
             registration.nonEmpty shouldEqual true
           }
@@ -118,6 +123,9 @@ class SurgeMessagePipelineSpec
 
     "have state-store-kafka-streams registered with HealthSignalBus" in {
       withRunningKafkaOnFoundPort(config) { _ =>
+        createCustomTopic(businessLogic.kafka.eventsTopic.name, Map.empty)
+        createCustomTopic(businessLogic.kafka.stateTopic.name, Map.empty)
+
         // Get running signal bus so we can check registrations
         val bus = pipeline.signalBus
 
@@ -125,7 +133,7 @@ class SurgeMessagePipelineSpec
         //  Verify the restartSignalPatterns are as expected
         eventually {
           whenReady(bus.registrations()) { registrations =>
-            val registration = registrations.find(r => r.name == "state-store-kafka-streams")
+            val registration = registrations.find(r => r.componentName == "state-store-kafka-streams")
             registration.nonEmpty shouldEqual true
             registration.get.restartSignalPatterns.map(p => p.pattern()).contains("kafka.streams.fatal.error") shouldEqual true
           }
@@ -135,6 +143,9 @@ class SurgeMessagePipelineSpec
 
     "shutdown when kafka streams fails to start too many times" in {
       withRunningKafkaOnFoundPort(config) { _ =>
+        createCustomTopic(businessLogic.kafka.eventsTopic.name, Map.empty)
+        createCustomTopic(businessLogic.kafka.stateTopic.name, Map.empty)
+
         // Get running signal bus so we can check registrations
         val bus = pipeline.signalBus
 
@@ -147,7 +158,7 @@ class SurgeMessagePipelineSpec
             // Wait for the surge-message-pipeline to be unregistered on termination.
             eventually {
               whenReady(bus.registrations()) { registrations =>
-                registrations.exists(r => r.name == "surge-message-pipeline") shouldEqual false
+                registrations.exists(r => r.componentName == "surge-message-pipeline") shouldEqual false
               }
             }
           }
@@ -157,12 +168,15 @@ class SurgeMessagePipelineSpec
 
     "have router-actor registered with HealthSignalBus" in {
       withRunningKafkaOnFoundPort(config) { _ =>
+        createCustomTopic(businessLogic.kafka.eventsTopic.name, Map.empty)
+        createCustomTopic(businessLogic.kafka.stateTopic.name, Map.empty)
+
         // Get running signal bus so we can check registrations
         val bus = pipeline.signalBus
 
         eventually {
           whenReady(bus.registrations()) { registrations =>
-            val registration = registrations.find(r => r.name == "router-actor")
+            val registration = registrations.find(r => r.componentName == "router-actor")
             registration.nonEmpty shouldEqual true
             registration.get.restartSignalPatterns.map(p => p.pattern()).contains("kafka.fatal.error") shouldEqual true
           }
@@ -172,19 +186,22 @@ class SurgeMessagePipelineSpec
 
     "have router-actor unregistered when terminated" in {
       withRunningKafkaOnFoundPort(config) { _ =>
+        createCustomTopic(businessLogic.kafka.eventsTopic.name, Map.empty)
+        createCustomTopic(businessLogic.kafka.stateTopic.name, Map.empty)
+
         // wait for router-actor to be registered
         eventually {
           whenReady(pipeline.signalBus.registrations()) { registrations =>
-            val registration = registrations.find(r => r.name == "router-actor")
+            val registration = registrations.find(r => r.componentName == "router-actor")
 
             registration.nonEmpty shouldEqual true
-            // Poison the router-actor
-            registration.get.ref ! PoisonPill
+            // Shutdown the router-actor
+            registration.get.controlProxyRef ! ShutdownComponent("router-actor", probe.ref)
 
             // Wait for the router-actor to be unregistered on termination.
             eventually {
               whenReady(pipeline.signalBus.registrations()) { registrations =>
-                registrations.exists(r => r.name == "router-actor") shouldEqual false
+                registrations.exists(r => r.componentName == "router-actor") shouldEqual false
               }
             }
           }
@@ -194,6 +211,9 @@ class SurgeMessagePipelineSpec
 
     "attempt to restart state-store-kafka-streams" in {
       withRunningKafkaOnFoundPort(config) { _ =>
+        createCustomTopic(businessLogic.kafka.eventsTopic.name, Map.empty)
+        createCustomTopic(businessLogic.kafka.stateTopic.name, Map.empty)
+
         pipeline.signalBus.signalWithError(name = "kafka.streams.fatal.error", Error("boom", None)).emit()
 
         eventually {
@@ -209,6 +229,9 @@ class SurgeMessagePipelineSpec
 
     "attempt to restart router-actor" in {
       withRunningKafkaOnFoundPort(config) { _ =>
+        createCustomTopic(businessLogic.kafka.eventsTopic.name, Map.empty)
+        createCustomTopic(businessLogic.kafka.stateTopic.name, Map.empty)
+
         pipeline.signalBus.signalWithError(name = "kafka.fatal.error", Error("boom", None)).emit()
 
         eventually {
@@ -224,6 +247,9 @@ class SurgeMessagePipelineSpec
 
     "inject signal named `it.failed` into signal stream" in {
       withRunningKafkaOnFoundPort(config) { _ =>
+        createCustomTopic(businessLogic.kafka.eventsTopic.name, Map.empty)
+        createCustomTopic(businessLogic.kafka.stateTopic.name, Map.empty)
+
         pipeline.signalBus.signalWithError(name = "baz", Error("baz happened", None)).emit()
 
         var captured: Option[HealthSignal] = None

@@ -12,10 +12,12 @@ import akka.stream.scaladsl.{ Source, SourceQueueWithComplete }
 import akka.stream.{ Materializer, OverflowStrategy }
 import akka.{ Done, NotUsed }
 import org.slf4j.LoggerFactory
+import surge.core.Controllable
 import surge.health.config.ThrottleConfig
 import surge.health.domain.{ EmittableHealthSignal, Error, HealthSignal, Timed, Trace, Warning }
 import surge.health.matchers.SignalPatternMatcher
 import surge.internal.health.RegistrationHandler
+import surge.internal.health.supervisor.{ RegisterSupervisedComponentRequest, RestartComponent, ShutdownComponent, SupervisedComponentRegistration }
 
 import scala.concurrent.Future
 import scala.util.Try
@@ -35,26 +37,27 @@ trait HealthyPublisher extends HealthSignalBusAware {
 }
 
 trait RegistrationConsumer {
-  def registrations(): Future[Seq[HealthRegistration]]
-  def registrations(matching: Pattern): Future[Seq[HealthRegistration]]
+  def registrations(): Future[Seq[SupervisedComponentRegistration]]
+  def registrations(matching: Pattern): Future[Seq[SupervisedComponentRegistration]]
 }
 
 final case class HealthRegistration(
-    ref: ActorRef,
+    componentName: String,
+    control: Controllable,
     topic: String,
-    name: String,
     restartSignalPatterns: Seq[Pattern] = Seq.empty,
     shutdownSignalPatterns: Seq[Pattern] = Seq.empty,
     id: UUID = UUID.randomUUID(),
-    timestamp: Instant = Instant.now)
+    timestamp: Instant = Instant.now,
+    ref: Option[ActorRef] = None)
     extends HealthMessage
 
 final case class Ack(success: Boolean, error: Option[Any])
 
 trait RegistrationProducer {
-  def register(ref: ActorRef, componentName: String, restartSignalPatterns: Seq[Pattern], shutdownSignalPatterns: Seq[Pattern] = Seq.empty): Future[Ack]
+  def register(control: Controllable, componentName: String, restartSignalPatterns: Seq[Pattern], shutdownSignalPatterns: Seq[Pattern] = Seq.empty): Future[Ack]
   def registration(
-      ref: ActorRef,
+      controllable: Controllable,
       componentName: String,
       restartSignalPatterns: Seq[Pattern],
       shutdownSignalPatterns: Seq[Pattern] = Seq.empty): InvokableHealthRegistration
@@ -106,13 +109,24 @@ trait HealthRegistrationListener extends HealthListener {
 }
 
 sealed trait HealthSupervisionEvent {}
-case class HealthRegistrationReceived(registration: HealthRegistration) extends HealthSupervisionEvent
+case class HealthRegistrationReceived(registration: RegisterSupervisedComponentRequest) extends HealthSupervisionEvent
 case class HealthSignalReceived(signal: HealthSignal) extends HealthSupervisionEvent
 case class HealthSignalStreamAdvanced() extends HealthSupervisionEvent
 case class RestartComponentAttempted(componentName: String, timestamp: Instant = Instant.now()) extends HealthSupervisionEvent
 case class ShutdownComponentAttempted(componentName: String, timestamp: Instant = Instant.now()) extends HealthSupervisionEvent
 
 case class HealthSupervisorState(started: Boolean)
+case class ControlProxy(name: String, actor: ActorRef) {
+  def shutdown(replyTo: ActorRef): Unit = {
+    actor ! ShutdownComponent(name, replyTo)
+  }
+
+  def restart(replyTo: ActorRef): Unit = {
+    actor ! RestartComponent(name, replyTo)
+  }
+}
+
+case class HealthRegistrationLink(componentName: String, controlProxy: ControlProxy)
 
 trait HealthSupervisorTrait {
   def state(): HealthSupervisorState
@@ -123,6 +137,7 @@ trait HealthSupervisorTrait {
 
   def registrar(): ActorRef
 
+  def registrationLinks(): Seq[HealthRegistrationLink]
   def actorSystem(): ActorSystem
 }
 

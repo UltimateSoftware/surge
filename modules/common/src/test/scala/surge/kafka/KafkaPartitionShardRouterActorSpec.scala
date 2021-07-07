@@ -13,12 +13,13 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
 import surge.akka.cluster.{ EntityPropsProvider, PerShardLogicProvider }
+import surge.core.ControlAck
 import surge.internal.akka.cluster.ActorSystemHostAwareness
 import surge.internal.akka.kafka.{ KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor }
 import surge.kafka.streams.{ HealthCheck, HealthCheckStatus }
 import surge.tracing.TracedMessage
 
-import scala.concurrent.Future
+import scala.concurrent.{ ExecutionContext, Future }
 
 object KafkaPartitionShardRouterActorSpecModels {
   case class Command(id: String)
@@ -38,11 +39,11 @@ object KafkaPartitionShardRouterActorSpecModels {
         override def onShardTerminated(): Unit = {}
         override def healthCheck(): Future[HealthCheck] = Future.successful(HealthCheck("test", "test", HealthCheckStatus.UP))
 
-        override def restart(): Unit = {}
-        override def start(): Unit = {}
-        override def stop(): Unit = {}
+        override def restart(): Future[ControlAck] = Future { ControlAck(success = true) }(ExecutionContext.global)
+        override def start(): Future[ControlAck] = Future { ControlAck(success = true) }(ExecutionContext.global)
+        override def stop(): Future[ControlAck] = Future { ControlAck(success = true) }(ExecutionContext.global)
 
-        override def shutdown(): Unit = stop()
+        override def shutdown(): Future[ControlAck] = stop()
       }
 
       provider.start()

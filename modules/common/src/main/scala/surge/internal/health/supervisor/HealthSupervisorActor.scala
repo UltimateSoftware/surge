@@ -2,20 +2,24 @@
 
 package surge.internal.health.supervisor
 
+import java.util.regex.Pattern
+
 import akka.Done
 import akka.actor.{ Actor, ActorContext, ActorRef, ActorSystem, PoisonPill, Props, Terminated }
 import akka.pattern.{ ask, BackoffOpts, BackoffSupervisor }
 import org.slf4j.{ Logger, LoggerFactory }
+import surge.core.Controllable
 import surge.health._
 import surge.health.domain.HealthSignal
 import surge.health.matchers.SignalPatternMatcher
 import surge.internal.config.BackoffConfig
 import surge.internal.health._
 
+import scala.collection.mutable
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.languageFeature.postfixOps
-import scala.util.Try
+import scala.util.{ Failure, Success, Try }
 
 trait RegistrationSupport {
   def registrar(): ActorRef
@@ -39,14 +43,43 @@ class HealthSignalStreamMonitoringRefWithSupervisionSupport(override val actor: 
   }
 }
 
+object HealthSupervisorActorRef {
+  val log: Logger = LoggerFactory.getLogger(getClass)
+}
+
 /**
  * HealthSupervisorActorRef
  * @param actor
  *   ActorRef
  */
 class HealthSupervisorActorRef(val actor: ActorRef, askTimeout: FiniteDuration, override val actorSystem: ActorSystem) extends HealthSupervisorTrait {
+  import HealthSupervisorActorRef._
+
   private var started: Boolean = false
   private implicit val executionContext: ExecutionContext = actorSystem.dispatcher
+  private val controllables: mutable.Map[String, Controllable] = mutable.Map[String, Controllable]()
+
+  private val controlProxy = actorSystem.actorOf(Props(new Actor() {
+    override def receive: Receive = {
+      case RestartComponent(name, _) =>
+        controllables.get(name).foreach(c => c.restart())
+      case ShutdownComponent(name, _) =>
+        controllables
+          .get(name)
+          .foreach(c => {
+            c.shutdown()
+
+            // remove control
+            controllables.remove(name)
+            actor ! UnregisterSupervisedComponentRequest(name)
+          })
+    }
+  }))
+
+  override def registrationLinks(): Seq[HealthRegistrationLink] = {
+    controllables.keys.map(name => HealthRegistrationLink(name, ControlProxy(name, controlProxy))).toSeq
+  }
+
   def start(replyTo: Option[ActorRef] = None): HealthSupervisorActorRef = {
     actor ! Start(replyTo)
     started = true
@@ -71,19 +104,48 @@ class HealthSupervisorActorRef(val actor: ActorRef, askTimeout: FiniteDuration, 
   override def registrar(): ActorRef = actor
 
   override def register(registration: HealthRegistration): Future[Any] = {
-    actor.ask(registration)(askTimeout)
+    // todo: deal with potential registration failure
+    val result = actor.ask(
+      RegisterSupervisedComponentRequest(
+        registration.componentName,
+        controlProxy,
+        restartSignalPatterns = registration.restartSignalPatterns,
+        shutdownSignalPatterns = registration.shutdownSignalPatterns))(askTimeout)
+
+    result.onComplete {
+      case Success(_) =>
+        controllables.put(registration.componentName, registration.control)
+      case Failure(exception) =>
+        log.error(s"Failed to register ${registration.componentName}", exception)
+    }
+
+    result
   }
 }
 
 // Commands
 case class Start(replyTo: Option[ActorRef] = None)
-case class RestartComponent(replyTo: ActorRef)
-case class ShutdownComponent(replyTo: ActorRef)
-case class HealthRegistrationRequest()
+case class RestartComponent(name: String, replyTo: ActorRef)
+case class ShutdownComponent(name: String, replyTo: ActorRef)
+case class UnregisterSupervisedComponentRequest(componentName: String)
+case class RegisterSupervisedComponentRequest(
+    componentName: String,
+    controlProxyRef: ActorRef,
+    restartSignalPatterns: Seq[Pattern],
+    shutdownSignalPatterns: Seq[Pattern]) {
+  def asSupervisedComponentRegistration(): SupervisedComponentRegistration =
+    SupervisedComponentRegistration(componentName, controlProxyRef, restartSignalPatterns, shutdownSignalPatterns)
+}
+case class HealthRegistrationDetailsRequest()
 case class Stop()
 
 // State
-case class HealthState(registered: Map[String, HealthRegistration] = Map.empty, replyTo: Option[ActorRef] = None)
+case class SupervisedComponentRegistration(
+    componentName: String,
+    controlProxyRef: ActorRef,
+    restartSignalPatterns: Seq[Pattern],
+    shutdownSignalPatterns: Seq[Pattern])
+case class HealthState(registered: Map[String, SupervisedComponentRegistration] = Map.empty, replyTo: Option[ActorRef] = None)
 
 object HealthSupervisorActor {
   val log: Logger = LoggerFactory.getLogger(getClass)
@@ -143,12 +205,14 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, filters:
     case Stop =>
       context.become(receive)
       context.self ! Stop
-    case reg: HealthRegistration =>
+    case reg: RegisterSupervisedComponentRequest =>
       state.replyTo.foreach(r => r ! HealthRegistrationReceived(reg))
-      context.watch(reg.ref)
-      context.become(monitoring(state.copy(registered = state.registered + (reg.name -> reg))))
+      context.watch(reg.controlProxyRef)
+      context.become(monitoring(state.copy(registered = state.registered + (reg.componentName -> reg.asSupervisedComponentRegistration()))))
       sender() ! Ack(success = true, None)
-    case HealthRegistrationRequest =>
+    case remove: UnregisterSupervisedComponentRequest =>
+      context.become(monitoring(state.copy(registered = state.registered - remove.componentName)))
+    case HealthRegistrationDetailsRequest =>
       sender() ! state.registered.values.toList
     case signal: HealthSignal =>
       state.replyTo.foreach(r => r ! HealthSignalReceived(signal))
@@ -156,28 +220,22 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, filters:
       state.registered.values.foreach(registered => {
         registered.restartSignalPatterns.foreach(p => {
           if (p.matcher(signal.name).matches()) {
-            registered.ref ! RestartComponent(self)
-            state.replyTo.foreach(r => r ! RestartComponentAttempted(registered.name))
+            registered.controlProxyRef ! RestartComponent(registered.componentName, self)
+            state.replyTo.foreach(r => r ! RestartComponentAttempted(registered.componentName))
           }
         })
 
         registered.shutdownSignalPatterns.foreach(p => {
           if (p.matcher(signal.name).matches()) {
-            registered.ref ! ShutdownComponent(self)
-            state.replyTo.foreach(r => r ! ShutdownComponentAttempted(registered.name))
+            registered.controlProxyRef ! ShutdownComponent(registered.componentName, self)
+            state.replyTo.foreach(r => r ! ShutdownComponentAttempted(registered.componentName))
           }
         })
       })
     case term: Terminated =>
       context.unwatch(term.actor)
-      val remove: Option[(String, HealthRegistration)] = state.registered.find(t => t._2.ref == term.actor)
-      remove match {
-        case Some(m) =>
-          val nextState = state.copy(registered = state.registered - m._1)
-          context.become(monitoring(nextState))
-        case None =>
-          context.become(monitoring(state))
-      }
+      val nextState = state.copy(registered = Map.empty)
+      context.become(monitoring(nextState))
   }
 
   override def start(maybeSideEffect: Option[() => Unit]): HealthSignalListener = {

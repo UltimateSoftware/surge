@@ -31,6 +31,10 @@ object TimeoutConfig {
     val updateTimeout: FiniteDuration = 20.seconds
   }
 
+  object PartitionRouter {
+    val askTimeout: FiniteDuration = 20.seconds
+  }
+
   object ActorRegistry {
     val askTimeout: FiniteDuration = config.getDuration("surge.actor-registry.ask-timeout", TimeUnit.MILLISECONDS).milliseconds
     val resolveActorTimeout: FiniteDuration = config.getDuration("surge.actor-registry.resolve-actor-timeout", TimeUnit.MILLISECONDS).milliseconds
@@ -41,6 +45,8 @@ object TimeoutConfig {
       config.getDuration("surge.producer.publish-timeout", TimeUnit.MILLISECONDS).milliseconds
     val aggregateStateCurrentTimeout: FiniteDuration =
       config.getDuration("surge.producer.aggregate-state-current-timeout", TimeUnit.MILLISECONDS).milliseconds
+    val askTimeout: FiniteDuration =
+      config.getDuration("surge.producer.ask-timeout", TimeUnit.MILLISECONDS).milliseconds
   }
 
 }

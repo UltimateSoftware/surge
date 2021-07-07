@@ -4,11 +4,12 @@ package surge.internal.health
 
 import java.util.regex.Pattern
 
-import akka.actor.{ Actor, ActorRef, ActorSystem, Props }
+import akka.actor.{ Actor, ActorSystem, Props }
 import akka.event.LookupClassification
 import akka.pattern._
 import com.typesafe.config.{ Config, ConfigFactory }
 import org.slf4j.{ Logger, LoggerFactory }
+import surge.core.Controllable
 import surge.health._
 import surge.health.config.HealthSignalBusConfig
 import surge.health.domain.{ EmittableHealthSignal, Error, HealthSignal, Trace, Warning }
@@ -160,7 +161,7 @@ private[surge] class HealthSignalBusImpl(config: HealthSignalBusConfig, signalSt
       case None =>
         val actor = actorSystem.actorOf(Props(new Actor() {
           override def receive: Receive = {
-            case HealthRegistrationReceived(registration: HealthRegistration) =>
+            case HealthRegistrationReceived(registration: RegisterSupervisedComponentRequest) =>
               log.debug("Health Registration received {}", registration)
             case HealthSignalReceived(signal: HealthSignal) =>
               log.debug("Health Signal received {}", signal)
@@ -218,22 +219,27 @@ private[surge] class HealthSignalBusImpl(config: HealthSignalBusConfig, signalSt
   }
 
   override def register(
-      ref: ActorRef,
+      control: Controllable,
       componentName: String,
       restartSignalPatterns: Seq[Pattern],
       shutdownSignalPatterns: Seq[Pattern] = Seq.empty): Future[Ack] = {
-    registration(ref, componentName, restartSignalPatterns, shutdownSignalPatterns).invoke()
+    registration(control, componentName, restartSignalPatterns, shutdownSignalPatterns).invoke()
   }
 
   override def registration(
-      ref: ActorRef,
+      control: Controllable,
       componentName: String,
       restartSignalPatterns: Seq[Pattern],
       shutdownSignalPatterns: Seq[Pattern]): InvokableHealthRegistration = {
     supervisor() match {
       case Some(exists) =>
         new InvokableHealthRegistrationImpl(
-          HealthRegistration(ref, config.registrationTopic, componentName, restartSignalPatterns, shutdownSignalPatterns),
+          HealthRegistration(
+            control = control,
+            topic = config.registrationTopic,
+            componentName = componentName,
+            restartSignalPatterns = restartSignalPatterns,
+            shutdownSignalPatterns = shutdownSignalPatterns),
           exists,
           signalBus = this)
       case None =>
@@ -242,18 +248,18 @@ private[surge] class HealthSignalBusImpl(config: HealthSignalBusConfig, signalSt
 
   }
 
-  override def registrations(): Future[Seq[HealthRegistration]] = {
+  override def registrations(): Future[Seq[SupervisedComponentRegistration]] = {
     supervisorRef match {
       case Some(ref) =>
-        val result = ref.actor.ask(HealthRegistrationRequest)(timeout = 10.seconds)
+        val result = ref.actor.ask(HealthRegistrationDetailsRequest)(timeout = 10.seconds)
 
-        result.map(a => a.asInstanceOf[List[HealthRegistration]])(actorSystem.dispatcher)
+        result.map(a => a.asInstanceOf[List[SupervisedComponentRegistration]])(actorSystem.dispatcher)
       case None => Future.successful(Seq.empty)
     }
   }
 
-  override def registrations(matching: Pattern): Future[Seq[HealthRegistration]] = {
-    registrations().map(r => r.filter(f => matching.matcher(f.name).matches()))(ExecutionContext.global)
+  override def registrations(matching: Pattern): Future[Seq[SupervisedComponentRegistration]] = {
+    registrations().map(r => r.filter(f => matching.matcher(f.componentName).matches()))(ExecutionContext.global)
   }
 
   override def signalWithError(name: String, error: Error, metadata: Map[String, String] = Map.empty): EmittableHealthSignal = {
