@@ -8,10 +8,9 @@ import akka.actor.{ ActorRef, ActorSystem }
 import akka.pattern.{ ask, BackoffOpts, BackoffSupervisor }
 import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
-import org.apache.kafka.streams.{ LagInfo, Topology }
+import org.apache.kafka.streams.Topology
 import surge.core.ControlAck
 import org.apache.kafka.common.TopicPartition
-import org.apache.kafka.streams.Topology
 import surge.health.HealthSignalBusTrait
 import surge.internal.config.{ BackoffConfig, TimeoutConfig }
 import surge.internal.utils.{ BackoffChildActorTerminationWatcher, Logging }
