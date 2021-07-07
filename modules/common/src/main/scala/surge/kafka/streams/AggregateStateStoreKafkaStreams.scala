@@ -4,19 +4,21 @@ package surge.kafka.streams
 
 import java.util.regex.Pattern
 
-import akka.actor.{ ActorRef, ActorSystem }
+import akka.actor.{ ActorRef, ActorSystem, Props }
 import akka.pattern.{ ask, BackoffOpts, BackoffSupervisor }
 import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
+import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.streams.Topology
 import surge.core.ControlAck
-import org.apache.kafka.common.TopicPartition
 import surge.health.HealthSignalBusTrait
+import surge.internal.akka.actor.ActorLifecycleManagerActor
+import surge.internal.akka.actor.ActorLifecycleManagerActor.Ack
 import surge.internal.config.{ BackoffConfig, TimeoutConfig }
 import surge.internal.utils.{ BackoffChildActorTerminationWatcher, Logging }
-import surge.kafka.{ KafkaTopic, LagInfo }
 import surge.kafka.streams.AggregateStateStoreKafkaStreamsImpl._
-import surge.kafka.streams.KafkaStreamLifeCycleManagement.{ Restart, Start, Stop }
+import surge.kafka.streams.KafkaStreamLifeCycleManagement.{ Start, Stop }
+import surge.kafka.{ KafkaTopic, LagInfo }
 import surge.metrics.Metrics
 
 import scala.concurrent.{ ExecutionContext, Future }
@@ -72,7 +74,6 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
     metrics: Metrics)
     extends HealthyComponent
     with Logging {
-
   private[streams] lazy val settings = AggregateStateStoreKafkaStreamsImplSettings(applicationId, aggregateName, clientId)
 
   private[streams] val underlyingActor = createUnderlyingActorWithBackOff()
@@ -88,15 +89,16 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
    * `kafka.streams.wipe-state-on-start` config setting is set to true.
    */
   override def start(): Future[ControlAck] = {
-    implicit val executionContext: ExecutionContext = system.dispatcher
-    implicit val askTimeout: Timeout = Timeout(TimeoutConfig.StateStoreKafkaStreamActor.askTimeout)
+    val result = underlyingActor
+      .ask(ActorLifecycleManagerActor.Start)
+      .map {
+        case ack: Ack =>
+          ControlAck(ack.success)
+        case _ =>
+          ControlAck(success = false, error = Some(new RuntimeException("Unexpected response from actor start request")))
+      }(system.dispatcher)
 
-    val result = Future {
-      underlyingActor ! Start
-      ControlAck(success = true)
-    }
-
-    result.onComplete(registrationHandler())
+    result.onComplete(registrationHandler())(system.dispatcher)
 
     result
   }
@@ -105,15 +107,26 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
     stop()
   }
 
-  override def stop(): Future[ControlAck] = Future {
-    underlyingActor ! Stop
-    ControlAck(success = true)
-  }(system.dispatcher)
+  override def stop(): Future[ControlAck] = {
+    underlyingActor
+      .ask(ActorLifecycleManagerActor.Stop)
+      .map {
+        case ack: Ack =>
+          ControlAck(ack.success)
+        case _ =>
+          ControlAck(success = false, error = Some(new RuntimeException("Unexpected response from actor stop request")))
+      }(system.dispatcher)
+  }
 
-  override def restart(): Future[ControlAck] = Future {
-    underlyingActor ! Restart
-    ControlAck(success = true)
-  }(system.dispatcher)
+  override def restart(): Future[ControlAck] = {
+    implicit val executionContext: ExecutionContext = system.dispatcher
+    for {
+      stopped <- stop()
+      started <- start(stopped)
+    } yield {
+      started
+    }
+  }
 
   def partitionLag(topicPartition: TopicPartition)(implicit ec: ExecutionContext): Future[Option[LagInfo]] = {
     underlyingActor.ask(GetPartitionLag(topicPartition)).mapTo[PartitionLagResponse].map(_.lag)
@@ -150,7 +163,8 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
           randomFactor = BackoffConfig.StateStoreKafkaStreamActor.randomFactor)
         .withMaxNrOfRetries(BackoffConfig.StateStoreKafkaStreamActor.maxRetries))
 
-    val underlyingCreatedActor = system.actorOf(underlyingActorProps)
+    val underlyingCreatedActor =
+      system.actorOf(Props(new ActorLifecycleManagerActor(underlyingActorProps, initMessage = Some(() => Start), finalizeMessage = Some(() => Stop))))
 
     system.actorOf(BackoffChildActorTerminationWatcher.props(underlyingCreatedActor, () => onMaxRetries()))
 
@@ -161,7 +175,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
     underlyingActor.ask(GetTopology).mapTo[Topology]
   }
 
-  private def registrationHandler()(implicit ec: ExecutionContext): Try[Any] => Unit = {
+  private def registrationHandler(): Try[Any] => Unit = {
 
     case Success(_) =>
       val registrationResult = signalBus.register(
@@ -178,5 +192,15 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
       }(system.dispatcher)
     case Failure(error) =>
       log.error("Failed to register AggregateStateStore for supervision", error)
+  }
+
+  private def start(stopped: ControlAck): Future[ControlAck] = {
+    if (stopped.success) {
+      start()
+    } else {
+      Future {
+        ControlAck(success = false, error = Some(new RuntimeException("Failed to stop AggregateStateStoreKafkaStreams")))
+      }(system.dispatcher)
+    }
   }
 }

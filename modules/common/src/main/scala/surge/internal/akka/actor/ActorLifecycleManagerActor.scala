@@ -14,14 +14,22 @@ object ActorLifecycleManagerActor {
   }
 }
 
-class ActorLifecycleManagerActor(managedActorProps: Props, managedActorName: Option[String] = None) extends Actor {
+class ActorLifecycleManagerActor(
+    managedActorProps: Props,
+    managedActorName: Option[String] = None,
+    initMessage: Option[() => Any] = None,
+    finalizeMessage: Option[() => Any] = None)
+    extends Actor {
   override def receive: Receive = stopped
 
   private def stopped: Receive = {
     case ActorLifecycleManagerActor.Start =>
       val actor = managedActorName match {
-        case Some(name) => context.actorOf(managedActorProps, name)
-        case _          => context.actorOf(managedActorProps)
+        case Some(name) =>
+          val actorRef = context.actorOf(managedActorProps, name)
+          initMessage.foreach(init => actorRef ! init)
+          actorRef
+        case _ => context.actorOf(managedActorProps)
       }
       context.watch(actor)
       context.become(running(actor))
@@ -31,7 +39,11 @@ class ActorLifecycleManagerActor(managedActorProps: Props, managedActorName: Opt
 
   private def running(managedActor: ActorRef): Receive = {
     case ActorLifecycleManagerActor.Stop =>
-      context.stop(managedActor)
+      finalizeMessage match {
+        case Some(fin) => managedActor ! fin()
+        case None =>
+          context.stop(managedActor)
+      }
       context.become(stopped)
       sender() ! Ack(true)
     case Terminated(actorRef) if actorRef == managedActor => context.become(stopped)
