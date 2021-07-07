@@ -16,13 +16,6 @@ object BackoffConfig {
     val maxRetries = config.getInt("surge.state-store-actor.backoff.max-retries")
   }
 
-  object GlobalKTableKafkaStreamActor {
-    val minBackoff = config.getDuration("surge.global-ktable-actor.backoff.min-backoff")
-    val maxBackoff = config.getDuration("surge.global-ktable-actor.backoff.max-backoff")
-    val randomFactor = config.getDouble("surge.global-ktable-actor.backoff.random-factor")
-    val maxRetries = config.getInt("surge.global-ktable-actor.backoff.max-retries")
-  }
-
   object HealthSignalWindowActor {
     val minBackoff = config.getDuration("surge.health.window-actor.backoff.min-backoff")
     val maxBackoff = config.getDuration("surge.health.window-actor.backoff.max-backoff")

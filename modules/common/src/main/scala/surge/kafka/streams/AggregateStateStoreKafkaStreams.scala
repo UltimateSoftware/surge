@@ -10,10 +10,12 @@ import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
 import org.apache.kafka.streams.{ LagInfo, Topology }
 import surge.core.ControlAck
+import org.apache.kafka.common.TopicPartition
+import org.apache.kafka.streams.Topology
 import surge.health.HealthSignalBusTrait
 import surge.internal.config.{ BackoffConfig, TimeoutConfig }
 import surge.internal.utils.{ BackoffChildActorTerminationWatcher, Logging }
-import surge.kafka.KafkaTopic
+import surge.kafka.{ KafkaTopic, LagInfo }
 import surge.kafka.streams.AggregateStateStoreKafkaStreamsImpl._
 import surge.kafka.streams.KafkaStreamLifeCycleManagement.{ Restart, Start, Stop }
 import surge.metrics.Metrics
@@ -114,8 +116,8 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
     ControlAck(success = true)
   }(system.dispatcher)
 
-  def partitionLags()(implicit ec: ExecutionContext): Future[Map[String, Map[java.lang.Integer, LagInfo]]] = {
-    underlyingActor.ask(GetLocalStorePartitionLags).mapTo[LocalStorePartitionLags].map(_.lags)
+  def partitionLag(topicPartition: TopicPartition)(implicit ec: ExecutionContext): Future[Option[LagInfo]] = {
+    underlyingActor.ask(GetPartitionLag(topicPartition)).mapTo[PartitionLagResponse].map(_.lag)
   }
 
   def getAggregateBytes(aggregateId: String): Future[Option[Array[Byte]]] = {
