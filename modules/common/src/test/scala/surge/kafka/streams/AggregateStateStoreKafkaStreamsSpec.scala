@@ -112,6 +112,8 @@ class AggregateStateStoreKafkaStreamsSpec
             AggregateStateStoreKafkaStreamsImplSettings(appId, testAggregateName, "").copy(brokers = Seq(s"localhost:${actualConfig.kafkaPort}"))
         }
 
+        aggStoreKafkaStreams.start()
+
         val topology = aggStoreKafkaStreams.getTopology.futureValue
 
         withTopologyTestDriver(topology) { testDriver =>
@@ -150,6 +152,8 @@ class AggregateStateStoreKafkaStreamsSpec
           override lazy val settings: AggregateStateStoreKafkaStreamsImplSettings =
             AggregateStateStoreKafkaStreamsImplSettings(appId, testAggregateName, "").copy(brokers = Seq(s"localhost:${actualConfig.kafkaPort}"))
         }
+
+        aggStoreKafkaStreams.start()
 
         val topology = aggStoreKafkaStreams.getTopology.futureValue
 
