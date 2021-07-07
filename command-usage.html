@@ -2,7 +2,7 @@
 <html class="no-js" lang="en">
 
 <head>
-<title>Using Surge on the command side · Surge</title>
+<title>Command Side Usage · Surge</title>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <meta name="description" content='surge-docs'/>
@@ -30,13 +30,13 @@
 <span class="home-icon">⌂</span>Surge
 </a>
 <div class="version-number">
-0.5.3*
+0.5.12*
 </div>
 </div>
 <div class="nav-toc">
 <ul>
   <li><a href="overview.html" class="page">Overview</a></li>
-  <li><a href="command-usage.html" class="active page">Using Surge on the command side</a></li>
+  <li><a href="command-usage.html" class="active page">Command Side Usage</a></li>
 </ul>
 </div>
 
@@ -68,13 +68,13 @@ C16.952,7,17,6.553,17,6c0-0.553-0.048-1-0.6-1H3.6C3.048,5,3,5.447,3,6C3,6.553,3.
 <span class="home-icon">⌂</span>Surge
 </a>
 <div class="version-number">
-0.5.3*
+0.5.12*
 </div>
 </div>
 <div class="nav-toc">
 <ul>
   <li><a href="overview.html" class="page">Overview</a></li>
-  <li><a href="command-usage.html" class="active page">Using Surge on the command side</a></li>
+  <li><a href="command-usage.html" class="active page">Command Side Usage</a></li>
 </ul>
 </div>
 
@@ -91,7 +91,7 @@ C16.952,7,17,6.553,17,6c0-0.553-0.048-1-0.6-1H3.6C3.048,5,3,5.447,3,6C3,6.553,3.
 <div class="nav-breadcrumbs">
 <ul>
   <li><a href="index.html">Surge</a></li>
-  <li>Using Surge on the command side</li>
+  <li>Command Side Usage</li>
 </ul>
 </div>
 </div>
@@ -99,8 +99,26 @@ C16.952,7,17,6.553,17,6c0-0.553-0.048-1-0.6-1H3.6C3.048,5,3,5.447,3,6C3,6.553,3.
 
 <div class="page-content row">
 <div class="small-12 large-9 column" id="docs">
-<h1><a href="#using-surge-on-the-command-side" name="using-surge-on-the-command-side" class="anchor"><span class="anchor-link"></span></a>Using Surge on the command side</h1>
+<h1><a href="#command-side-usage" name="command-side-usage" class="anchor"><span class="anchor-link"></span></a>Command Side Usage</h1>
 <p>Surge provides an engine that must be configured with domain logic. It uses this domain logic under the hood to determine what events should be emitted based on a command and how to update the state of an aggregate based on those events. This page describes how to configure, create, and interact with a Surge command engine.</p>
+<h2><a href="#module-info" name="module-info" class="anchor"><span class="anchor-link"></span></a>Module Info</h2><dl class="dependency"><dt>sbt</dt><dd><pre class="prettyprint"><code class="language-scala">val SurgeVersion = "0.5.12-SNAPSHOT"
+libraryDependencies += "com.ukg" %% "surge-engine-command-scaladsl" % SurgeVersion</code></pre></dd><dt>Maven</dt><dd><pre class="prettyprint"><code class="language-xml">&lt;properties&gt;
+  &lt;surge.version&gt;0.5.12-SNAPSHOT&lt;/surge.version&gt;
+  &lt;scala.binary.version&gt;2.13&lt;/scala.binary.version&gt;
+&lt;/properties&gt;
+&lt;dependencies&gt
+  &lt;dependency&gt;
+    &lt;groupId&gt;com.ukg&lt;/groupId&gt;
+    &lt;artifactId&gt;surge-engine-command-scaladsl_${scala.binary.version}&lt;/artifactId&gt;
+    &lt;version&gt;${surge.version}&lt;/version&gt;
+  &lt;/dependency&gt
+&lt;/dependencies&gt;</code></pre></dd><dt>Gradle</dt><dd><pre class="prettyprint"><code class="language-gradle">def versions = [
+  SurgeVersion: "0.5.12-SNAPSHOT",
+  ScalaBinary: "2.13"
+]
+dependencies {
+  implementation "com.ukg:surge-engine-command-scaladsl_${versions.ScalaBinary}:${versions.SurgeVersion}"
+}</code></pre></dd></dl>
 <h2><a href="#domain-logic" name="domain-logic" class="anchor"><span class="anchor-link"></span></a>Domain Logic</h2>
 <h3><a href="#aggregates" name="aggregates" class="anchor"><span class="anchor-link"></span></a>Aggregates</h3>
 <p>An aggregate type is the base type for an instance of the Surge engine. Multiple Surge engines can be run within a service, but one instance of the engine should map to exactly one type of aggregate. Aggregates should be simple data classes used to maintain any context/state needed to process incoming commands.</p><div class="callout note "><div class="callout-title">Note</div>
@@ -204,8 +222,8 @@ case class BankAccountUpdated(accountNumber: UUID, newBalance: Double) extends B
 <dl>
   <dt>Scala</dt>
   <dd>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/scala/docs/command/BankAccountSurgeModel.scala#L13-L38" target="_blank" title="Go to snippet source"></a><code class="language-scala">object BankAccountSurgeModel extends SurgeCommandBusinessLogic[UUID, BankAccount, BankAccountCommand, BankAccountEvent] {
-  override def commandModel: AggregateCommandModelBase[BankAccount, BankAccountCommand, Nothing, BankAccountEvent] = BankAccountCommandModel
+  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/scala/docs/command/BankAccountSurgeModel.scala#L14-L42" target="_blank" title="Go to snippet source"></a><code class="language-scala">object BankAccountSurgeModel extends SurgeCommandBusinessLogic[UUID, BankAccount, BankAccountCommand, BankAccountEvent] {
+  override def commandModel: AggregateCommandModel[BankAccount, BankAccountCommand, BankAccountEvent] = BankAccountCommandModel
 
   override def aggregateName: String = &quot;bank-account&quot;
 
@@ -213,21 +231,24 @@ case class BankAccountUpdated(accountNumber: UUID, newBalance: Double) extends B
 
   override def eventsTopic: KafkaTopic = KafkaTopic(&quot;bank-account-events&quot;)
 
-  override def readFormatting: SurgeAggregateReadFormatting[BankAccount] = (bytes: Array[Byte]) =&gt; Json.parse(bytes).asOpt[BankAccount]
+  override def aggregateReadFormatting: SurgeAggregateReadFormatting[BankAccount] = (bytes: Array[Byte]) =&gt; Json.parse(bytes).asOpt[BankAccount]
 
-  override def writeFormatting: SurgeWriteFormatting[BankAccount, BankAccountEvent] = new SurgeWriteFormatting[BankAccount, BankAccountEvent] {
+  override def aggregateWriteFormatting: SurgeAggregateWriteFormatting[BankAccount] = new SurgeAggregateWriteFormatting[BankAccount] {
     override def writeState(agg: BankAccount): SerializedAggregate = {
       val aggBytes = Json.toJson(agg).toString().getBytes()
       val messageHeaders = Map(&quot;aggregate_id&quot; -&gt; agg.accountNumber.toString)
       SerializedAggregate(aggBytes, messageHeaders)
     }
+  }
 
+  override def eventWriteFormatting: SurgeEventWriteFormatting[BankAccountEvent] = new SurgeEventWriteFormatting[BankAccountEvent] {
     override def writeEvent(evt: BankAccountEvent): SerializedMessage = {
       val evtKey = evt.accountNumber.toString
       val evtBytes = evt.toJson.toString().getBytes()
       val messageHeaders = Map(&quot;aggregate_id&quot; -&gt; evt.accountNumber.toString)
       SerializedMessage(evtKey, evtBytes, messageHeaders)
     }
+
   }
 }</code></pre></dd>
   <dt>Java</dt>
@@ -248,22 +269,35 @@ case class BankAccountUpdated(accountNumber: UUID, newBalance: Double) extends B
   <dt>Java</dt>
   <dd>Java examples coming soon&hellip;</dd>
 </dl>
-<p>You can interact with the running engine via two methods, <code>getState</code> for fetching state and <code>sendCommand</code> for sending commands:</p>
+<p>You can interact with the running engine via two main methods, <code>sendCommand</code> for sending commands and <code>getState</code> for fetching state:</p>
 <dl>
   <dt>Scala</dt>
   <dd>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/scala/docs/command/BankAccountService.scala#L10-L17" target="_blank" title="Go to snippet source"></a><code class="language-scala">class BankAccountService {
-  def handleBankAccountCommand(command: BankAccountCommand)(implicit ec: ExecutionContext): Future[Option[BankAccount]] = {
-    BankAccountEngine.surgeEngine.aggregateFor(command.accountNumber).sendCommand(command).map {
-      case CommandSuccess(aggregateState) =&gt; aggregateState
-      case CommandFailure(reason)         =&gt; throw reason
-    }
-  }
+  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/scala/docs/command/BankAccountCommandEngineSpec.scala#L32-L49" target="_blank" title="Go to snippet source"></a><code class="language-scala">val accountNumber = UUID.randomUUID()
+val createAccount = CreateAccount(accountNumber, &quot;Jane Doe&quot;, &quot;1234&quot;, 1000.0)
+
+val createdAccount: Future[Option[BankAccount]] = BankAccountEngine.surgeEngine.aggregateFor(accountNumber).sendCommand(createAccount).map {
+  case CommandSuccess(aggregateState) =&gt; aggregateState
+  case CommandFailure(reason)         =&gt; throw reason
+}
+val creditAccount = CreditAccount(accountNumber, 100.0)
+
+val creditedAccount: Future[Option[BankAccount]] = BankAccountEngine.surgeEngine.aggregateFor(accountNumber).sendCommand(creditAccount).map {
+  case CommandSuccess(aggregateState) =&gt; aggregateState
+  case CommandFailure(reason)         =&gt; throw reason
 }</code></pre></dd>
   <dt>Java</dt>
   <dd>Java examples coming soon&hellip;</dd>
 </dl>
 <p>The <code>sendCommand</code> method will return a <code>CommandSuccess</code> if the command was processed successfully, even if no events are emitted or a <code>CommandFailure</code> wrapping any exception thrown as part of the command processing logic if one is thrown.</p>
+<dl>
+  <dt>Scala</dt>
+  <dd>
+  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/scala/docs/command/BankAccountCommandEngineSpec.scala#L54" target="_blank" title="Go to snippet source"></a><code class="language-scala">val currentState: Future[Option[BankAccount]] = BankAccountEngine.surgeEngine.aggregateFor(accountNumber).getState</code></pre></dd>
+  <dt>Java</dt>
+  <dd>Java examples coming soon&hellip;</dd>
+</dl>
+<p>The <code>getState</code> method will return the current state of the given aggregate if it exists.</p>
 <div class="source-github">
 The source code for this page can be found <a href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/main/paradox/command-usage.md">here</a>.
 </div>
@@ -275,8 +309,9 @@ The source code for this page can be found <a href="https://github.com/UltimateS
 <div class="nav-title">On this page:</div>
 <div class="nav-toc">
 <ul>
-  <li><a href="command-usage.html#using-surge-on-the-command-side" class="header">Using Surge on the command side</a>
+  <li><a href="command-usage.html#command-side-usage" class="header">Command Side Usage</a>
   <ul>
+    <li><a href="command-usage.html#module-info" class="header">Module Info</a></li>
     <li><a href="command-usage.html#domain-logic" class="header">Domain Logic</a></li>
     <li><a href="command-usage.html#surge-configuration" class="header">Surge Configuration</a></li>
     <li><a href="command-usage.html#creating-and-interacting-with-the-engine" class="header">Creating and interacting with the engine</a></li>
@@ -347,7 +382,7 @@ The source code for this page can be found <a href="https://github.com/UltimateS
 <script type="text/javascript" src="lib/prettify/prettify.js"></script>
 <script type="text/javascript" src="lib/prettify/lang-scala.js"></script>
 <script type="text/javascript">jQuery(function(){window.prettyPrint && prettyPrint()});</script>
-<script type="text/javascript">jQuery(function(jq){initOldVersionWarnings(jq, '0.5.3-SNAPSHOT', '')});</script>
+<script type="text/javascript">jQuery(function(jq){initOldVersionWarnings(jq, '0.5.12-SNAPSHOT', '')});</script>
 
 
 </html>
