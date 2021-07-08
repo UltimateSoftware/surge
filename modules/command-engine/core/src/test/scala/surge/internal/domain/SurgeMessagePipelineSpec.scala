@@ -4,29 +4,30 @@ package surge.internal.domain
 import java.util.regex.Pattern
 
 import akka.actor.ActorSystem
-import akka.testkit.{ TestKit, TestProbe }
-import com.typesafe.config.{ Config, ConfigFactory }
-import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
+import akka.testkit.{TestKit, TestProbe}
+import com.typesafe.config.{Config, ConfigFactory}
+import net.manub.embeddedkafka.{EmbeddedKafka, EmbeddedKafkaConfig}
 import org.apache.kafka.streams.KafkaStreams
-import org.scalatest.concurrent.{ Eventually, ScalaFutures }
+import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.matchers.should.Matchers
-import org.scalatest.time.{ Seconds, Span }
+import org.scalatest.time.{Seconds, Span}
 import org.scalatest.wordspec.AnyWordSpecLike
-import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach }
-import play.api.libs.json.{ JsValue, Json }
+import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
+import play.api.libs.json.{JsValue, Json}
 import surge.core.TestBoundedContext
-import surge.health.config.{ ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig }
-import surge.health.domain.{ Error, HealthSignal }
-import surge.health.matchers.{ SideEffectBuilder, SignalPatternMatcherDefinition }
-import surge.health.{ HealthListener, HealthMessage, RestartComponentAttempted, SignalType }
+import surge.health.config.{ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig}
+import surge.health.domain.{Error, HealthSignal}
+import surge.health.matchers.{SideEffectBuilder, SignalPatternMatcherDefinition}
+import surge.health.{HealthListener, HealthMessage, RestartComponentAttempted, SignalType}
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.core.SurgePartitionRouterImpl
 import surge.internal.health.StreamMonitoringRef
 import surge.internal.health.supervisor.ShutdownComponent
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
-import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, MockPartitionTracker, MockState }
+import surge.kafka.streams.{AggregateStateStoreKafkaStreams, MockPartitionTracker, MockState}
 import surge.metrics.Metrics
 
+import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.languageFeature.postfixOps
 
@@ -91,6 +92,19 @@ class SurgeMessagePipelineSpec
   }
 
   "SurgeMessagePipeline" should {
+    "stop successfully" in {
+      withRunningKafkaOnFoundPort(config) { _ =>
+        createCustomTopic(businessLogic.kafka.eventsTopic.name, Map.empty)
+        createCustomTopic(businessLogic.kafka.stateTopic.name, Map.empty)
+
+        val stopped = pipeline.stop()
+
+        val result = Await.result(stopped, 30.second)
+
+        result.success shouldEqual true
+      }
+    }
+
     "subscribe to health.signals via stream on start" in {
       withRunningKafkaOnFoundPort(config) { _ =>
         createCustomTopic(businessLogic.kafka.eventsTopic.name, Map.empty)

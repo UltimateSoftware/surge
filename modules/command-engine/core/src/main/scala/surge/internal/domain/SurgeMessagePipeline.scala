@@ -118,23 +118,42 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     result.map(s => s.asInstanceOf[ControlAck])
   }
 
+  private def start(stopped: ControlAck): Future[ControlAck] = {
+    if (stopped.success) {
+      start()
+    } else {
+      Future.successful(ControlAck(success = false, error = Some(new RuntimeException("Unable to start SurgeMessagePipeline"))))
+    }
+  }
+
   // todo: fix; stopping and starting actor-router fails.
   override def restart(): Future[ControlAck] = {
+    implicit val ec: ExecutionContext = system.dispatcher
+
     signalBus.signalStream().unsubscribe().stop()
     signalBus.signalStream().subscribe().start()
     kafkaStreamsImpl.restart()
+
+    for {
+      stopped <- stop()
+      started <- start(stopped)
+    } yield {
+      started
+    }
   }
 
   override def stop(): Future[ControlAck] = {
     implicit val ec: ExecutionContext = system.dispatcher
 
-    for {
-      stoppedActorRouter <- stopActorRouter()
-      stoppedKafkaStreams <- stopKafkaStreams(stoppedActorRouter)
-      stoppedSignalStreams <- stopSignalStream(stoppedKafkaStreams)
+    val result = for {
+      stoppedSignalStreams <- stopSignalStream()
+      _ <- stopActorRouter()
+      _ <- stopKafkaStreams()
     } yield {
       stoppedSignalStreams
     }
+
+    result
   }
 
   override def shutdown(): Future[ControlAck] = stop()
@@ -171,23 +190,8 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     ControlAck(success = true)
   }(system.dispatcher)
 
-  private def stopSignalStream(stoppedKafkaStreams: ControlAck): Future[ControlAck] = {
-    if (stoppedKafkaStreams.success) {
-      stopSignalStream()
-    } else {
-      Future.successful(ControlAck(success = false, error = Some(new RuntimeException("Unable to stop Signal Stream"))))
-    }
-  }
-
   private def stopKafkaStreams(): Future[ControlAck] = kafkaStreamsImpl.stop()
-
-  private def stopKafkaStreams(stoppedActorRouter: ControlAck): Future[ControlAck] = {
-    if (stoppedActorRouter.success) {
-      stopKafkaStreams()
-    } else {
-      Future.successful(ControlAck(success = false, error = Some(new RuntimeException("Unable to stop kafka streams"))))
-    }
-  }
+  
   private def registrationCallback(): Try[Any] => Unit = {
     case Success(_) =>
       val registrationResult = signalBus.register(

@@ -120,17 +120,12 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
 
   override def restart(): Future[ControlAck] = {
     implicit val executionContext: ExecutionContext = system.dispatcher
-//    for {
-//      stopped <- stop()
-//      started <- start(stopped)
-//    } yield {
-//      started
-//    }
-    Future {
-      underlyingActor ! Restart
-      ControlAck(success = true)
+    for {
+      stopped <- stop()
+      started <- start(stopped)
+    } yield {
+      started
     }
-
   }
 
   def partitionLag(topicPartition: TopicPartition)(implicit ec: ExecutionContext): Future[Option[LagInfo]] = {
