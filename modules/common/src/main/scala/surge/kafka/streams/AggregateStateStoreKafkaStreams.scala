@@ -17,7 +17,7 @@ import surge.internal.akka.actor.ActorLifecycleManagerActor.Ack
 import surge.internal.config.{ BackoffConfig, TimeoutConfig }
 import surge.internal.utils.{ BackoffChildActorTerminationWatcher, Logging }
 import surge.kafka.streams.AggregateStateStoreKafkaStreamsImpl._
-import surge.kafka.streams.KafkaStreamLifeCycleManagement.{ Start, Stop }
+import surge.kafka.streams.KafkaStreamLifeCycleManagement.{ Restart, Start, Stop }
 import surge.kafka.{ KafkaTopic, LagInfo }
 import surge.metrics.Metrics
 
@@ -120,12 +120,17 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
 
   override def restart(): Future[ControlAck] = {
     implicit val executionContext: ExecutionContext = system.dispatcher
-    for {
-      stopped <- stop()
-      started <- start(stopped)
-    } yield {
-      started
+//    for {
+//      stopped <- stop()
+//      started <- start(stopped)
+//    } yield {
+//      started
+//    }
+    Future {
+      underlyingActor ! Restart
+      ControlAck(success = true)
     }
+
   }
 
   def partitionLag(topicPartition: TopicPartition)(implicit ec: ExecutionContext): Future[Option[LagInfo]] = {

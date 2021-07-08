@@ -126,18 +126,15 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
   }
 
   override def stop(): Future[ControlAck] = {
-    // Stop router
-    log.debug("Stopping Actor Router")
-    //actorRouter.stop()
-    // Stop Kafka Streams
-    log.debug("Stopping Kafka Streams")
-    val result = kafkaStreamsImpl.stop()
+    implicit val ec: ExecutionContext = system.dispatcher
 
-    // Stop Signal Stream
-    log.debug("Stopping Health Signal Stream")
-    signalBus.signalStream().unsubscribe().stop()
-
-    result
+    for {
+      stoppedActorRouter <- stopActorRouter()
+      stoppedKafkaStreams <- stopKafkaStreams(stoppedActorRouter)
+      stoppedSignalStreams <- stopSignalStream(stoppedKafkaStreams)
+    } yield {
+      stoppedSignalStreams
+    }
   }
 
   override def shutdown(): Future[ControlAck] = stop()
@@ -174,8 +171,23 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     ControlAck(success = true)
   }(system.dispatcher)
 
+  private def stopSignalStream(stoppedKafkaStreams: ControlAck): Future[ControlAck] = {
+    if (stoppedKafkaStreams.success) {
+      stopSignalStream()
+    } else {
+      Future.successful(ControlAck(success = false, error = Some(new RuntimeException("Unable to stop Signal Stream"))))
+    }
+  }
+
   private def stopKafkaStreams(): Future[ControlAck] = kafkaStreamsImpl.stop()
 
+  private def stopKafkaStreams(stoppedActorRouter: ControlAck): Future[ControlAck] = {
+    if (stoppedActorRouter.success) {
+      stopKafkaStreams()
+    } else {
+      Future.successful(ControlAck(success = false, error = Some(new RuntimeException("Unable to stop kafka streams"))))
+    }
+  }
   private def registrationCallback(): Try[Any] => Unit = {
     case Success(_) =>
       val registrationResult = signalBus.register(
