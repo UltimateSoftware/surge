@@ -39,7 +39,7 @@ class BankAccountCommandEngineSpec extends AnyWordSpec with Matchers with ScalaF
         }
         // #sending_command_to_engine
 
-        Await.result(createdAccount, 15.seconds) shouldEqual Some(BankAccount(accountNumber, "Jane Doe", "1234", 1000.0))
+        Await.result(createdAccount, 30.seconds) shouldEqual Some(BankAccount(accountNumber, "Jane Doe", "1234", 1000.0))
 
         // #sending_command_to_engine
         val creditAccount = CreditAccount(accountNumber, 100.0)
