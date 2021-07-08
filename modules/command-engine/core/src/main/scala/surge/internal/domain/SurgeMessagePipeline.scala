@@ -191,7 +191,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
   }(system.dispatcher)
 
   private def stopKafkaStreams(): Future[ControlAck] = kafkaStreamsImpl.stop()
-  
+
   private def registrationCallback(): Try[Any] => Unit = {
     case Success(_) =>
       val registrationResult = signalBus.register(
