@@ -128,7 +128,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
   override def stop(): Future[ControlAck] = {
     // Stop router
     log.debug("Stopping Actor Router")
-    actorRouter.stop()
+    //actorRouter.stop()
     // Stop Kafka Streams
     log.debug("Stopping Kafka Streams")
     val result = kafkaStreamsImpl.stop()
