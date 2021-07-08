@@ -235,7 +235,7 @@ class SurgeMessagePipelineSpec
         pipeline.signalBus.signalWithError(name = "kafka.fatal.error", Error("boom", None)).emit()
 
         eventually {
-          val restartAttempt = probe.fishForMessage(max = FiniteDuration(1, "seconds")) { case _: RestartComponentAttempted =>
+          val restartAttempt = probe.fishForMessage(max = FiniteDuration(5, "seconds")) { case _: RestartComponentAttempted =>
             true
           }
 
