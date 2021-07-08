@@ -154,7 +154,7 @@ class KafkaProducerActor(
         ControlAck(success = false, error = Some(new RuntimeException("Unexpected response from actor start request")))
     }
 
-    result.onComplete(registrationHandler())
+    result.onComplete(registrationCallback())
 
     result
   }
@@ -182,18 +182,18 @@ class KafkaProducerActor(
     }
   }
 
-  private def registrationHandler(): Try[Any] => Unit = {
+  private def registrationCallback(): Try[Any] => Unit = {
     case Success(_) =>
       val registrationResult =
         signalBus.register(control = this, componentName = "kafka-producer-actor", restartSignalPatterns = restartSignalPatterns())
 
       registrationResult.onComplete {
         case Failure(exception) =>
-          log.error("KafkaProducerActor registration failed", exception)
+          log.error(s"$getClass registration failed", exception)
         case Success(done) =>
-          log.debug(s"KafkaProducerActor registration succeeded - ${done.success}")
+          log.debug(s"$getClass registration succeeded - ${done.success}")
       }
     case Failure(error) =>
-      log.error("Failed to register KafkaProducerActor for supervision", error)
+      log.error(s"Unable to register $getClass for supervision", error)
   }
 }

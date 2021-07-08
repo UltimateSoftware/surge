@@ -56,7 +56,7 @@ private[surge] final class SurgePartitionRouterImpl(
         ControlAck(success = false, error = Some(new RuntimeException("Unexpected response from actor start request")))
     }
 
-    result.onComplete(registrationHandler())
+    result.onComplete(registrationCallback())
     result
   }
 
@@ -104,17 +104,17 @@ private[surge] final class SurgePartitionRouterImpl(
     }
   }
 
-  private def registrationHandler(): Try[Any] => Unit = {
+  private def registrationCallback(): Try[Any] => Unit = {
     case Success(_) =>
       val registrationResult = signalBus.register(control = this, componentName = "router-actor", restartSignalPatterns())
 
       registrationResult.onComplete {
         case Failure(exception) =>
-          log.error("SurgePartitionRouter registration failed", exception)
+          log.error(s"$getClass registration failed", exception)
         case Success(done) =>
-          log.debug(s"SurgePartitionRouter registration succeeded - ${done.success}")
+          log.debug(s"$getClass registration succeeded - ${done.success}")
       }(system.dispatcher)
     case Failure(error) =>
-      log.error("Failed to register Surge Partition Router for supervision", error)
+      log.error(s"Unable to register $getClass for supervision", error)
   }
 }

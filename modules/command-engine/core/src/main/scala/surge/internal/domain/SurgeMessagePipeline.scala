@@ -114,7 +114,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
       }
     }
 
-    result.onComplete(registrationHandler())
+    result.onComplete(registrationCallback())
     result.map(s => s.asInstanceOf[ControlAck])
   }
 
@@ -176,18 +176,21 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
 
   private def stopKafkaStreams(): Future[ControlAck] = kafkaStreamsImpl.stop()
 
-  private def registrationHandler(): Try[Any] => Unit = { case Success(_) =>
-    val registrationResult = signalBus.register(
-      control = this,
-      componentName = "surge-message-pipeline",
-      restartSignalPatterns = restartSignalPatterns(),
-      shutdownSignalPatterns = shutdownSignalPatterns())
+  private def registrationCallback(): Try[Any] => Unit = {
+    case Success(_) =>
+      val registrationResult = signalBus.register(
+        control = this,
+        componentName = "surge-message-pipeline",
+        restartSignalPatterns = restartSignalPatterns(),
+        shutdownSignalPatterns = shutdownSignalPatterns())
 
-    registrationResult.onComplete {
-      case Failure(exception) =>
-        log.error("AggregateStateStore registeration failed", exception)
-      case Success(done) =>
-        log.debug(s"AggregateStateStore registeration succeeded - ${done.success}")
-    }(system.dispatcher)
+      registrationResult.onComplete {
+        case Failure(exception) =>
+          log.error("AggregateStateStore registeration failed", exception)
+        case Success(done) =>
+          log.debug(s"AggregateStateStore registeration succeeded - ${done.success}")
+      }(system.dispatcher)
+    case Failure(exception) =>
+      log.error("Failed to register start so unable to register for supervision", exception)
   }
 }

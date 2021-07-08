@@ -98,7 +98,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
           ControlAck(success = false, error = Some(new RuntimeException("Unexpected response from actor start request")))
       }(system.dispatcher)
 
-    result.onComplete(registrationHandler())(system.dispatcher)
+    result.onComplete(registrationCallback())(system.dispatcher)
 
     result
   }
@@ -175,8 +175,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
     underlyingActor.ask(GetTopology).mapTo[Topology]
   }
 
-  private def registrationHandler(): Try[Any] => Unit = {
-
+  private def registrationCallback(): Try[Any] => Unit = {
     case Success(_) =>
       val registrationResult = signalBus.register(
         control = this,
@@ -186,12 +185,12 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
 
       registrationResult.onComplete {
         case Failure(exception) =>
-          log.error("AggregateStateStore registration failed", exception)
+          log.error(s"$getClass registration failed", exception)
         case Success(done) =>
-          log.debug(s"AggregateStateStore registration succeeded - ${done.success}")
+          log.debug(s"$getClass registration succeeded - ${done.success}")
       }(system.dispatcher)
     case Failure(error) =>
-      log.error("Failed to register AggregateStateStore for supervision", error)
+      log.error(s"Unable to register $getClass for supervision", error)
   }
 
   private def start(stopped: ControlAck): Future[ControlAck] = {
@@ -199,7 +198,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
       start()
     } else {
       Future {
-        ControlAck(success = false, error = Some(new RuntimeException("Failed to stop AggregateStateStoreKafkaStreams")))
+        ControlAck(success = false, error = Some(new RuntimeException(s"Failed to stop $getClass")))
       }(system.dispatcher)
     }
   }
