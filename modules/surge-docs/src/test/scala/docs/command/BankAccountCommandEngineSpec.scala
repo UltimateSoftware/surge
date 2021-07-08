@@ -5,20 +5,29 @@ package docs.command
 import java.util.UUID
 
 import com.typesafe.config.ConfigFactory
-import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
+import net.manub.embeddedkafka.{EmbeddedKafka, EmbeddedKafkaConfig}
 import org.apache.kafka.common.config.TopicConfig
+import org.scalatest.BeforeAndAfterEach
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
-import surge.scaladsl.common.{ CommandFailure, CommandSuccess }
+import surge.scaladsl.command.SurgeCommand
+import surge.scaladsl.common.{CommandFailure, CommandSuccess}
 
-import scala.concurrent.{ Await, ExecutionContext, Future }
+import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.concurrent.duration._
 
-class BankAccountCommandEngineSpec extends AnyWordSpec with Matchers with ScalaFutures with EmbeddedKafka {
+class BankAccountCommandEngineSpec extends AnyWordSpec with BeforeAndAfterEach with Matchers with ScalaFutures with EmbeddedKafka {
   implicit val ec: ExecutionContext = ExecutionContext.global
   private val config = ConfigFactory.load()
   private val kafkaConfig: EmbeddedKafkaConfig = EmbeddedKafkaConfig(kafkaPort = config.getInt("kafka.port"), zooKeeperPort = 0)
+  override def beforeEach(): Unit = {
+    BankAccountEngine.surgeEngine.start()
+  }
+
+  override def afterEach(): Unit = {
+    BankAccountEngine.surgeEngine.stop()
+  }
 
   "BankAccountCommandEngine" should {
     "Properly handle commands" in {
@@ -61,8 +70,6 @@ class BankAccountCommandEngineSpec extends AnyWordSpec with Matchers with ScalaF
         val rebalanceListener = new BankAccountRebalanceListener
         BankAccountEngine.surgeEngine.registerRebalanceListener(rebalanceListener)
         // #rebalance_listener
-
-        BankAccountEngine.surgeEngine.stop()
       }
     }
   }
