@@ -84,7 +84,7 @@ class RepeatingSignalMatcherSpec extends TestKit(ActorSystem("RepeatingSignals")
       val matcher = RepeatingSignalMatcher(times = 5, atomicMatcher = SignalNameEqualsMatcher(name = "test.trace"), Some(SideEffect(Seq(fiveInARowSignal))))
 
       val result = matcher.searchForMatch(
-        Seq(testTraceSignal, testTraceSignal, testSignal1, testTraceSignal, testSignal2, testTraceSignal, testTraceSignal),
+        Seq(testTraceSignal, testTraceSignal, testSignal1, testTraceSignal, testSignal2, testTraceSignal, testTraceSignal, testSignal2),
         frequency = 10.seconds)
 
       result.matches.size shouldEqual 5
