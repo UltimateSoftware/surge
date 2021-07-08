@@ -6,7 +6,7 @@ import java.util.Properties
 
 import akka.actor.Props
 import akka.pattern.pipe
-import com.typesafe.config.ConfigFactory
+import com.typesafe.config.{ Config, ConfigFactory }
 import org.apache.kafka.clients.admin.ListOffsetsOptions
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.{ IsolationLevel, TopicPartition }

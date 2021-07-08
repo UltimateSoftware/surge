@@ -39,7 +39,6 @@ class SurgeMessagePipelineSpec
     with TestBoundedContext
     with BeforeAndAfterAll
     with BeforeAndAfterEach
-    with ScalaFutures
     with Matchers {
   import TestBoundedContext._
 

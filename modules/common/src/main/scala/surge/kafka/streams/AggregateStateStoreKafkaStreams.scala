@@ -7,7 +7,7 @@ import java.util.regex.Pattern
 import akka.actor.{ ActorRef, ActorSystem }
 import akka.pattern.{ ask, BackoffOpts, BackoffSupervisor }
 import akka.util.Timeout
-import com.typesafe.config.ConfigFactory
+import com.typesafe.config.{ Config, ConfigFactory }
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.streams.Topology
 import surge.health.HealthSignalBusTrait

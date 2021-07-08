@@ -11,11 +11,10 @@ import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Milliseconds, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
-import surge.health.{ Ack, HealthRegistrationReceived, HealthSignalReceived, HealthSupervisorTrait, SignalType }
 import surge.health.config.{ ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig }
 import surge.health.domain.{ HealthSignal, Trace }
 import surge.health.matchers.SideEffect
-import surge.health.{ Ack, HealthSupervisorTrait, SignalType }
+import surge.health._
 import surge.internal.health._
 import surge.internal.health.matchers.SignalNameEqualsMatcher
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
@@ -28,7 +27,6 @@ class HealthSupervisorActorSpec
     with ScalaFutures
     with BeforeAndAfterAll
     with Matchers
-    with ScalaFutures
     with Eventually {
 
   implicit override val patienceConfig: PatienceConfig =
