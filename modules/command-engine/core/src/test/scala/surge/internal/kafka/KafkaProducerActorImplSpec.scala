@@ -12,7 +12,6 @@ import org.apache.kafka.clients.producer.{ ProducerRecord, RecordMetadata }
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.{ AuthorizationException, ProducerFencedException }
 import org.apache.kafka.common.header.internals.{ RecordHeader, RecordHeaders }
-import org.apache.kafka.streams.{ LagInfo, MockLagInfo }
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito._
 import org.mockito.{ ArgumentMatchers, Mockito }
@@ -30,7 +29,7 @@ import surge.internal.akka.cluster.ActorSystemHostAwareness
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.kafka.KafkaProducerActorImpl.{ AggregateStateRates, KTableProgressUpdate }
 import surge.kafka.streams.AggregateStateStoreKafkaStreams
-import surge.kafka.{ KafkaBytesProducer, KafkaRecordMetadata, PartitionAssignments }
+import surge.kafka.{ KafkaBytesProducer, KafkaRecordMetadata, LagInfo, PartitionAssignments }
 import surge.metrics.Metrics
 
 import scala.concurrent.duration._
@@ -59,20 +58,13 @@ class KafkaProducerActorImplSpec
     new RecordMetadata(new TopicPartition(topic, partition), 0, offset, Instant.now.toEpochMilli, 0L, 0, 0)
   }
 
-  private def mockStateStoreLags(assignedPartition: TopicPartition, currentOffset: Long, endOffset: Long): Map[String, Map[Integer, LagInfo]] = {
-    Map(
-      "exampleStateStore" -> Map(
-        java.lang.Integer.valueOf(assignedPartition.partition()) -> new MockLagInfo(currentOffset, endOffset),
-        java.lang.Integer.valueOf(assignedPartition.partition() + 1) -> new MockLagInfo(0, 10),
-        java.lang.Integer.valueOf(assignedPartition.partition() + 2) -> new MockLagInfo(0, 8)))
-  }
-
   private def mockStateStoreReturningOffset(
       assignedPartition: TopicPartition,
       currentOffset: Long,
       endOffset: Long): AggregateStateStoreKafkaStreams[String] = {
     val mockStateStore = mock[AggregateStateStoreKafkaStreams[String]]
-    when(mockStateStore.partitionLags()(any[ExecutionContext])).thenReturn(Future.successful(mockStateStoreLags(assignedPartition, currentOffset, endOffset)))
+    when(mockStateStore.partitionLag(ArgumentMatchers.eq(assignedPartition))(any[ExecutionContext]))
+      .thenReturn(Future.successful(Some(LagInfo(currentOffset, endOffset))))
 
     mockStateStore
   }
@@ -256,8 +248,8 @@ class KafkaProducerActorImplSpec
       when(mockProducer.putRecords(any[Seq[ProducerRecord[String, Array[Byte]]]])).thenReturn(Seq(Future.successful(mockMetadata)))
 
       val mockStateStore = mock[AggregateStateStoreKafkaStreams[String]]
-      when(mockStateStore.partitionLags()(any[ExecutionContext]))
-        .thenReturn(Future.successful(mockStateStoreLags(assignedPartition, 0, 10)), Future.successful(mockStateStoreLags(assignedPartition, 10, 10)))
+      when(mockStateStore.partitionLag(ArgumentMatchers.eq(assignedPartition))(any[ExecutionContext]))
+        .thenReturn(Future.successful(Some(LagInfo(0, 10))), Future.successful(Some(LagInfo(10, 10))))
 
       val actor = testProducerActor(assignedPartition, mockProducer, mockStateStore)
       probe.send(actor, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
@@ -516,7 +508,7 @@ class KafkaProducerActorImplSpec
 
       val barRecordPartitionMeta = KTableProgressUpdate(
         topicPartition = new TopicPartition(barRecord1.wrapped.topic(), barRecord1.wrapped.partition()),
-        lagInfo = new MockLagInfo(barRecord1.wrapped.offset(), barRecord2.wrapped.offset()))
+        lagInfo = LagInfo(barRecord1.wrapped.offset(), barRecord2.wrapped.offset()))
       val processedState = newState.processedUpTo(barRecordPartitionMeta)
       processedState.pendingInitializations should contain only expectedPendingInit3
 

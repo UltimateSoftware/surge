@@ -13,6 +13,9 @@ To determine how commands and events for an aggregate should be handled, the eng
 ### In depth overview
 ![Kafka Streams Command In Depth](images/cqrs-on-kafka-streams.png)
 
+#### Command and Event Flow Sequence
+![Kafka Streams Command In Depth](images/surge-sequence.png)
+
 **Note** All of these in depth details are implemented in/provided by the Surge engine out of the box and do not have to be implemented in a domain app.  The details described are for anyone interested in taking a look at how things work.
 
 #### State Tracking
