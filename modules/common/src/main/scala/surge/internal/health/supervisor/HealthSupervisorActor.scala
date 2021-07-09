@@ -52,25 +52,29 @@ object HealthSupervisorActorRef {
  * HealthSupervisorActorRef
  * @param actor
  *   ActorRef
+ * @param askTimeout
+ *   FiniteDuration
+ * @param actorSystem
+ *   ActorSystem
  */
 class HealthSupervisorActorRef(val actor: ActorRef, askTimeout: FiniteDuration, override val actorSystem: ActorSystem) extends HealthSupervisorTrait {
   import HealthSupervisorActorRef._
 
   private var started: Boolean = false
   private implicit val executionContext: ExecutionContext = actorSystem.dispatcher
-  private val controllables: mutable.Map[String, Controllable] = mutable.Map[String, Controllable]()
+  private val controlled: mutable.Map[String, Controllable] = mutable.Map[String, Controllable]()
 
   private val controlProxy = actorSystem.actorOf(Props(new Actor() {
     override def receive: Receive = {
       case RestartComponent(name, _) =>
-        controllables.get(name) match {
+        controlled.get(name) match {
           case Some(controllable) =>
             controllable.restart().andThen { restartControllableCallback(componentName = name, replyTo = sender()) }
           case None =>
             sender() ! ControlAck(success = false, error = Some(new RuntimeException(s"Cannot restart unregistered component $name")))
         }
       case ShutdownComponent(name, _) =>
-        controllables.get(name) match {
+        controlled.get(name) match {
           case Some(controllable) =>
             val futureResult = controllable.shutdown().andThen { shutdownControllableCallback(componentName = name, replyTo = sender()) }
             sender() ! futureResult
@@ -81,7 +85,7 @@ class HealthSupervisorActorRef(val actor: ActorRef, askTimeout: FiniteDuration, 
   }))
 
   override def registrationLinks(): Seq[HealthRegistrationLink] = {
-    controllables.keys.map(name => HealthRegistrationLink(name, ControlProxy(name, controlProxy))).toSeq
+    controlled.keys.map(name => HealthRegistrationLink(name, ControlProxy(name, controlProxy))).toSeq
   }
 
   def start(replyTo: Option[ActorRef] = None): HealthSupervisorActorRef = {
@@ -108,7 +112,6 @@ class HealthSupervisorActorRef(val actor: ActorRef, askTimeout: FiniteDuration, 
   override def registrar(): ActorRef = actor
 
   override def register(registration: HealthRegistration): Future[Any] = {
-    // todo: deal with potential registration failure
     val result = actor
       .ask(
         RegisterSupervisedComponentRequest(
@@ -118,7 +121,7 @@ class HealthSupervisorActorRef(val actor: ActorRef, askTimeout: FiniteDuration, 
           shutdownSignalPatterns = registration.shutdownSignalPatterns))(askTimeout)
       .andThen {
         case Success(_) =>
-          controllables.put(registration.componentName, registration.control)
+          controlled.put(registration.componentName, registration.control)
         case Failure(exception) =>
           log.error(s"Failed to register ${registration.componentName}", exception)
       }
@@ -146,7 +149,7 @@ class HealthSupervisorActorRef(val actor: ActorRef, askTimeout: FiniteDuration, 
       if (ack.success) {
         log.debug(s"$componentName was shutdown successfully")
         // remove control
-        controllables.remove(componentName)
+        controlled.remove(componentName)
         actor ! UnregisterSupervisedComponentRequest(componentName)
         replyTo ! ControlAck(success = true)
       } else {
