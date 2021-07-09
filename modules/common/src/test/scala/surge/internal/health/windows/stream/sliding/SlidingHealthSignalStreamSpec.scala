@@ -144,7 +144,7 @@ class SlidingHealthSignalStreamSpec
           TimeUnit.MILLISECONDS)
 
       eventually {
-        val msg = probe.fishForMessage(max = 1.second) { case msg =>
+        val msg = probe.fishForMessage(max = 2.second) { case msg =>
           msg.isInstanceOf[WindowAdvanced]
         }
 
