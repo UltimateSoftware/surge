@@ -29,7 +29,6 @@ import surge.metrics.Metrics
 
 import scala.concurrent.Await
 import scala.concurrent.duration._
-import scala.languageFeature.postfixOps
 
 class SurgeMessagePipelineSpec
     extends TestKit(ActorSystem("SurgeMessagePipelineSpec", ConfigFactory.load("artery-test-config")))
@@ -223,7 +222,7 @@ class SurgeMessagePipelineSpec
       }
     }
 
-    "attempt to restart state-store-kafka-streams" in {
+    "restart state-store-kafka-streams" in {
       withRunningKafkaOnFoundPort(config) { _ =>
         createCustomTopic(businessLogic.kafka.eventsTopic.name, Map.empty)
         createCustomTopic(businessLogic.kafka.stateTopic.name, Map.empty)
@@ -231,7 +230,7 @@ class SurgeMessagePipelineSpec
         pipeline.signalBus.signalWithError(name = "kafka.streams.fatal.error", Error("boom", None)).emit()
 
         eventually {
-          val restarted = probe.fishForMessage(max = FiniteDuration(1, "seconds")) { case msg: Any =>
+          val restarted = probe.fishForMessage(max = FiniteDuration(2, "seconds")) { case msg: Any =>
             msg.isInstanceOf[ComponentRestarted]
           }
 
@@ -241,7 +240,7 @@ class SurgeMessagePipelineSpec
       }
     }
 
-    "attempt to restart router-actor" in {
+    "restart router-actor" in {
       withRunningKafkaOnFoundPort(config) { _ =>
         createCustomTopic(businessLogic.kafka.eventsTopic.name, Map.empty)
         createCustomTopic(businessLogic.kafka.stateTopic.name, Map.empty)
@@ -249,7 +248,7 @@ class SurgeMessagePipelineSpec
         pipeline.signalBus.signalWithError(name = "kafka.fatal.error", Error("boom", None)).emit()
 
         eventually {
-          val restarted = probe.fishForMessage(max = FiniteDuration(1, "seconds")) { case msg: Any =>
+          val restarted = probe.fishForMessage(max = FiniteDuration(2, "seconds")) { case msg: Any =>
             msg.isInstanceOf[ComponentRestarted]
           }
 

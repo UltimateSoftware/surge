@@ -7,7 +7,7 @@ import com.typesafe.config.Config
 import org.apache.kafka.common.TopicPartition
 import play.api.libs.json.JsValue
 import surge.akka.cluster.{ EntityPropsProvider, PerShardLogicProvider }
-import surge.core.{ ControlAck, KafkaProducerActor }
+import surge.core.{ Ack, KafkaProducerActor }
 import surge.health.HealthSignalBusTrait
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.persistence
@@ -72,7 +72,7 @@ class PersistentActorRegion[M](
     actorId: String => PersistentActor.props(actorId, businessLogic, signalBus, sharedResources, config)
   }
 
-  override def restart(): Future[ControlAck] = {
+  override def restart(): Future[Ack] = {
     implicit val executionContext: ExecutionContext = system.dispatcher
     for {
       stopped <- stop()
@@ -80,16 +80,15 @@ class PersistentActorRegion[M](
     } yield {
       started
     }
-    //kafkaProducerActor.restart()
   }
 
-  override def start(): Future[ControlAck] = kafkaProducerActor.start()
+  override def start(): Future[Ack] = kafkaProducerActor.start()
 
-  override def stop(): Future[ControlAck] = kafkaProducerActor.stop()
+  override def stop(): Future[Ack] = kafkaProducerActor.stop()
 
-  override def shutdown(): Future[ControlAck] = stop()
+  override def shutdown(): Future[Ack] = stop()
 
-  private def start(stopped: ControlAck): Future[ControlAck] = {
+  private def start(stopped: Ack): Future[Ack] = {
     if (stopped.success) {
       start()
     } else {

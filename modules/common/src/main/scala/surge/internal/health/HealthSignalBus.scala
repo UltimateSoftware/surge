@@ -9,7 +9,7 @@ import akka.event.LookupClassification
 import akka.pattern._
 import com.typesafe.config.{ Config, ConfigFactory }
 import org.slf4j.{ Logger, LoggerFactory }
-import surge.core.Controllable
+import surge.core.{ Ack, Controllable }
 import surge.health._
 import surge.health.config.HealthSignalBusConfig
 import surge.health.domain.{ EmittableHealthSignal, Error, HealthSignal, Trace, Warning }
@@ -57,8 +57,10 @@ trait HealthSignalBusInternal extends HealthSignalBusTrait with LookupClassifica
 
 private class InvokableHealthRegistrationImpl(healthRegistration: HealthRegistration, supervisor: HealthSupervisorTrait, signalBus: HealthSignalBusTrait)
     extends InvokableHealthRegistration {
+  implicit val ec: ExecutionContext = supervisor.actorSystem().dispatcher
+
   override def invoke(): Future[Ack] = {
-    supervisor.register(healthRegistration).map(a => a.asInstanceOf[Ack])(supervisor.actorSystem().dispatcher)
+    supervisor.register(healthRegistration).map(a => a.asInstanceOf[Ack])
   }
 
   override def underlyingRegistration(): HealthRegistration = healthRegistration

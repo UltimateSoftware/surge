@@ -10,14 +10,13 @@ import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.streams.Topology
-import surge.core.ControlAck
-import surge.health.HealthSignalBusTrait
+import surge.core.Ack
+import surge.health.{ HealthAck, HealthSignalBusTrait }
 import surge.internal.akka.actor.ActorLifecycleManagerActor
-import surge.internal.akka.actor.ActorLifecycleManagerActor.Ack
 import surge.internal.config.{ BackoffConfig, TimeoutConfig }
 import surge.internal.utils.{ BackoffChildActorTerminationWatcher, Logging }
 import surge.kafka.streams.AggregateStateStoreKafkaStreamsImpl._
-import surge.kafka.streams.KafkaStreamLifeCycleManagement.{ Restart, Start, Stop }
+import surge.kafka.streams.KafkaStreamLifeCycleManagement.{ Start, Stop }
 import surge.kafka.{ KafkaTopic, LagInfo }
 import surge.metrics.Metrics
 
@@ -88,14 +87,14 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
    * Used to actually start the Kafka Streams process. Optionally cleans up persistent state directories left behind by previous runs if
    * `kafka.streams.wipe-state-on-start` config setting is set to true.
    */
-  override def start(): Future[ControlAck] = {
+  override def start(): Future[Ack] = {
     val result = underlyingActor
       .ask(ActorLifecycleManagerActor.Start)
       .map {
-        case ack: Ack =>
-          ControlAck(ack.success)
+        case ack: ActorLifecycleManagerActor.Ack =>
+          HealthAck(ack.success)
         case _ =>
-          ControlAck(success = false, error = Some(new RuntimeException("Unexpected response from actor start request")))
+          HealthAck(success = false, error = Some(new RuntimeException("Unexpected response from actor start request")))
       }(system.dispatcher)
 
     result.onComplete(registrationCallback())(system.dispatcher)
@@ -103,22 +102,21 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
     result
   }
 
-  override def shutdown(): Future[ControlAck] = {
+  override def shutdown(): Future[Ack] = {
     stop()
   }
 
-  override def stop(): Future[ControlAck] = {
-    underlyingActor
-      .ask(ActorLifecycleManagerActor.Stop)
-      .map {
-        case ack: Ack =>
-          ControlAck(ack.success)
-        case _ =>
-          ControlAck(success = false, error = Some(new RuntimeException("Unexpected response from actor stop request")))
-      }(system.dispatcher)
+  override def stop(): Future[Ack] = {
+    implicit val ec: ExecutionContext = system.dispatcher
+    underlyingActor.ask(ActorLifecycleManagerActor.Stop).map {
+      case ack: ActorLifecycleManagerActor.Ack =>
+        HealthAck(ack.success)
+      case _ =>
+        HealthAck(success = false, error = Some(new RuntimeException("Unexpected response from actor stop request")))
+    }
   }
 
-  override def restart(): Future[ControlAck] = {
+  override def restart(): Future[Ack] = {
     implicit val executionContext: ExecutionContext = system.dispatcher
     for {
       stopped <- stop()
@@ -193,13 +191,11 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
       log.error(s"Unable to register $getClass for supervision", error)
   }
 
-  private def start(stopped: ControlAck): Future[ControlAck] = {
+  private def start(stopped: Ack): Future[Ack] = {
     if (stopped.success) {
       start()
     } else {
-      Future {
-        ControlAck(success = false, error = Some(new RuntimeException(s"Failed to stop $getClass")))
-      }(system.dispatcher)
+      Future.successful(HealthAck(success = false, error = Some(new RuntimeException(s"Failed to stop $getClass"))))
     }
   }
 }

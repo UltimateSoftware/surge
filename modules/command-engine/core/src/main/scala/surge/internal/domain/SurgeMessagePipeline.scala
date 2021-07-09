@@ -6,8 +6,8 @@ import akka.actor.{ ActorRef, ActorSystem }
 import com.typesafe.config.Config
 import org.slf4j.{ Logger, LoggerFactory }
 import play.api.libs.json.JsValue
-import surge.core.{ ControlAck, SurgePartitionRouter, SurgeProcessingTrait }
-import surge.health.{ HealthSignalBusAware, HealthSignalBusTrait }
+import surge.core.{ Ack, SurgePartitionRouter, SurgeProcessingTrait }
+import surge.health.{ HealthAck, HealthSignalBusAware, HealthSignalBusTrait }
 import surge.internal.SurgeModel
 import surge.internal.akka.cluster.ActorSystemHostAwareness
 import surge.internal.akka.kafka.{ CustomConsumerGroupRebalanceListener, KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor }
@@ -78,56 +78,45 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
 
   // todo: chain the component starts together; if one fails they all fail and we rollback and
   //  stop any that have started. if all pass, we register..
-  override def start(): Future[ControlAck] = {
+  override def start(): Future[Ack] = {
     implicit val ec: ExecutionContext = system.dispatcher
-    val result: Future[Any] = for {
+    val result = for {
       signalStreamStarted <- startSignalStream()
       actorRouterStarted <- startActorRouter(signalStreamStarted)
       kafkaStreamsStarted <- startKafkaStreams(actorRouterStarted)
     } yield {
       if (!actorRouterStarted.success) {
         for {
-          signalStreamStopped <- stopSignalStream()
-          actorRouterStopped <- stopActorRouter()
+          _ <- stopSignalStream()
+          _ <- stopActorRouter()
         } yield {
-          Future {
-            ControlAck(
-              success = false,
-              details = Map[String, ControlAck](elems = "signalStreamStopped" -> signalStreamStopped, "actorRouterStopped" -> actorRouterStopped))
-          }
+          Future.successful(HealthAck(success = false))
         }
       } else if (!kafkaStreamsStarted.success) {
         for {
-          signalStreamStopped <- stopSignalStream()
-          actorRouterStopped <- stopActorRouter()
-          kafkaStreamsStopped <- stopKafkaStreams()
+          _ <- stopSignalStream()
+          _ <- stopActorRouter()
+          _ <- stopKafkaStreams()
         } yield {
-          Future {
-            ControlAck(
-              success = false,
-              details = Map[String, ControlAck](
-                elems = "signalStreamStopped" -> signalStreamStopped,
-                "actorRouterStopped" -> actorRouterStopped,
-                "kafkaStreamsStopped" -> kafkaStreamsStopped))
-          }
+          Future.successful(HealthAck(success = false))
         }
       }
     }
 
     result.onComplete(registrationCallback())
-    result.map(s => s.asInstanceOf[ControlAck])
+    result.map(s => s.asInstanceOf[Ack])
   }
 
-  private def start(stopped: ControlAck): Future[ControlAck] = {
+  private def start(stopped: Ack): Future[Ack] = {
     if (stopped.success) {
       start()
     } else {
-      Future.successful(ControlAck(success = false, error = Some(new RuntimeException("Unable to start SurgeMessagePipeline"))))
+      Future.successful(HealthAck(success = false, error = Some(new RuntimeException("Unable to start SurgeMessagePipeline"))))
     }
   }
 
   // todo: fix; stopping and starting actor-router fails.
-  override def restart(): Future[ControlAck] = {
+  override def restart(): Future[Ack] = {
     implicit val ec: ExecutionContext = system.dispatcher
 
     signalBus.signalStream().unsubscribe().stop()
@@ -142,31 +131,34 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     }
   }
 
-  override def stop(): Future[ControlAck] = {
+  override def stop(): Future[Ack] = {
     implicit val ec: ExecutionContext = system.dispatcher
 
     val result = for {
-      stoppedSignalStreams <- stopSignalStream()
-      _ <- stopActorRouter()
-      _ <- stopKafkaStreams()
+      signalStreamStopped <- stopSignalStream()
+      actorRouterStopped <- stopActorRouter()
+      kafkaStreamsStopped <- stopKafkaStreams()
     } yield {
-      stoppedSignalStreams
+      val success = (signalStreamStopped.success
+        && actorRouterStopped.success
+        && kafkaStreamsStopped.success)
+      HealthAck(success = success)
     }
 
     result
   }
 
-  override def shutdown(): Future[ControlAck] = stop()
+  override def shutdown(): Future[Ack] = stop()
 
-  private def startSignalStream(): Future[ControlAck] = Future {
+  private def startSignalStream(): Future[Ack] = Future {
     val signalStream = signalBus.signalStream()
     log.debug("Starting Health Signal Stream")
     signalStream.start()
 
-    ControlAck(success = true)
+    HealthAck(success = true)
   }(system.dispatcher)
 
-  private def startActorRouter(signalStreamStarted: ControlAck): Future[ControlAck] = {
+  private def startActorRouter(signalStreamStarted: Ack): Future[Ack] = {
     if (signalStreamStarted.success) {
       actorRouter.start()
     } else {
@@ -174,7 +166,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     }
   }
 
-  private def startKafkaStreams(actorRouterStarted: ControlAck): Future[ControlAck] = {
+  private def startKafkaStreams(actorRouterStarted: Ack): Future[Ack] = {
     if (actorRouterStarted.success) {
       kafkaStreamsImpl.start()
     } else {
@@ -182,15 +174,15 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     }
   }
 
-  private def stopActorRouter(): Future[ControlAck] = actorRouter.stop()
+  private def stopActorRouter(): Future[Ack] = actorRouter.stop()
 
-  private def stopSignalStream(): Future[ControlAck] = Future {
+  private def stopSignalStream(): Future[Ack] = Future {
     log.debug("Stopping Health Signal Stream")
     signalBus.signalStream().unsubscribe().stop()
-    ControlAck(success = true)
+    HealthAck(success = true)
   }(system.dispatcher)
 
-  private def stopKafkaStreams(): Future[ControlAck] = kafkaStreamsImpl.stop()
+  private def stopKafkaStreams(): Future[Ack] = kafkaStreamsImpl.stop()
 
   private def registrationCallback(): Try[Any] => Unit = {
     case Success(_) =>

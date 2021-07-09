@@ -12,7 +12,7 @@ import akka.stream.scaladsl.{ Source, SourceQueueWithComplete }
 import akka.stream.{ Materializer, OverflowStrategy }
 import akka.{ Done, NotUsed }
 import org.slf4j.LoggerFactory
-import surge.core.Controllable
+import surge.core.{ Ack, Controllable }
 import surge.health.config.ThrottleConfig
 import surge.health.domain.{ EmittableHealthSignal, Error, HealthSignal, Timed, Trace, Warning }
 import surge.health.matchers.SignalPatternMatcher
@@ -52,7 +52,7 @@ final case class HealthRegistration(
     ref: Option[ActorRef] = None)
     extends HealthMessage
 
-final case class Ack(success: Boolean, error: Option[Any])
+final case class HealthAck(success: Boolean, error: Option[Throwable] = None) extends Ack
 
 trait RegistrationProducer {
   def register(control: Controllable, componentName: String, restartSignalPatterns: Seq[Pattern], shutdownSignalPatterns: Seq[Pattern] = Seq.empty): Future[Ack]

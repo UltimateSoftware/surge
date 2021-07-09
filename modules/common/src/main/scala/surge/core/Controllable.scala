@@ -4,21 +4,26 @@ package surge.core
 
 import scala.concurrent.Future
 
-case class ControlAck(success: Boolean, details: Map[String, Any] = Map.empty, error: Option[Throwable] = None)
+trait Ack {
+  def success: Boolean
+  def error: Option[Throwable]
+}
 
 trait Controllable {
-  def start(): Future[ControlAck]
-  def restart(): Future[ControlAck]
-  def stop(): Future[ControlAck]
-  def shutdown(): Future[ControlAck]
+  def start(): Future[Ack]
+  def restart(): Future[Ack]
+  def stop(): Future[Ack]
+  def shutdown(): Future[Ack]
 }
 
 class ControllableAdapter extends Controllable {
-  override def start(): Future[ControlAck] = Future.successful(ControlAck(success = true))
+  final case class ControlAck(success: Boolean, error: Option[Throwable] = None) extends Ack
 
-  override def restart(): Future[ControlAck] = Future.successful(ControlAck(success = true))
+  override def start(): Future[Ack] = Future.successful[Ack](ControlAck(success = true))
 
-  override def stop(): Future[ControlAck] = Future.successful(ControlAck(success = true))
+  override def restart(): Future[Ack] = Future.successful[Ack](ControlAck(success = true))
+
+  override def stop(): Future[Ack] = Future.successful[Ack](ControlAck(success = true))
 
   override def shutdown(): Future[ControlAck] = Future.successful(ControlAck(success = true))
 }

@@ -13,13 +13,14 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
 import surge.akka.cluster.{ EntityPropsProvider, PerShardLogicProvider }
-import surge.core.ControlAck
+import surge.core.Ack
+import surge.health.HealthAck
 import surge.internal.akka.cluster.ActorSystemHostAwareness
 import surge.internal.akka.kafka.{ KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor }
 import surge.kafka.streams.{ HealthCheck, HealthCheckStatus }
 import surge.tracing.TracedMessage
 
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.Future
 
 object KafkaPartitionShardRouterActorSpecModels {
   case class Command(id: String)
@@ -39,11 +40,11 @@ object KafkaPartitionShardRouterActorSpecModels {
         override def onShardTerminated(): Unit = {}
         override def healthCheck(): Future[HealthCheck] = Future.successful(HealthCheck("test", "test", HealthCheckStatus.UP))
 
-        override def restart(): Future[ControlAck] = Future { ControlAck(success = true) }(ExecutionContext.global)
-        override def start(): Future[ControlAck] = Future { ControlAck(success = true) }(ExecutionContext.global)
-        override def stop(): Future[ControlAck] = Future { ControlAck(success = true) }(ExecutionContext.global)
+        override def restart(): Future[Ack] = Future.successful(HealthAck(success = true))
+        override def start(): Future[Ack] = Future.successful(HealthAck(success = true))
+        override def stop(): Future[Ack] = Future.successful(HealthAck(success = true))
 
-        override def shutdown(): Future[ControlAck] = stop()
+        override def shutdown(): Future[Ack] = stop()
       }
 
       provider.start()

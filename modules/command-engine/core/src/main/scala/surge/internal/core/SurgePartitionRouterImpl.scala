@@ -8,11 +8,10 @@ import akka.actor._
 import akka.pattern.ask
 import akka.util.Timeout
 import org.slf4j.LoggerFactory
-import surge.core.{ ControlAck, Controllable, SurgePartitionRouter }
-import surge.health.HealthSignalBusTrait
+import surge.core.{ Ack, Controllable, SurgePartitionRouter }
+import surge.health.{ HealthAck, HealthSignalBusTrait }
 import surge.internal.SurgeModel
 import surge.internal.akka.actor.ActorLifecycleManagerActor
-import surge.internal.akka.actor.ActorLifecycleManagerActor.Ack
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.config.TimeoutConfig
 import surge.internal.persistence.RoutableMessage
@@ -46,38 +45,38 @@ private[surge] final class SurgePartitionRouterImpl(
   private val lifecycleManager = system.actorOf(Props(new ActorLifecycleManagerActor(shardRouterProps, Some(s"${businessLogic.aggregateName}RouterActor"))))
   override val actorRegion: ActorRef = lifecycleManager
 
-  override def start(): Future[ControlAck] = {
+  override def start(): Future[Ack] = {
     implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PartitionRouter.askTimeout)
 
     val result = actorRegion.ask(ActorLifecycleManagerActor.Start).map {
-      case ack: Ack =>
-        ControlAck(ack.success)
+      case ack: ActorLifecycleManagerActor.Ack =>
+        HealthAck(ack.success)
       case _ =>
-        ControlAck(success = false, error = Some(new RuntimeException("Unexpected response from actor start request")))
+        HealthAck(success = false, error = Some(new RuntimeException("Unexpected response from actor start request")))
     }
 
     result.onComplete(registrationCallback())
     result
   }
 
-  override def stop(): Future[ControlAck] = {
+  override def stop(): Future[Ack] = {
     implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PartitionRouter.askTimeout)
 
     val result = actorRegion.ask(ActorLifecycleManagerActor.Stop).map {
-      case ack: Ack =>
-        ControlAck(ack.success)
+      case ack: ActorLifecycleManagerActor.Ack =>
+        HealthAck(ack.success)
       case _ =>
-        ControlAck(success = false, error = Some(new RuntimeException("Unexpected response from actor stop request")))
+        HealthAck(success = false, error = Some(new RuntimeException("Unexpected response from actor stop request")))
     }
 
     result
   }
 
-  override def shutdown(): Future[ControlAck] = stop()
+  override def shutdown(): Future[Ack] = stop()
 
   override def restartSignalPatterns(): Seq[Pattern] = Seq(Pattern.compile("kafka.fatal.error"))
 
-  override def restart(): Future[ControlAck] = {
+  override def restart(): Future[Ack] = {
     for {
       stopped <- stop()
       started <- start(stopped)
@@ -93,14 +92,14 @@ private[surge] final class SurgePartitionRouterImpl(
       .recoverWith { case err: Throwable =>
         log.error(s"Failed to get router-actor health check", err)
         Future.successful(HealthCheck(name = "router-actor", id = s"router-actor-${actorRegion.hashCode}", status = HealthCheckStatus.DOWN))
-      }(ExecutionContext.global)
+      }
   }
 
-  private def start(stopped: ControlAck): Future[ControlAck] = {
+  private def start(stopped: Ack): Future[Ack] = {
     if (stopped.success) {
       start()
     } else {
-      Future { ControlAck(success = false, error = Some(new RuntimeException("Failed to stop Surge Partition Router"))) }
+      Future.successful(HealthAck(success = false, error = Some(new RuntimeException("Failed to stop Surge Partition Router"))))
     }
   }
 
@@ -113,7 +112,7 @@ private[surge] final class SurgePartitionRouterImpl(
           log.error(s"$getClass registration failed", exception)
         case Success(done) =>
           log.debug(s"$getClass registration succeeded - ${done.success}")
-      }(system.dispatcher)
+      }
     case Failure(error) =>
       log.error(s"Unable to register $getClass for supervision", error)
   }

@@ -9,7 +9,7 @@ import akka.actor.{ Actor, ActorContext, ActorRef, ActorSystem, PoisonPill, Prop
 import akka.pattern.{ ask, BackoffOpts, BackoffSupervisor }
 import akka.util.Timeout
 import org.slf4j.{ Logger, LoggerFactory }
-import surge.core.{ ControlAck, Controllable }
+import surge.core.{ Ack, Controllable }
 import surge.health._
 import surge.health.domain.HealthSignal
 import surge.health.matchers.SignalPatternMatcher
@@ -71,14 +71,14 @@ class HealthSupervisorActorRef(val actor: ActorRef, askTimeout: FiniteDuration, 
           case Some(controllable) =>
             controllable.restart().andThen { restartControllableCallback(componentName = name, replyTo = sender()) }
           case None =>
-            sender() ! ControlAck(success = false, error = Some(new RuntimeException(s"Cannot restart unregistered component $name")))
+            sender() ! HealthAck(success = false, error = Some(new RuntimeException(s"Cannot restart unregistered component $name")))
         }
       case ShutdownComponent(name, _) =>
         controlled.get(name) match {
           case Some(controllable) =>
             controllable.shutdown().andThen { shutdownControllableCallback(componentName = name, replyTo = sender()) }
           case None =>
-            sender() ! ControlAck(success = false, error = Some(new RuntimeException(s"Cannot shutdown unregistered component $name")))
+            sender() ! HealthAck(success = false, error = Some(new RuntimeException(s"Cannot shutdown unregistered component $name")))
         }
     }
   }))
@@ -128,20 +128,20 @@ class HealthSupervisorActorRef(val actor: ActorRef, askTimeout: FiniteDuration, 
     result
   }
 
-  private def restartControllableCallback(componentName: String, replyTo: ActorRef): PartialFunction[Try[ControlAck], Unit] = {
+  private def restartControllableCallback(componentName: String, replyTo: ActorRef): PartialFunction[Try[Ack], Unit] = {
     case Failure(exception) =>
       log.error(s"$componentName failed to restart", exception)
-      replyTo ! ControlAck(success = false, error = Some(exception))
+      replyTo ! HealthAck(success = false, error = Some(exception))
     case Success(ack) =>
       if (ack.success) {
         log.debug(s"$componentName was restarted successfully")
-        replyTo ! ControlAck(success = true)
+        replyTo ! HealthAck(success = true)
       } else {
         log.error(s"$componentName failed to restart", ack.error.orNull)
-        replyTo ! ControlAck(success = false, error = None)
+        replyTo ! HealthAck(success = false, error = None)
       }
   }
-  private def shutdownControllableCallback(componentName: String, replyTo: ActorRef): PartialFunction[Try[ControlAck], Unit] = {
+  private def shutdownControllableCallback(componentName: String, replyTo: ActorRef): PartialFunction[Try[Ack], Unit] = {
     case Failure(exception) =>
       log.error(s"$componentName failed to shutdown", exception)
     case Success(ack) =>
@@ -150,10 +150,10 @@ class HealthSupervisorActorRef(val actor: ActorRef, askTimeout: FiniteDuration, 
         // remove control
         controlled.remove(componentName)
         actor ! UnregisterSupervisedComponentRequest(componentName)
-        replyTo ! ControlAck(success = true)
+        replyTo ! HealthAck(success = true)
       } else {
         log.error(s"$componentName failed to shutdown", ack.error.orNull)
-        replyTo ! ControlAck(success = false, error = Some(new RuntimeException(s"$componentName failed to shutdown", ack.error.orNull)))
+        replyTo ! HealthAck(success = false, error = Some(new RuntimeException(s"$componentName failed to shutdown", ack.error.orNull)))
       }
   }
 }
@@ -286,7 +286,7 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, filters:
       state.replyTo.foreach(r => r ! HealthRegistrationReceived(reg))
       context.watch(reg.controlProxyRef)
       context.become(monitoring(state.copy(registered = state.registered + (reg.componentName -> reg.asSupervisedComponentRegistration()))))
-      sender() ! Ack(success = true, None)
+      sender() ! HealthAck(success = true, None)
     case remove: UnregisterSupervisedComponentRequest =>
       context.become(monitoring(state.copy(registered = state.registered - remove.componentName)))
     case HealthRegistrationDetailsRequest =>
@@ -341,7 +341,7 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, filters:
 
   private def attemptRestart(registered: SupervisedComponentRegistration): Future[Set[HealthSupervisionEvent]] = {
     registered.controlProxyRef.ask(RestartComponent(registered.componentName, self)).map[Set[HealthSupervisionEvent]] {
-      case ack: ControlAck =>
+      case ack: Ack =>
         if (ack.success) {
           Set(RestartComponentAttempted(registered.componentName), ComponentRestarted(registered.componentName))
         } else {
@@ -357,12 +357,20 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, filters:
   }
 
   private def attemptShutdown(registered: SupervisedComponentRegistration): Future[Set[HealthSupervisionEvent]] = {
-    registered.controlProxyRef.ask(ShutdownComponent(registered.componentName, self)).map[Set[HealthSupervisionEvent]] { case ack: ControlAck =>
-      if (ack.success) {
-        Set(ShutdownComponentAttempted(registered.componentName), ComponentShutdown(registered.componentName))
-      } else {
-        Set(ShutdownComponentAttempted(registered.componentName), ShutdownComponentFailed(registered.componentName, error = ack.error))
-      }
+    registered.controlProxyRef.ask(ShutdownComponent(registered.componentName, self)).map[Set[HealthSupervisionEvent]] {
+      case ack: Ack =>
+        if (ack.success) {
+          Set(ShutdownComponentAttempted(registered.componentName), ComponentShutdown(registered.componentName))
+        } else {
+          Set(ShutdownComponentAttempted(registered.componentName), ShutdownComponentFailed(registered.componentName, error = ack.error))
+        }
+      case other =>
+        Set(
+          ShutdownComponentAttempted(registered.componentName),
+          ShutdownComponentFailed(
+            registered.componentName,
+            error = Some(new RuntimeException(s"Unknown response received from RestartComponent request ${other.getClass}"))))
+
     }
   }
 }

@@ -11,10 +11,9 @@ import org.slf4j.LoggerFactory
 import java.time.Instant
 
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
-import surge.health.{ HealthSignalBusAware, HealthSignalBusTrait }
+import surge.health.{ HealthAck, HealthSignalBusAware, HealthSignalBusTrait }
 import surge.internal.SurgeModel
 import surge.internal.akka.actor.ActorLifecycleManagerActor
-import surge.internal.akka.actor.ActorLifecycleManagerActor.Ack
 import surge.internal.config.TimeoutConfig
 import surge.internal.kafka.KafkaProducerActorImpl
 import surge.kafka.KafkaBytesProducer
@@ -134,8 +133,7 @@ class KafkaProducerActor(
   }
 
   // todo: fix restart.  it appears stop immediately followed by start is very brittle and start never succeeds.
-  override def restart(): Future[ControlAck] = {
-    //Future { ControlAck(success = true) }
+  override def restart(): Future[Ack] = {
     for {
       stopped <- stop()
       started <- start(stopped)
@@ -144,41 +142,47 @@ class KafkaProducerActor(
     }
   }
 
-  override def start(): Future[ControlAck] = {
+  override def start(): Future[Ack] = {
     implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PublisherActor.askTimeout)
 
-    val result = publisherActor.ask(ActorLifecycleManagerActor.Start).map {
-      case ack: Ack =>
-        ControlAck(ack.success)
-      case _ =>
-        ControlAck(success = false, error = Some(new RuntimeException("Unexpected response from actor start request")))
-    }
+    val result = publisherActor
+      .ask(ActorLifecycleManagerActor.Start)
+      .map {
+        case ack: ActorLifecycleManagerActor.Ack =>
+          HealthAck(ack.success)
+        case _ =>
+          HealthAck(success = false, error = Some(new RuntimeException("Unexpected response from actor start request")))
+      }
+      .map[Ack](a => a.asInstanceOf[Ack])
 
     result.onComplete(registrationCallback())
 
     result
   }
 
-  override def stop(): Future[ControlAck] = {
+  override def stop(): Future[Ack] = {
     implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PublisherActor.askTimeout)
 
-    val result = publisherActor.ask(ActorLifecycleManagerActor.Stop).map {
-      case ack: Ack =>
-        ControlAck(ack.success)
-      case _ =>
-        ControlAck(success = false, error = Some(new RuntimeException("Unexpected response from actor stop request")))
-    }
+    val result = publisherActor
+      .ask(ActorLifecycleManagerActor.Stop)
+      .map {
+        case ack: Ack =>
+          HealthAck(ack.success)
+        case _ =>
+          HealthAck(success = false, error = Some(new RuntimeException("Unexpected response from actor stop request")))
+      }
+      .map[Ack](a => a.asInstanceOf[Ack])
 
     result
   }
 
-  override def shutdown(): Future[ControlAck] = stop()
+  override def shutdown(): Future[Ack] = stop()
 
-  private def start(stopped: ControlAck): Future[ControlAck] = {
+  private def start(stopped: Ack): Future[Ack] = {
     if (stopped.success) {
       start()
     } else {
-      Future { ControlAck(success = false, error = Some(new RuntimeException("Failed to stop Kafka Producer"))) }
+      Future { HealthAck(success = false, error = Some(new RuntimeException("Failed to stop Kafka Producer"))) }
     }
   }
 

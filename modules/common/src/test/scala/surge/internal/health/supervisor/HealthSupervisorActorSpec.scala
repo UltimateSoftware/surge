@@ -11,8 +11,8 @@ import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
-import surge.core.{ ControlAck, ControllableAdapter }
-import surge.health.{ Ack, HealthRegistrationReceived, HealthSignalReceived, HealthSupervisorTrait, SignalType }
+import surge.core.{ Ack, ControllableAdapter }
+import surge.health.{ HealthAck, HealthRegistrationReceived, HealthSignalReceived, HealthSupervisorTrait, SignalType }
 import surge.health.config.{ ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig }
 import surge.health.domain.{ HealthSignal, Trace }
 import surge.health.matchers.SideEffect
@@ -58,9 +58,9 @@ class HealthSupervisorActorSpec
       bus.signalStream().start()
 
       val control = new ControllableAdapter() {
-        override def restart(): Future[ControlAck] = Future {
+        override def restart(): Future[Ack] = Future {
           probe.ref ! RestartComponent("component", probe.ref)
-          ControlAck(success = true)
+          HealthAck(success = true)
         }(system.dispatcher)
       }
 
