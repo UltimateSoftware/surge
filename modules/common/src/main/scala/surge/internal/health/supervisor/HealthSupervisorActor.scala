@@ -76,8 +76,7 @@ class HealthSupervisorActorRef(val actor: ActorRef, askTimeout: FiniteDuration, 
       case ShutdownComponent(name, _) =>
         controlled.get(name) match {
           case Some(controllable) =>
-            val futureResult = controllable.shutdown().andThen { shutdownControllableCallback(componentName = name, replyTo = sender()) }
-            sender() ! futureResult
+            controllable.shutdown().andThen { shutdownControllableCallback(componentName = name, replyTo = sender()) }
           case None =>
             sender() ! ControlAck(success = false, error = Some(new RuntimeException(s"Cannot shutdown unregistered component $name")))
         }
