@@ -35,6 +35,7 @@ object Dependencies extends AutoPlugin {
     object OpenTracing {
       val version = "0.33.0"
       val api = "io.opentracing" % "opentracing-api" % version
+      val util = "io.opentracing" % "opentracing-util" % version
       val mock = "io.opentracing" % "opentracing-mock" % version % Test
       val noop = "io.opentracing" % "opentracing-noop" % version
     }

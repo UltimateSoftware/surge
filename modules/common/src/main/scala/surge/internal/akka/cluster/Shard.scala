@@ -3,14 +3,15 @@
 package surge.internal.akka.cluster
 
 import java.net.URLEncoder
-
 import akka.actor._
 import akka.pattern.pipe
 import akka.util.MessageBufferMap
-import org.slf4j.{ Logger, LoggerFactory }
-import surge.akka.cluster.{ Passivate, PerShardLogicProvider }
+import io.opentracing.Tracer
+import org.slf4j.{Logger, LoggerFactory}
+import surge.akka.cluster.{Passivate, PerShardLogicProvider}
+import surge.internal.akka.ActorWithTracing
 import surge.kafka.streams.HealthyActor.GetHealth
-import surge.kafka.streams.{ HealthCheck, HealthCheckStatus }
+import surge.kafka.streams.{HealthCheck, HealthCheckStatus}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -35,7 +36,8 @@ object Shard {
   }
 }
 
-class Shard[IdType](shardId: String, regionLogicProvider: PerShardLogicProvider[IdType], extractEntityId: PartialFunction[Any, IdType]) extends Actor {
+class Shard[IdType](shardId: String, regionLogicProvider: PerShardLogicProvider[IdType], extractEntityId: PartialFunction[Any, IdType])
+  extends ActorWithTracing {
 
   private val log: Logger = LoggerFactory.getLogger(getClass)
   private val bufferSize = 1000
@@ -174,4 +176,8 @@ class Shard[IdType](shardId: String, regionLogicProvider: PerShardLogicProvider[
     regionLogicProvider.onShardTerminated()
     super.postStop()
   }
+
+  import io.opentracing.util.GlobalTracer;
+
+  override protected def tracer: Tracer = GlobalTracer.get()
 }

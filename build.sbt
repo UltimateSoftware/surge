@@ -38,6 +38,7 @@ lazy val `surge-common` = (project in file("modules/common"))
       Kafka.kafkaStreamsScala,
       Kafka.kafkaStreamsTestUtils,
       OpenTracing.api,
+      OpenTracing.util,
       OpenTracing.mock,
       OpenTracing.noop,
       PlayFramework.json,
