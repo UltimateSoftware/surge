@@ -27,6 +27,10 @@ object TimeoutConfig {
     val actorAskTimeout: FiniteDuration = 10.seconds
   }
 
+  object HealthSupervision {
+    val actorAskTimeout: FiniteDuration = 10.seconds
+  }
+
   object PartitionTracker {
     val updateTimeout: FiniteDuration = 20.seconds
   }

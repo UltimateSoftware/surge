@@ -18,7 +18,7 @@ import surge.core.TestBoundedContext
 import surge.health.config.{ ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig }
 import surge.health.domain.{ Error, HealthSignal }
 import surge.health.matchers.{ SideEffectBuilder, SignalPatternMatcherDefinition }
-import surge.health.{ HealthListener, HealthMessage, RestartComponentAttempted, SignalType }
+import surge.health.{ ComponentRestarted, HealthListener, HealthMessage, SignalType }
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.core.SurgePartitionRouterImpl
 import surge.internal.health.StreamMonitoringRef
@@ -231,12 +231,12 @@ class SurgeMessagePipelineSpec
         pipeline.signalBus.signalWithError(name = "kafka.streams.fatal.error", Error("boom", None)).emit()
 
         eventually {
-          val restartAttempt = probe.fishForMessage(max = FiniteDuration(1, "seconds")) { case _: RestartComponentAttempted =>
-            true
+          val restarted = probe.fishForMessage(max = FiniteDuration(1, "seconds")) { case msg: Any =>
+            msg.isInstanceOf[ComponentRestarted]
           }
 
-          Option(restartAttempt).nonEmpty shouldEqual true
-          restartAttempt.asInstanceOf[RestartComponentAttempted].componentName shouldEqual "state-store-kafka-streams"
+          Option(restarted).nonEmpty shouldEqual true
+          restarted.asInstanceOf[ComponentRestarted].componentName shouldEqual "state-store-kafka-streams"
         }
       }
     }
@@ -249,12 +249,12 @@ class SurgeMessagePipelineSpec
         pipeline.signalBus.signalWithError(name = "kafka.fatal.error", Error("boom", None)).emit()
 
         eventually {
-          val restartAttempt = probe.fishForMessage(max = FiniteDuration(5, "seconds")) { case _: RestartComponentAttempted =>
-            true
+          val restarted = probe.fishForMessage(max = FiniteDuration(1, "seconds")) { case msg: Any =>
+            msg.isInstanceOf[ComponentRestarted]
           }
 
-          Option(restartAttempt).nonEmpty shouldEqual true
-          restartAttempt.asInstanceOf[RestartComponentAttempted].componentName shouldEqual "router-actor"
+          Option(restarted).nonEmpty shouldEqual true
+          restarted.asInstanceOf[ComponentRestarted].componentName shouldEqual "router-actor"
         }
       }
     }

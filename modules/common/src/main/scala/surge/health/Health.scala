@@ -113,6 +113,11 @@ case class HealthRegistrationReceived(registration: RegisterSupervisedComponentR
 case class HealthSignalReceived(signal: HealthSignal) extends HealthSupervisionEvent
 case class HealthSignalStreamAdvanced() extends HealthSupervisionEvent
 case class RestartComponentAttempted(componentName: String, timestamp: Instant = Instant.now()) extends HealthSupervisionEvent
+case class RestartComponentFailed(componentName: String, timestamp: Instant = Instant.now(), error: Option[Throwable]) extends HealthSupervisionEvent
+case class ShutdownComponentFailed(componentName: String, timestamp: Instant = Instant.now(), error: Option[Throwable]) extends HealthSupervisionEvent
+case class ComponentRestarted(componentName: String, timestamp: Instant = Instant.now()) extends HealthSupervisionEvent
+case class ComponentShutdown(componentName: String, timestamp: Instant = Instant.now()) extends HealthSupervisionEvent
+
 case class ShutdownComponentAttempted(componentName: String, timestamp: Instant = Instant.now()) extends HealthSupervisionEvent
 
 case class HealthSupervisorState(started: Boolean)
