@@ -225,7 +225,7 @@ class PersistentActor[S, M, R, E](
   }
 
   private def handle(state: InternalActorState, msg: ProcessMessage[M]): Unit = {
-    val ProcessMessageSpan = createSpan("process_message").setTag("aggregateId", aggregateId)
+    val ProcessMessageSpan = tracer.buildSpan("process_message").withTag("aggregateId", aggregateId).start()
     context.setReceiveTimeout(Duration.Inf)
     context.become(persistingEvents(state.withMessageProcessingSpan(ProcessMessageSpan)))
 
