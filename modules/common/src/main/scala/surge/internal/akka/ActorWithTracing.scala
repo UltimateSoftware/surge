@@ -11,8 +11,19 @@ trait ActorWithTracing extends Actor with ActorOps with SpanExtensions {
 
   implicit val tracer: Tracer
 
+  private def actorName: String = this.getClass.getName
+
   private def getMessageName(tracedMsg: TracedMessage[_]): String = {
-    tracedMsg.message.getClass.getSimpleName
+    // we could potentially use reflection:
+    // https://stackoverflow.com/a/60722477
+    /*
+    import scala.reflect.runtime.universe._
+    def getClassName[T](x: T)(implicit tag: TypeTag[T]): String = {
+      tag.tpe match { case TypeRef(_, t, args) => s"""${t.name} [${args.mkString(",")}]""" }
+    }
+    getClassName(tracedMsg)
+    */
+    tracedMsg.messageName
   }
 
   def traceableMessages(userReceive: ActorSpan => Actor.Receive): Actor.Receive = new Actor.Receive {
@@ -24,10 +35,9 @@ trait ActorWithTracing extends Actor with ActorOps with SpanExtensions {
     override def apply(msg: Any): Unit = {
       msg match {
         case tracedMsg: TracedMessage[_] =>
-          val span: Span = Tracing.childFrom(tracedMsg, operationName = s"${this.getClass.getName}:${getMessageName(tracedMsg)}")
+          val span: Span = Tracing.childFrom(tracedMsg, operationName = s"${actorName}:${getMessageName(tracedMsg)}")
           val actorReceiveSpan = ActorSpan(span)
           val fields = Map(
-            "receiver" -> this.getClass.getSimpleName,
             "receiver path" -> self.prettyPrintPath,
             "sender path" -> sender().prettyPrintPath,
             "message" -> getMessageName(tracedMsg))

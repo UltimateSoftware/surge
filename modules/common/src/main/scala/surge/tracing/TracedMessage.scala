@@ -2,20 +2,33 @@
 
 package surge.tracing
 
-import java.util
 import com.fasterxml.jackson.annotation.JsonTypeInfo
-import io.opentracing.propagation.{Format, TextMap, TextMapExtract, TextMapInject}
-import io.opentracing.{References, Span, SpanContext, Tracer}
+import io.opentracing.propagation.{ Format, TextMap }
+import io.opentracing.{ References, Span, SpanContext, Tracer }
 import surge.akka.cluster.JacksonSerializable
 
-import scala.jdk.CollectionConverters._
-
 object TracedMessage {
-  def apply[T](message: T, span: Span)(implicit tracer: Tracer): TracedMessage[T] = TracedMessage(message, Tracing.asHeaders(span))
+
+  /**
+   * @param message
+   *   the message
+   * @param span
+   *   the *parent* span
+   */
+  def apply[T](message: T, messageName: String, span: Span)(implicit tracer: Tracer): TracedMessage[T] =
+    TracedMessage(message, messageName, Tracing.asHeaders(span))
+
+  def appy[T](message: T, span: Span)(implicit tracer: Tracer): TracedMessage[T] =
+    TracedMessage(message, message.getClass.getSimpleName, span)
+
+  def apply[T](message: T, headers: Map[String, String]): TracedMessage[T] =
+    TracedMessage(message, message.getClass.getSimpleName, headers)
+
 }
 
 final case class TracedMessage[T](
     @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "messageType", visible = true) message: T,
+    messageName: String,
     headers: Map[String, String])
     extends JacksonSerializable
 
@@ -47,8 +60,8 @@ object Tracing {
         new TextMap() {
           override def put(key: String, value: String): Unit = throw new UnsupportedOperationException()
 
-          import java.util.Map
           import java.util
+          import java.util.Map
           override def iterator(): util.Iterator[Map.Entry[String, String]] = {
             import scala.jdk.CollectionConverters._
             message.headers.asJava.entrySet().iterator()

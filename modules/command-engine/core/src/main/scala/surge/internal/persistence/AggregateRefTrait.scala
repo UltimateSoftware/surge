@@ -79,30 +79,32 @@ private[surge] trait AggregateRefTrait[AggId, Agg, Cmd, Event] {
    */
   protected def sendCommandWithRetries(envelope: PersistentActor.ProcessMessage[Cmd], retriesRemaining: Int = 0)(
       implicit ec: ExecutionContext): Future[Either[Throwable, Option[Agg]]] = {
-    val commandName = envelope.message.getClass.getSimpleName
-    val askSpan = tracer.buildSpan(commandName).withTag("aggregateId", aggregateId.toString).start()
-    (region ? TracedMessage(envelope, askSpan)(tracer)).map(interpretActorResponse(askSpan)).recoverWith {
-      case _: Throwable if retriesRemaining > 0 =>
-        log.warn("Ask timed out to aggregate actor region, retrying request...")
-        sendCommandWithRetries(envelope, retriesRemaining - 1)
-      case a: AskTimeoutException =>
-        val msg = s"Ask timed out after $askTimeoutDuration to aggregate actor with id ${envelope.aggregateId} executing command " +
-          s"${envelope.message.getClass.getName}. This is typically a result of other parts of the engine performing incorrectly or " +
-          s"hitting exceptions"
-        askSpan.error(a)
-        askSpan.finish()
-        Future.successful[Either[Throwable, Option[Agg]]](Left(SurgeTimeoutException(msg)))
-      case e: Throwable =>
-        askSpan.error(e)
-        askSpan.finish()
-        Future.successful[Either[Throwable, Option[Agg]]](Left(SurgeUnexpectedException(e)))
-    }
+    val askSpan = tracer.buildSpan(envelope.message.getClass.getSimpleName).withTag("aggregateId", aggregateId.toString).start()
+    (region ? TracedMessage(envelope, messageName = s"ProcessMessage[${envelope.message.getClass.getSimpleName}]", askSpan)(tracer))
+      .map(interpretActorResponse(askSpan))
+      .recoverWith {
+        case _: Throwable if retriesRemaining > 0 =>
+          log.warn("Ask timed out to aggregate actor region, retrying request...")
+          sendCommandWithRetries(envelope, retriesRemaining - 1)
+        case a: AskTimeoutException =>
+          val msg = s"Ask timed out after $askTimeoutDuration to aggregate actor with id ${envelope.aggregateId} executing command " +
+            s"${envelope.message.getClass.getName}. This is typically a result of other parts of the engine performing incorrectly or " +
+            s"hitting exceptions"
+          askSpan.error(a)
+          askSpan.finish()
+          Future.successful[Either[Throwable, Option[Agg]]](Left(SurgeTimeoutException(msg)))
+        case e: Throwable =>
+          askSpan.error(e)
+          askSpan.finish()
+          Future.successful[Either[Throwable, Option[Agg]]](Left(SurgeUnexpectedException(e)))
+      }
   }
 
   protected def applyEventsWithRetries(envelope: PersistentActor.ApplyEvent[Event], retriesRemaining: Int = 0)(
       implicit ec: ExecutionContext): Future[Option[Agg]] = {
+    val messageName = envelope.event.getClass.getSimpleName
     val askSpan = tracer.buildSpan("send_events_to_aggregate").withTag("aggregateId", aggregateId.toString).start()
-    (region ? TracedMessage(envelope, askSpan)(tracer)).map(interpretActorResponse(askSpan)).flatMap {
+    (region ? TracedMessage(envelope, messageName, askSpan)(tracer)).map(interpretActorResponse(askSpan)).flatMap {
       case Left(exception) => Future.failed(exception)
       case Right(state)    => Future.successful(state)
     }
