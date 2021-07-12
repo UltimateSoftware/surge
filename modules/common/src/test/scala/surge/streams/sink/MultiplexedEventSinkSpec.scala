@@ -28,7 +28,7 @@ class MultiplexedEventSinkSpec extends TestKit(ActorSystem("MultiplexedEventSink
 
   case class BothSubtypesMessage(property: String) extends Subtype1 with Subtype2
 
-  class SubtypeEventSink[T](probe: TestProbe) extends EventSink[T] {
+  class SubtypeEventSink[T](probe: TestProbe) extends AbstractEventSink[T] {
     override def handleEvent(key: String, event: T, headers: Map[String, Array[Byte]]): Future[Any] = Future { probe.ref ! event }(ExecutionContext.global)
     override def partitionBy(key: String, event: T, headers: Map[String, Array[Byte]]): String = key
   }
@@ -52,7 +52,7 @@ class MultiplexedEventSinkSpec extends TestKit(ActorSystem("MultiplexedEventSink
       val eventSource = new TestEventSource[TopLevelEvent]()
       val subtype1Probe = TestProbe()
       val subtype2Probe = TestProbe()
-      val testMultiplexedSink = new MultiplexedEventSink[TopLevelEvent] {
+      val testMultiplexedSink = new AbstractMultiplexedEventSink[TopLevelEvent] {
         override implicit def ec: ExecutionContext = ExecutionContext.global
         override def partitionBy(key: String, event: TopLevelEvent, headers: Map[String, Array[Byte]]): String = key
         override def destinationSinks: Seq[EventSinkMultiplexAdapter[TopLevelEvent, _ <: TopLevelEvent]] =

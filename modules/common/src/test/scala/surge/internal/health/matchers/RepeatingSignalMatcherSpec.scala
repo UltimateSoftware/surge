@@ -3,7 +3,6 @@
 package surge.internal.health.matchers
 
 import java.util.regex.Pattern
-
 import akka.actor.ActorSystem
 import akka.stream.scaladsl.Source
 import akka.testkit.{ TestKit, TestProbe }
@@ -18,6 +17,7 @@ import surge.health.windows.WindowAdvanced
 import surge.internal.health.StreamMonitoringRef
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
 
+import scala.collection.immutable
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.languageFeature.postfixOps
@@ -64,8 +64,8 @@ class RepeatingSignalMatcherSpec extends TestKit(ActorSystem("RepeatingSignals")
         Range(1, 100),
         Range(1, 100))
 
-      Source(repeatingData)
-        .mapAsync(parallelism = 10)(data =>
+      Source(repeatingData.asInstanceOf[immutable.Iterable[Range]])
+        .mapAsync(10)(data =>
           Future {
             data.foreach(d => {
               bus.signalWithTrace(name = s"$d", trace = Trace("trace", None, None)).emit()

@@ -53,7 +53,7 @@ object FlowConverter {
       val flow = Flow[EventPlusStreamMeta[K, V, Meta]].mapAsync(1) { evtPlusMeta: EventPlusStreamMeta[K, V, Meta] =>
         executeBusinessLogic(sinkName)(evtPlusMeta, businessLogic)
           .recover { case e =>
-            exceptionHandler.handleException(evtPlusMeta.messageKey, evtPlusMeta.messageBody, evtPlusMeta.streamMeta, e)
+            exceptionHandler.handleException(evtPlusMeta, e)
           }
           .map(_ => evtPlusMeta.streamMeta)
       }

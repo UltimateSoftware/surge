@@ -2,7 +2,7 @@
 
 package surge.streams.sink
 
-import surge.streams.EventSink
+import surge.streams.{ AbstractEventSink, EventSink }
 
 import scala.concurrent.{ ExecutionContext, Future }
 
@@ -29,3 +29,5 @@ trait MultiplexedEventSink[Event] extends EventSink[Event] {
 
   override val sinkName: String = destinationSinks.map(_.sink).map(_.sinkName).mkString("[", sep = ", ", "]")
 }
+
+trait AbstractMultiplexedEventSink[Event] extends AbstractEventSink[Event] with MultiplexedEventSink[Event]
