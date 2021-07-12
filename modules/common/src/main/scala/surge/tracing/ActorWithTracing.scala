@@ -5,21 +5,37 @@ package surge.tracing
 import akka.actor.Actor
 import io.opentracing.{Span, Tracer}
 
+case class ActorReceiveSpan private(span: Span) {
+
+  import SpanOps._
+
+  def log(event: String, fields: Map[String, String]): Unit = {
+    span.log(event, fields)
+  }
+
+  def startChildSpan(operationName: String)(implicit tracer: Tracer): Span = {
+    tracer.buildSpan(operationName).asChildOf(span).start()
+  }
+}
+
+object ActorReceiveSpan {
+  def apply(span: Span): ActorReceiveSpan = new ActorReceiveSpan(span)
+}
+
 
 trait ActorWithTracing extends Actor with ActorOps with SpanOps {
 
-  implicit val tracer: Tracer = harko.Tracer.tracer
+  implicit val tracer: Tracer = ???
 
   def traceableMessages(userReceive: ActorReceiveSpan => Actor.Receive): Actor.Receive = {
-    case tracedMsg: TracedMessage[_] =>
+    case tracedMsg: Any if tracedMsg.isInstanceOf[TracedMessage] =>
       val span: Span = TracedMessage.followFrom(tracedMsg, operationName = s"${this.getClass.getName}:${tracedMsg.msg.getClass.getSimpleName}")
       val actorReceiveSpan = ActorReceiveSpan(span)
       val fields = Map(
         "receiver" -> this.getClass.getSimpleName,
         "receiver path" -> self.prettyPrintPath,
         "sender path" -> sender().prettyPrintPath,
-        "message" -> tracedMsg.msg.getClass.getName
-      )
+        "message" -> tracedMsg.getClass.getName)
       if (userReceive(actorReceiveSpan).isDefinedAt(tracedMsg.msg)) {
         span.log(s"receive", fields)
         userReceive(ActorReceiveSpan(span))(tracedMsg.msg)

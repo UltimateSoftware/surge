@@ -9,13 +9,12 @@ import com.typesafe.config.{Config, ConfigFactory}
 import io.opentracing.Tracer
 import org.apache.kafka.common.TopicPartition
 import org.slf4j.{Logger, LoggerFactory}
-import surge.internal.akka.ActorWithTracing
 import surge.internal.akka.cluster.{ActorHostAwareness, Shard}
 import surge.internal.akka.kafka.{KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor}
 import surge.internal.config.TimeoutConfig
 import surge.kafka.streams.HealthyActor.GetHealth
 import surge.kafka.streams.{HealthCheck, HealthCheckStatus, HealthyActor}
-import surge.tracing.TracedMessage
+import surge.tracing.{ActorWithTracing, TracedMessage}
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -195,9 +194,7 @@ class KafkaPartitionShardRouterActor(
         log.trace(
           s"RouterActor forwarding command envelope for aggregate $aggregateId to region ${responsiblePartitionRegion.regionManager.pathString}. Msg $msg")
 
-        val tracedMessage =
-          TracedMessage(this.tracer, message = msg, span = this.createSpan("forward", parentSpan = Some(this.tracer.activeSpan())))
-        responsiblePartitionRegion.regionManager.forward(tracedMessage)
+        responsiblePartitionRegion.regionManager.forward(msg)
       case None =>
         log.error(s"RouterActor could not find a responsible partition region for $aggregateId.")
     }

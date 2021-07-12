@@ -12,7 +12,6 @@ import surge.akka.cluster.{ JacksonSerializable, Passivate }
 import surge.core._
 import surge.health.HealthSignalBusTrait
 import surge.internal.SurgeModel
-import surge.internal.akka.ActorWithTracing
 import surge.internal.config.{ RetryConfig, TimeoutConfig }
 import surge.internal.domain.HandledMessageResult
 import surge.internal.kafka.HeadersHelper
