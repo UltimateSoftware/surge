@@ -97,6 +97,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
           HealthAck(success = false, error = Some(new RuntimeException("Unexpected response from actor start request")))
       }(system.dispatcher)
 
+    // should we `andThen` or `onComplete`
     result.onComplete(registrationCallback())(system.dispatcher)
 
     result
