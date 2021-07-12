@@ -81,7 +81,7 @@ private[surge] trait AggregateRefTrait[AggId, Agg, Cmd, Event] extends SpanSuppo
   protected def sendCommandWithRetries(envelope: PersistentActor.ProcessMessage[Cmd], retriesRemaining: Int = 0)(
       implicit ec: ExecutionContext): Future[Either[Throwable, Option[Agg]]] = {
     val askSpan = createSpan("send_command_to_aggregate").setTag("aggregateId", aggregateId.toString)
-    (region ? TracedMessage(tracer, envelope, askSpan)).map(interpretActorResponse(askSpan)).recoverWith {
+    (region ? TracedMessage(envelope, askSpan)(tracer)).map(interpretActorResponse(askSpan)).recoverWith {
       case _: Throwable if retriesRemaining > 0 =>
         log.warn("Ask timed out to aggregate actor region, retrying request...")
         sendCommandWithRetries(envelope, retriesRemaining - 1)
@@ -102,7 +102,7 @@ private[surge] trait AggregateRefTrait[AggId, Agg, Cmd, Event] extends SpanSuppo
   protected def applyEventsWithRetries(envelope: PersistentActor.ApplyEvent[Event], retriesRemaining: Int = 0)(
       implicit ec: ExecutionContext): Future[Option[Agg]] = {
     val askSpan = createSpan("send_events_to_aggregate").setTag("aggregateId", aggregateId.toString)
-    (region ? TracedMessage(tracer, envelope, askSpan)).map(interpretActorResponse(askSpan)).flatMap {
+    (region ? TracedMessage(envelope, askSpan)(tracer)).map(interpretActorResponse(askSpan)).flatMap {
       case Left(exception) => Future.failed(exception)
       case Right(state)    => Future.successful(state)
     }

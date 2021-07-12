@@ -11,7 +11,7 @@ trait ActorWithTracing extends AroundReceiveActor with SpanSupport {
   private var activeScope: Option[Scope] = None
 
   def tracedMessage[T](msg: T): TracedMessage[T] = {
-    TracedMessage(tracer, msg, tracer.activeSpan())
+    TracedMessage(msg, tracer.activeSpan())(tracer)
   }
 
   override def doAroundReceive(receive: Receive, msg: Any): Unit = {

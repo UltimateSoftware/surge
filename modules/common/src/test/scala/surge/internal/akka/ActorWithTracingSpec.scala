@@ -49,7 +49,7 @@ class ActorWithTracingSpec extends TestKit(ActorSystem("ActorWithTracingSpec")) 
       val actor = system.actorOf(Props(new ProbeWithTraceSupport(probe, mockTracer)))
 
       val testSpan = mockTracer.buildSpan("test_span").start()
-      actor ! TracedMessage(mockTracer, expectedMsg, testSpan)
+      actor ! TracedMessage(expectedMsg, testSpan)(mockTracer)
       probe.expectMsg(expectedMsg)
 
       probe.send(actor, ProbeWithTraceSupport.GetMostRecentSpan)
