@@ -58,6 +58,7 @@ lazy val `surge-rabbitmq-support` = (project in file("modules/rabbit-support"))
   .dependsOn(`surge-common`)
 
 lazy val `surge-engine-command-core` = (project in file("modules/command-engine/core"))
+  .dependsOn(`surge-common` % "compile->compile;test->test")
   .settings(
     libraryDependencies ++= Seq(
       Akka.actor,
@@ -68,9 +69,12 @@ lazy val `surge-engine-command-core` = (project in file("modules/command-engine/
       mockitoCore,
       scalatest,
       scalatestPlusMockito,
+      embeddedKafka,
+      OpenTracing.mock,
+      OpenTracing.noop,
+      OpenTracing.api,
       logback,
       typesafeConfig))
-  .dependsOn(`surge-common` % "compile->compile;test->test")
 
 lazy val `surge-engine-command-scaladsl` = (project in file("modules/command-engine/scaladsl")).dependsOn(`surge-engine-command-core`)
 
