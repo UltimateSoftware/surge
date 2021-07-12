@@ -136,11 +136,11 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
 
     val result = for {
       signalStreamStopped <- stopSignalStream()
-      //actorRouterStopped <- stopActorRouter()
+      actorRouterStopped <- stopActorRouter()
       kafkaStreamsStopped <- stopKafkaStreams()
     } yield {
       val success = (signalStreamStopped.success
-      //&& actorRouterStopped.success
+        && actorRouterStopped.success
         && kafkaStreamsStopped.success)
       HealthAck(success = success)
     }
