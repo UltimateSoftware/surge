@@ -95,13 +95,13 @@ class SlidingHealthSignalStreamSpec
       bus.signalWithTrace(name = "trace.test", Trace("tester")).emit().emit().emit()
 
       eventually {
-        val closed = probe.fishForMessage(max = 400.millis) { case msg =>
+        val closed = probe.fishForMessage(max = 1.second) { case msg =>
           msg.isInstanceOf[WindowClosed]
         }
 
         closed.asInstanceOf[WindowClosed].d.signals.size shouldEqual 3
 
-        val advanced = probe.fishForMessage(max = 200.millis) { case msg =>
+        val advanced = probe.fishForMessage(max = 1.second) { case msg =>
           msg.isInstanceOf[WindowAdvanced]
         }
         advanced.asInstanceOf[WindowAdvanced].d.signals.size shouldEqual 3
