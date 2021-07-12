@@ -10,7 +10,6 @@ import org.slf4j.{ Logger, LoggerFactory }
 import surge.exceptions.{ SurgeTimeoutException, SurgeUnexpectedException }
 import surge.internal.config.TimeoutConfig
 import surge.internal.utils.SpanExtensions._
-import surge.internal.utils.SpanSupport
 import surge.tracing.TracedMessage
 
 import scala.concurrent.{ ExecutionContext, Future }
@@ -29,7 +28,7 @@ import scala.concurrent.{ ExecutionContext, Future }
  * @tparam Event
  *   The event type that the business logic aggregate generates and can handle to update state
  */
-private[surge] trait AggregateRefTrait[AggId, Agg, Cmd, Event] extends SpanSupport {
+private[surge] trait AggregateRefTrait[AggId, Agg, Cmd, Event] {
 
   val aggregateId: AggId
   protected val region: ActorRef
@@ -80,7 +79,8 @@ private[surge] trait AggregateRefTrait[AggId, Agg, Cmd, Event] extends SpanSuppo
    */
   protected def sendCommandWithRetries(envelope: PersistentActor.ProcessMessage[Cmd], retriesRemaining: Int = 0)(
       implicit ec: ExecutionContext): Future[Either[Throwable, Option[Agg]]] = {
-    val askSpan = createSpan("send_command_to_aggregate").setTag("aggregateId", aggregateId.toString)
+    val commandName = envelope.message.getClass.getSimpleName
+    val askSpan = tracer.buildSpan(commandName).withTag("aggregateId", aggregateId.toString).start()
     (region ? TracedMessage(envelope, askSpan)(tracer)).map(interpretActorResponse(askSpan)).recoverWith {
       case _: Throwable if retriesRemaining > 0 =>
         log.warn("Ask timed out to aggregate actor region, retrying request...")
@@ -101,7 +101,7 @@ private[surge] trait AggregateRefTrait[AggId, Agg, Cmd, Event] extends SpanSuppo
 
   protected def applyEventsWithRetries(envelope: PersistentActor.ApplyEvent[Event], retriesRemaining: Int = 0)(
       implicit ec: ExecutionContext): Future[Option[Agg]] = {
-    val askSpan = createSpan("send_events_to_aggregate").setTag("aggregateId", aggregateId.toString)
+    val askSpan = tracer.buildSpan("send_events_to_aggregate").withTag("aggregateId", aggregateId.toString).start()
     (region ? TracedMessage(envelope, askSpan)(tracer)).map(interpretActorResponse(askSpan)).flatMap {
       case Left(exception) => Future.failed(exception)
       case Right(state)    => Future.successful(state)

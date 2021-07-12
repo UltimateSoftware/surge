@@ -3,14 +3,13 @@
 package surge.kafka
 
 import java.time.Instant
-
 import akka.actor._
 import akka.pattern._
 import com.typesafe.config.{ Config, ConfigFactory }
 import io.opentracing.Tracer
 import org.apache.kafka.common.TopicPartition
 import org.slf4j.{ Logger, LoggerFactory }
-import surge.internal.akka.ActorWithTracing
+import surge.internal.akka.{ ActorWithTracing, ActorSpan }
 import surge.internal.akka.cluster.{ ActorHostAwareness, Shard }
 import surge.internal.akka.kafka.{ KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor }
 import surge.internal.config.TimeoutConfig
@@ -168,25 +167,19 @@ class KafkaPartitionShardRouterActor(
     case msg if extractEntityId.isDefinedAt(msg) => becomeActiveAndDeliverMessage(state, msg)
   }
 
-  private def initialized(state: ActorState): Receive = healthCheckReceiver(state).orElse {
-    case msg: PartitionAssignments               => handle(state, msg)
-    case msg: Terminated                         => handle(state, msg)
-    case GetPartitionRegionAssignments           => sender() ! state.partitionRegions
-    case msg if extractEntityId.isDefinedAt(msg) => deliverMessage(state, msg)
+  private def initialized(state: ActorState): Receive = traceableMessages { spanned: ActorSpan =>
+    {
+      case msg if extractEntityId.isDefinedAt(msg) =>
+        deliverMessage(state, extractEntityId(msg), msg)
+    }
+  }.orElse(healthCheckReceiver(state)).orElse {
+    case msg: PartitionAssignments     => handle(state, msg)
+    case msg: Terminated               => handle(state, msg)
+    case GetPartitionRegionAssignments => sender() ! state.partitionRegions
   }
 
   private def healthCheckReceiver(state: ActorState): Receive = { case GetHealth =>
     getHealthCheck(state).pipeTo(sender())
-  }
-
-  private def deliverMessage(state: ActorState, msg: Any): Unit = {
-    Try(extractEntityId(msg)).toOption match {
-      case None =>
-        log.warn("Unsure of how to route message with class [{}], dropping it.", msg.getClass.getName)
-        context.system.deadLetters ! msg
-      case Some(id) =>
-        deliverMessage(state, id, msg)
-    }
   }
 
   private def deliverMessage(state: ActorState, aggregateId: String, msg: Any): Unit = {
@@ -290,7 +283,7 @@ class KafkaPartitionShardRouterActor(
     log.info("Shard router transitioning from standby mode to active mode")
     val newState = state.copy(enableDRStandby = false).initializeNewRegions()
     context.become(initialized(newState))
-    deliverMessage(newState, msg)
+    deliverMessage(newState, extractEntityId(msg), msg)
   }
 
   private def handle(partitionAssignments: PartitionAssignments): Unit = {

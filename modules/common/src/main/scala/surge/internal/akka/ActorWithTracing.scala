@@ -2,21 +2,20 @@
 
 package surge.internal.akka
 
-import akka.AroundReceiveActor
 import akka.actor.{Actor, ActorRef}
-import io.opentracing.{Scope, Span, Tracer}
-import surge.internal.utils.{SpanExtensions, SpanSupport}
+import io.opentracing.{Span, Tracer}
+import surge.internal.utils.SpanExtensions
 import surge.tracing.{TracedMessage, Tracing}
 
 trait ActorWithTracing extends Actor with ActorOps with SpanExtensions {
 
   implicit val tracer: Tracer
 
-  private def getMessageName(msg: Any): String = {
-    msg.getClass.getSimpleName
+  private def getMessageName(tracedMsg: TracedMessage[_]): String = {
+    tracedMsg.message.getClass.getSimpleName
   }
 
-  def traceableMessages(userReceive: Spanned => Actor.Receive): Actor.Receive = new Actor.Receive {
+  def traceableMessages(userReceive: ActorSpan => Actor.Receive): Actor.Receive = new Actor.Receive {
     override def isDefinedAt(m: Any): Boolean = m match {
       case s: TracedMessage[_] => true
       case _                   => false
@@ -25,16 +24,16 @@ trait ActorWithTracing extends Actor with ActorOps with SpanExtensions {
     override def apply(msg: Any): Unit = {
       msg match {
         case tracedMsg: TracedMessage[_] =>
-          val span: Span = Tracing.childFrom(tracedMsg, operationName = s"${this.getClass.getName}:${getMessageName(msg)}")
-          val actorReceiveSpan = Spanned(span)
+          val span: Span = Tracing.childFrom(tracedMsg, operationName = s"${this.getClass.getName}:${getMessageName(tracedMsg)}")
+          val actorReceiveSpan = ActorSpan(span)
           val fields = Map(
             "receiver" -> this.getClass.getSimpleName,
             "receiver path" -> self.prettyPrintPath,
             "sender path" -> sender().prettyPrintPath,
-            "message" -> getMessageName(msg))
-          if (userReceive(actorReceiveSpan).isDefinedAt(msg)) {
+            "message" -> getMessageName(tracedMsg))
+          if (userReceive(actorReceiveSpan).isDefinedAt(tracedMsg.message)) {
             span.log(s"receive", fields)
-            userReceive(actorReceiveSpan)(msg)
+            userReceive(actorReceiveSpan)(tracedMsg.message)
             span.log(s"done")
             span.finish()
           } else {
@@ -47,20 +46,22 @@ trait ActorWithTracing extends Actor with ActorOps with SpanExtensions {
   }
 }
 
-final case class Spanned private (span: Span) {
+final case class ActorSpan private(innerSpan: Span) {
+
+  private[akka] def getSpan: Span = innerSpan // solely used by the unit test
 
   def log(event: String, fields: Map[String, String]): Unit = {
     import SpanExtensions._
-    span.log(event, fields)
+    innerSpan.log(event, fields)
   }
 
   def startChildSpan(operationName: String)(implicit tracer: Tracer): Span = {
-    tracer.buildSpan(operationName).asChildOf(span).start()
+    tracer.buildSpan(operationName).asChildOf(innerSpan).start()
   }
 }
 
-object Spanned {
-  def apply(span: Span): Spanned = new Spanned(span)
+object ActorSpan {
+  def apply(span: Span): ActorSpan = new ActorSpan(span)
 }
 
 trait ActorOps {
