@@ -110,7 +110,7 @@ class HealthSupervisorActorSpec
       val received = probe.receiveN(1, max = 10.seconds)
 
       received.headOption.nonEmpty shouldEqual true
-      received.head.isInstanceOf[HealthRegistrationReceived]
+      received.head shouldBe a[HealthRegistrationReceived]
 
       received.head.asInstanceOf[HealthRegistrationReceived].registration.componentName shouldEqual message.underlyingRegistration().componentName
 
