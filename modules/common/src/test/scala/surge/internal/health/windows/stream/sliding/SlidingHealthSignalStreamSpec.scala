@@ -91,6 +91,10 @@ class SlidingHealthSignalStreamSpec
       }
     }
 
+    "not fail on repeated starts" in {
+      bus.signalStream().start().start().start()
+    }
+
     "not lose signals" in {
       bus.signalWithTrace(name = "trace.test", Trace("tester")).emit().emit().emit()
 

@@ -11,7 +11,6 @@ import org.mockito.{ ArgumentMatchers, Mockito }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
-import surge.core.Controllable
 import surge.health.domain._
 import surge.health.{ HealthSignalListener, SignalHandler }
 import surge.internal.health.context.TestHealthSignalStream
@@ -62,20 +61,20 @@ class HealthSignalBusSpec extends TestKit(ActorSystem("healthSignalBus")) with A
       signalStreamProvider.busWithSupervision().signalStream() shouldBe a[TestHealthSignalStream]
     }
 
-    "throw runtime exception when handling registration and supervisor not available" in {
-      val bus = signalStreamProvider.busWithSupervision()
-      val spy = Mockito.spy(bus)
-
-      doReturn(None).when(spy).supervisor()
-      a[RuntimeException] should be thrownBy spy.registration(Mockito.mock(classOf[Controllable]), "foo", Seq.empty, Seq.empty)
-    }
-
     "not fail on repeated supervise calls" in {
-      signalStreamProvider.busWithSupervision().supervise().supervise().supervisor().isDefined shouldEqual true
+      signalStreamProvider.bus().supervise().supervise().supervisor().isDefined shouldEqual true
     }
 
-    "not fail on repeated unsupervise calls" in {
-      signalStreamProvider.busWithSupervision().supervise().unsupervise().unsupervise().unsupervise().supervisor().isDefined shouldEqual false
+    "not fail on repeated un-supervise calls" in {
+      signalStreamProvider.bus().supervise().unsupervise().unsupervise().unsupervise().supervisor().isDefined shouldEqual false
+    }
+
+    "not fail on supervise when not supervised" in {
+      signalStreamProvider.bus().supervise().supervisor().isDefined shouldEqual true
+    }
+
+    "not fail on un-supervise when not supervised" in {
+      signalStreamProvider.bus().unsupervise().supervisor().isDefined shouldEqual false
     }
 
     "create trace signal" in {

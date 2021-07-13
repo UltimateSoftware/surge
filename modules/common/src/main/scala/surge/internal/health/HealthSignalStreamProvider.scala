@@ -96,4 +96,13 @@ trait HealthSignalStreamProvider {
         signalBus
     }
   }
+
+  def bus(startStreamOnInit: Boolean = false): HealthSignalBusInternal = {
+    Option(signalBus) match {
+      case Some(bus) => bus
+      case None =>
+        signalBus = HealthSignalBus(signalStream = this, startStreamOnInit = startStreamOnInit)
+        signalBus
+    }
+  }
 }

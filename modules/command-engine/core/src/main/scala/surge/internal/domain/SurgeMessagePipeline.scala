@@ -104,7 +104,6 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     }
   }
 
-  // todo: fix; stopping and starting actor-router fails.
   override def restart(): Future[Ack] = {
     implicit val ec: ExecutionContext = system.dispatcher
 
@@ -141,19 +140,19 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
 
   override def shutdown(): Future[Ack] = stop()
 
-  private def startSignalStream(): Future[Ack] = Future {
+  private def startSignalStream(): Future[Ack] = {
     val signalStream = signalBus.signalStream()
     log.debug("Starting Health Signal Stream")
     signalStream.start()
 
-    HealthAck(success = true)
-  }(system.dispatcher)
+    Future.successful[Ack](HealthAck(success = true))
+  }
 
   private def startActorRouter(signalStreamStarted: Ack): Future[Ack] = {
     if (signalStreamStarted.success) {
       actorRouter.start()
     } else {
-      Future.successful[Ack](HealthAck(success = false, error = Some(new RuntimeException("Failed to start actor router"))))
+      Future.failed[Ack](new RuntimeException("Failed to start actor router"))
     }
   }
 
@@ -167,11 +166,11 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
 
   private def stopActorRouter(): Future[Ack] = actorRouter.stop()
 
-  private def stopSignalStream(): Future[Ack] = Future {
+  private def stopSignalStream(): Future[Ack] = {
     log.debug("Stopping Health Signal Stream")
     signalBus.signalStream().unsubscribe().stop()
-    HealthAck(success = true)
-  }(system.dispatcher)
+    Future.successful[Ack](HealthAck(success = true))
+  }
 
   private def stopKafkaStreams(): Future[Ack] = kafkaStreamsImpl.stop()
 

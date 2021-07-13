@@ -56,6 +56,10 @@ final case class HealthAck(success: Boolean, error: Option[Throwable] = None) ex
   override def withSuccess(success: Boolean): Ack = {
     copy(success = success)
   }
+
+  override def withError(error: Throwable): Ack = {
+    copy(error = Some(error))
+  }
 }
 
 trait RegistrationProducer {

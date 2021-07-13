@@ -8,6 +8,10 @@ final case class ControlAck(success: Boolean, error: Option[Throwable] = None) e
   override def withSuccess(success: Boolean): Ack = {
     copy(success = success)
   }
+
+  override def withError(error: Throwable): Ack = {
+    copy(error = Some(error))
+  }
 }
 
 trait Ack {
@@ -15,6 +19,7 @@ trait Ack {
   def error: Option[Throwable]
 
   def withSuccess(success: Boolean): Ack
+  def withError(error: Throwable): Ack
 }
 
 trait Controllable {

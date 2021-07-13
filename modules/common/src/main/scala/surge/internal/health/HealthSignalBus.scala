@@ -66,6 +66,18 @@ private class InvokableHealthRegistrationImpl(healthRegistration: HealthRegistra
   override def underlyingRegistration(): HealthRegistration = healthRegistration
 }
 
+object NoopInvokableHealthRegistration {
+  val log: Logger = LoggerFactory.getLogger(getClass)
+}
+
+private class NoopInvokableHealthRegistration(healthRegistration: HealthRegistration) extends InvokableHealthRegistration {
+  override def invoke(): Future[Ack] = {
+    Future.successful[Ack](HealthAck(success = true))
+  }
+
+  override def underlyingRegistration(): HealthRegistration = healthRegistration
+}
+
 private class EmittableHealthSignalImpl(healthSignal: HealthSignal, signalBus: HealthSignalBusInternal) extends EmittableHealthSignal {
   import surge.health.domain.EmittableHealthSignal._
 
@@ -187,14 +199,18 @@ private[surge] class HealthSignalBusImpl(config: HealthSignalBusConfig, signalSt
   }
 
   override def supervise(): HealthSignalBusTrait = {
-    supervisor()
-      .map(s => {
+    supervisor() match {
+      case Some(s) =>
         if (!s.state().started) {
           s.start(monitoringRef.map(ref => ref.actor))
         }
         this
-      })
-      .getOrElse(this)
+      case None =>
+        val ref = HealthSupervisorActor(this, signalStreamSupplier.filters(), actorSystem)
+        supervisorRef = Some(ref)
+        ref.start(monitoringRef.map(ref => ref.actor))
+        this
+    }
   }
 
   override def unsupervise(): HealthSignalBusTrait = {
@@ -245,7 +261,14 @@ private[surge] class HealthSignalBusImpl(config: HealthSignalBusConfig, signalSt
           exists,
           signalBus = this)
       case None =>
-        throw new RuntimeException("missing Health Supervisor")
+        log.warn(s"The Health Signal Bus is not being supervised so HealthRegistration cannot be performed for $componentName")
+        new NoopInvokableHealthRegistration(
+          HealthRegistration(
+            control = control,
+            topic = config.registrationTopic,
+            componentName = componentName,
+            restartSignalPatterns = restartSignalPatterns,
+            shutdownSignalPatterns = shutdownSignalPatterns))
     }
 
   }

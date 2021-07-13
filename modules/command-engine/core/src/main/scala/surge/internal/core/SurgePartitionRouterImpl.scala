@@ -79,7 +79,11 @@ private[surge] final class SurgePartitionRouterImpl(
       stopped <- stop()
       started <- start(stopped)
     } yield {
-      started
+      if (stopped.success && started.success) {
+        HealthAck(success = true)
+      } else {
+        HealthAck(success = false, Some(new RuntimeException(s"Failed to restart $getClass")))
+      }
     }
   }
 

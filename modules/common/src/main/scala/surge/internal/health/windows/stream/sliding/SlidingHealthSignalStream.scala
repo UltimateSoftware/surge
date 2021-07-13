@@ -145,7 +145,7 @@ private class SlidingHealthSignalStreamImpl(
     // WindowEvent Source
     val windowQueue = windowEventSource()
 
-    // todo: handle pattern matching here instead of nesting away behind and actor (HealthSignalStreamActor) that simply
+    // todo: handle pattern matching here instead of nesting away behind an actor (HealthSignalStreamActor) that simply
     //  delegates to SignalPatternMatchResultHandler.asListener
     windowQueue.source.runWith[Future[Done]](Sink.foreach(event => {
       log.trace("WindowEvent {}", event)
