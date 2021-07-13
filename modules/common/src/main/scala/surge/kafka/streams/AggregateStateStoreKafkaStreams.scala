@@ -88,19 +88,16 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
    * `kafka.streams.wipe-state-on-start` config setting is set to true.
    */
   override def start(): Future[Ack] = {
-    val result = underlyingActor
+    implicit val ec: ExecutionContext = system.dispatcher
+    underlyingActor
       .ask(ActorLifecycleManagerActor.Start)
       .map {
         case ack: ActorLifecycleManagerActor.Ack =>
           HealthAck(ack.success)
         case _ =>
-          HealthAck(success = false, error = Some(new RuntimeException("Unexpected response from actor start request")))
-      }(system.dispatcher)
-
-    // should we `andThen` or `onComplete`
-    result.onComplete(registrationCallback())(system.dispatcher)
-
-    result
+          throw new RuntimeException("Unexpected response from actor start request")
+      }
+      .andThen(registrationCallback())
   }
 
   override def shutdown(): Future[Ack] = {
@@ -113,7 +110,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
       case ack: ActorLifecycleManagerActor.Ack =>
         HealthAck(ack.success)
       case _ =>
-        HealthAck(success = false, error = Some(new RuntimeException("Unexpected response from actor stop request")))
+        throw new RuntimeException("Unexpected response from actor stop request")
     }
   }
 
@@ -123,7 +120,11 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
       stopped <- stop()
       started <- start(stopped)
     } yield {
-      started
+      if (stopped.success && started.success) {
+        HealthAck(success = true)
+      } else {
+        throw new RuntimeException(s"Failed to restart $getClass")
+      }
     }
   }
 
@@ -174,7 +175,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
     underlyingActor.ask(GetTopology).mapTo[Topology]
   }
 
-  private def registrationCallback(): Try[Any] => Unit = {
+  private def registrationCallback(): PartialFunction[Try[Ack], Unit] = {
     case Success(_) =>
       val registrationResult = signalBus.register(
         control = this,

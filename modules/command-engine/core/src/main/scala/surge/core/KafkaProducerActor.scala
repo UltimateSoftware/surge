@@ -129,13 +129,16 @@ class KafkaProducerActor(
       }(ExecutionContext.global)
   }
 
-  // todo: fix restart.  it appears stop immediately followed by start is very brittle and start never succeeds.
   override def restart(): Future[Ack] = {
     for {
       stopped <- stop()
       started <- start(stopped)
     } yield {
-      started
+      if (stopped.success && started.success) {
+        HealthAck(success = true)
+      } else {
+        throw new RuntimeException(s"Failed to restart $getClass")
+      }
     }
   }
 
@@ -148,11 +151,9 @@ class KafkaProducerActor(
         case ack: ActorLifecycleManagerActor.Ack =>
           HealthAck(ack.success)
         case _ =>
-          HealthAck(success = false, error = Some(new RuntimeException("Unexpected response from actor start request")))
+          throw new RuntimeException("Unexpected response from actor start request")
       }
-      .map[Ack](a => a.asInstanceOf[Ack])
-
-    result.onComplete(registrationCallback())
+      .andThen(registrationCallback())
 
     result
   }
@@ -160,15 +161,12 @@ class KafkaProducerActor(
   override def stop(): Future[Ack] = {
     implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PublisherActor.askTimeout)
 
-    val result = publisherActor
-      .ask(ActorLifecycleManagerActor.Stop)
-      .map {
-        case ack: Ack =>
-          HealthAck(ack.success)
-        case _ =>
-          HealthAck(success = false, error = Some(new RuntimeException("Unexpected response from actor stop request")))
-      }
-      .map[Ack](a => a.asInstanceOf[Ack])
+    val result = publisherActor.ask(ActorLifecycleManagerActor.Stop).map[Ack] {
+      case ack: ActorLifecycleManagerActor.Ack =>
+        HealthAck(ack.success)
+      case _ =>
+        throw new RuntimeException("Unexpected response from actor stop request")
+    }
 
     result
   }
@@ -179,11 +177,11 @@ class KafkaProducerActor(
     if (stopped.success) {
       start()
     } else {
-      Future { HealthAck(success = false, error = Some(new RuntimeException("Failed to stop Kafka Producer"))) }
+      Future.failed(new RuntimeException(s"Failed to stop $getClass"))
     }
   }
 
-  private def registrationCallback(): Try[Any] => Unit = {
+  private def registrationCallback(): PartialFunction[Try[Ack], Unit] = {
     case Success(_) =>
       val registrationResult =
         signalBus.register(control = this, componentName = "kafka-producer-actor", restartSignalPatterns = restartSignalPatterns())

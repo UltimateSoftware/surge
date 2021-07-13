@@ -48,15 +48,15 @@ private[surge] final class SurgePartitionRouterImpl(
   override def start(): Future[Ack] = {
     implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PartitionRouter.askTimeout)
 
-    val result = actorRegion.ask(ActorLifecycleManagerActor.Start).map {
-      case ack: ActorLifecycleManagerActor.Ack =>
-        HealthAck(ack.success)
-      case _ =>
-        HealthAck(success = false, error = Some(new RuntimeException("Unexpected response from actor start request")))
-    }
-
-    result.onComplete(registrationCallback())
-    result
+    actorRegion
+      .ask(ActorLifecycleManagerActor.Start)
+      .map {
+        case ack: ActorLifecycleManagerActor.Ack =>
+          HealthAck(ack.success)
+        case _ =>
+          throw new RuntimeException("Unexpected response from actor start request")
+      }
+      .andThen(registrationCallback())
   }
 
   override def stop(): Future[Ack] = {
@@ -66,7 +66,7 @@ private[surge] final class SurgePartitionRouterImpl(
       case ack: ActorLifecycleManagerActor.Ack =>
         HealthAck(ack.success)
       case _ =>
-        HealthAck(success = false, error = Some(new RuntimeException("Unexpected response from actor stop request")))
+        throw new RuntimeException("Unexpected response from actor stop request")
     }
   }
 
@@ -82,7 +82,7 @@ private[surge] final class SurgePartitionRouterImpl(
       if (stopped.success && started.success) {
         HealthAck(success = true)
       } else {
-        HealthAck(success = false, Some(new RuntimeException(s"Failed to restart $getClass")))
+        throw new RuntimeException(s"Failed to restart $getClass")
       }
     }
   }
@@ -101,11 +101,11 @@ private[surge] final class SurgePartitionRouterImpl(
     if (stopped.success) {
       start()
     } else {
-      Future.successful(HealthAck(success = false, error = Some(new RuntimeException("Failed to stop Surge Partition Router"))))
+      Future.failed(new RuntimeException("Failed to stop Surge Partition Router"))
     }
   }
 
-  private def registrationCallback(): Try[Any] => Unit = {
+  private def registrationCallback(): PartialFunction[Try[Ack], Unit] = {
     case Success(_) =>
       val registrationResult = signalBus.register(control = this, componentName = "router-actor", restartSignalPatterns())
 
