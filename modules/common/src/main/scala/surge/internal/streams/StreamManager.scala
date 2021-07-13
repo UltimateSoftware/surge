@@ -2,33 +2,33 @@
 
 package surge.internal.streams
 
-import akka.actor.{Actor, ActorRef, ActorSystem, Address, NoSerializationVerificationNeeded, Props, Stash}
+import akka.actor.{ Actor, ActorRef, ActorSystem, Address, NoSerializationVerificationNeeded, Props, Stash }
 import akka.kafka.scaladsl.Consumer
 import akka.kafka.scaladsl.Consumer.DrainingControl
-import akka.kafka.{ConsumerMessage, _}
+import akka.kafka.{ ConsumerMessage, _ }
 import akka.pattern._
-import akka.stream.scaladsl.{Flow, RestartSource, Sink}
+import akka.stream.scaladsl.{ Flow, RestartSource, Sink }
 import akka.util.Timeout
-import akka.{Done, NotUsed}
+import akka.{ Done, NotUsed }
 import com.typesafe.config.ConfigFactory
 import io.opentracing.Tracer
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.serialization.Deserializer
-import org.apache.kafka.common.{Metric, MetricName}
-import org.slf4j.{LoggerFactory, MDC}
-import surge.internal.akka.cluster.{ActorHostAwareness, ActorRegistry, ActorSystemHostAwareness}
-import surge.internal.kafka.{HeadersHelper, HostAwareCooperativeStickyAssignor, HostAwareRangeAssignor}
+import org.apache.kafka.common.{ Metric, MetricName }
+import org.slf4j.{ LoggerFactory, MDC }
+import surge.internal.akka.cluster.{ ActorHostAwareness, ActorRegistry, ActorSystemHostAwareness }
+import surge.internal.kafka.{ HeadersHelper, HostAwareCooperativeStickyAssignor, HostAwareRangeAssignor }
 import surge.internal.utils.Logging
 import surge.streams.DataPipeline._
-import surge.streams.replay.{EventReplaySettings, EventReplayStrategy, ReplayControl, ReplayControlContext}
-import surge.streams.{EventPlusStreamMeta, KafkaStreamMeta}
+import surge.streams.replay.{ EventReplaySettings, EventReplayStrategy, ReplayControl, ReplayControlContext }
+import surge.streams.{ EventPlusStreamMeta, KafkaStreamMeta }
 import surge.tracing.ActorWithTracing
 
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
 import scala.concurrent.ExecutionContext.global
 import scala.concurrent.duration._
-import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.{ Await, ExecutionContext, Future }
 import scala.util.Try
 
 object PartitionAssignorConfig {

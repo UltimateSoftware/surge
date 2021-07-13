@@ -4,16 +4,16 @@ package surge.kafka
 
 import akka.actor._
 import akka.pattern._
-import com.typesafe.config.{Config, ConfigFactory}
+import com.typesafe.config.{ Config, ConfigFactory }
 import io.opentracing.Tracer
 import org.apache.kafka.common.TopicPartition
-import org.slf4j.{Logger, LoggerFactory}
-import surge.internal.akka.cluster.{ActorHostAwareness, Shard}
+import org.slf4j.{ Logger, LoggerFactory }
+import surge.internal.akka.cluster.{ ActorHostAwareness, Shard }
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.config.TimeoutConfig
 import surge.kafka.streams.HealthyActor.GetHealth
-import surge.kafka.streams.{HealthCheck, HealthCheckStatus, HealthyActor}
-import surge.tracing.{ActorReceiveSpan, ActorWithTracing}
+import surge.kafka.streams.{ HealthCheck, HealthCheckStatus, HealthyActor }
+import surge.tracing.{ ActorReceiveSpan, ActorWithTracing }
 
 import java.time.Instant
 import scala.concurrent.Future
@@ -65,8 +65,7 @@ class KafkaPartitionShardRouterActor(
     partitionTracker: KafkaConsumerPartitionAssignmentTracker,
     kafkaStateProducer: KafkaProducerTrait[String, _],
     regionCreator: PersistentActorRegionCreator[String],
-    extractEntityId: PartialFunction[Any, String])(
-    implicit val tracer: Tracer)
+    extractEntityId: PartialFunction[Any, String])(implicit val tracer: Tracer)
     extends ActorWithTracing
     with Stash
     with ActorHostAwareness {

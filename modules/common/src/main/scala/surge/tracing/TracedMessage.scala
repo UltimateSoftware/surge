@@ -3,8 +3,8 @@
 package surge.tracing
 
 import com.fasterxml.jackson.annotation.JsonTypeInfo
-import io.opentracing.propagation.{Format, TextMap}
-import io.opentracing.{References, Span, SpanContext, Tracer}
+import io.opentracing.propagation.{ Format, TextMap }
+import io.opentracing.{ References, Span, SpanContext, Tracer }
 import surge.akka.cluster.JacksonSerializable
 
 object TracedMessage {

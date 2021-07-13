@@ -2,15 +2,15 @@
 
 package surge.internal.akka.cluster
 
-import akka.actor.{Actor, ActorContext, ActorRef, ActorSystem, DeadLetter, PoisonPill, Props, Terminated}
-import akka.testkit.{TestKit, TestProbe}
+import akka.actor.{ Actor, ActorContext, ActorRef, ActorSystem, DeadLetter, PoisonPill, Props, Terminated }
+import akka.testkit.{ TestKit, TestProbe }
 import io.opentracing.mock.MockTracer
 import io.opentracing.noop.NoopTracerFactory
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
-import surge.akka.cluster.{EntityPropsProvider, Passivate, PerShardLogicProvider}
-import surge.kafka.streams.{HealthCheck, HealthCheckStatus}
+import surge.akka.cluster.{ EntityPropsProvider, Passivate, PerShardLogicProvider }
+import surge.kafka.streams.{ HealthCheck, HealthCheckStatus }
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future

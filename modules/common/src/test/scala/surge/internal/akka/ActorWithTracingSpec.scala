@@ -2,13 +2,13 @@
 
 package surge.internal.akka
 
-import akka.actor.{ActorSystem, NoSerializationVerificationNeeded, Props}
-import akka.testkit.{TestKit, TestProbe}
-import io.opentracing.mock.{MockSpan, MockTracer}
-import io.opentracing.{References, Tracer}
+import akka.actor.{ ActorSystem, NoSerializationVerificationNeeded, Props }
+import akka.testkit.{ TestKit, TestProbe }
+import io.opentracing.mock.{ MockSpan, MockTracer }
+import io.opentracing.{ References, Tracer }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
-import surge.tracing.{ActorReceiveSpan, ActorWithTracing, TracedMessage}
+import surge.tracing.{ ActorReceiveSpan, ActorWithTracing, TracedMessage }
 
 object ProbeWithTraceSupport {
   case object GetMostRecentSpan extends NoSerializationVerificationNeeded

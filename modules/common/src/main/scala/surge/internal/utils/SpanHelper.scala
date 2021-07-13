@@ -15,12 +15,12 @@ trait SpanExtensions {
     }
 
     /*
-  * The purpose of this is to add a .log method on Span in order to make it more Scala friendly (i.e.
-  * to be able to pass in a Scala map instead of a Java map).
-  * @param eventName name of the event
-  * @param fields fields as a Scala map
-  * @return a span
-  */
+     * The purpose of this is to add a .log method on Span in order to make it more Scala friendly (i.e.
+     * to be able to pass in a Scala map instead of a Java map).
+     * @param eventName name of the event
+     * @param fields fields as a Scala map
+     * @return a span
+     */
     def log(eventName: String, fields: Map[String, String] = Map.empty): Span = {
       val scalaMap = fields + ("event" -> eventName)
       import scala.jdk.CollectionConverters._
