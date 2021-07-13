@@ -52,7 +52,11 @@ final case class HealthRegistration(
     ref: Option[ActorRef] = None)
     extends HealthMessage
 
-final case class HealthAck(success: Boolean, error: Option[Throwable] = None) extends Ack
+final case class HealthAck(success: Boolean, error: Option[Throwable] = None) extends Ack {
+  override def withSuccess(success: Boolean): Ack = {
+    copy(success = success)
+  }
+}
 
 trait RegistrationProducer {
   def register(control: Controllable, componentName: String, restartSignalPatterns: Seq[Pattern], shutdownSignalPatterns: Seq[Pattern] = Seq.empty): Future[Ack]

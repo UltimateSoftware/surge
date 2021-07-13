@@ -16,7 +16,6 @@ import org.scalatest.wordspec.AnyWordSpec
 import org.scalatest.{ Assertion, BeforeAndAfterAll }
 import org.scalatestplus.mockito.MockitoSugar
 import play.api.libs.json.{ Format, JsValue, Json }
-import surge.internal.health.HealthSignalBus
 import surge.internal.kafka.JsonSerdes
 import surge.kafka.KafkaTopic
 import surge.kafka.streams.AggregateStateStoreKafkaStreamsImpl.AggregateStateStoreKafkaStreamsImplSettings
@@ -105,7 +104,7 @@ class AggregateStateStoreKafkaStreamsSpec
           applicationHostPort = Some("localhost:1234"),
           applicationId = appId,
           clientId = "",
-          HealthSignalBus(testHealthSignalStreamProvider(Seq.empty)),
+          testHealthSignalStreamProvider(Seq.empty).busWithSupervision(),
           system,
           Metrics.globalMetricRegistry) {
           override lazy val settings: AggregateStateStoreKafkaStreamsImplSettings =
@@ -146,7 +145,7 @@ class AggregateStateStoreKafkaStreamsSpec
           applicationHostPort = Some("localhost:1234"),
           applicationId = appId,
           clientId = "",
-          HealthSignalBus(testHealthSignalStreamProvider(Seq.empty)),
+          testHealthSignalStreamProvider(Seq.empty).busWithSupervision(),
           system,
           Metrics.globalMetricRegistry) {
           override lazy val settings: AggregateStateStoreKafkaStreamsImplSettings =

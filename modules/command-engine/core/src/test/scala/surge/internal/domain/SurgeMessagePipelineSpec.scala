@@ -12,7 +12,7 @@ import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
-import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach }
+import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach, PrivateMethodTester }
 import play.api.libs.json.{ JsValue, Json }
 import surge.core.TestBoundedContext
 import surge.health.config.{ ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig }
@@ -36,6 +36,7 @@ class SurgeMessagePipelineSpec
     with ScalaFutures
     with EmbeddedKafka
     with Eventually
+    with PrivateMethodTester
     with TestBoundedContext
     with BeforeAndAfterAll
     with BeforeAndAfterEach
@@ -101,6 +102,20 @@ class SurgeMessagePipelineSpec
         val result = Await.result(stopped, 30.second)
 
         result.success shouldEqual true
+      }
+    }
+
+    "restart successfully" in {
+      withRunningKafkaOnFoundPort(config) { _ =>
+        createCustomTopic(businessLogic.kafka.eventsTopic.name, Map.empty)
+        createCustomTopic(businessLogic.kafka.stateTopic.name, Map.empty)
+
+        val restarted = pipeline.restart()
+
+        val result = Await.result(restarted, 30.second)
+
+        result.success shouldEqual true
+
       }
     }
 

@@ -4,9 +4,17 @@ package surge.core
 
 import scala.concurrent.Future
 
+final case class ControlAck(success: Boolean, error: Option[Throwable] = None) extends Ack {
+  override def withSuccess(success: Boolean): Ack = {
+    copy(success = success)
+  }
+}
+
 trait Ack {
   def success: Boolean
   def error: Option[Throwable]
+
+  def withSuccess(success: Boolean): Ack
 }
 
 trait Controllable {
@@ -17,7 +25,6 @@ trait Controllable {
 }
 
 class ControllableAdapter extends Controllable {
-  final case class ControlAck(success: Boolean, error: Option[Throwable] = None) extends Ack
 
   override def start(): Future[Ack] = Future.successful[Ack](ControlAck(success = true))
 
