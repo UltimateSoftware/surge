@@ -38,8 +38,7 @@ private[surge] final class SurgePartitionRouterImpl(
     businessLogic.partitioner,
     businessLogic.kafka.stateTopic,
     regionCreator,
-    RoutableMessage.extractEntityId,
-    businessLogic.tracer)
+    RoutableMessage.extractEntityId)(businessLogic.tracer)
 
   private val lifecycleManager = system.actorOf(Props(new ActorLifecycleManagerActor(shardRouterProps, Some(s"${businessLogic.aggregateName}RouterActor"))))
   override val actorRegion: ActorRef = lifecycleManager

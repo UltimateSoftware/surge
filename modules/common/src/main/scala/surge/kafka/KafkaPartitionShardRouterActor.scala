@@ -29,12 +29,11 @@ object KafkaPartitionShardRouterActor {
       partitioner: KafkaPartitioner[String],
       trackedTopic: KafkaTopic,
       regionCreator: PersistentActorRegionCreator[String],
-      extractEntityId: PartialFunction[Any, String],
-      tracer: Tracer): Props = {
+      extractEntityId: PartialFunction[Any, String])(implicit tracer: Tracer): Props = {
 
     // This producer is only used for determining partition assignments, not actually producing
     val producer = KafkaBytesProducer(brokers, trackedTopic, partitioner)
-    Props(new KafkaPartitionShardRouterActor(partitionTracker, producer, regionCreator, extractEntityId, tracer))
+    Props(new KafkaPartitionShardRouterActor(partitionTracker, producer, regionCreator, extractEntityId)(tracer))
   }
   case object GetPartitionRegionAssignments
 }
@@ -67,8 +66,8 @@ class KafkaPartitionShardRouterActor(
     partitionTracker: KafkaConsumerPartitionAssignmentTracker,
     kafkaStateProducer: KafkaProducerTrait[String, _],
     regionCreator: PersistentActorRegionCreator[String],
-    extractEntityId: PartialFunction[Any, String],
-    override val tracer: Tracer)
+    extractEntityId: PartialFunction[Any, String])(
+    implicit val tracer: Tracer)
     extends ActorWithTracing
     with Stash
     with ActorHostAwareness {

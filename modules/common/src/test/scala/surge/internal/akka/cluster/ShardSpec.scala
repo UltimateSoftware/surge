@@ -2,13 +2,15 @@
 
 package surge.internal.akka.cluster
 
-import akka.actor.{ Actor, ActorContext, ActorRef, ActorSystem, DeadLetter, PoisonPill, Props, Terminated }
-import akka.testkit.{ TestKit, TestProbe }
+import akka.actor.{Actor, ActorContext, ActorRef, ActorSystem, DeadLetter, PoisonPill, Props, Terminated}
+import akka.testkit.{TestKit, TestProbe}
+import io.opentracing.mock.MockTracer
+import io.opentracing.noop.NoopTracerFactory
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
-import surge.akka.cluster.{ EntityPropsProvider, Passivate, PerShardLogicProvider }
-import surge.kafka.streams.{ HealthCheck, HealthCheckStatus }
+import surge.akka.cluster.{EntityPropsProvider, Passivate, PerShardLogicProvider}
+import surge.kafka.streams.{HealthCheck, HealthCheckStatus}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -75,7 +77,7 @@ class TestActor(id: String) extends Actor {
 
 class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with AnyWordSpecLike with Matchers with MockitoSugar {
   import TestActor._
-  private val shardProps = Shard.props("testShard", new RegionLogicProvider(), TestActor.idExtractor)
+  private val shardProps = Shard.props("testShard", new RegionLogicProvider(), TestActor.idExtractor)(NoopTracerFactory.create())
 
   private def passivateActor(shard: ActorRef, childId: String): ActorRef = {
     val probe = TestProbe()
@@ -213,7 +215,7 @@ class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with AnyWordSpecLike w
         probe.ref ! Terminated
         ()
       }
-      val shardActor = system.actorOf(Shard.props("testShard", new RegionLogicProvider(() => notifyProbe()), TestActor.idExtractor))
+      val shardActor = system.actorOf(Shard.props("testShard", new RegionLogicProvider(() => notifyProbe()), TestActor.idExtractor)(NoopTracerFactory.create()))
       probe.expectNoMessage()
       probe.send(shardActor, PoisonPill)
       probe.expectMsg(Terminated)

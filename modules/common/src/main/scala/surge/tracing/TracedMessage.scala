@@ -3,9 +3,10 @@
 package surge.tracing
 
 import com.fasterxml.jackson.annotation.JsonTypeInfo
-import io.opentracing.propagation.{ Format, TextMap }
-import io.opentracing.{ References, Span, SpanContext, Tracer }
+import io.opentracing.propagation.{Format, TextMap}
+import io.opentracing.{References, Span, SpanContext, Tracer}
 import surge.akka.cluster.JacksonSerializable
+import surge.internal.akka.ActorSpan
 
 object TracedMessage {
 
@@ -17,6 +18,9 @@ object TracedMessage {
    */
   def apply[T](message: T, messageName: String, span: Span)(implicit tracer: Tracer): TracedMessage[T] =
     TracedMessage(message, messageName, Tracing.asHeaders(span))
+
+  def apply[T](message: T, messageName: String, span: ActorSpan)(implicit tracer: Tracer): TracedMessage[T] =
+    TracedMessage(message, messageName, span.innerSpan)
 
   def appy[T](message: T, span: Span)(implicit tracer: Tracer): TracedMessage[T] =
     TracedMessage(message, message.getClass.getSimpleName, span)

@@ -3,12 +3,13 @@
 package surge.internal.akka.cluster
 
 import java.net.URLEncoder
-
 import akka.actor._
 import akka.pattern.pipe
 import akka.util.MessageBufferMap
+import io.opentracing.Tracer
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.akka.cluster.{ Passivate, PerShardLogicProvider }
+import surge.internal.akka.ActorWithTracing
 import surge.kafka.streams.HealthyActor.GetHealth
 import surge.kafka.streams.{ HealthCheck, HealthCheckStatus }
 
@@ -30,12 +31,15 @@ import scala.concurrent.Future
 object Shard {
   sealed trait ShardMessage
 
-  def props[IdType](shardId: String, regionLogicProvider: PerShardLogicProvider[IdType], extractEntityId: PartialFunction[Any, IdType]): Props = {
-    Props(new Shard(shardId, regionLogicProvider, extractEntityId))
+  def props[IdType](shardId: String, regionLogicProvider: PerShardLogicProvider[IdType], extractEntityId: PartialFunction[Any, IdType])(
+      implicit tracer: Tracer): Props = {
+    Props(new Shard(shardId, regionLogicProvider, extractEntityId)(tracer))
   }
 }
 
-class Shard[IdType](shardId: String, regionLogicProvider: PerShardLogicProvider[IdType], extractEntityId: PartialFunction[Any, IdType]) extends Actor {
+class Shard[IdType](shardId: String, regionLogicProvider: PerShardLogicProvider[IdType], extractEntityId: PartialFunction[Any, IdType])(
+    implicit val tracer: Tracer)
+    extends ActorWithTracing {
 
   private val log: Logger = LoggerFactory.getLogger(getClass)
   private val bufferSize = 1000

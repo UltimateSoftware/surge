@@ -88,8 +88,7 @@ trait KafkaPartitionShardRouterActorSpecLike extends MockitoSugar {
         partitionTracker = new KafkaConsumerPartitionAssignmentTracker(partitionProbe.ref),
         kafkaStateProducer = producer,
         regionCreator = new ProbeInterceptorRegionCreator(regionProbe),
-        extractEntityId = extractEntityId,
-        tracer))
+        extractEntityId = extractEntityId)(tracer))
 
     TestContext(partitionProbe = partitionProbe, regionProbe = regionProbe, shardRouterProps = shardRouterProps)
   }
