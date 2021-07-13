@@ -10,8 +10,8 @@ import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AsyncWordSpecLike
 import surge.exceptions.SurgeUnexpectedException
-import surge.internal.akka.ProbeWithTraceSupport
 import surge.internal.persistence.{ AggregateRefTrait, PersistentActor }
+import surge.tracing.ProbeWithTraceSupport
 
 import scala.concurrent.Future
 

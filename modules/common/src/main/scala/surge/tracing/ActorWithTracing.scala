@@ -37,7 +37,7 @@ trait ActorWithTracing extends Actor with ActorOps with SpanExtensions {
       msg match {
         case tracedMsg: TracedMessage[_] =>
           val span: Span = Tracing.childFrom(tracedMsg, operationName = s"${actorClassSimpleName}:${getMessageName(tracedMsg)}")
-          val actorReceiveSpan = ActorReceiveSpan(span)
+          val actorReceiveSpan = ActorReceiveSpan(span, tracedMsg.messageName)
           val fields = Map(
             "actor class (FQCN)" -> actorClassFullName,
             "receiver path" -> self.prettyPrintPath,
@@ -59,9 +59,9 @@ trait ActorWithTracing extends Actor with ActorOps with SpanExtensions {
   }
 }
 
-final case class ActorReceiveSpan private (innerSpan: Span) {
+final class ActorReceiveSpan private (private val innerSpan: Span, val messageName: String) {
 
-  private[tracing] def getSpan: Span = innerSpan // solely used by the unit test
+  private[tracing] def getUnderlyingSpan: Span = innerSpan // solely used by the unit test
 
   def log(event: String, fields: Map[String, String]): Unit = {
     import SpanExtensions._
@@ -74,7 +74,7 @@ final case class ActorReceiveSpan private (innerSpan: Span) {
 }
 
 object ActorReceiveSpan {
-  def apply(span: Span): ActorReceiveSpan = new ActorReceiveSpan(span)
+  def apply(span: Span, messageName: String): ActorReceiveSpan = new ActorReceiveSpan(span, messageName)
 }
 
 trait ActorOps {

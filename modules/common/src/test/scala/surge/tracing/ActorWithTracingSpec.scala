@@ -1,14 +1,14 @@
 // Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
-package surge.internal.akka
+package surge.tracing
 
-import akka.actor.{ ActorSystem, NoSerializationVerificationNeeded, Props }
+import akka.actor.{ ActorSystem, Props }
 import akka.testkit.{ TestKit, TestProbe }
-import io.opentracing.mock.{ MockSpan, MockTracer }
 import io.opentracing.{ References, Tracer }
+import io.opentracing.mock.{ MockSpan, MockTracer }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
-import surge.tracing.{ ActorReceiveSpan, ActorWithTracing, TracedMessage }
+import akka.actor.NoSerializationVerificationNeeded
 
 object ProbeWithTraceSupport {
   case object GetMostRecentSpan extends NoSerializationVerificationNeeded
@@ -57,8 +57,8 @@ class ActorWithTracingSpec extends TestKit(ActorSystem("ActorWithTracingSpec")) 
       probe.send(actor, ProbeWithTraceSupport.GetMostRecentSpan)
       val internalSpan = probe.expectMsgClass(classOf[ProbeWithTraceSupport.MostRecentSpan])
       internalSpan.spanOpt.isDefined shouldEqual true
-      internalSpan.spanOpt.get.innerSpan shouldBe a[MockSpan]
-      val mockSpan = internalSpan.spanOpt.get.innerSpan.asInstanceOf[MockSpan]
+      internalSpan.spanOpt.get.getUnderlyingSpan shouldBe a[MockSpan]
+      val mockSpan = internalSpan.spanOpt.get.getUnderlyingSpan.asInstanceOf[MockSpan]
       val spanReferences = mockSpan.references()
       spanReferences.size() shouldEqual 1
       val parentSpan = spanReferences.get(0)

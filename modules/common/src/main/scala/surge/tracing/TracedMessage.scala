@@ -19,7 +19,7 @@ object TracedMessage {
     TracedMessage(message, messageName, Tracing.asHeaders(parentSpan))
 
   def apply[T](message: T, messageName: String, parentSpan: ActorReceiveSpan)(implicit tracer: Tracer): TracedMessage[T] =
-    TracedMessage(message, messageName, parentSpan.innerSpan)
+    TracedMessage(message, messageName, parentSpan.getUnderlyingSpan)
 
   def apply[T](message: T, span: Span)(implicit tracer: Tracer): TracedMessage[T] =
     TracedMessage(message, message.getClass.getSimpleName, span)
