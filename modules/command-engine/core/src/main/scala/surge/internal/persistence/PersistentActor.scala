@@ -2,30 +2,29 @@
 
 package surge.internal.persistence
 
-import akka.actor.{ NoSerializationVerificationNeeded, Props, ReceiveTimeout, Stash, Status }
+import akka.actor.{NoSerializationVerificationNeeded, Props, ReceiveTimeout, Stash, Status}
 import akka.pattern.pipe
 import com.fasterxml.jackson.annotation.JsonTypeInfo
-import com.typesafe.config.{ Config, ConfigFactory }
-import io.opentracing.{ Span, Tracer }
-import org.slf4j.{ Logger, LoggerFactory }
-import surge.akka.cluster.{ JacksonSerializable, Passivate }
+import com.typesafe.config.{Config, ConfigFactory}
+import io.opentracing.{Span, Tracer}
+import org.slf4j.{Logger, LoggerFactory}
+import surge.akka.cluster.{JacksonSerializable, Passivate}
 import surge.core._
 import surge.health.HealthSignalBusTrait
 import surge.internal.SurgeModel
-import surge.internal.akka.ActorWithTracing
-import surge.internal.config.{ RetryConfig, TimeoutConfig }
+import surge.internal.config.{RetryConfig, TimeoutConfig}
 import surge.internal.domain.HandledMessageResult
 import surge.internal.kafka.HeadersHelper
 import surge.internal.utils.SpanExtensions._
 import surge.kafka.streams.AggregateStateStoreKafkaStreams
-import surge.metrics.{ MetricInfo, Metrics, Timer }
+import surge.metrics.{MetricInfo, Metrics, Timer}
+import surge.tracing.ActorWithTracing
 
 import java.time.Instant
 import java.util.concurrent.Executors
-
-import scala.concurrent.duration.{ Duration, FiniteDuration }
-import scala.concurrent.{ ExecutionContext, Future }
-import scala.util.{ Failure, Success, Try }
+import scala.concurrent.duration.{Duration, FiniteDuration}
+import scala.concurrent.{ExecutionContext, Future}
+import scala.util.{Failure, Success, Try}
 
 object PersistentActor {
 

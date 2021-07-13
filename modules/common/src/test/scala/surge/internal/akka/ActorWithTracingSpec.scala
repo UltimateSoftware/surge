@@ -2,21 +2,21 @@
 
 package surge.internal.akka
 
-import akka.actor.{ ActorSystem, NoSerializationVerificationNeeded, Props }
-import akka.testkit.{ TestKit, TestProbe }
-import io.opentracing.mock.{ MockSpan, MockTracer }
-import io.opentracing.{ References, Tracer }
+import akka.actor.{ActorSystem, NoSerializationVerificationNeeded, Props}
+import akka.testkit.{TestKit, TestProbe}
+import io.opentracing.mock.{MockSpan, MockTracer}
+import io.opentracing.{References, Tracer}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
-import surge.tracing.TracedMessage
+import surge.tracing.{ActorReceiveSpan, ActorWithTracing, TracedMessage}
 
 object ProbeWithTraceSupport {
   case object GetMostRecentSpan extends NoSerializationVerificationNeeded
-  case class MostRecentSpan(spanOpt: Option[ActorSpan]) extends NoSerializationVerificationNeeded
+  case class MostRecentSpan(spanOpt: Option[ActorReceiveSpan]) extends NoSerializationVerificationNeeded
 }
 
 class ProbeWithTraceSupport(probe: TestProbe, val tracer: Tracer) extends ActorWithTracing {
-  var mostRecentSpan: Option[ActorSpan] = None
+  var mostRecentSpan: Option[ActorReceiveSpan] = None
   override def receive: Receive = traceableMessages { actorSpan =>
     { case msg: String =>
       mostRecentSpan = Some(actorSpan)

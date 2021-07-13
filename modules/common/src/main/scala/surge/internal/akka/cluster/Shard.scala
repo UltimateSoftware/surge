@@ -7,11 +7,11 @@ import akka.actor._
 import akka.pattern.pipe
 import akka.util.MessageBufferMap
 import io.opentracing.Tracer
-import org.slf4j.{ Logger, LoggerFactory }
-import surge.akka.cluster.{ Passivate, PerShardLogicProvider }
-import surge.internal.akka.ActorWithTracing
+import org.slf4j.{Logger, LoggerFactory}
+import surge.akka.cluster.{Passivate, PerShardLogicProvider}
 import surge.kafka.streams.HealthyActor.GetHealth
-import surge.kafka.streams.{ HealthCheck, HealthCheckStatus }
+import surge.kafka.streams.{HealthCheck, HealthCheckStatus}
+import surge.tracing.ActorWithTracing
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future

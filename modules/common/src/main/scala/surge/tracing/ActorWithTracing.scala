@@ -1,11 +1,10 @@
 // Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
-package surge.internal.akka
+package surge.tracing
 
-import akka.actor.{Actor, ActorRef}
-import io.opentracing.{Span, Tracer}
+import akka.actor.{ Actor, ActorRef }
+import io.opentracing.{ Span, Tracer }
 import surge.internal.utils.SpanExtensions
-import surge.tracing.{TracedMessage, Tracing}
 
 trait ActorWithTracing extends Actor with ActorOps with SpanExtensions {
 
@@ -24,11 +23,11 @@ trait ActorWithTracing extends Actor with ActorOps with SpanExtensions {
       tag.tpe match { case TypeRef(_, t, args) => s"""${t.name} [${args.mkString(",")}]""" }
     }
     getClassName(tracedMsg)
-    */
+     */
     tracedMsg.messageName
   }
 
-  def traceableMessages(userReceive: ActorSpan => Actor.Receive): Actor.Receive = new Actor.Receive {
+  def traceableMessages(userReceive: ActorReceiveSpan => Actor.Receive): Actor.Receive = new Actor.Receive {
     override def isDefinedAt(m: Any): Boolean = m match {
       case s: TracedMessage[_] => true
       case _                   => false
@@ -38,7 +37,7 @@ trait ActorWithTracing extends Actor with ActorOps with SpanExtensions {
       msg match {
         case tracedMsg: TracedMessage[_] =>
           val span: Span = Tracing.childFrom(tracedMsg, operationName = s"${actorClassSimpleName}:${getMessageName(tracedMsg)}")
-          val actorReceiveSpan = ActorSpan(span)
+          val actorReceiveSpan = ActorReceiveSpan(span)
           val fields = Map(
             "actor class (FQCN)" -> actorClassFullName,
             "receiver path" -> self.prettyPrintPath,
@@ -60,9 +59,9 @@ trait ActorWithTracing extends Actor with ActorOps with SpanExtensions {
   }
 }
 
-final case class ActorSpan private(innerSpan: Span) {
+final case class ActorReceiveSpan private (innerSpan: Span) {
 
-  private[akka] def getSpan: Span = innerSpan // solely used by the unit test
+  private[tracing] def getSpan: Span = innerSpan // solely used by the unit test
 
   def log(event: String, fields: Map[String, String]): Unit = {
     import SpanExtensions._
@@ -74,24 +73,14 @@ final case class ActorSpan private(innerSpan: Span) {
   }
 }
 
-object ActorSpan {
-  def apply(span: Span): ActorSpan = new ActorSpan(span)
+object ActorReceiveSpan {
+  def apply(span: Span): ActorReceiveSpan = new ActorReceiveSpan(span)
 }
 
 trait ActorOps {
   implicit class ActorRefExtension(val actRef: ActorRef) {
-
     import SpanExtensions._
-
     // pretty print actor path so we can include it in the OpenTracing annotations
     def prettyPrintPath: String = actRef.path.toStringWithAddress(actRef.path.address)
-
-    def tellAndTrace(msg: TracedMessage[_], spanToUse: Span)(implicit tracer: Tracer): Unit = {
-      spanToUse.log(s"send", Map("destination path" -> actRef.prettyPrintPath, "message" -> msg.getClass.getName))
-      actRef ! msg
-      spanToUse.finish()
-    }
-
   }
-
 }

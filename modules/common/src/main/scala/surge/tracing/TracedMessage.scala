@@ -6,23 +6,22 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo
 import io.opentracing.propagation.{Format, TextMap}
 import io.opentracing.{References, Span, SpanContext, Tracer}
 import surge.akka.cluster.JacksonSerializable
-import surge.internal.akka.ActorSpan
 
 object TracedMessage {
 
   /**
    * @param message
    *   the message
-   * @param span
+   * @param parentSpan
    *   the *parent* span
    */
-  def apply[T](message: T, messageName: String, span: Span)(implicit tracer: Tracer): TracedMessage[T] =
-    TracedMessage(message, messageName, Tracing.asHeaders(span))
+  def apply[T](message: T, messageName: String, parentSpan: Span)(implicit tracer: Tracer): TracedMessage[T] =
+    TracedMessage(message, messageName, Tracing.asHeaders(parentSpan))
 
-  def apply[T](message: T, messageName: String, span: ActorSpan)(implicit tracer: Tracer): TracedMessage[T] =
-    TracedMessage(message, messageName, span.innerSpan)
+  def apply[T](message: T, messageName: String, parentSpan: ActorReceiveSpan)(implicit tracer: Tracer): TracedMessage[T] =
+    TracedMessage(message, messageName, parentSpan.innerSpan)
 
-  def appy[T](message: T, span: Span)(implicit tracer: Tracer): TracedMessage[T] =
+  def apply[T](message: T, span: Span)(implicit tracer: Tracer): TracedMessage[T] =
     TracedMessage(message, message.getClass.getSimpleName, span)
 
   def apply[T](message: T, headers: Map[String, String]): TracedMessage[T] =

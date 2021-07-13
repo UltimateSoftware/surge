@@ -2,23 +2,22 @@
 
 package surge.kafka
 
-import java.time.Instant
 import akka.actor._
 import akka.pattern._
-import com.typesafe.config.{ Config, ConfigFactory }
+import com.typesafe.config.{Config, ConfigFactory}
 import io.opentracing.Tracer
 import org.apache.kafka.common.TopicPartition
-import org.slf4j.{ Logger, LoggerFactory }
-import surge.internal.akka.{ ActorWithTracing, ActorSpan }
-import surge.internal.akka.cluster.{ ActorHostAwareness, Shard }
-import surge.internal.akka.kafka.{ KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor }
+import org.slf4j.{Logger, LoggerFactory}
+import surge.internal.akka.cluster.{ActorHostAwareness, Shard}
+import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.config.TimeoutConfig
 import surge.kafka.streams.HealthyActor.GetHealth
-import surge.kafka.streams.{ HealthCheck, HealthCheckStatus, HealthyActor }
+import surge.kafka.streams.{HealthCheck, HealthCheckStatus, HealthyActor}
+import surge.tracing.{ActorReceiveSpan, ActorWithTracing}
 
+import java.time.Instant
 import scala.concurrent.Future
 import scala.concurrent.duration._
-import scala.util.Try
 
 object KafkaPartitionShardRouterActor {
   private val config: Config = ConfigFactory.load()
@@ -166,7 +165,7 @@ class KafkaPartitionShardRouterActor(
     case msg if extractEntityId.isDefinedAt(msg) => becomeActiveAndDeliverMessage(state, msg)
   }
 
-  private def initialized(state: ActorState): Receive = traceableMessages { spanned: ActorSpan =>
+  private def initialized(state: ActorState): Receive = traceableMessages { spanned: ActorReceiveSpan =>
     {
       case msg if extractEntityId.isDefinedAt(msg) =>
         deliverMessage(state, extractEntityId(msg), msg)
