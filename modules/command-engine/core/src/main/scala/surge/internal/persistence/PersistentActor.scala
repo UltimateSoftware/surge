@@ -18,7 +18,7 @@ import surge.internal.kafka.HeadersHelper
 import surge.internal.utils.SpanExtensions._
 import surge.kafka.streams.AggregateStateStoreKafkaStreams
 import surge.metrics.{ MetricInfo, Metrics, Timer }
-import surge.tracing.ActorWithTracing
+import surge.tracing.{ ActorReceiveSpan, ActorWithTracing }
 
 import java.time.Instant
 import java.util.concurrent.Executors
@@ -164,13 +164,7 @@ class PersistentActor[S, M, R, E](
 
   private case class EventPublishTimedOut(reason: Throwable, startTime: Instant) extends Internal
 
-  protected case class InternalSpans(messageProcessingSpan: Option[Span] = None)
-
-  protected case class InternalActorState(stateOpt: Option[S], spans: InternalSpans = InternalSpans()) {
-    def withMessageProcessingSpan(span: Span): InternalActorState = copy(spans = spans.copy(messageProcessingSpan = Some(span)))
-
-    def completeMessageProcessingSpan(): Unit = spans.messageProcessingSpan.foreach(_.finish())
-  }
+  protected case class InternalActorState(stateOpt: Option[S])
 
   override type ActorState = InternalActorState
 
@@ -207,12 +201,16 @@ class PersistentActor[S, M, R, E](
   override def receive: Receive = uninitialized
 
   private def freeToProcess(state: InternalActorState): Receive = {
-    case pm: ProcessMessage[M] => handle(state, pm)
-    case ae: ApplyEvent[E]     => handle(state, ae)
-    case GetState(_)           => sender() ! StateResponse(state.stateOpt)
-    case ReceiveTimeout        => handlePassivate()
-    case Stop                  => handleStop()
+    traceableMessages(actorReceiveSpan => { case pm: ProcessMessage[M] =>
+      handle(state, pm)(actorReceiveSpan)
+    }).orElse {
+      case ae: ApplyEvent[E] => handle(state, ae)
+      case GetState(_)       => sender() ! StateResponse(state.stateOpt)
+      case ReceiveTimeout    => handlePassivate()
+      case Stop              => handleStop()
+    }
   }
+
   private def handle(initializeWithState: InitializeWithState): Unit = {
     log.debug(s"Actor state for aggregate $aggregateId successfully initialized")
     unstashAll()
@@ -223,10 +221,10 @@ class PersistentActor[S, M, R, E](
     context.become(freeToProcess(internalActorState))
   }
 
-  private def handle(state: InternalActorState, msg: ProcessMessage[M]): Unit = {
+  private def handle(state: InternalActorState, msg: ProcessMessage[M])(actorReceiveSpan: ActorReceiveSpan): Unit = {
     val ProcessMessageSpan = tracer.buildSpan("process_message").withTag("aggregateId", aggregateId).start()
     context.setReceiveTimeout(Duration.Inf)
-    context.become(persistingEvents(state.withMessageProcessingSpan(ProcessMessageSpan)))
+    context.become(persistingEvents(state))
 
     processMessage(state, msg)
       .flatMap {
@@ -344,7 +342,6 @@ class PersistentActor[S, M, R, E](
   }
 
   override def onPersistenceSuccess(newState: InternalActorState): Unit = {
-    newState.completeMessageProcessingSpan()
     context.setReceiveTimeout(receiveTimeout)
     context.become(freeToProcess(newState))
 
@@ -354,8 +351,6 @@ class PersistentActor[S, M, R, E](
   }
 
   override def onPersistenceFailure(state: InternalActorState, cause: Throwable): Unit = {
-    state.spans.messageProcessingSpan.foreach(_.error(cause))
-    state.completeMessageProcessingSpan()
     log.error(s"Error while trying to publish to Kafka, crashing actor for $aggregateName $aggregateId", cause)
     sender() ! ACKError(cause)
     context.stop(self)
