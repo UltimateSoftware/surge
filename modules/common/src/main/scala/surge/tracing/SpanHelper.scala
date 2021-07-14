@@ -1,10 +1,30 @@
 // Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
-package surge.internal.utils
+package surge.tracing
 
-import io.opentracing.{ Span, Tracer }
+import io.opentracing.{Span, Tracer}
 
 import scala.jdk.CollectionConverters._
+
+private[surge] trait SpanSupport {
+  protected def tracer: Tracer
+
+  def createSpan(operationName: String): Span = {
+    createSpan(operationName, Option(tracer.activeSpan()))
+  }
+
+  def createSpan(operationName: String, parentSpan: Option[Span]): Span = {
+    parentSpan.map(parent => childSpan(operationName, parent)).getOrElse(newSpan(operationName))
+  }
+
+  def newSpan(operationName: String): Span = {
+    tracer.buildSpan(operationName).start()
+  }
+
+  def childSpan(operationName: String, parentSpan: Span): Span = {
+    tracer.buildSpan(operationName).asChildOf(parentSpan).start()
+  }
+}
 
 trait SpanExtensions {
   implicit class SpanExt(span: Span) {
