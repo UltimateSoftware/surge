@@ -9,7 +9,7 @@ import io.opentracing.{ Span, Tracer }
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.exceptions.{ SurgeTimeoutException, SurgeUnexpectedException }
 import surge.internal.config.TimeoutConfig
-import surge.internal.utils.SpanExtensions._
+import surge.tracing.SpanExtensions._
 import surge.tracing.TracedMessage
 
 import scala.concurrent.{ ExecutionContext, Future }

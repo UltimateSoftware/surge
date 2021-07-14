@@ -2,9 +2,8 @@
 
 package surge.tracing
 
-import akka.actor.{ Actor, ActorRef }
-import io.opentracing.{ Span, Tracer }
-import surge.internal.utils.SpanExtensions
+import akka.actor.{Actor, ActorRef}
+import io.opentracing.{Span, Tracer}
 
 // format: off
 /*
