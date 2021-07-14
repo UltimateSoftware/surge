@@ -89,6 +89,9 @@ trait ActorWithTracing extends Actor with ActorOps with SpanExtensions {
   }
 }
 
+// This has everything that Span has except the "finish" method.
+// That's because when ActorWithTracing gets mixed in, the "finish" method gets called automatically for the developer (at the
+// end of message processing).
 final class ActorReceiveSpan private (private val innerSpan: Span, val messageName: String) {
 
   private[tracing] def getUnderlyingSpan: Span = innerSpan // solely used by the unit test
@@ -96,6 +99,10 @@ final class ActorReceiveSpan private (private val innerSpan: Span, val messageNa
   def log(event: String, fields: Map[String, String]): Unit = {
     import SpanExtensions._
     innerSpan.log(event, fields)
+  }
+
+  def setTag(key: String, value: String): Unit = {
+    innerSpan.setTag(key, value)
   }
 
   def startChildSpan(operationName: String)(implicit tracer: Tracer): Span = {
@@ -113,4 +120,5 @@ trait ActorOps {
     // pretty print actor path so we can include it in the OpenTracing annotations
     def prettyPrintPath: String = actRef.path.toStringWithAddress(actRef.path.address)
   }
+  // TODO: add other methods here such forwardAndTrace, tellAndTrace, askAndTrace
 }
