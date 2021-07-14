@@ -89,7 +89,7 @@ class PersistentActorRegion[M](
   override def shutdown(): Future[Ack] = stop()
 
   private def start(stopped: Ack): Future[Ack] = {
-    if (stopped.success) {
+    if (Option(stopped).isDefined) {
       start()
     } else {
       throw new RuntimeException("Failed to stop PersistentActorRegion")

@@ -11,7 +11,7 @@ import com.typesafe.config.ConfigFactory
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.streams.Topology
 import surge.core.Ack
-import surge.health.{ HealthAck, HealthSignalBusTrait }
+import surge.health.HealthSignalBusTrait
 import surge.internal.akka.actor.ActorLifecycleManagerActor
 import surge.internal.config.{ BackoffConfig, TimeoutConfig }
 import surge.internal.utils.{ BackoffChildActorTerminationWatcher, Logging }
@@ -93,7 +93,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
       .ask(ActorLifecycleManagerActor.Start)
       .map {
         case ack: ActorLifecycleManagerActor.Ack =>
-          HealthAck(ack.success)
+          Ack()
         case _ =>
           throw new RuntimeException("Unexpected response from actor start request")
       }
@@ -108,7 +108,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
     implicit val ec: ExecutionContext = system.dispatcher
     underlyingActor.ask(ActorLifecycleManagerActor.Stop).map {
       case ack: ActorLifecycleManagerActor.Ack =>
-        HealthAck(ack.success)
+        Ack()
       case _ =>
         throw new RuntimeException("Unexpected response from actor stop request")
     }
@@ -120,8 +120,8 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
       stopped <- stop()
       started <- start(stopped)
     } yield {
-      if (stopped.success && started.success) {
-        HealthAck(success = true)
+      if (Option(stopped).isDefined && Option(started).isDefined) {
+        Ack()
       } else {
         throw new RuntimeException(s"Failed to restart $getClass")
       }
@@ -187,17 +187,17 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
         case Failure(exception) =>
           log.error(s"$getClass registration failed", exception)
         case Success(done) =>
-          log.debug(s"$getClass registration succeeded - ${done.success}")
+          log.debug(s"$getClass registration succeeded")
       }(system.dispatcher)
     case Failure(error) =>
       log.error(s"Unable to register $getClass for supervision", error)
   }
 
   private def start(stopped: Ack): Future[Ack] = {
-    if (stopped.success) {
+    if (Option(stopped).isDefined) {
       start()
     } else {
-      Future.successful(HealthAck(success = false, error = Some(new RuntimeException(s"Failed to stop $getClass"))))
+      Future.failed[Ack](new RuntimeException(s"Failed to stop $getClass"))
     }
   }
 }

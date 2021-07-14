@@ -71,50 +71,37 @@ class ControlProxyActor(finder: ControllableLookup, remover: ControllableRemover
         case Some(controllable) =>
           controllable.restart().andThen { restartControllableCallback(componentName = name, replyTo = sender()) }
         case None =>
-          sender() ! HealthAck(success = false, error = Some(new RuntimeException(s"Cannot restart unregistered component $name")))
+          sender() ! akka.actor.Status.Failure(new RuntimeException(s"Cannot restart unregistered component $name"))
       }
     case ShutdownComponent(name, _) =>
       finder.lookup(name) match {
         case Some(controllable) =>
           controllable.shutdown().andThen { shutdownControllableCallback(componentName = name, replyTo = sender()) }
         case None =>
-          sender() ! HealthAck(success = false, error = Some(new RuntimeException(s"Cannot shutdown unregistered component $name")))
+          sender() ! akka.actor.Status.Failure(new RuntimeException(s"Cannot shutdown unregistered component $name"))
       }
   }
 
   private def restartControllableCallback(componentName: String, replyTo: ActorRef): PartialFunction[Try[Ack], Unit] = {
     case Failure(exception) =>
       log.error(s"$componentName failed to restart", exception)
-      replyTo ! HealthAck(success = false, error = Some(exception))
+      replyTo ! akka.actor.Status.Failure(exception)
     case Success(ack) =>
-      if (ack.success) {
-        log.debug(s"$componentName was restarted successfully")
-        replyTo ! HealthAck(success = true)
-      } else {
-        log.error(s"$componentName failed to restart", ack.error.orNull)
-        replyTo ! HealthAck(success = false, error = ack.error)
-      }
+      replyTo ! ack
   }
 
   private def shutdownControllableCallback(componentName: String, replyTo: ActorRef): PartialFunction[Try[Ack], Unit] = {
     case Failure(exception) =>
       log.error(s"$componentName failed to shutdown", exception)
     case Success(ack) =>
-      if (ack.success) {
-        log.debug(s"$componentName was shutdown successfully")
-        supervisorActorRef.ask(UnregisterSupervisedComponentRequest(componentName)).andThen {
-          case Failure(exception) =>
-            replyTo ! HealthAck(success = false, error = Some(exception))
-          case Success(ack: Ack) =>
-            if (ack.success) {
-              // remove control
-              remover.remove(componentName)
-            }
-            replyTo ! ack.success
-        }
-      } else {
-        log.error(s"$componentName failed to shutdown", ack.error.orNull)
-        replyTo ! HealthAck(success = false, error = ack.error)
+      log.debug(s"$componentName was shutdown successfully")
+      supervisorActorRef.ask(UnregisterSupervisedComponentRequest(componentName)).andThen {
+        case Failure(exception) =>
+          replyTo ! akka.actor.Status.Failure(exception)
+        case Success(ack: Ack) =>
+          remover.remove(componentName)
+
+          replyTo ! ack
       }
   }
 }
@@ -311,10 +298,10 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, filters:
       state.replyTo.foreach(r => r ! HealthRegistrationReceived(reg))
       context.watch(reg.controlProxyRef)
       context.become(monitoring(state.copy(registered = state.registered + (reg.componentName -> reg.asSupervisedComponentRegistration()))))
-      sender() ! HealthAck(success = true, None)
+      sender() ! Ack()
     case remove: UnregisterSupervisedComponentRequest =>
       context.become(monitoring(state.copy(registered = state.registered - remove.componentName)))
-      sender() ! HealthAck(success = true)
+      sender() ! Ack()
     case HealthRegistrationDetailsRequest =>
       sender() ! state.registered.values.toList
     case signal: HealthSignal =>
@@ -367,12 +354,8 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, filters:
 
   private def attemptRestart(registered: SupervisedComponentRegistration): Future[Set[HealthSupervisionEvent]] = {
     registered.controlProxyRef.ask(RestartComponent(registered.componentName, self)).map[Set[HealthSupervisionEvent]] {
-      case ack: Ack =>
-        if (ack.success) {
-          Set(RestartComponentAttempted(registered.componentName), ComponentRestarted(registered.componentName))
-        } else {
-          Set(RestartComponentAttempted(registered.componentName), RestartComponentFailed(registered.componentName, error = ack.error))
-        }
+      case _: Ack =>
+        Set(RestartComponentAttempted(registered.componentName), ComponentRestarted(registered.componentName))
       case other =>
         Set(
           RestartComponentAttempted(registered.componentName),
@@ -384,12 +367,8 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, filters:
 
   private def attemptShutdown(registered: SupervisedComponentRegistration): Future[Set[HealthSupervisionEvent]] = {
     registered.controlProxyRef.ask(ShutdownComponent(registered.componentName, self)).map[Set[HealthSupervisionEvent]] {
-      case ack: Ack =>
-        if (ack.success) {
-          Set(ShutdownComponentAttempted(registered.componentName), ComponentShutdown(registered.componentName))
-        } else {
-          Set(ShutdownComponentAttempted(registered.componentName), ShutdownComponentFailed(registered.componentName, error = ack.error))
-        }
+      case _: Ack =>
+        Set(ShutdownComponentAttempted(registered.componentName), ComponentShutdown(registered.componentName))
       case other =>
         Set(
           ShutdownComponentAttempted(registered.componentName),

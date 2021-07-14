@@ -71,23 +71,27 @@ private class WindowEventInterceptorActor(actorSystem: ActorSystem, backingActor
   }
 }
 
+case class WindowingHealthSignalStreamState(windowHandle: Option[StreamHandle] = None, windowEvents: Option[SourceQueueWithComplete[WindowEvent]] = None)
 private class SlidingHealthSignalStreamImpl(
     override val windowingConfig: WindowingStreamConfig,
     override val signalBus: HealthSignalBusInternal,
     override val filters: Seq[SignalPatternMatcher],
     override val underlyingActor: ActorRef,
-    override val actorSystem: ActorSystem)
+    override val actorSystem: ActorSystem,
+    state: WindowingHealthSignalStreamState = WindowingHealthSignalStreamState())
     extends SourceQueueBackedSignalHandler(actorSystem)
     with SlidingHealthSignalStream {
   import SlidingHealthSignalStream._
 
-  // todo: see if immutability is feasible
+  // todo: consider storing these (windowHandle and windowEvents) in a State object and
+  //  returning a copy of the SignalStream in all methods that alter state
+  //  i.e. start, stop, subscribe, release, etc.
   private var windowHandle: StreamHandle = _
   private var windowEvents: Option[SourceQueueWithComplete[WindowEvent]] = None
 
   override def id(): String = "sliding-window-signal-listener"
 
-  override protected[health] def windowEventsSourceQueue(): Option[SourceQueueWithComplete[WindowEvent]] = windowEvents
+  override protected[health] def windowEventsSourceQueue(): Option[SourceQueueWithComplete[WindowEvent]] = state.windowEvents
 
   override def subscribe(signalHandler: SignalHandler): HealthSignalListener = {
     if (!signalBus.subscriberInfo().exists(p => p.name == id())) {

@@ -29,8 +29,8 @@ object HealthSignalBus {
 
   val config: Config = ConfigFactory.load().getConfig("surge.health")
 
-  def apply(signalStream: HealthSignalStreamProvider, startStreamOnInit: Boolean = false): HealthSignalBusInternal = {
-    val stopStreamOnUnsubscribe = startStreamOnInit
+  def apply(signalStream: HealthSignalStreamProvider): HealthSignalBusInternal = {
+    val stopStreamOnUnsubscribe, startStreamOnInit = config.getBoolean("bus.stream.start-on-init")
     val bus = new HealthSignalBusImpl(
       HealthSignalBusConfig(
         signalTopic = config.getString("bus.signal-topic"),
@@ -72,7 +72,7 @@ object NoopInvokableHealthRegistration {
 
 private class NoopInvokableHealthRegistration(healthRegistration: HealthRegistration) extends InvokableHealthRegistration {
   override def invoke(): Future[Ack] = {
-    Future.successful[Ack](HealthAck(success = true))
+    Future.successful[Ack](Ack())
   }
 
   override def underlyingRegistration(): HealthRegistration = healthRegistration

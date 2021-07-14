@@ -32,10 +32,9 @@ class HealthSignalStreamProviderSpec extends TestKit(ActorSystem("HealthSignalSt
         SignalNameEqualsMatcher(name = "foo"),
         RepeatingSignalMatcher(times = 5, atomicMatcher = SignalNameEqualsMatcher(name = "bar"), Some(SideEffect(Seq(signal)))))
       val provider = testHealthSignalStreamProvider(initialFilters)
-      val bus = provider.busWithSupervision()
+      val bus = provider.bus()
 
       bus shouldBe a[HealthSignalBusInternal]
-      bus shouldEqual provider.busWithSupervision()
 
       provider.filters() shouldEqual initialFilters
 
@@ -73,7 +72,7 @@ class HealthSignalStreamProviderSpec extends TestKit(ActorSystem("HealthSignalSt
         streamMonitoring = None,
         initialFilters)
 
-      val supervisedBus = provider.busWithSupervision()
+      val supervisedBus = provider.bus()
 
       // HealthSupervisorRef should be available
       supervisedBus.supervisor().isDefined shouldEqual true

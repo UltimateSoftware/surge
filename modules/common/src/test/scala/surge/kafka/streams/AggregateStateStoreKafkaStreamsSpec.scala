@@ -104,7 +104,7 @@ class AggregateStateStoreKafkaStreamsSpec
           applicationHostPort = Some("localhost:1234"),
           applicationId = appId,
           clientId = "",
-          testHealthSignalStreamProvider(Seq.empty).busWithSupervision(),
+          testHealthSignalStreamProvider(Seq.empty).bus(),
           system,
           Metrics.globalMetricRegistry) {
           override lazy val settings: AggregateStateStoreKafkaStreamsImplSettings =
@@ -145,7 +145,7 @@ class AggregateStateStoreKafkaStreamsSpec
           applicationHostPort = Some("localhost:1234"),
           applicationId = appId,
           clientId = "",
-          testHealthSignalStreamProvider(Seq.empty).busWithSupervision(),
+          testHealthSignalStreamProvider(Seq.empty).bus(),
           system,
           Metrics.globalMetricRegistry) {
           override lazy val settings: AggregateStateStoreKafkaStreamsImplSettings =

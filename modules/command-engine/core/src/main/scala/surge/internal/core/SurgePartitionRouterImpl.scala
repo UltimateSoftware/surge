@@ -9,7 +9,7 @@ import akka.pattern.ask
 import akka.util.Timeout
 import org.slf4j.LoggerFactory
 import surge.core.{ Ack, Controllable, SurgePartitionRouter }
-import surge.health.{ HealthAck, HealthSignalBusTrait }
+import surge.health.HealthSignalBusTrait
 import surge.internal.SurgeModel
 import surge.internal.akka.actor.ActorLifecycleManagerActor
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
@@ -52,7 +52,7 @@ private[surge] final class SurgePartitionRouterImpl(
       .ask(ActorLifecycleManagerActor.Start)
       .map {
         case ack: ActorLifecycleManagerActor.Ack =>
-          HealthAck(ack.success)
+          Ack()
         case _ =>
           throw new RuntimeException("Unexpected response from actor start request")
       }
@@ -64,7 +64,7 @@ private[surge] final class SurgePartitionRouterImpl(
 
     actorRegion.ask(ActorLifecycleManagerActor.Stop).map {
       case ack: ActorLifecycleManagerActor.Ack =>
-        HealthAck(ack.success)
+        Ack()
       case _ =>
         throw new RuntimeException("Unexpected response from actor stop request")
     }
@@ -79,8 +79,8 @@ private[surge] final class SurgePartitionRouterImpl(
       stopped <- stop()
       started <- start(stopped)
     } yield {
-      if (stopped.success && started.success) {
-        HealthAck(success = true)
+      if (Option(stopped).isDefined && Option(started).isDefined) {
+        Ack()
       } else {
         throw new RuntimeException(s"Failed to restart $getClass")
       }
@@ -98,7 +98,7 @@ private[surge] final class SurgePartitionRouterImpl(
   }
 
   private def start(stopped: Ack): Future[Ack] = {
-    if (stopped.success) {
+    if (Option(stopped).isDefined) {
       start()
     } else {
       Future.failed(new RuntimeException("Failed to stop Surge Partition Router"))
@@ -113,7 +113,7 @@ private[surge] final class SurgePartitionRouterImpl(
         case Failure(exception) =>
           log.error(s"$getClass registration failed", exception)
         case Success(done) =>
-          log.debug(s"$getClass registration succeeded - ${done.success}")
+          log.debug(s"$getClass registration succeeded")
       }
     case Failure(error) =>
       log.error(s"Unable to register $getClass for supervision", error)

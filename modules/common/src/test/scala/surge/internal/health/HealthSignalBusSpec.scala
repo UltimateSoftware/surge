@@ -58,7 +58,7 @@ class HealthSignalBusSpec extends TestKit(ActorSystem("healthSignalBus")) with A
     }
 
     "have a window stream" in {
-      signalStreamProvider.busWithSupervision().signalStream() shouldBe a[TestHealthSignalStream]
+      signalStreamProvider.bus().signalStream() shouldBe a[TestHealthSignalStream]
     }
 
     "not fail on repeated supervise calls" in {
@@ -66,11 +66,11 @@ class HealthSignalBusSpec extends TestKit(ActorSystem("healthSignalBus")) with A
     }
 
     "not fail on repeated un-supervise calls" in {
-      signalStreamProvider.bus().supervise().unsupervise().unsupervise().unsupervise().supervisor().isDefined shouldEqual false
+      signalStreamProvider.bus().unsupervise().unsupervise().unsupervise().supervisor().isDefined shouldEqual false
     }
 
     "not fail on supervise when not supervised" in {
-      signalStreamProvider.bus().supervise().supervisor().isDefined shouldEqual true
+      signalStreamProvider.bus().unsupervise().supervise().supervisor().isDefined shouldEqual true
     }
 
     "not fail on un-supervise when not supervised" in {

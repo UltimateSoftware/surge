@@ -27,7 +27,6 @@ import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamPro
 import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, MockPartitionTracker, MockState }
 import surge.metrics.Metrics
 
-import scala.concurrent.Await
 import scala.concurrent.duration._
 
 class SurgeMessagePipelineSpec
@@ -99,9 +98,9 @@ class SurgeMessagePipelineSpec
 
         val stopped = pipeline.stop()
 
-        val result = Await.result(stopped, 30.second)
+        val result = stopped.futureValue
 
-        result.success shouldEqual true
+        Option(result).isDefined shouldEqual true
       }
     }
 
@@ -112,9 +111,9 @@ class SurgeMessagePipelineSpec
 
         val restarted = pipeline.restart()
 
-        val result = Await.result(restarted, 30.second)
+        val result = restarted.futureValue
 
-        result.success shouldEqual true
+        Option(result).isDefined shouldEqual true
 
       }
     }
@@ -126,7 +125,7 @@ class SurgeMessagePipelineSpec
 
         // Stream should be a subscriber
         signalStreamProvider
-          .busWithSupervision()
+          .bus()
           .subscriberInfo()
           .exists(s => s.name == "surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamImpl") shouldEqual true
       }
@@ -321,7 +320,7 @@ class SurgeMessagePipelineSpec
           new KafkaConsumerPartitionAssignmentTracker(stateChangeActor),
           businessLogic,
           cqrsRegionCreator,
-          signalStreamProvider.busWithSupervision())
+          signalStreamProvider.bus())
       override protected val kafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue] = new AggregateStateStoreKafkaStreams[JsValue](
         businessLogic.aggregateName,
         businessLogic.kafka.stateTopic,
@@ -330,7 +329,7 @@ class SurgeMessagePipelineSpec
         applicationHostPort = Some("localhost:1234"),
         applicationId = "test-app",
         clientId = businessLogic.kafka.clientId,
-        signalStreamProvider.busWithSupervision(),
+        signalStreamProvider.bus(),
         system,
         Metrics.globalMetricRegistry)
 

@@ -4,23 +4,17 @@ package surge.core
 
 import scala.concurrent.Future
 
-final case class ControlAck(success: Boolean, error: Option[Throwable] = None) extends Ack {
-  override def withSuccess(success: Boolean): Ack = {
-    copy(success = success)
-  }
+//final case class ControlAck(success: Boolean, error: Option[Throwable] = None) extends Ack {
+//  override def withSuccess(success: Boolean): Ack = {
+//    copy(success = success)
+//  }
+//
+////  override def withError(error: Throwable): Ack = {
+////    copy(error = Some(error))
+////  }
+//}
 
-  override def withError(error: Throwable): Ack = {
-    copy(error = Some(error))
-  }
-}
-
-trait Ack {
-  def success: Boolean
-  def error: Option[Throwable]
-
-  def withSuccess(success: Boolean): Ack
-  def withError(error: Throwable): Ack
-}
+final case class Ack()
 
 trait ControllableLookup {
   def lookup(identifier: String): Option[Controllable]
@@ -39,11 +33,11 @@ trait Controllable {
 
 class ControllableAdapter extends Controllable {
 
-  override def start(): Future[Ack] = Future.successful[Ack](ControlAck(success = true))
+  override def start(): Future[Ack] = Future.successful[Ack](Ack())
 
-  override def restart(): Future[Ack] = Future.successful[Ack](ControlAck(success = true))
+  override def restart(): Future[Ack] = Future.successful[Ack](Ack())
 
-  override def stop(): Future[Ack] = Future.successful[Ack](ControlAck(success = true))
+  override def stop(): Future[Ack] = Future.successful[Ack](Ack())
 
-  override def shutdown(): Future[ControlAck] = Future.successful(ControlAck(success = true))
+  override def shutdown(): Future[Ack] = Future.successful(Ack())
 }

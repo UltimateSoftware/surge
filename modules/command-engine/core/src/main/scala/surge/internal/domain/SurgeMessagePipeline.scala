@@ -7,7 +7,7 @@ import com.typesafe.config.Config
 import org.slf4j.{ Logger, LoggerFactory }
 import play.api.libs.json.JsValue
 import surge.core.{ Ack, SurgePartitionRouter, SurgeProcessingTrait }
-import surge.health.{ HealthAck, HealthSignalBusAware, HealthSignalBusTrait }
+import surge.health.{ HealthSignalBusAware, HealthSignalBusTrait }
 import surge.internal.SurgeModel
 import surge.internal.akka.cluster.ActorSystemHostAwareness
 import surge.internal.akka.kafka.{ CustomConsumerGroupRebalanceListener, KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor }
@@ -43,9 +43,10 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
 
   private val partitionTracker: KafkaConsumerPartitionAssignmentTracker = new KafkaConsumerPartitionAssignmentTracker(stateChangeActor)
 
-  // Get a supervised HealthSignalBus from the HealthSignalStream Provider.
-  //  Intentionally do not start on init i.e. busWithSupervision(startStreamOnInit = false).  Delegate start to pipeline lifecycle.
-  override val signalBus: HealthSignalBusTrait = signalStreamProvider.busWithSupervision()
+  // Get a HealthSignalBus from the HealthSignalStream Provider.
+  //  Intentionally do not start on init i.e. surge.health.bus.stream.start-on-init = false.
+  //  Delegate start to pipeline lifecycle.
+  override val signalBus: HealthSignalBusTrait = signalStreamProvider.bus()
 
   protected val kafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue] = new AggregateStateStoreKafkaStreams[JsValue](
     aggregateName = businessLogic.aggregateName,
@@ -85,10 +86,10 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
       actorRouterStarted <- startActorRouter(signalStreamStarted)
       kafkaStreamsStarted <- startKafkaStreams(actorRouterStarted)
     } yield {
-      if (signalStreamStarted.success && actorRouterStarted.success && kafkaStreamsStarted.success) {
-        HealthAck(success = true)
+      if (Option(signalStreamStarted).isDefined && Option(actorRouterStarted).isDefined && Option(kafkaStreamsStarted).isDefined) {
+        Ack()
       } else {
-        HealthAck(success = false, Some(new RuntimeException(s"Failed to start $getClass")))
+        throw new RuntimeException(s"Failed to start $getClass")
       }
     }
 
@@ -97,10 +98,10 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
   }
 
   private def start(stopped: Ack): Future[Ack] = {
-    if (stopped.success) {
+    if (Option(stopped).isDefined) {
       start()
     } else {
-      Future.successful[Ack](HealthAck(success = false, error = Some(new RuntimeException("Unable to start SurgeMessagePipeline"))))
+      throw new RuntimeException("Unable to start SurgeMessagePipeline")
     }
   }
 
@@ -111,10 +112,10 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
       stopped <- stop()
       started <- start(stopped)
     } yield {
-      if (stopped.success && started.success) {
-        HealthAck(success = true)
+      if (Option(stopped).isDefined && Option(started).isDefined) {
+        Ack()
       } else {
-        HealthAck(success = false, Some(new RuntimeException(s"Failed to restart $getClass")))
+        throw new RuntimeException(s"Failed to restart $getClass")
       }
     }
 
@@ -129,10 +130,14 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
       actorRouterStopped <- stopActorRouter()
       kafkaStreamsStopped <- stopKafkaStreams()
     } yield {
-      val success = (signalStreamStopped.success
-        && actorRouterStopped.success
-        && kafkaStreamsStopped.success)
-      HealthAck(success = success)
+      val success = (Option(signalStreamStopped).isDefined
+        && Option(actorRouterStopped).isDefined
+        && Option(kafkaStreamsStopped).isDefined)
+      if (success) {
+        Ack()
+      } else {
+        throw new RuntimeException(s"Failed to stop $getClass")
+      }
     }
 
     result
@@ -145,11 +150,11 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     log.debug("Starting Health Signal Stream")
     signalStream.start()
 
-    Future.successful[Ack](HealthAck(success = true))
+    Future.successful[Ack](Ack())
   }
 
   private def startActorRouter(signalStreamStarted: Ack): Future[Ack] = {
-    if (signalStreamStarted.success) {
+    if (Option(signalStreamStarted).isDefined) {
       actorRouter.start()
     } else {
       Future.failed[Ack](new RuntimeException("Failed to start actor router"))
@@ -157,7 +162,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
   }
 
   private def startKafkaStreams(actorRouterStarted: Ack): Future[Ack] = {
-    if (actorRouterStarted.success) {
+    if (Option(actorRouterStarted).isDefined) {
       kafkaStreamsImpl.start()
     } else {
       Future.failed[Ack](new RuntimeException("Failed to start actor router"))
@@ -169,7 +174,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
   private def stopSignalStream(): Future[Ack] = {
     log.debug("Stopping Health Signal Stream")
     signalBus.signalStream().unsubscribe().stop()
-    Future.successful[Ack](HealthAck(success = true))
+    Future.successful[Ack](Ack())
   }
 
   private def stopKafkaStreams(): Future[Ack] = kafkaStreamsImpl.stop()
@@ -185,8 +190,8 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
       registrationResult.onComplete {
         case Failure(exception) =>
           log.error("AggregateStateStore registeration failed", exception)
-        case Success(done) =>
-          log.debug(s"AggregateStateStore registeration succeeded - ${done.success}")
+        case Success(_) =>
+          log.debug(s"AggregateStateStore registeration succeeded")
       }(system.dispatcher)
     case Failure(exception) =>
       log.error("Failed to register start so unable to register for supervision", exception)

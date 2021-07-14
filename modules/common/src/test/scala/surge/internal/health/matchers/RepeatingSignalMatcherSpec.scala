@@ -49,7 +49,7 @@ class RepeatingSignalMatcherSpec extends TestKit(ActorSystem("RepeatingSignals")
         streamMonitoring = Some(new StreamMonitoringRef(probe.ref)),
         actorSystem = system)
 
-      val bus = slidingHealthSignalStream.busWithSupervision(startStreamOnInit = true)
+      val bus = slidingHealthSignalStream.bus()
 
       val repeatingData = Seq(
         Range(1, 100),

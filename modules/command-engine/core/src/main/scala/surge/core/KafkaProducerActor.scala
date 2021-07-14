@@ -8,7 +8,7 @@ import akka.util.Timeout
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.header.Headers
 import org.slf4j.LoggerFactory
-import surge.health.{ HealthAck, HealthSignalBusAware, HealthSignalBusTrait }
+import surge.health.{ HealthSignalBusAware, HealthSignalBusTrait }
 import surge.internal.SurgeModel
 import surge.internal.akka.actor.ActorLifecycleManagerActor
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
@@ -134,8 +134,8 @@ class KafkaProducerActor(
       stopped <- stop()
       started <- start(stopped)
     } yield {
-      if (stopped.success && started.success) {
-        HealthAck(success = true)
+      if (Option(stopped).isDefined && Option(started).isDefined) {
+        Ack()
       } else {
         throw new RuntimeException(s"Failed to restart $getClass")
       }
@@ -149,7 +149,7 @@ class KafkaProducerActor(
       .ask(ActorLifecycleManagerActor.Start)
       .map {
         case ack: ActorLifecycleManagerActor.Ack =>
-          HealthAck(ack.success)
+          Ack()
         case _ =>
           throw new RuntimeException("Unexpected response from actor start request")
       }
@@ -162,8 +162,8 @@ class KafkaProducerActor(
     implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PublisherActor.askTimeout)
 
     val result = publisherActor.ask(ActorLifecycleManagerActor.Stop).map[Ack] {
-      case ack: ActorLifecycleManagerActor.Ack =>
-        HealthAck(ack.success)
+      case _: ActorLifecycleManagerActor.Ack =>
+        Ack()
       case _ =>
         throw new RuntimeException("Unexpected response from actor stop request")
     }
@@ -174,7 +174,7 @@ class KafkaProducerActor(
   override def shutdown(): Future[Ack] = stop()
 
   private def start(stopped: Ack): Future[Ack] = {
-    if (stopped.success) {
+    if (Option(stopped).isDefined) {
       start()
     } else {
       Future.failed(new RuntimeException(s"Failed to stop $getClass"))
@@ -189,8 +189,8 @@ class KafkaProducerActor(
       registrationResult.onComplete {
         case Failure(exception) =>
           log.error(s"$getClass registration failed", exception)
-        case Success(done) =>
-          log.debug(s"$getClass registration succeeded - ${done.success}")
+        case Success(_) =>
+          log.debug(s"$getClass registration succeeded")
       }
     case Failure(error) =>
       log.error(s"Unable to register $getClass for supervision", error)

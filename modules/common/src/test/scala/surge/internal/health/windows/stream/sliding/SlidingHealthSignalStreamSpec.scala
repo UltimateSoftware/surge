@@ -73,7 +73,7 @@ class SlidingHealthSignalStreamSpec
       streamMonitoring = Some(new StreamMonitoringRef(probe.ref)),
       filters)
 
-    bus = signalStreamProvider.busWithSupervision(startStreamOnInit = true)
+    bus = signalStreamProvider.bus()
   }
 
   override def afterEach(): Unit = {
