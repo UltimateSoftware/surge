@@ -8,12 +8,10 @@ import akka.util.Timeout
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.header.Headers
 import org.slf4j.LoggerFactory
-import java.time.Instant
-
-import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.health.{ HealthSignalBusAware, HealthSignalBusTrait }
 import surge.internal.SurgeModel
 import surge.internal.akka.actor.ActorLifecycleManagerActor
+import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.config.TimeoutConfig
 import surge.internal.kafka.KafkaProducerActorImpl
 import surge.kafka.KafkaBytesProducer
@@ -79,9 +77,8 @@ class KafkaProducerActor(
       tags = Map("aggregate" -> aggregateName)))
   def isAggregateStateCurrent(aggregateId: String): Future[Boolean] = {
     implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PublisherActor.aggregateStateCurrentTimeout)
-    val expirationTime = Instant.now.plusMillis(askTimeout.duration.toMillis)
     isAggregateStateCurrentTimer.time {
-      (publisherActor ? KafkaProducerActorImpl.IsAggregateStateCurrent(aggregateId, expirationTime)).mapTo[Boolean]
+      (publisherActor ? KafkaProducerActorImpl.IsAggregateStateCurrent(aggregateId)).mapTo[Boolean]
     }
   }
 
