@@ -190,6 +190,11 @@ class PersistentActor[S, M, R, E](
   private val publishStateOnly: Boolean = businessLogic.kafka.eventsTopicOpt.isEmpty
 
   assert(!publishStateOnly || businessLogic.eventWriteFormattingOpt.nonEmpty, "businessLogic.eventWriteFormattingOpt may not be none when publishing events")
+
+  override def messageNameForTracedMessages: MessageNameExtractor = { case t: ProcessMessage[_] =>
+    s"ProcessMessage[${t.message.getClass.getSimpleName}]"
+  }
+
   override def preStart(): Unit = {
     initializeState(initializationAttempts = 0, None)
     super.preStart()
@@ -200,9 +205,11 @@ class PersistentActor[S, M, R, E](
   override def receive: Receive = uninitialized
 
   private def freeToProcess(state: InternalActorState): Receive = {
-    traceableMessages(actorReceiveSpan => { case pm: ProcessMessage[M] =>
-      handle(state, pm)(actorReceiveSpan)
-    }).orElse {
+    traceableMessages { span =>
+      { case pm: ProcessMessage[M] =>
+        handle(state, pm)(span)
+      }
+    }.orElse {
       case ae: ApplyEvent[E] => handle(state, ae)
       case GetState(_)       => sender() ! StateResponse(state.stateOpt)
       case ReceiveTimeout    => handlePassivate()
@@ -220,8 +227,7 @@ class PersistentActor[S, M, R, E](
     context.become(freeToProcess(internalActorState))
   }
 
-  private def handle(state: InternalActorState, msg: ProcessMessage[M])(actorReceiveSpan: ActorReceiveSpan): Unit = {
-    val ProcessMessageSpan = tracer.buildSpan("process_message").withTag("aggregateId", aggregateId).start()
+  private def handle(state: InternalActorState, msg: ProcessMessage[M])(span: ActorReceiveSpan): Unit = {
     context.setReceiveTimeout(Duration.Inf)
     context.become(persistingEvents(state))
 

@@ -54,30 +54,33 @@ class Shard[IdType](shardId: String, regionLogicProvider: PerShardLogicProvider[
 
   private val actorProvider = regionLogicProvider.actorProvider(context)
 
-  override def receive: Receive = traceableMessages(actorReceiveSpan => {
-    case msg if extractEntityId.isDefinedAt(msg) => deliverMessage(msg, sender())(actorReceiveSpan)
-  }).orElse {
-    case msg: Terminated => receiveTerminated(msg)
-    case msg: Passivate  => receivePassivate(msg)
-    case GetHealth       => getHealthCheck
-  }
+  override def receive: Receive =
+    traceableMessages { span =>
+      {
+        case msg if extractEntityId.isDefinedAt(msg) => deliverMessage(msg, sender())(span)
+      }
+    }.orElse {
+      case msg: Terminated => receiveTerminated(msg)
+      case msg: Passivate  => receivePassivate(msg)
+      case GetHealth       => getHealthCheck
+    }
 
-  private def deliverMessage(msg: Any, send: ActorRef)(actorReceiveSpan: ActorReceiveSpan): Unit = {
+  private def deliverMessage(msg: Any, send: ActorRef)(span: ActorReceiveSpan): Unit = {
     val id = extractEntityId(msg)
     if (id == null || id == "") {
       log.warn("Unsure of how to route message with class [{}], dropping it.", msg.getClass.getName)
       context.system.deadLetters ! msg
     } else {
       if (messageBuffers.contains(id)) {
-        appendToMessageBuffer(id, msg, send)(actorReceiveSpan)
+        appendToMessageBuffer(id, msg, send)(span)
       } else {
-        deliverTo(id, msg, send)(actorReceiveSpan)
+        deliverTo(id, msg, send)(span)
       }
     }
   }
 
-  private def deliverTo(id: IdType, payload: Any, snd: ActorRef)(actorReceiveSpan: ActorReceiveSpan): Unit = {
-    val tracedMsg = TracedMessage(payload, actorReceiveSpan.messageName, actorReceiveSpan)
+  private def deliverTo(id: IdType, payload: Any, snd: ActorRef)(span: ActorReceiveSpan): Unit = {
+    val tracedMsg = TracedMessage(payload, span)
     getOrCreateEntity(id).tell(tracedMsg, snd)
   }
 
@@ -95,13 +98,13 @@ class Shard[IdType](shardId: String, regionLogicProvider: PerShardLogicProvider[
     }
   }
 
-  private def appendToMessageBuffer(id: IdType, msg: Any, snd: ActorRef)(actorReceiveSpan: ActorReceiveSpan): Unit = {
+  private def appendToMessageBuffer(id: IdType, msg: Any, snd: ActorRef)(span: ActorReceiveSpan): Unit = {
     if (messageBuffers.totalSize >= bufferSize) {
       log.debug("Buffer is full, dropping message for entity [{}]", id)
       context.system.deadLetters ! msg
     } else {
       log.trace("Message for entity [{}] buffered", id)
-      messageBuffers.append(id, (msg, actorReceiveSpan), snd)
+      messageBuffers.append(id, (msg, span), snd)
     }
   }
 
@@ -139,8 +142,8 @@ class Shard[IdType](shardId: String, regionLogicProvider: PerShardLogicProvider[
       getOrCreateEntity(entityId)
       // Now there is no deliveryBuffer we can try to redeliver
       // and as the child exists, the message will be directly forwarded
-      messages.foreach { case ((msg, actorReceiveSpan: ActorReceiveSpan), snd) =>
-        deliverMessage(msg, snd)(actorReceiveSpan)
+      messages.foreach { case ((msg, span: ActorReceiveSpan), snd) =>
+        deliverMessage(msg, snd)(span)
       }
     }
   }

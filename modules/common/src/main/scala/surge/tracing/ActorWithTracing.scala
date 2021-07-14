@@ -13,7 +13,7 @@ import surge.internal.utils.SpanExtensions
  class MyActor extends ActorWithTracing {
 
    // optional
-   override def extractMessageName = {
+   override def messageNameForTracedMessages = {
      case m: Envelope[_] => s"Envelope[${m.payload.getClass.getSimpleName}]"
    }
 
@@ -38,17 +38,19 @@ import surge.internal.utils.SpanExtensions
 
 trait ActorWithTracing extends Actor with ActorOps with SpanExtensions {
 
+  type MessageNameExtractor = PartialFunction[Any, String]
+
   implicit val tracer: Tracer
 
   private def actorClassFullName: String = this.getClass.getName
 
   private def actorClassSimpleName: String = this.getClass.getSimpleName
 
-  def extractMessageName: PartialFunction[Any, String] = PartialFunction.empty[Any, String]
+  def messageNameForTracedMessages: MessageNameExtractor = PartialFunction.empty[Any, String]
 
   private def getMessageName(msg: Any): String = {
-    if (extractMessageName.isDefinedAt(msg)) {
-      extractMessageName(msg)
+    if (messageNameForTracedMessages.isDefinedAt(msg)) {
+      messageNameForTracedMessages(msg)
     } else {
       msg.getClass.getSimpleName
     }
@@ -66,7 +68,7 @@ trait ActorWithTracing extends Actor with ActorOps with SpanExtensions {
           val messageName: String = getMessageName(tracedMsg.message)
           val operationName: String = s"$actorClassSimpleName:$messageName"
           val span: Span = TracePropagation.childFrom(tracedMsg, operationName)
-          val actorReceiveSpan = ActorReceiveSpan(span, tracedMsg.messageName)
+          val actorReceiveSpan = ActorReceiveSpan(span)
           val fields = Map(
             "actor" -> actorClassSimpleName,
             "actor (fqcn)" -> actorClassFullName,
@@ -92,7 +94,7 @@ trait ActorWithTracing extends Actor with ActorOps with SpanExtensions {
 // This has everything that Span has except the "finish" method.
 // That's because when ActorWithTracing gets mixed in, the "finish" method gets called automatically for the developer (at the
 // end of message processing).
-final class ActorReceiveSpan private (private val innerSpan: Span, val messageName: String) {
+final class ActorReceiveSpan private (private val innerSpan: Span) {
 
   private[tracing] def getUnderlyingSpan: Span = innerSpan // solely used by the unit test
 
@@ -111,7 +113,7 @@ final class ActorReceiveSpan private (private val innerSpan: Span, val messageNa
 }
 
 object ActorReceiveSpan {
-  def apply(span: Span, messageName: String): ActorReceiveSpan = new ActorReceiveSpan(span, messageName)
+  def apply(span: Span): ActorReceiveSpan = new ActorReceiveSpan(span)
 }
 
 trait ActorOps {

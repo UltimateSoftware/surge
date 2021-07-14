@@ -80,7 +80,7 @@ private[surge] trait AggregateRefTrait[AggId, Agg, Cmd, Event] {
   protected def sendCommandWithRetries(envelope: PersistentActor.ProcessMessage[Cmd], retriesRemaining: Int = 0)(
       implicit ec: ExecutionContext): Future[Either[Throwable, Option[Agg]]] = {
     val askSpan = tracer.buildSpan(envelope.message.getClass.getSimpleName).withTag("aggregateId", aggregateId.toString).start()
-    (region ? TracedMessage(envelope, messageName = s"ProcessMessage[${envelope.message.getClass.getSimpleName}]", askSpan)(tracer))
+    (region ? TracedMessage(envelope, askSpan)(tracer))
       .map(interpretActorResponse(askSpan))
       .recoverWith {
         case _: Throwable if retriesRemaining > 0 =>
@@ -102,9 +102,8 @@ private[surge] trait AggregateRefTrait[AggId, Agg, Cmd, Event] {
 
   protected def applyEventsWithRetries(envelope: PersistentActor.ApplyEvent[Event], retriesRemaining: Int = 0)(
       implicit ec: ExecutionContext): Future[Option[Agg]] = {
-    val messageName = envelope.event.getClass.getSimpleName
     val askSpan = tracer.buildSpan("send_events_to_aggregate").withTag("aggregateId", aggregateId.toString).start()
-    (region ? TracedMessage(envelope, messageName, askSpan)(tracer)).map(interpretActorResponse(askSpan)).flatMap {
+    (region ? TracedMessage(envelope, askSpan)(tracer)).map(interpretActorResponse(askSpan)).flatMap {
       case Left(exception) => Future.failed(exception)
       case Right(state)    => Future.successful(state)
     }
