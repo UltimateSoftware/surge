@@ -43,6 +43,7 @@ trait ActorWithTracing extends Actor with ActorOps with SpanExtensions {
   private def actorClassFullName: String = this.getClass.getName
 
   private def actorClassSimpleName: String = this.getClass.getSimpleName
+
   def extractMessageName: PartialFunction[Any, String] = PartialFunction.empty[Any, String]
 
   private def getMessageName(msg: Any): String = {
