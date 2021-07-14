@@ -65,7 +65,7 @@ class KafkaPartitionShardRouterActor(
     partitionTracker: KafkaConsumerPartitionAssignmentTracker,
     kafkaStateProducer: KafkaProducerTrait[String, _],
     regionCreator: PersistentActorRegionCreator[String],
-    extractEntityId: PartialFunction[Any, String])(implicit val tracer: Tracer)
+    extractEntityId: PartialFunction[Any, String])(tracer: Tracer)
     extends ActorWithTracing
     with Stash
     with ActorHostAwareness {
@@ -232,7 +232,7 @@ class KafkaPartitionShardRouterActor(
           val region = regionCreator.regionFromTopicPartition(topicPartition)
           region.start()
 
-          val shardProps = Shard.props(topicPartition.toString, region, extractEntityId)
+          val shardProps = Shard.props(topicPartition.toString, region, extractEntityId)(tracer)
 
           val newActor = context.system.actorOf(shardProps)
           context.watch(newActor)

@@ -17,9 +17,9 @@ object ProbeWithTraceSupport {
 
 class ProbeWithTraceSupport(probe: TestProbe, val tracer: Tracer) extends ActorWithTracing {
   var mostRecentSpan: Option[ActorReceiveSpan] = None
-  override def receive: Receive = traceableMessages { actorSpan =>
+  override def receive: Receive = traceableMessages { span =>
     { case msg: String =>
-      mostRecentSpan = Some(actorSpan)
+      mostRecentSpan = Some(span)
       probe.ref.forward(msg)
     }
   }.orElse {
