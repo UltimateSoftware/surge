@@ -65,7 +65,7 @@ trait ActorWithTracing extends Actor with ActorOps with SpanExtensions {
         case tracedMsg: TracedMessage[_] =>
           val messageName: String = getMessageName(tracedMsg.message)
           val operationName: String = s"$actorClassSimpleName:$messageName"
-          val span: Span = Tracing.childFrom(tracedMsg, operationName)
+          val span: Span = TracePropagation.childFrom(tracedMsg, operationName)
           val actorReceiveSpan = ActorReceiveSpan(span, tracedMsg.messageName)
           val fields = Map(
             "actor" -> actorClassSimpleName,
