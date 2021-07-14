@@ -2,7 +2,7 @@
 
 package surge.tracing
 
-import io.opentracing.{Span, Tracer}
+import io.opentracing.{ Span, Tracer }
 
 import scala.jdk.CollectionConverters._
 

@@ -2,8 +2,8 @@
 
 package surge.tracing
 
-import io.opentracing.propagation.{Format, TextMap}
-import io.opentracing.{References, Span, SpanContext, Tracer}
+import io.opentracing.propagation.{ Format, TextMap }
+import io.opentracing.{ References, Span, SpanContext, Tracer }
 
 object TracePropagation {
 
