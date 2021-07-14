@@ -22,6 +22,14 @@ trait Ack {
   def withError(error: Throwable): Ack
 }
 
+trait ControllableLookup {
+  def lookup(identifier: String): Option[Controllable]
+}
+
+trait ControllableRemover {
+  def remove(identifier: String): Option[Controllable]
+}
+
 trait Controllable {
   def start(): Future[Ack]
   def restart(): Future[Ack]

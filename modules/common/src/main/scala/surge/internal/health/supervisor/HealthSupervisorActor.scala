@@ -9,12 +9,13 @@ import akka.actor.{ Actor, ActorContext, ActorRef, ActorSystem, PoisonPill, Prop
 import akka.pattern.{ ask, BackoffOpts, BackoffSupervisor }
 import akka.util.Timeout
 import org.slf4j.{ Logger, LoggerFactory }
-import surge.core.{ Ack, Controllable }
+import surge.core.{ Ack, Controllable, ControllableLookup, ControllableRemover }
 import surge.health._
 import surge.health.domain.HealthSignal
 import surge.health.matchers.SignalPatternMatcher
 import surge.internal.config.{ BackoffConfig, TimeoutConfig }
 import surge.internal.health._
+import surge.internal.health.supervisor.HealthSupervisorActorRef.log
 
 import scala.collection.mutable
 import scala.concurrent.duration._
@@ -48,6 +49,76 @@ object HealthSupervisorActorRef {
   val log: Logger = LoggerFactory.getLogger(getClass)
 }
 
+private class ControllableLookupImpl(resource: mutable.Map[String, Controllable]) extends ControllableLookup {
+  override def lookup(identifier: String): Option[Controllable] = {
+    resource.get(identifier)
+  }
+}
+
+private class ControllableRemoverImpl(resource: mutable.Map[String, Controllable]) extends ControllableRemover {
+  override def remove(identifier: String): Option[Controllable] = {
+    resource.remove(identifier)
+  }
+}
+
+class ControlProxyActor(finder: ControllableLookup, remover: ControllableRemover, supervisorActorRef: ActorRef, actorSystem: ActorSystem) extends Actor {
+  implicit val ec: ExecutionContext = actorSystem.dispatcher
+  implicit val askTimeout: Timeout = TimeoutConfig.HealthSupervision.actorAskTimeout
+
+  override def receive: Receive = {
+    case RestartComponent(name, _) =>
+      finder.lookup(name) match {
+        case Some(controllable) =>
+          controllable.restart().andThen { restartControllableCallback(componentName = name, replyTo = sender()) }
+        case None =>
+          sender() ! HealthAck(success = false, error = Some(new RuntimeException(s"Cannot restart unregistered component $name")))
+      }
+    case ShutdownComponent(name, _) =>
+      finder.lookup(name) match {
+        case Some(controllable) =>
+          controllable.shutdown().andThen { shutdownControllableCallback(componentName = name, replyTo = sender()) }
+        case None =>
+          sender() ! HealthAck(success = false, error = Some(new RuntimeException(s"Cannot shutdown unregistered component $name")))
+      }
+  }
+
+  private def restartControllableCallback(componentName: String, replyTo: ActorRef): PartialFunction[Try[Ack], Unit] = {
+    case Failure(exception) =>
+      log.error(s"$componentName failed to restart", exception)
+      replyTo ! HealthAck(success = false, error = Some(exception))
+    case Success(ack) =>
+      if (ack.success) {
+        log.debug(s"$componentName was restarted successfully")
+        replyTo ! HealthAck(success = true)
+      } else {
+        log.error(s"$componentName failed to restart", ack.error.orNull)
+        replyTo ! HealthAck(success = false, error = ack.error)
+      }
+  }
+
+  private def shutdownControllableCallback(componentName: String, replyTo: ActorRef): PartialFunction[Try[Ack], Unit] = {
+    case Failure(exception) =>
+      log.error(s"$componentName failed to shutdown", exception)
+    case Success(ack) =>
+      if (ack.success) {
+        log.debug(s"$componentName was shutdown successfully")
+        supervisorActorRef.ask(UnregisterSupervisedComponentRequest(componentName)).andThen {
+          case Failure(exception) =>
+            replyTo ! HealthAck(success = false, error = Some(exception))
+          case Success(ack: Ack) =>
+            if (ack.success) {
+              // remove control
+              remover.remove(componentName)
+            }
+            replyTo ! ack.success
+        }
+      } else {
+        log.error(s"$componentName failed to shutdown", ack.error.orNull)
+        replyTo ! HealthAck(success = false, error = ack.error)
+      }
+  }
+}
+
 /**
  * HealthSupervisorActorRef
  * @param actor
@@ -64,24 +135,8 @@ class HealthSupervisorActorRef(val actor: ActorRef, askTimeout: FiniteDuration, 
   private implicit val executionContext: ExecutionContext = actorSystem.dispatcher
   private val controlled: mutable.Map[String, Controllable] = mutable.Map[String, Controllable]()
 
-  private val controlProxy = actorSystem.actorOf(Props(new Actor() {
-    override def receive: Receive = {
-      case RestartComponent(name, _) =>
-        controlled.get(name) match {
-          case Some(controllable) =>
-            controllable.restart().andThen { restartControllableCallback(componentName = name, replyTo = sender()) }
-          case None =>
-            sender() ! HealthAck(success = false, error = Some(new RuntimeException(s"Cannot restart unregistered component $name")))
-        }
-      case ShutdownComponent(name, _) =>
-        controlled.get(name) match {
-          case Some(controllable) =>
-            controllable.shutdown().andThen { shutdownControllableCallback(componentName = name, replyTo = sender()) }
-          case None =>
-            sender() ! HealthAck(success = false, error = Some(new RuntimeException(s"Cannot shutdown unregistered component $name")))
-        }
-    }
-  }))
+  private val controlProxy =
+    actorSystem.actorOf(Props(new ControlProxyActor(new ControllableLookupImpl(controlled), new ControllableRemoverImpl(controlled), actor, actorSystem)))
 
   override def registrationLinks(): Seq[HealthRegistrationLink] = {
     controlled.keys.map(name => HealthRegistrationLink(name, ControlProxy(name, controlProxy))).toSeq
@@ -126,35 +181,6 @@ class HealthSupervisorActorRef(val actor: ActorRef, askTimeout: FiniteDuration, 
       }
 
     result
-  }
-
-  private def restartControllableCallback(componentName: String, replyTo: ActorRef): PartialFunction[Try[Ack], Unit] = {
-    case Failure(exception) =>
-      log.error(s"$componentName failed to restart", exception)
-      replyTo ! HealthAck(success = false, error = Some(exception))
-    case Success(ack) =>
-      if (ack.success) {
-        log.debug(s"$componentName was restarted successfully")
-        replyTo ! HealthAck(success = true)
-      } else {
-        log.error(s"$componentName failed to restart", ack.error.orNull)
-        replyTo ! HealthAck(success = false, error = None)
-      }
-  }
-  private def shutdownControllableCallback(componentName: String, replyTo: ActorRef): PartialFunction[Try[Ack], Unit] = {
-    case Failure(exception) =>
-      log.error(s"$componentName failed to shutdown", exception)
-    case Success(ack) =>
-      if (ack.success) {
-        log.debug(s"$componentName was shutdown successfully")
-        // remove control
-        controlled.remove(componentName)
-        actor ! UnregisterSupervisedComponentRequest(componentName)
-        replyTo ! HealthAck(success = true)
-      } else {
-        log.error(s"$componentName failed to shutdown", ack.error.orNull)
-        replyTo ! HealthAck(success = false, error = Some(new RuntimeException(s"$componentName failed to shutdown", ack.error.orNull)))
-      }
   }
 }
 
@@ -219,7 +245,6 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, filters:
     with HealthSignalListener
     with HealthRegistrationListener {
   import HealthSupervisorActor._
-
   implicit val askTimeout: Timeout = TimeoutConfig.HealthSupervision.actorAskTimeout
   implicit val executionContext: ExecutionContext = ExecutionContext.global
 
@@ -274,7 +299,7 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, filters:
       case sig: HealthSignal =>
         handleSignal(sig)
       case other =>
-        log.error(s"Unable to handle message of type $other.getClass()")
+        HealthSupervisorActor.log.error(s"Unable to handle message of type $other.getClass()")
     }
   }
 
@@ -289,6 +314,7 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, filters:
       sender() ! HealthAck(success = true, None)
     case remove: UnregisterSupervisedComponentRequest =>
       context.become(monitoring(state.copy(registered = state.registered - remove.componentName)))
+      sender() ! HealthAck(success = true)
     case HealthRegistrationDetailsRequest =>
       sender() ! state.registered.values.toList
     case signal: HealthSignal =>
@@ -331,7 +357,7 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, filters:
           case Success(events) =>
             state.replyTo.foreach(r =>
               events.foreach(e => {
-                log.debug("replying with event", e)
+                HealthSupervisorActor.log.debug("replying with event", e)
                 r ! e
               }))
         }
