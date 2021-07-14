@@ -3,18 +3,18 @@
 package surge.javadsl.command
 
 import surge.core.command.AggregateCommandModelCoreTrait
-import surge.internal
 import surge.internal.domain.CommandHandler
 import surge.internal.persistence
 import surge.javadsl._
 import surge.javadsl.common.Context
-
 import java.util.concurrent.CompletableFuture
 import java.util.{ Optional, List => JList }
+
 import scala.compat.java8.FutureConverters
 import scala.compat.java8.OptionConverters._
 import scala.concurrent.Future
 import scala.jdk.CollectionConverters._
+import scala.util.Try
 
 trait AggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCoreTrait[Agg, Cmd, Nothing, Evt] {
   def processCommand(aggregate: Optional[Agg], command: Cmd): JList[Evt]
@@ -23,7 +23,7 @@ trait AggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCoreTrai
   final def toCore: CommandHandler[Agg, Cmd, Nothing, Evt] =
     new CommandHandler[Agg, Cmd, Nothing, Evt] {
       override def processCommand(ctx: persistence.Context, state: Option[Agg], cmd: Cmd): Future[CommandResult] =
-        Future.successful(Right(AggregateCommandModel.this.processCommand(state.asJava, cmd).asScala.toSeq))
+        Future.fromTry(Try(Right(AggregateCommandModel.this.processCommand(state.asJava, cmd).asScala.toSeq)))
       override def apply(ctx: persistence.Context, state: Option[Agg], event: Evt): Option[Agg] = handleEvent(state.asJava, event).asScala
     }
 }
