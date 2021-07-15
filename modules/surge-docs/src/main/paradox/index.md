@@ -4,6 +4,7 @@
 
 * [Overview](overview.md)
 * [Command Service](command-usage.md)
+* [Open Tracing Integration](tracing-usage.md)
 
 @@@
 
