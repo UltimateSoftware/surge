@@ -9,13 +9,14 @@ import akka.kafka.{ ConsumerMessage, _ }
 import akka.pattern._
 import akka.stream.scaladsl.{ Flow, RestartSource, Sink }
 import akka.util.Timeout
-import akka.{ ActorWithTracing, Done, NotUsed }
+import akka.{ Done, NotUsed }
 import com.typesafe.config.ConfigFactory
 import io.opentracing.Tracer
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.serialization.Deserializer
 import org.apache.kafka.common.{ Metric, MetricName }
 import org.slf4j.{ LoggerFactory, MDC }
+import surge.internal.akka.ActorWithTracing
 import surge.internal.akka.cluster.{ ActorHostAwareness, ActorRegistry, ActorSystemHostAwareness }
 import surge.internal.kafka.{ HeadersHelper, HostAwareCooperativeStickyAssignor, HostAwareRangeAssignor }
 import surge.internal.utils.Logging

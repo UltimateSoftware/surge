@@ -2,7 +2,6 @@
 
 package surge.internal.kafka
 
-import akka.ActorWithTracing
 import akka.actor.{ ActorRef, NoSerializationVerificationNeeded, Stash, Status, Timers }
 import akka.pattern._
 import akka.util.Timeout
@@ -14,6 +13,7 @@ import org.apache.kafka.common.errors.{ AuthorizationException, ProducerFencedEx
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.core.KafkaProducerActor
 import surge.health.{ HealthSignalBusTrait, HealthyPublisher }
+import surge.internal.akka.ActorWithTracing
 import surge.internal.akka.cluster.ActorHostAwareness
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.kafka.streams.HealthyActor.GetHealth

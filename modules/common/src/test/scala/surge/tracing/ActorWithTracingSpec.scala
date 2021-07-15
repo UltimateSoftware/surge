@@ -2,7 +2,6 @@
 
 package surge.tracing
 
-import akka.ActorWithTracing
 import akka.actor.{ ActorSystem, Props }
 import akka.testkit.{ TestKit, TestProbe }
 import io.opentracing.{ References, Span, Tracer }
@@ -11,6 +10,7 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import akka.actor.NoSerializationVerificationNeeded
 import org.scalatest.time
+import surge.internal.akka.ActorWithTracing
 
 object ProbeWithTraceSupport {
   case object GetMostRecentSpan extends NoSerializationVerificationNeeded

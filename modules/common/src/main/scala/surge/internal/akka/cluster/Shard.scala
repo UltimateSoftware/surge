@@ -2,7 +2,6 @@
 
 package surge.internal.akka.cluster
 
-import akka.ActorWithTracing
 import akka.actor.{ ActorRef, Props, Terminated }
 import akka.pattern.pipe
 import akka.util.MessageBufferMap
@@ -11,6 +10,7 @@ import java.net.URLEncoder
 import io.opentracing.{ Span, Tracer }
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.akka.cluster.{ Passivate, PerShardLogicProvider }
+import surge.internal.akka.ActorWithTracing
 import surge.kafka.streams.HealthyActor.GetHealth
 import surge.kafka.streams.{ HealthCheck, HealthCheckStatus }
 import surge.tracing.TracedMessage

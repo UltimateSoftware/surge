@@ -2,13 +2,13 @@
 
 package surge.kafka
 
-import akka.ActorWithTracing
 import akka.actor._
 import akka.pattern._
 import com.typesafe.config.{ Config, ConfigFactory }
 import io.opentracing.Tracer
 import org.apache.kafka.common.TopicPartition
 import org.slf4j.{ Logger, LoggerFactory }
+import surge.internal.akka.ActorWithTracing
 import surge.internal.akka.cluster.{ ActorHostAwareness, Shard }
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.config.TimeoutConfig
