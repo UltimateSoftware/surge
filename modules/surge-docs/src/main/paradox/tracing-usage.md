@@ -4,7 +4,7 @@ Surge integrates with Open Tracing compatible platforms such as Jaeger, Zipkin e
 
 ## Example Configuration
 
-You need to provide an OpenTracing `tracer` instance by overriding `tracer` in your Surge model. 
+You can provide an OpenTracing `tracer` instance by overriding `tracer` in your Surge model. 
 
 
 ### Using Jaeger 
