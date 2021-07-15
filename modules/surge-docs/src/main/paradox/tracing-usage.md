@@ -22,3 +22,7 @@ Scala
 
 Java
 :    Java examples coming soon...
+
+#### Screenshot
+
+![Jaeger Screenshot](images/tracing.png)
