@@ -5,13 +5,13 @@ package surge.internal.persistence
 import akka.actor.ActorRef
 import akka.pattern._
 import akka.util.Timeout
-import io.opentracing.{Span, Tracer}
-import org.slf4j.{Logger, LoggerFactory}
-import surge.exceptions.{SurgeTimeoutException, SurgeUnexpectedException}
+import io.opentracing.{ Span, Tracer }
+import org.slf4j.{ Logger, LoggerFactory }
+import surge.exceptions.{ SurgeTimeoutException, SurgeUnexpectedException }
 import surge.internal.config.TimeoutConfig
 import surge.tracing.SpanExtensions._
-import surge.tracing.{SpanSupport, TracedMessage}
-import scala.concurrent.{ExecutionContext, Future}
+import surge.tracing.{ SpanSupport, TracedMessage }
+import scala.concurrent.{ ExecutionContext, Future }
 
 /**
  * Generic reference to an aggregate that handles proxying messages to the actual aggregate actor responsible for a particular aggregate id. A single reference
@@ -100,7 +100,7 @@ private[surge] trait AggregateRefTrait[AggId, Agg, Cmd, Event] extends SpanSuppo
 
   protected def applyEventsWithRetries(envelope: PersistentActor.ApplyEvent[Event], retriesRemaining: Int = 0)(
       implicit ec: ExecutionContext): Future[Option[Agg]] = {
-    val askSpan = tracer.buildSpan("send_events_to_aggregate").withTag("aggregateId", aggregateId.toString).start()
+    val askSpan = createSpan("send_events_to_aggregate").setTag("aggregateId", aggregateId.toString)
     (region ? TracedMessage(envelope, askSpan)(tracer)).map(interpretActorResponse(askSpan)).flatMap {
       case Left(exception) => Future.failed(exception)
       case Right(state)    => Future.successful(state)
