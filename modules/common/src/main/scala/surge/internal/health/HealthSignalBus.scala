@@ -3,8 +3,7 @@
 package surge.internal.health
 
 import java.util.regex.Pattern
-
-import akka.actor.{ Actor, ActorRef, ActorSystem, Props }
+import akka.actor.{ Actor, ActorRef, ActorSystem, BootstrapSetup, Props, ProviderSelection }
 import akka.event.LookupClassification
 import akka.pattern._
 import com.typesafe.config.{ Config, ConfigFactory }
@@ -23,7 +22,7 @@ import scala.util.Try
 case class SubscriberInfo(name: String, id: String)
 
 object HealthSignalBus {
-  implicit val system: ActorSystem = ActorSystem("HealthSignalBusActorSystem")
+  implicit val system: ActorSystem = ActorSystem.create("HealthSignalBusActorSystem", BootstrapSetup().withActorRefProvider(ProviderSelection.local()))
   val log: Logger = LoggerFactory.getLogger(getClass)
 
   val config: Config = ConfigFactory.load().getConfig("surge.health")
@@ -122,7 +121,7 @@ private class EmittableHealthSignalImpl(healthSignal: HealthSignal, signalBus: H
 
 private[surge] class HealthSignalBusImpl(config: HealthSignalBusConfig, signalStreamSupplier: HealthSignalStreamProvider, stopStreamOnUnsubscribe: Boolean)
     extends HealthSignalBusInternal {
-  implicit val actorSystem: ActorSystem = ActorSystem("healthSignalBusActorSystem")
+  implicit val actorSystem: ActorSystem = ActorSystem.create("healthSignalBusActorSystem", BootstrapSetup().withActorRefProvider(ProviderSelection.local()))
 
   private lazy val stream: HealthSignalStream = signalStreamSupplier.provide(bus = this).subscribe()
   private var supervisorRef: Option[HealthSupervisorActorRef] = None
