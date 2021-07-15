@@ -13,7 +13,7 @@ import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.config.TimeoutConfig
 import surge.kafka.streams.HealthyActor.GetHealth
 import surge.kafka.streams.{ HealthCheck, HealthCheckStatus, HealthyActor }
-import surge.tracing.{ ActorReceiveSpan, ActorWithTracing, TracedMessage }
+import surge.tracing.{ ActorWithTracing, TracedMessage }
 
 import java.time.Instant
 import scala.concurrent.Future
@@ -156,40 +156,34 @@ class KafkaPartitionShardRouterActor(
   }
 
   // In standby mode, just follow updates to partition assignments and let Kafka streams index the aggregate state
-  private def standbyMode(state: ActorState): Receive = traceableMessages { span =>
-    {
-      case msg if extractEntityId.isDefinedAt(msg) =>
-        becomeActiveAndDeliverMessage(state, msg)(span)
-    }
-  }.orElse {
+  private def standbyMode(state: ActorState): Receive = {
+    case msg if extractEntityId.isDefinedAt(msg) =>
+      becomeActiveAndDeliverMessage(state, msg)
     case msg: PartitionAssignments     => handle(state, msg)
     case GetPartitionRegionAssignments => sender() ! state.partitionRegions
     case GetHealth =>
       sender() ! HealthCheck(name = "shard-router-actor", id = s"router-actor-$hashCode", status = HealthCheckStatus.UP)
   }
 
-  private def initialized(state: ActorState): Receive = traceableMessages { span =>
-    {
-      case msg if extractEntityId.isDefinedAt(msg) =>
-        val entityId = extractEntityId(msg)
-        span.log("extractEntityId", Map("entityId" -> entityId))
-        deliverMessage(state, entityId, msg)(span)
-    }
-  }.orElse(healthCheckReceiver(state)).orElse {
+  private def initialized(state: ActorState): Receive = healthCheckReceiver(state).orElse {
     case msg: PartitionAssignments     => handle(state, msg)
     case msg: Terminated               => handle(state, msg)
     case GetPartitionRegionAssignments => sender() ! state.partitionRegions
+    case msg if extractEntityId.isDefinedAt(msg) =>
+      val entityId = extractEntityId(msg)
+      activeSpan.log("extractEntityId", Map("entityId" -> entityId))
+      deliverMessage(state, entityId, msg)
   }
 
   private def healthCheckReceiver(state: ActorState): Receive = { case GetHealth =>
     getHealthCheck(state).pipeTo(sender())
   }
 
-  private def deliverMessage(state: ActorState, aggregateId: String, msg: Any)(span: ActorReceiveSpan): Unit = {
+  private def deliverMessage(state: ActorState, aggregateId: String, msg: Any): Unit = {
     partitionRegionFor(state, aggregateId) match {
       case Some(responsiblePartitionRegion) =>
         log.trace(s"Forwarding command envelope for aggregate $aggregateId to region ${responsiblePartitionRegion.regionManager.pathString}.")
-        val tracedMsg = TracedMessage(msg, span)
+        val tracedMsg = TracedMessage(msg, parentSpan = activeSpan)
         responsiblePartitionRegion.regionManager.forward(tracedMsg)
       case None =>
         log.error(s"Could not find a responsible partition region for $aggregateId.")
@@ -281,13 +275,13 @@ class KafkaPartitionShardRouterActor(
     }
   }
 
-  private def becomeActiveAndDeliverMessage(state: ActorState, msg: Any)(span: ActorReceiveSpan): Unit = {
+  private def becomeActiveAndDeliverMessage(state: ActorState, msg: Any): Unit = {
     log.info("Shard router transitioning from standby mode to active mode")
     val newState = state.copy(enableDRStandby = false).initializeNewRegions()
     context.become(initialized(newState))
     val entityId = extractEntityId(msg)
-    span.log("extractEntityId", Map("entityId" -> entityId))
-    deliverMessage(newState, entityId, msg)(span)
+    activeSpan.log("extractEntityId", Map("entityId" -> entityId))
+    deliverMessage(newState, entityId, msg)
   }
 
   private def handle(partitionAssignments: PartitionAssignments): Unit = {

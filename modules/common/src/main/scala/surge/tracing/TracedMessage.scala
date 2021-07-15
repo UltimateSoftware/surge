@@ -11,9 +11,6 @@ object TracedMessage {
   def apply[T](message: T, parentSpan: Span)(implicit tracer: Tracer): TracedMessage[T] =
     TracedMessage(message, TracePropagation.asHeaders(parentSpan))
 
-  def apply[T](message: T, parentSpan: ActorReceiveSpan)(implicit tracer: Tracer): TracedMessage[T] =
-    TracedMessage(message, parentSpan.getUnderlyingSpan)
-
 }
 
 final case class TracedMessage[T](

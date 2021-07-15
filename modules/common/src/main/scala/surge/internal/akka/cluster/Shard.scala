@@ -2,16 +2,17 @@
 
 package surge.internal.akka.cluster
 
-import java.net.URLEncoder
-import akka.actor._
+import akka.actor.{ ActorRef, Props, Terminated }
 import akka.pattern.pipe
 import akka.util.MessageBufferMap
-import io.opentracing.Tracer
+
+import java.net.URLEncoder
+import io.opentracing.{ Span, Tracer }
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.akka.cluster.{ Passivate, PerShardLogicProvider }
 import surge.kafka.streams.HealthyActor.GetHealth
 import surge.kafka.streams.{ HealthCheck, HealthCheckStatus }
-import surge.tracing.{ ActorReceiveSpan, ActorWithTracing, TracedMessage }
+import surge.tracing.{ ActorWithTracing, TracedMessage }
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -54,33 +55,31 @@ class Shard[IdType](shardId: String, regionLogicProvider: PerShardLogicProvider[
 
   private val actorProvider = regionLogicProvider.actorProvider(context)
 
-  override def receive: Receive =
-    traceableMessages { span =>
-      {
-        case msg if extractEntityId.isDefinedAt(msg) => deliverMessage(msg, sender())(span)
-      }
-    }.orElse {
-      case msg: Terminated => receiveTerminated(msg)
-      case msg: Passivate  => receivePassivate(msg)
-      case GetHealth       => getHealthCheck
-    }
+  override def receive: Receive = {
+    case msg if extractEntityId.isDefinedAt(msg) => deliverMessage(msg, sender())
+    case msg: Terminated                         => receiveTerminated(msg)
+    case msg: Passivate                          => receivePassivate(msg)
+    case GetHealth                               => getHealthCheck
+  }
 
-  private def deliverMessage(msg: Any, send: ActorRef)(span: ActorReceiveSpan): Unit = {
-    val id = extractEntityId(msg)
+  private def deliverMessage(msg: Any, send: ActorRef): Unit = {
+    val id: IdType = extractEntityId(msg)
+    activeSpan.log("extractEntityId", Map("entityId" -> id.toString))
     if (id == null || id == "") {
       log.warn("Unsure of how to route message with class [{}], dropping it.", msg.getClass.getName)
       context.system.deadLetters ! msg
     } else {
       if (messageBuffers.contains(id)) {
-        appendToMessageBuffer(id, msg, send)(span)
+        activeSpan.log("buffered", Map("buffer size" -> messageBuffers.size.toString))
+        appendToMessageBuffer(id, msg, send)
       } else {
-        deliverTo(id, msg, send)(span)
+        deliverTo(id, msg, send)
       }
     }
   }
 
-  private def deliverTo(id: IdType, payload: Any, snd: ActorRef)(span: ActorReceiveSpan): Unit = {
-    val tracedMsg = TracedMessage(payload, span)
+  private def deliverTo(id: IdType, payload: Any, snd: ActorRef): Unit = {
+    val tracedMsg = TracedMessage(payload, parentSpan = activeSpan)
     getOrCreateEntity(id).tell(tracedMsg, snd)
   }
 
@@ -98,13 +97,13 @@ class Shard[IdType](shardId: String, regionLogicProvider: PerShardLogicProvider[
     }
   }
 
-  private def appendToMessageBuffer(id: IdType, msg: Any, snd: ActorRef)(span: ActorReceiveSpan): Unit = {
+  private def appendToMessageBuffer(id: IdType, msg: Any, snd: ActorRef): Unit = {
     if (messageBuffers.totalSize >= bufferSize) {
       log.debug("Buffer is full, dropping message for entity [{}]", id)
       context.system.deadLetters ! msg
     } else {
       log.trace("Message for entity [{}] buffered", id)
-      messageBuffers.append(id, (msg, span), snd)
+      messageBuffers.append(id, msg, snd)
     }
   }
 
@@ -142,8 +141,8 @@ class Shard[IdType](shardId: String, regionLogicProvider: PerShardLogicProvider[
       getOrCreateEntity(entityId)
       // Now there is no deliveryBuffer we can try to redeliver
       // and as the child exists, the message will be directly forwarded
-      messages.foreach { case ((msg, span: ActorReceiveSpan), snd) =>
-        deliverMessage(msg, snd)(span)
+      messages.foreach { case (msg, snd) =>
+        deliverMessage(msg, snd)
       }
     }
   }

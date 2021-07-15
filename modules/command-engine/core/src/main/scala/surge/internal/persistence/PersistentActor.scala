@@ -17,7 +17,7 @@ import surge.internal.domain.HandledMessageResult
 import surge.internal.kafka.HeadersHelper
 import surge.kafka.streams.AggregateStateStoreKafkaStreams
 import surge.metrics.{ MetricInfo, Metrics, Timer }
-import surge.tracing.{ ActorReceiveSpan, ActorWithTracing }
+import surge.tracing.{ ActorWithTracing }
 
 import java.time.Instant
 import java.util.concurrent.Executors
@@ -205,16 +205,11 @@ class PersistentActor[S, M, R, E](
   override def receive: Receive = uninitialized
 
   private def freeToProcess(state: InternalActorState): Receive = {
-    traceableMessages { span =>
-      { case pm: ProcessMessage[M] =>
-        handle(state, pm)(span)
-      }
-    }.orElse {
-      case ae: ApplyEvent[E] => handle(state, ae)
-      case GetState(_)       => sender() ! StateResponse(state.stateOpt)
-      case ReceiveTimeout    => handlePassivate()
-      case Stop              => handleStop()
-    }
+    case pm: ProcessMessage[M] => handle(state, pm)
+    case ae: ApplyEvent[E]     => handle(state, ae)
+    case GetState(_)           => sender() ! StateResponse(state.stateOpt)
+    case ReceiveTimeout        => handlePassivate()
+    case Stop                  => handleStop()
   }
 
   private def handle(initializeWithState: InitializeWithState): Unit = {
@@ -227,7 +222,7 @@ class PersistentActor[S, M, R, E](
     context.become(freeToProcess(internalActorState))
   }
 
-  private def handle(state: InternalActorState, msg: ProcessMessage[M])(span: ActorReceiveSpan): Unit = {
+  private def handle(state: InternalActorState, msg: ProcessMessage[M]): Unit = {
     context.setReceiveTimeout(Duration.Inf)
     context.become(persistingEvents(state))
 
