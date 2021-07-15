@@ -43,7 +43,7 @@ object HealthSignalWindowActor {
           randomFactor = BackoffConfig.HealthSignalWindowActor.randomFactor)
         .withMaxNrOfRetries(BackoffConfig.HealthSignalWindowActor.maxRetries))
 
-    val windowActor = actorSystem.actorOf(props, name = "healthyWindow")
+    val windowActor = actorSystem.actorOf(props)
     new HealthSignalWindowActorRef(windowActor, initialWindowProcessingDelay, windowFrequency, actorSystem)
   }
 }
