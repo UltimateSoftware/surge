@@ -2,6 +2,7 @@
 
 package surge.internal.kafka
 
+import akka.ActorWithTracing
 import akka.actor.{ ActorRef, NoSerializationVerificationNeeded, Stash, Status, Timers }
 import akka.pattern._
 import akka.util.Timeout
@@ -19,7 +20,6 @@ import surge.kafka.streams.HealthyActor.GetHealth
 import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, HealthCheck, HealthCheckStatus }
 import surge.kafka.{ KafkaBytesProducer, KafkaRecordMetadata, KafkaTopicTrait, LagInfo }
 import surge.metrics.{ MetricInfo, Metrics, Rate, Timer }
-import surge.tracing.ActorWithTracing
 
 import java.time.Instant
 import java.util.concurrent.TimeUnit

@@ -2,6 +2,7 @@
 
 package surge.kafka
 
+import akka.ActorWithTracing
 import akka.actor._
 import akka.pattern._
 import com.typesafe.config.{ Config, ConfigFactory }
@@ -13,7 +14,7 @@ import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.config.TimeoutConfig
 import surge.kafka.streams.HealthyActor.GetHealth
 import surge.kafka.streams.{ HealthCheck, HealthCheckStatus, HealthyActor }
-import surge.tracing.{ ActorWithTracing, TracedMessage }
+import surge.tracing.TracedMessage
 
 import java.time.Instant
 import scala.concurrent.Future

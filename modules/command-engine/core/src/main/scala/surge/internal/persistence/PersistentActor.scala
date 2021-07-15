@@ -2,6 +2,7 @@
 
 package surge.internal.persistence
 
+import akka.ActorWithTracing
 import akka.actor.{ NoSerializationVerificationNeeded, Props, ReceiveTimeout, Stash, Status }
 import akka.pattern.pipe
 import com.fasterxml.jackson.annotation.JsonTypeInfo
@@ -17,7 +18,6 @@ import surge.internal.domain.HandledMessageResult
 import surge.internal.kafka.HeadersHelper
 import surge.kafka.streams.AggregateStateStoreKafkaStreams
 import surge.metrics.{ MetricInfo, Metrics, Timer }
-import surge.tracing.{ ActorWithTracing }
 
 import java.time.Instant
 import java.util.concurrent.Executors

@@ -2,6 +2,7 @@
 
 package surge.tracing
 
+import akka.ActorWithTracing
 import akka.actor.{ ActorSystem, Props }
 import akka.testkit.{ TestKit, TestProbe }
 import io.opentracing.{ References, Span, Tracer }

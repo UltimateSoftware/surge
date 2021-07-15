@@ -1,10 +1,9 @@
 // Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
-package surge.tracing
+package akka
 
-import akka.AroundReceiveActor
 import akka.actor.ActorRef
-import io.opentracing.{ Span, Tracer }
+import surge.tracing.{ SpanExtensions, TracePropagation, TracedMessage }
 
 trait ActorWithTracing extends AroundReceiveActor with ActorOps with SpanExtensions {
 

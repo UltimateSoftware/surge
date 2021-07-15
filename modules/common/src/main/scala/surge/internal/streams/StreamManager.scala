@@ -9,7 +9,7 @@ import akka.kafka.{ ConsumerMessage, _ }
 import akka.pattern._
 import akka.stream.scaladsl.{ Flow, RestartSource, Sink }
 import akka.util.Timeout
-import akka.{ Done, NotUsed }
+import akka.{ ActorWithTracing, Done, NotUsed }
 import com.typesafe.config.ConfigFactory
 import io.opentracing.Tracer
 import org.apache.kafka.clients.consumer.ConsumerConfig
@@ -22,7 +22,6 @@ import surge.internal.utils.Logging
 import surge.streams.DataPipeline._
 import surge.streams.replay.{ EventReplaySettings, EventReplayStrategy, ReplayControl, ReplayControlContext }
 import surge.streams.{ EventPlusStreamMeta, KafkaStreamMeta }
-import surge.tracing.ActorWithTracing
 
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
