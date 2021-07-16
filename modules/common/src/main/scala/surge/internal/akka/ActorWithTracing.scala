@@ -29,34 +29,35 @@ trait ActorWithTracing extends AroundReceiveActor with ActorOps with SpanExtensi
     }
   }
 
-  private def getFields: Map[String, String] = {
+  // fields to include in the log span
+  private def getFields(messageName: String, message: Any): Map[String, String] = {
     Map(
       "actor" -> actorClassSimpleName,
       "actor (fqcn)" -> actorClassFullName,
       "receiver path" -> self.prettyPrintPath,
-      "sender path" -> sender().prettyPrintPath)
+      "sender path" -> sender().prettyPrintPath,
+      "message" -> messageName,
+      "message (fqcn)" -> message.getClass.getName)
+  }
+
+  // extract the name of the message and build an operation name
+  private def getNames(message: Any): (String, String) = {
+    val messageName = getMessageName(message)
+    val operationName = s"$actorClassSimpleName:$messageName"
+    (messageName, operationName)
   }
 
   override def doAroundReceive(receive: Receive, msg: Any): Unit = {
     msg match {
       case tracedMsg: TracedMessage[_] =>
-        val messageName: String = getMessageName(tracedMsg.message)
-        val operationName: String = s"$actorClassSimpleName:$messageName"
-        val newSpan: Span = TracePropagation.childFrom(tracedMsg, operationName)
-        activeSpan = newSpan
-        val fields: Map[String, String] = getFields +
-          ("message" -> messageName) +
-          ("message (fqcn)" -> tracedMsg.message.getClass.getName)
-        newSpan.log("receive", fields)
+        val (messageName: String, operationName: String) = getNames(tracedMsg.message)
+        activeSpan = TracePropagation.childFrom(tracedMsg, operationName)
+        activeSpan.log("receive", fields = getFields(messageName, tracedMsg.message))
         superAroundReceive(receive, tracedMsg.message)
-      case other =>
-        val messageName: String = other.getClass.getSimpleName
-        val operationName: String = s"$actorClassSimpleName:$messageName"
-        val newSpan: Span = tracer.buildSpan(operationName).start()
-        activeSpan = newSpan
-        val fields: Map[String, String] = getFields +
-          ("message" -> messageName) + ("messageName (fqcn)" -> other.getClass.getName)
-        newSpan.log("receive", fields)
+      case msg =>
+        val (messageName: String, operationName: String) = getNames(msg)
+        activeSpan = tracer.buildSpan(operationName).start()
+        activeSpan.log("receive", fields = getFields(messageName, msg))
         superAroundReceive(receive, msg)
     }
   }
