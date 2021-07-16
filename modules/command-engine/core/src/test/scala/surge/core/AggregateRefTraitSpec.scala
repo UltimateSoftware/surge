@@ -11,7 +11,7 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AsyncWordSpecLike
 import surge.exceptions.SurgeUnexpectedException
 import surge.internal.persistence.{ AggregateRefTrait, PersistentActor }
-import surge.tracing.ProbeWithTraceSupport
+import surge.internal.tracing.ProbeWithTraceSupport
 
 import scala.concurrent.Future
 

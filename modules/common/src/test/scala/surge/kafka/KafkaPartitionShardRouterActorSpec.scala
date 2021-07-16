@@ -16,7 +16,7 @@ import surge.akka.cluster.{ EntityPropsProvider, PerShardLogicProvider }
 import surge.internal.akka.cluster.ActorSystemHostAwareness
 import surge.internal.akka.kafka.{ KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor }
 import surge.kafka.streams.{ HealthCheck, HealthCheckStatus }
-import surge.tracing.TracedMessage
+import surge.internal.tracing.TracedMessage
 
 import scala.concurrent.Future
 

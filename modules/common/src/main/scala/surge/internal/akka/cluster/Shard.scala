@@ -13,7 +13,7 @@ import surge.akka.cluster.{ Passivate, PerShardLogicProvider }
 import surge.internal.akka.ActorWithTracing
 import surge.kafka.streams.HealthyActor.GetHealth
 import surge.kafka.streams.{ HealthCheck, HealthCheckStatus }
-import surge.tracing.TracedMessage
+import surge.internal.tracing.TracedMessage
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future

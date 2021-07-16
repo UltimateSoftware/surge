@@ -5,7 +5,7 @@ package surge.internal.akka
 import akka.AroundReceiveActor
 import akka.actor.ActorRef
 import io.opentracing._
-import surge.tracing.{ SpanExtensions, TracePropagation, TracedMessage }
+import surge.internal.tracing.{ SpanExtensions, TracePropagation, TracedMessage }
 
 trait ActorWithTracing extends AroundReceiveActor with ActorOps with SpanExtensions {
 
@@ -52,12 +52,12 @@ trait ActorWithTracing extends AroundReceiveActor with ActorOps with SpanExtensi
       case tracedMsg: TracedMessage[_] =>
         val (messageName: String, operationName: String) = getNames(tracedMsg.message)
         activeSpan = TracePropagation.childFrom(tracedMsg, operationName)
-        activeSpan.log("receive", fields = getFields(messageName, tracedMsg.message))
+        activeSpan.log("receive", getFields(messageName, tracedMsg.message))
         superAroundReceive(receive, tracedMsg.message)
       case msg =>
         val (messageName: String, operationName: String) = getNames(msg)
         activeSpan = tracer.buildSpan(operationName).start()
-        activeSpan.log("receive", fields = getFields(messageName, msg))
+        activeSpan.log("receive", getFields(messageName, msg))
         superAroundReceive(receive, msg)
     }
   }

@@ -1,6 +1,6 @@
 // Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
-package surge.tracing
+package surge.internal.tracing
 
 import akka.actor.{ ActorSystem, Props }
 import akka.testkit.{ TestKit, TestProbe }
