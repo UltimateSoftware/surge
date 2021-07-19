@@ -5,16 +5,16 @@ package surge.internal.health.supervisor
 import java.util.regex.Pattern
 
 import akka.actor.ActorSystem
-import akka.testkit.{TestKit, TestProbe}
-import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
-import org.scalatest.concurrent.{Eventually, ScalaFutures}
+import akka.testkit.{ TestKit, TestProbe }
+import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach }
+import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
-import org.scalatest.time.{Seconds, Span}
+import org.scalatest.time.{ Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
-import surge.core.{Ack, ControllableAdapter}
-import surge.health.{HealthRegistrationReceived, HealthSignalBusTrait, HealthSignalReceived, HealthSupervisorTrait, SignalType}
-import surge.health.config.{ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig}
-import surge.health.domain.{HealthSignal, Trace}
+import surge.core.{ Ack, ControllableAdapter }
+import surge.health.{ HealthRegistrationReceived, HealthSignalBusTrait, HealthSignalReceived, HealthSupervisorTrait, SignalType }
+import surge.health.config.{ ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig }
+import surge.health.domain.{ HealthSignal, Trace }
 import surge.health.matchers.SideEffect
 import surge.internal.health.matchers.SignalNameEqualsMatcher
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider

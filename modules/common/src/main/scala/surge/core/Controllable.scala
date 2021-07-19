@@ -4,16 +4,6 @@ package surge.core
 
 import scala.concurrent.Future
 
-//final case class ControlAck(success: Boolean, error: Option[Throwable] = None) extends Ack {
-//  override def withSuccess(success: Boolean): Ack = {
-//    copy(success = success)
-//  }
-//
-////  override def withError(error: Throwable): Ack = {
-////    copy(error = Some(error))
-////  }
-//}
-
 final case class Ack()
 
 trait ControllableLookup {

@@ -45,7 +45,6 @@ class SlidingHealthSignalStreamSpec
     with BeforeAndAfterEach
     with Eventually
     with MockitoHelper {
-  implicit val postfixOps: languageFeature.postfixOps = scala.language.postfixOps
   implicit override val patienceConfig: PatienceConfig =
     PatienceConfig(timeout = scaled(Span(10, Seconds)), interval = scaled(Span(10, Milliseconds)))
   private var probe: TestProbe = _

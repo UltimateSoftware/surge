@@ -33,7 +33,7 @@ object SlidingHealthSignalStream {
       actorSystem: ActorSystem): SlidingHealthSignalStream = {
     val listener: WindowStreamListener =
       SignalPatternMatchResultHandler.asListener(signalBus, filters, streamMonitoringRef.map(r => r.actor))
-    val ref = actorSystem.actorOf(Props(HealthSignalStreamActor(Some(listener))), name = "slidingHealthSignalStreamActor")
+    val ref = actorSystem.actorOf(Props(HealthSignalStreamActor(Some(listener))))
     new SlidingHealthSignalStreamImpl(slidingConfig, signalBus, filters, ref, actorSystem)
   }
 }
