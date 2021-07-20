@@ -2,9 +2,10 @@
 
 package surge.core.event
 
+import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.trace.Tracer
 import surge.core.commondsl.SurgeEventBusinessLogicTrait
-import surge.core.{ SurgeAggregateReadFormatting, SurgeAggregateWriteFormatting, SurgeEventWriteFormatting }
+import surge.core.{SurgeAggregateReadFormatting, SurgeAggregateWriteFormatting, SurgeEventWriteFormatting}
 import surge.internal.SurgeModel
 import surge.internal.domain.AggregateProcessingModel
 import surge.internal.kafka.SurgeKafkaConfig
@@ -26,6 +27,7 @@ object SurgeEventServiceModel {
       aggregateReadFormatting = businessLogic.aggregateReadFormatting,
       aggregateValidator = businessLogic.aggregateValidatorLambda,
       metrics = businessLogic.metrics,
+      openTelemetry = businessLogic.openTelemetry,
       tracer = businessLogic.tracer)
   }
 }
@@ -37,6 +39,7 @@ private[surge] case class SurgeEventServiceModel[Agg, Event](
     override val aggregateWriteFormatting: SurgeAggregateWriteFormatting[Agg],
     override val aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) => Boolean,
     override val metrics: Metrics,
+    override val openTelemetry: OpenTelemetry,
     override val tracer: Tracer)
     extends SurgeModel[Agg, Nothing, Nothing, Event] {
   override def eventWriteFormattingOpt: Option[SurgeEventWriteFormatting[Event]] = None

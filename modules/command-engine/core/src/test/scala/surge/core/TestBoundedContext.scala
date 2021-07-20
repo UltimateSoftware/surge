@@ -2,8 +2,9 @@
 
 package surge.core
 
+import io.opentelemetry.api.OpenTelemetry
 import play.api.libs.json._
-import surge.core.command.{ SurgeCommandKafkaConfig, SurgeCommandModel }
+import surge.core.command.{SurgeCommandKafkaConfig, SurgeCommandModel}
 import surge.internal.domain.CommandHandler
 import surge.internal.persistence.Context
 import surge.internal.tracing.NoopTracerFactory
@@ -152,5 +153,6 @@ trait TestBoundedContext {
       eventWriteFormatting = eventWriter,
       aggregateValidator = { (_, _, _) => true },
       metrics = Metrics.globalMetricRegistry,
+      openTelemetry = OpenTelemetry.noop(),
       tracer = NoopTracerFactory.create())
 }
