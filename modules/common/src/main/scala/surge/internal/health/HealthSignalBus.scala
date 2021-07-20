@@ -3,6 +3,7 @@
 package surge.internal.health
 
 import java.util.regex.Pattern
+
 import akka.actor.{ Actor, ActorSystem, BootstrapSetup, Props, ProviderSelection }
 import akka.event.LookupClassification
 import akka.pattern._
@@ -17,7 +18,6 @@ import surge.internal.health.supervisor._
 
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
-import scala.languageFeature.postfixOps
 import scala.util.Try
 
 case class SubscriberInfo(name: String, id: String)
@@ -29,16 +29,18 @@ object HealthSignalBus {
   val config: Config = ConfigFactory.load().getConfig("surge.health")
 
   def apply(signalStream: HealthSignalStreamProvider): HealthSignalBusInternal = {
+    val streamingEnabled = config.getBoolean("bus.stream.enabled")
     val stopStreamOnUnsubscribe, startStreamOnInit = config.getBoolean("bus.stream.start-on-init")
     val bus = new HealthSignalBusImpl(
       HealthSignalBusConfig(
+        streamingEnabled = config.getBoolean("bus.stream.enabled"),
         signalTopic = config.getString("bus.signal-topic"),
         registrationTopic = config.getString("bus.registration-topic"),
         allowedSubscriberCount = config.getInt("bus.allowed-subscriber-count")),
       signalStream,
       stopStreamOnUnsubscribe)
 
-    if (startStreamOnInit) {
+    if (startStreamOnInit && streamingEnabled) {
       bus.signalStream().start()
     }
 
@@ -136,9 +138,15 @@ private class EmittableHealthSignalImpl(healthSignal: HealthSignal, signalBus: H
 
 private[surge] class HealthSignalBusImpl(config: HealthSignalBusConfig, signalStreamSupplier: HealthSignalStreamProvider, stopStreamOnUnsubscribe: Boolean)
     extends HealthSignalBusInternal {
-  implicit val actorSystem: ActorSystem = ActorSystem.create("healthSignalBusActorSystem", BootstrapSetup().withActorRefProvider(ProviderSelection.local()))
+  implicit val actorSystem: ActorSystem = ActorSystem.create(name = "healthSignalBusActorSystem",
+    BootstrapSetup().withActorRefProvider(ProviderSelection.local()))
 
-  private lazy val stream: HealthSignalStream = signalStreamSupplier.provide(bus = this).subscribe()
+  private lazy val stream: HealthSignalStream = if (config.streamingEnabled) {
+    signalStreamSupplier.provide(bus = this).subscribe()
+  } else {
+    new DisabledHealthSignalStreamProvider(config, bus = this, actorSystem).provide(bus = this).subscribe()
+  }
+
   private var supervisorRef: Option[HealthSupervisorActorRef] = None
   private var monitoringRef: Option[HealthSignalStreamMonitoringRefWithSupervisionSupport] = None
 

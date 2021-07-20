@@ -2,12 +2,16 @@
 
 package surge.internal.health
 
+import akka.Done
 import akka.actor.{ ActorRef, ActorSystem }
-import surge.health.HealthSignalStream
+import surge.health.config.HealthSignalBusConfig
+import surge.health.{ HealthSignalBusTrait, HealthSignalListener, HealthSignalStream, SignalHandler }
 import surge.health.domain.HealthSignal
 import surge.health.matchers.SignalPatternMatcher
 import surge.health.windows.{ WindowStreamListener, _ }
 import surge.internal.health.supervisor.HealthSupervisorActor
+
+import scala.util.Try
 
 /**
  * StreamMonitoringRef holds a reference to an Actor responsible for forwarding stream processing events to an underlying akka Actor via the provided ActorRef.
@@ -88,4 +92,36 @@ trait HealthSignalStreamProvider {
   def bus(): HealthSignalBusInternal = {
     signalBus
   }
+}
+
+class NullHealthSignalStream(config: HealthSignalBusConfig, bus: HealthSignalBusTrait, override val actorSystem: ActorSystem) extends HealthSignalStream {
+
+  override def signalHandler: SignalHandler = (_: HealthSignal) =>
+    Try {
+      Done
+    }
+
+  override def filters(): Seq[SignalPatternMatcher] = Seq.empty
+
+  override def signalBus(): HealthSignalBusTrait = bus
+
+  override def subscribe(signalHandler: SignalHandler): HealthSignalListener = {
+    bus.subscribe(subscriber = this, config.signalTopic)
+    this
+  }
+
+  override def start(maybeSideEffect: Option[() => Unit]): HealthSignalListener = this
+
+  override def stop(): HealthSignalListener = this
+
+  override def id(): String = "null-health-signal-stream"
+}
+
+class DisabledHealthSignalStreamProvider(config: HealthSignalBusConfig, bus: HealthSignalBusTrait, override val actorSystem: ActorSystem)
+    extends HealthSignalStreamProvider {
+  private val nullStream: HealthSignalStream = new NullHealthSignalStream(config, bus, actorSystem)
+
+  override def provide(bus: HealthSignalBusInternal): HealthSignalStream = nullStream
+
+  override def filters(): Seq[SignalPatternMatcher] = Seq.empty
 }
