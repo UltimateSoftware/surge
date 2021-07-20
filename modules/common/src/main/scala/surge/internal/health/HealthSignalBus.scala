@@ -138,8 +138,8 @@ private class EmittableHealthSignalImpl(healthSignal: HealthSignal, signalBus: H
 
 private[surge] class HealthSignalBusImpl(config: HealthSignalBusConfig, signalStreamSupplier: HealthSignalStreamProvider, stopStreamOnUnsubscribe: Boolean)
     extends HealthSignalBusInternal {
-  implicit val actorSystem: ActorSystem = ActorSystem.create(name = "healthSignalBusActorSystem",
-    BootstrapSetup().withActorRefProvider(ProviderSelection.local()))
+  implicit val actorSystem: ActorSystem =
+    ActorSystem.create(name = "healthSignalBusActorSystem", BootstrapSetup().withActorRefProvider(ProviderSelection.local()))
 
   private lazy val stream: HealthSignalStream = if (config.streamingEnabled) {
     signalStreamSupplier.provide(bus = this).subscribe()
