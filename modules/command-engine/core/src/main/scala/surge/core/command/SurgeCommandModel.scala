@@ -4,8 +4,8 @@ package surge.core.command
 
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.trace.Tracer
-import surge.core.commondsl.{SurgeCommandBusinessLogicTrait, SurgeRejectableCommandBusinessLogicTrait}
-import surge.core.{SurgeAggregateReadFormatting, SurgeAggregateWriteFormatting, SurgeEventWriteFormatting}
+import surge.core.commondsl.{ SurgeCommandBusinessLogicTrait, SurgeRejectableCommandBusinessLogicTrait }
+import surge.core.{ SurgeAggregateReadFormatting, SurgeAggregateWriteFormatting, SurgeEventWriteFormatting }
 import surge.internal.SurgeModel
 import surge.internal.domain.AggregateProcessingModel
 import surge.internal.kafka.SurgeKafkaConfig

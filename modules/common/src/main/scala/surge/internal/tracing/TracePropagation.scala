@@ -32,9 +32,9 @@ object TracePropagation {
     }
   }
 
-  private def toMutableMap[K,V](map: scala.collection.immutable.Map[K, V]): scala.collection.mutable.Map[K, V] = {
+  private def toMutableMap[K, V](map: scala.collection.immutable.Map[K, V]): scala.collection.mutable.Map[K, V] = {
     val result = mutable.Map.empty[K, V]
-    map.foreach { case item  => result += item._1 -> item._2 }
+    map.foreach { case item => result += item._1 -> item._2 }
     result
   }
 

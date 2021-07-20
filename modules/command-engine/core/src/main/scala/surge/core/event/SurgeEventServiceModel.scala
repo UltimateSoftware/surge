@@ -5,7 +5,7 @@ package surge.core.event
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.trace.Tracer
 import surge.core.commondsl.SurgeEventBusinessLogicTrait
-import surge.core.{SurgeAggregateReadFormatting, SurgeAggregateWriteFormatting, SurgeEventWriteFormatting}
+import surge.core.{ SurgeAggregateReadFormatting, SurgeAggregateWriteFormatting, SurgeEventWriteFormatting }
 import surge.internal.SurgeModel
 import surge.internal.domain.AggregateProcessingModel
 import surge.internal.kafka.SurgeKafkaConfig

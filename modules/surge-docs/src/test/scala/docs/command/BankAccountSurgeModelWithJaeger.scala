@@ -5,7 +5,7 @@ package docs.command
 import io.opentelemetry.exporter.jaeger.JaegerGrpcSpanExporter
 import surge.core._
 import surge.kafka.KafkaTopic
-import surge.scaladsl.command.{AggregateCommandModel, SurgeCommandBusinessLogic}
+import surge.scaladsl.command.{ AggregateCommandModel, SurgeCommandBusinessLogic }
 
 import java.util.UUID
 
