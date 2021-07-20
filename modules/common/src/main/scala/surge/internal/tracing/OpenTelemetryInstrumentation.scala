@@ -2,7 +2,7 @@
 
 package surge.internal.tracing
 
-object Instrumentation {
+object OpenTelemetryInstrumentation {
   val Name = "surge"
   val Version = this.getClass.getPackage.getImplementationVersion
 }

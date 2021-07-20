@@ -7,5 +7,5 @@ import io.opentelemetry.api.trace.Tracer
 
 object NoopTracerFactory {
 
-  def create(): Tracer = OpenTelemetry.noop().getTracer(Instrumentation.Name, Instrumentation.Version)
+  def create(): Tracer = OpenTelemetry.noop().getTracer(OpenTelemetryInstrumentation.Name, OpenTelemetryInstrumentation.Version)
 }
