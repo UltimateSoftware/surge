@@ -2,7 +2,7 @@
 
 package surge.internal.kafka
 
-import io.opentracing.Tracer
+import io.opentelemetry.api.trace.Tracer
 import surge.kafka.{ KafkaPartitioner, PartitionStringUpToColon }
 import surge.metrics.Metrics
 

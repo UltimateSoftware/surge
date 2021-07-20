@@ -4,14 +4,13 @@ package surge.core
 
 import akka.actor.{ ActorRef, ActorSystem, Props }
 import akka.testkit.{ TestKit, TestProbe }
-import io.opentracing.Tracer
-import io.opentracing.mock.MockTracer
+import io.opentelemetry.api.trace.Tracer
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AsyncWordSpecLike
 import surge.exceptions.SurgeUnexpectedException
-import surge.internal.akka.ProbeWithTraceSupport
 import surge.internal.persistence.{ AggregateRefTrait, PersistentActor }
+import surge.internal.tracing.{ NoopTracerFactory, ProbeWithTraceSupport }
 
 import scala.concurrent.Future
 
@@ -19,7 +18,7 @@ class AggregateRefTraitSpec extends TestKit(ActorSystem("AggregateRefTraitSpec")
 
   case class Person(name: String, favoriteColor: String)
 
-  private val mockTracer = new MockTracer()
+  private val mockTracer = NoopTracerFactory.create()
   case class TestAggregateRef(aggregateId: String, regionTestProbe: TestProbe) extends AggregateRefTrait[String, Person, String, String] {
     override val region: ActorRef = system.actorOf(Props(new ProbeWithTraceSupport(regionTestProbe, mockTracer)))
     override val tracer: Tracer = mockTracer

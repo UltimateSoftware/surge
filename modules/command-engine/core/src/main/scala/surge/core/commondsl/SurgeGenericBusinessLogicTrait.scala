@@ -3,9 +3,9 @@
 package surge.core.commondsl
 
 import com.typesafe.config.{ Config, ConfigFactory }
-import io.opentracing.Tracer
-import io.opentracing.noop.NoopTracerFactory
+import io.opentelemetry.api.trace.Tracer
 import surge.core.{ SurgeAggregateReadFormatting, SurgeAggregateWriteFormatting }
+import surge.internal.tracing.NoopTracerFactory
 import surge.kafka.KafkaTopic
 import surge.metrics.Metrics
 

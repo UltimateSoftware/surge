@@ -5,13 +5,12 @@ package surge.internal.persistence
 import akka.actor.ActorRef
 import akka.pattern._
 import akka.util.Timeout
-import io.opentracing.{ Span, Tracer }
+import io.opentelemetry.api.trace.{ Span, Tracer }
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.exceptions.{ SurgeTimeoutException, SurgeUnexpectedException }
 import surge.internal.config.TimeoutConfig
-import surge.internal.utils.SpanExtensions._
-import surge.internal.utils.SpanSupport
-import surge.tracing.TracedMessage
+import surge.internal.tracing.TracingHelper._
+import surge.internal.tracing.{ SpanSupport, TracedMessage }
 
 import scala.concurrent.{ ExecutionContext, Future }
 
@@ -80,8 +79,9 @@ private[surge] trait AggregateRefTrait[AggId, Agg, Cmd, Event] extends SpanSuppo
    */
   protected def sendCommandWithRetries(envelope: PersistentActor.ProcessMessage[Cmd], retriesRemaining: Int = 0)(
       implicit ec: ExecutionContext): Future[Either[Throwable, Option[Agg]]] = {
-    val askSpan = createSpan("send_command_to_aggregate").setTag("aggregateId", aggregateId.toString)
-    (region ? TracedMessage(tracer, envelope, askSpan)).map(interpretActorResponse(askSpan)).recoverWith {
+    val askSpan = createSpan(envelope.message.getClass.getSimpleName).setTag("aggregateId", aggregateId.toString)
+    askSpan.log("actor ask", Map("timeout" -> timeout.duration.toString()))
+    (region ? TracedMessage(envelope, askSpan)(tracer)).map(interpretActorResponse(askSpan)).recoverWith {
       case _: Throwable if retriesRemaining > 0 =>
         log.warn("Ask timed out to aggregate actor region, retrying request...")
         sendCommandWithRetries(envelope, retriesRemaining - 1)
@@ -102,7 +102,7 @@ private[surge] trait AggregateRefTrait[AggId, Agg, Cmd, Event] extends SpanSuppo
   protected def applyEventsWithRetries(envelope: PersistentActor.ApplyEvent[Event], retriesRemaining: Int = 0)(
       implicit ec: ExecutionContext): Future[Option[Agg]] = {
     val askSpan = createSpan("send_events_to_aggregate").setTag("aggregateId", aggregateId.toString)
-    (region ? TracedMessage(tracer, envelope, askSpan)).map(interpretActorResponse(askSpan)).flatMap {
+    (region ? TracedMessage(envelope, askSpan)(tracer)).map(interpretActorResponse(askSpan)).flatMap {
       case Left(exception) => Future.failed(exception)
       case Right(state)    => Future.successful(state)
     }

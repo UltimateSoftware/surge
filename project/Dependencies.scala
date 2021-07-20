@@ -1,5 +1,6 @@
 // Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
+import sbt.Keys.libraryDependencies
 import sbt._
 
 object Dependencies extends AutoPlugin {
@@ -32,12 +33,11 @@ object Dependencies extends AutoPlugin {
       val kafkaStreamsTestUtils = "org.apache.kafka" % "kafka-streams-test-utils" % kafkaVersion % Test
     }
 
-    object OpenTracing {
+    object OpenTelemetry {
       val version = "0.33.0"
-      val api = "io.opentracing" % "opentracing-api" % version
-      val mock = "io.opentracing" % "opentracing-mock" % version % Test
-      val noop = "io.opentracing" % "opentracing-noop" % version
+      val api = "io.opentelemetry" % "opentelemetry-api" % "1.4.1"
     }
+
     object PlayFramework {
       val json = "com.typesafe.play" %% "play-json" % "2.9.1"
     }

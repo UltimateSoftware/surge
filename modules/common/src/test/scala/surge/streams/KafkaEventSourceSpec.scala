@@ -3,13 +3,11 @@
 package surge.streams
 
 import java.time.Instant
-
 import akka.Done
 import akka.actor.ActorSystem
 import akka.kafka.ConsumerSettings
 import akka.testkit.{ TestKit, TestProbe }
-import io.opentracing.Tracer
-import io.opentracing.noop.NoopTracerFactory
+import io.opentelemetry.api.trace.Tracer
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.producer.ProducerRecord
@@ -22,6 +20,7 @@ import org.slf4j.LoggerFactory
 import surge.core.SurgeEventReadFormatting
 import surge.internal.akka.kafka.AkkaKafkaConsumer
 import surge.internal.kafka.HeadersHelper
+import surge.internal.tracing.NoopTracerFactory
 import surge.kafka.KafkaTopic
 import surge.kafka.streams.DefaultSerdes
 

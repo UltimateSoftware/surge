@@ -2,7 +2,7 @@
 
 package surge.core.command
 
-import io.opentracing.Tracer
+import io.opentelemetry.api.trace.Tracer
 import surge.core.commondsl.{ SurgeCommandBusinessLogicTrait, SurgeRejectableCommandBusinessLogicTrait }
 import surge.core.{ SurgeAggregateReadFormatting, SurgeAggregateWriteFormatting, SurgeEventWriteFormatting }
 import surge.internal.SurgeModel
