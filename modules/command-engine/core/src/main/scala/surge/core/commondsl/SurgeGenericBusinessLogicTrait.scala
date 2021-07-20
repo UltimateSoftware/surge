@@ -6,7 +6,7 @@ import com.typesafe.config.{ Config, ConfigFactory }
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.trace.Tracer
 import surge.core.{ SurgeAggregateReadFormatting, SurgeAggregateWriteFormatting }
-import surge.internal.tracing.{ OpenTelemetryInstrumentation, NoopTracerFactory }
+import surge.internal.tracing.{ NoopTracerFactory, OpenTelemetryInstrumentation }
 import surge.kafka.KafkaTopic
 import surge.metrics.Metrics
 
