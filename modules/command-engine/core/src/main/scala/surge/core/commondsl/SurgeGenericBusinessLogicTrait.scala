@@ -34,7 +34,7 @@ trait SurgeGenericBusinessLogicTrait[AggId, Agg, Command, Rej, Event] {
 
   val openTelemetry: OpenTelemetry = OpenTelemetry.noop()
 
-  def tracer: Tracer = openTelemetry.getTracer(Instrumentation.Name, Instrumentation.Version)
+  private[surge] def tracer: Tracer = openTelemetry.getTracer(Instrumentation.Name, Instrumentation.Version)
 
   def consumerGroupBase: String = {
     val environment = config.getString("app.environment")
