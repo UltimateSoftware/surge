@@ -11,7 +11,7 @@ import surge.metrics.Metrics
 trait ProducerActorContext {
   def aggregateName: String
   def metrics: Metrics
-  def openTelemetry: OpenTelemetry
+  val openTelemetry: OpenTelemetry
   def tracer: Tracer = openTelemetry.getTracer(Instrumentation.Version, Instrumentation.Name)
   val kafka: SurgeKafkaConfig
   val partitioner: KafkaPartitioner[String] = PartitionStringUpToColon

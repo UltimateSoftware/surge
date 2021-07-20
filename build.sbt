@@ -1,5 +1,6 @@
 // Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
 
+import Dependencies.autoImport.OpenTelemetry.HoneycombSample
 import sbt.Keys._
 
 scalaVersion in ThisBuild := "2.13.5"
@@ -94,7 +95,16 @@ lazy val `surge-docs` = (project in file("modules/surge-docs"))
   .settings(
     skip in publish := true,
     paradoxTheme := Some(builtinParadoxTheme("generic")),
-    libraryDependencies ++= Seq(typesafeConfig, embeddedKafka, logback, scalatest, scalatestPlusMockito, mockitoCore))
+    libraryDependencies ++= Seq(
+      typesafeConfig,
+      embeddedKafka,
+      logback,
+      scalatest,
+      scalatestPlusMockito,
+      mockitoCore,
+      HoneycombSample.sdk,
+      HoneycombSample.exporter,
+      HoneycombSample.grpc))
 
 lazy val `surge` = project
   .in(file("."))

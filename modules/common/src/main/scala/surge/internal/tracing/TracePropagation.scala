@@ -32,6 +32,12 @@ object TracePropagation {
     }
   }
 
+  private def toMutableMap[K,V](map: scala.collection.immutable.Map[K, V]): scala.collection.mutable.Map[K, V] = {
+    val result = mutable.Map.empty[K, V]
+    map.foreach { case item  => result += item._1 -> item._2 }
+    result
+  }
+
   /*
    * The purpose of this is to convert a Span into a Map[String, String]
    */
@@ -46,7 +52,7 @@ object TracePropagation {
    * If the traced message doesn't have a span context, we create a whole new span.
    */
   def childFrom(message: TracedMessage[_], operationName: String)(implicit tracer: Tracer): Span = {
-    val context: Context = openTelemetry.getPropagators.getTextMapPropagator.extract(Context.root(), message.headers.to(collection.mutable.Map), getter)
+    val context: Context = openTelemetry.getPropagators.getTextMapPropagator.extract(Context.root(), toMutableMap(message.headers), getter)
     tracer.spanBuilder(operationName).setParent(context).startSpan()
   }
 

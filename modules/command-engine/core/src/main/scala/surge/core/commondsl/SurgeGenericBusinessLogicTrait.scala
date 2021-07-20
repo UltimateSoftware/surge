@@ -32,7 +32,7 @@ trait SurgeGenericBusinessLogicTrait[AggId, Agg, Command, Rej, Event] {
 
   def metrics: Metrics = Metrics.globalMetricRegistry
 
-  def openTelemetry: OpenTelemetry = OpenTelemetry.noop()
+  val openTelemetry: OpenTelemetry = OpenTelemetry.noop()
 
   def tracer: Tracer = openTelemetry.getTracer(Instrumentation.Name, Instrumentation.Version)
 

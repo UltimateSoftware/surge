@@ -1,28 +1,24 @@
-# Open Tracing Integration
+# Open Telemetry Integration
 
-Surge integrates with Open Tracing compatible platforms such as Jaeger, Zipkin etc. 
+Surge integrates with Open Telemetry compatible platforms such as Jaeger, Zipkin, Honeycomb etc. 
+
 
 ## Example Configuration
 
-You can provide an OpenTracing `tracer` instance by overriding `tracer` in your Surge model. 
+You can provide an OpenTelemetry instance by overriding `openTelemetry` in your Surge model. 
 
-
-### Using Jaeger 
-
-#### Module Info
+### Using Honeycomb
 
 @@dependency[sbt,Maven,Gradle] {
-group="io.jaegertracing"
-artifact="jaeger-client"
-version="1.6.0"
+group="io.opentelemetry" artifact="opentelemetry-sdk" version="1.4.1"
+group2="io.opentelemetry" artifact2="opentelemetry-exporter-otlp" version2="1.4.1"
+group3="io.grpc" artifact3="grpc-netty-shaded" version3="1.39.0"
 }
 
 Scala
-:    @@snip [SurgeModel.scala](/modules/surge-docs/src/test/scala/docs/command/BankAccountSurgeModelWithTracer.scala) { #surge_model_class }
+:    @@snip [SurgeModel.scala](/modules/surge-docs/src/test/scala/docs/command/BankAccountSurgeModelWithHoneycomb.scala) { #surge_model_class }
 
 Java
-:    Java examples coming soon...
+:    Java examples coming soon..
 
-#### Screenshot
 
-![Jaeger Screenshot](images/tracing.png)

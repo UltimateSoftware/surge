@@ -11,10 +11,35 @@ import java.util.UUID
 
 // #surge_model_class
 // format: off
-object BankAccountSurgeModelWithTracer
+object BankAccountSurgeModelWithHoneycomb
   extends SurgeCommandBusinessLogic[UUID, BankAccount, BankAccountCommand, BankAccountEvent] {
 
-  override def tracer: Tracer = ???
+  import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator
+  import io.opentelemetry.context.propagation.ContextPropagators
+  import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporter
+  import io.opentelemetry.sdk.OpenTelemetrySdk
+  import io.opentelemetry.sdk.trace.SdkTracerProvider
+  import io.opentelemetry.sdk.trace.`export`.BatchSpanProcessor
+
+  override val openTelemetry = {
+
+    val sdkTracerProvider = SdkTracerProvider.builder()
+
+      .addSpanProcessor(BatchSpanProcessor.builder(OtlpGrpcSpanExporter.builder()
+        .setEndpoint("https://api.honeycomb.io")
+        .addHeader("x-honeycomb-dataset", "data-set-name")
+        .addHeader("x-honeycomb-team", "YOUR_API_KEY").build()).build())
+      .build()
+
+    val openTelemetry: OpenTelemetrySdk = OpenTelemetrySdk.builder()
+      .setTracerProvider(sdkTracerProvider)
+      .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
+      .buildAndRegisterGlobal()
+
+    openTelemetry
+  }
+
+
 
   override def commandModel: AggregateCommandModel[BankAccount, BankAccountCommand, BankAccountEvent]
    = BankAccountCommandModel

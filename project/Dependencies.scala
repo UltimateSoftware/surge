@@ -34,8 +34,15 @@ object Dependencies extends AutoPlugin {
     }
 
     object OpenTelemetry {
-      val version = "0.33.0"
-      val api = "io.opentelemetry" % "opentelemetry-api" % "1.4.1"
+
+      val version = "1.4.1"
+      val api = "io.opentelemetry" % "opentelemetry-api" % version
+
+      object HoneycombSample {
+        val exporter = "io.opentelemetry" % "opentelemetry-exporter-otlp" % OpenTelemetry.version
+        val sdk = "io.opentelemetry" % "opentelemetry-sdk" % OpenTelemetry.version
+        val grpc = "io.grpc" % "grpc-netty-shaded" % "1.39.0"
+      }
     }
 
     object PlayFramework {
