@@ -37,11 +37,18 @@ object Dependencies extends AutoPlugin {
 
       val version = "1.4.1"
       val api = "io.opentelemetry" % "opentelemetry-api" % version
+      val sdk = "io.opentelemetry" % "opentelemetry-sdk" % OpenTelemetry.version
+      val grpcChannel = "io.grpc" % "grpc-netty-shaded" % "1.39.0"
 
       object HoneycombSample {
+        val sdk = OpenTelemetry.sdk
         val exporter = "io.opentelemetry" % "opentelemetry-exporter-otlp" % OpenTelemetry.version
-        val sdk = "io.opentelemetry" % "opentelemetry-sdk" % OpenTelemetry.version
-        val grpc = "io.grpc" % "grpc-netty-shaded" % "1.39.0"
+        val grpc = OpenTelemetry.grpcChannel
+      }
+      object JaegerSample {
+        val sdk = OpenTelemetry.sdk
+        val exporter = "io.opentelemetry" % "opentelemetry-exporter-jaeger" % OpenTelemetry.version
+        val grpc = OpenTelemetry.grpcChannel
       }
     }
 

@@ -1,6 +1,6 @@
 // Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
 
-import Dependencies.autoImport.OpenTelemetry.HoneycombSample
+import Dependencies.autoImport.OpenTelemetry.{HoneycombSample, JaegerSample}
 import sbt.Keys._
 
 scalaVersion in ThisBuild := "2.13.5"
@@ -104,7 +104,11 @@ lazy val `surge-docs` = (project in file("modules/surge-docs"))
       mockitoCore,
       HoneycombSample.sdk,
       HoneycombSample.exporter,
-      HoneycombSample.grpc))
+      HoneycombSample.grpc,
+      JaegerSample.sdk,
+      JaegerSample.exporter,
+      JaegerSample.grpc
+    ))
 
 lazy val `surge` = project
   .in(file("."))
