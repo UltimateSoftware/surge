@@ -3,34 +3,51 @@
 package surge.internal.akka.actor
 
 import akka.actor.{ Actor, ActorRef, Props, Terminated }
+import surge.internal.akka.actor.ActorLifecycleManagerActor.Ack
 
 object ActorLifecycleManagerActor {
   case object Start
   case object Stop
-
+  case class Ack(success: Boolean)
   def apply(managedActorProps: Props, managedActorName: Option[String]): ActorLifecycleManagerActor = {
     new ActorLifecycleManagerActor(managedActorProps, managedActorName)
   }
 }
 
-class ActorLifecycleManagerActor(managedActorProps: Props, managedActorName: Option[String] = None) extends Actor {
+class ActorLifecycleManagerActor(
+    managedActorProps: Props,
+    managedActorName: Option[String] = None,
+    initMessage: Option[() => Any] = None,
+    finalizeMessage: Option[() => Any] = None)
+    extends Actor {
   override def receive: Receive = stopped
 
   private def stopped: Receive = {
     case ActorLifecycleManagerActor.Start =>
       val actor = managedActorName match {
-        case Some(name) => context.actorOf(managedActorProps, name)
-        case _          => context.actorOf(managedActorProps)
+        case Some(name) =>
+          val actorRef = context.actorOf(managedActorProps, name)
+          actorRef
+        case _ => context.actorOf(managedActorProps)
       }
+
+      initMessage.foreach(init => actor ! init())
+
       context.watch(actor)
       context.become(running(actor))
+      sender() ! Ack(true)
     case msg => context.system.deadLetters ! msg
   }
 
   private def running(managedActor: ActorRef): Receive = {
     case ActorLifecycleManagerActor.Stop =>
-      context.stop(managedActor)
+      finalizeMessage match {
+        case Some(fin) => managedActor ! fin()
+        case None =>
+          context.stop(managedActor)
+      }
       context.become(stopped)
+      sender() ! Ack(true)
     case Terminated(actorRef) if actorRef == managedActor => context.become(stopped)
     case msg                                              => managedActor.forward(msg)
   }

@@ -3,7 +3,7 @@ package surge.internal.domain
 
 import java.util.regex.Pattern
 
-import akka.actor.{ ActorSystem, PoisonPill }
+import akka.actor.ActorSystem
 import akka.testkit.{ TestKit, TestProbe }
 import com.typesafe.config.{ Config, ConfigFactory }
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
@@ -12,22 +12,22 @@ import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
-import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach }
+import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach, PrivateMethodTester }
 import play.api.libs.json.{ JsValue, Json }
-import surge.core.TestBoundedContext
+import surge.core.{ Ack, TestBoundedContext }
 import surge.health.config.{ ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig }
 import surge.health.domain.{ Error, HealthSignal }
 import surge.health.matchers.{ SideEffectBuilder, SignalPatternMatcherDefinition }
-import surge.health.{ HealthListener, HealthMessage, RestartComponentAttempted, SignalType }
+import surge.health.{ ComponentRestarted, HealthListener, HealthMessage, SignalType }
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.core.SurgePartitionRouterImpl
 import surge.internal.health.StreamMonitoringRef
+import surge.internal.health.supervisor.ShutdownComponent
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
 import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, MockPartitionTracker, MockState }
 import surge.metrics.Metrics
 
 import scala.concurrent.duration._
-import scala.languageFeature.postfixOps
 
 class SurgeMessagePipelineSpec
     extends TestKit(ActorSystem("SurgeMessagePipelineSpec", ConfigFactory.load("artery-test-config")))
@@ -35,6 +35,7 @@ class SurgeMessagePipelineSpec
     with ScalaFutures
     with EmbeddedKafka
     with Eventually
+    with PrivateMethodTester
     with TestBoundedContext
     with BeforeAndAfterAll
     with BeforeAndAfterEach
@@ -51,8 +52,6 @@ class SurgeMessagePipelineSpec
   private var pipeline: SurgeMessagePipeline[State, BaseTestCommand, Nothing, BaseTestEvent] = _
 
   override def beforeEach(): Unit = {
-    createCustomTopic(businessLogic.kafka.eventsTopic.name, Map.empty)
-    createCustomTopic(businessLogic.kafka.stateTopic.name, Map.empty)
 
     val config = ConfigFactory.load()
     probe = TestProbe()
@@ -92,11 +91,39 @@ class SurgeMessagePipelineSpec
   }
 
   "SurgeMessagePipeline" should {
+    "stop successfully" in {
+      withRunningKafkaOnFoundPort(config) { _ =>
+        createCustomTopic(businessLogic.kafka.eventsTopic.name, Map.empty)
+        createCustomTopic(businessLogic.kafka.stateTopic.name, Map.empty)
+
+        val stopped = pipeline.stop()
+
+        val result = stopped.futureValue
+
+        result shouldEqual Ack()
+      }
+    }
+
+    "restart successfully" in {
+      withRunningKafkaOnFoundPort(config) { _ =>
+        createCustomTopic(businessLogic.kafka.eventsTopic.name, Map.empty)
+        createCustomTopic(businessLogic.kafka.stateTopic.name, Map.empty)
+
+        val restarted = pipeline.restart()
+
+        val result = restarted.futureValue
+        result shouldEqual Ack()
+      }
+    }
+
     "subscribe to health.signals via stream on start" in {
       withRunningKafkaOnFoundPort(config) { _ =>
+        createCustomTopic(businessLogic.kafka.eventsTopic.name, Map.empty)
+        createCustomTopic(businessLogic.kafka.stateTopic.name, Map.empty)
+
         // Stream should be a subscriber
         signalStreamProvider
-          .busWithSupervision()
+          .bus()
           .subscriberInfo()
           .exists(s => s.name == "surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamImpl") shouldEqual true
       }
@@ -104,11 +131,14 @@ class SurgeMessagePipelineSpec
 
     "have self registered with HealthSignalBus" in {
       withRunningKafkaOnFoundPort(config) { _ =>
+        createCustomTopic(businessLogic.kafka.eventsTopic.name, Map.empty)
+        createCustomTopic(businessLogic.kafka.stateTopic.name, Map.empty)
+
         val bus = pipeline.signalBus
         // Retrieve Registrations and verify SurgeMessagePipeline is registered
         eventually {
           whenReady(bus.registrations()) { registrations =>
-            val registration = registrations.find(r => r.name == "surge-message-pipeline")
+            val registration = registrations.find(r => r.componentName == "surge-message-pipeline")
 
             registration.nonEmpty shouldEqual true
           }
@@ -118,6 +148,9 @@ class SurgeMessagePipelineSpec
 
     "have state-store-kafka-streams registered with HealthSignalBus" in {
       withRunningKafkaOnFoundPort(config) { _ =>
+        createCustomTopic(businessLogic.kafka.eventsTopic.name, Map.empty)
+        createCustomTopic(businessLogic.kafka.stateTopic.name, Map.empty)
+
         // Get running signal bus so we can check registrations
         val bus = pipeline.signalBus
 
@@ -125,7 +158,7 @@ class SurgeMessagePipelineSpec
         //  Verify the restartSignalPatterns are as expected
         eventually {
           whenReady(bus.registrations()) { registrations =>
-            val registration = registrations.find(r => r.name == "state-store-kafka-streams")
+            val registration = registrations.find(r => r.componentName == "state-store-kafka-streams")
             registration.nonEmpty shouldEqual true
             registration.get.restartSignalPatterns.map(p => p.pattern()).contains("kafka.streams.fatal.error") shouldEqual true
           }
@@ -135,6 +168,9 @@ class SurgeMessagePipelineSpec
 
     "shutdown when kafka streams fails to start too many times" in {
       withRunningKafkaOnFoundPort(config) { _ =>
+        createCustomTopic(businessLogic.kafka.eventsTopic.name, Map.empty)
+        createCustomTopic(businessLogic.kafka.stateTopic.name, Map.empty)
+
         // Get running signal bus so we can check registrations
         val bus = pipeline.signalBus
 
@@ -147,7 +183,7 @@ class SurgeMessagePipelineSpec
             // Wait for the surge-message-pipeline to be unregistered on termination.
             eventually {
               whenReady(bus.registrations()) { registrations =>
-                registrations.exists(r => r.name == "surge-message-pipeline") shouldEqual false
+                registrations.exists(r => r.componentName == "surge-message-pipeline") shouldEqual false
               }
             }
           }
@@ -157,12 +193,15 @@ class SurgeMessagePipelineSpec
 
     "have router-actor registered with HealthSignalBus" in {
       withRunningKafkaOnFoundPort(config) { _ =>
+        createCustomTopic(businessLogic.kafka.eventsTopic.name, Map.empty)
+        createCustomTopic(businessLogic.kafka.stateTopic.name, Map.empty)
+
         // Get running signal bus so we can check registrations
         val bus = pipeline.signalBus
 
         eventually {
           whenReady(bus.registrations()) { registrations =>
-            val registration = registrations.find(r => r.name == "router-actor")
+            val registration = registrations.find(r => r.componentName == "router-actor")
             registration.nonEmpty shouldEqual true
             registration.get.restartSignalPatterns.map(p => p.pattern()).contains("kafka.fatal.error") shouldEqual true
           }
@@ -172,19 +211,22 @@ class SurgeMessagePipelineSpec
 
     "have router-actor unregistered when terminated" in {
       withRunningKafkaOnFoundPort(config) { _ =>
+        createCustomTopic(businessLogic.kafka.eventsTopic.name, Map.empty)
+        createCustomTopic(businessLogic.kafka.stateTopic.name, Map.empty)
+
         // wait for router-actor to be registered
         eventually {
           whenReady(pipeline.signalBus.registrations()) { registrations =>
-            val registration = registrations.find(r => r.name == "router-actor")
+            val registration = registrations.find(r => r.componentName == "router-actor")
 
             registration.nonEmpty shouldEqual true
-            // Poison the router-actor
-            registration.get.ref ! PoisonPill
+            // Shutdown the router-actor
+            registration.get.controlProxyRef ! ShutdownComponent("router-actor", probe.ref)
 
             // Wait for the router-actor to be unregistered on termination.
             eventually {
               whenReady(pipeline.signalBus.registrations()) { registrations =>
-                registrations.exists(r => r.name == "router-actor") shouldEqual false
+                registrations.exists(r => r.componentName == "router-actor") shouldEqual false
               }
             }
           }
@@ -192,38 +234,47 @@ class SurgeMessagePipelineSpec
       }
     }
 
-    "attempt to restart state-store-kafka-streams" in {
+    "restart state-store-kafka-streams" in {
       withRunningKafkaOnFoundPort(config) { _ =>
+        createCustomTopic(businessLogic.kafka.eventsTopic.name, Map.empty)
+        createCustomTopic(businessLogic.kafka.stateTopic.name, Map.empty)
+
         pipeline.signalBus.signalWithError(name = "kafka.streams.fatal.error", Error("boom", None)).emit()
 
         eventually {
-          val restartAttempt = probe.fishForMessage(max = FiniteDuration(1, "seconds")) { case _: RestartComponentAttempted =>
-            true
+          val restarted = probe.fishForMessage(max = FiniteDuration(2, "seconds")) { case msg: Any =>
+            msg.isInstanceOf[ComponentRestarted]
           }
 
-          Option(restartAttempt).nonEmpty shouldEqual true
-          restartAttempt.asInstanceOf[RestartComponentAttempted].componentName shouldEqual "state-store-kafka-streams"
+          Option(restarted).nonEmpty shouldEqual true
+          restarted.asInstanceOf[ComponentRestarted].componentName shouldEqual "state-store-kafka-streams"
         }
       }
     }
 
-    "attempt to restart router-actor" in {
+    "restart router-actor" in {
       withRunningKafkaOnFoundPort(config) { _ =>
+        createCustomTopic(businessLogic.kafka.eventsTopic.name, Map.empty)
+        createCustomTopic(businessLogic.kafka.stateTopic.name, Map.empty)
+
         pipeline.signalBus.signalWithError(name = "kafka.fatal.error", Error("boom", None)).emit()
 
         eventually {
-          val restartAttempt = probe.fishForMessage(max = FiniteDuration(1, "seconds")) { case _: RestartComponentAttempted =>
-            true
+          val restarted = probe.fishForMessage(max = FiniteDuration(3, "seconds")) { case msg: Any =>
+            msg.isInstanceOf[ComponentRestarted]
           }
 
-          Option(restartAttempt).nonEmpty shouldEqual true
-          restartAttempt.asInstanceOf[RestartComponentAttempted].componentName shouldEqual "router-actor"
+          Option(restarted).nonEmpty shouldEqual true
+          restarted.asInstanceOf[ComponentRestarted].componentName shouldEqual "router-actor"
         }
       }
     }
 
     "inject signal named `it.failed` into signal stream" in {
       withRunningKafkaOnFoundPort(config) { _ =>
+        createCustomTopic(businessLogic.kafka.eventsTopic.name, Map.empty)
+        createCustomTopic(businessLogic.kafka.stateTopic.name, Map.empty)
+
         pipeline.signalBus.signalWithError(name = "baz", Error("baz happened", None)).emit()
 
         var captured: Option[HealthSignal] = None
@@ -267,7 +318,7 @@ class SurgeMessagePipelineSpec
           new KafkaConsumerPartitionAssignmentTracker(stateChangeActor),
           businessLogic,
           cqrsRegionCreator,
-          signalStreamProvider.busWithSupervision())
+          signalStreamProvider.bus())
       override protected val kafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue] = new AggregateStateStoreKafkaStreams[JsValue](
         businessLogic.aggregateName,
         businessLogic.kafka.stateTopic,
@@ -276,7 +327,7 @@ class SurgeMessagePipelineSpec
         applicationHostPort = Some("localhost:1234"),
         applicationId = "test-app",
         clientId = businessLogic.kafka.clientId,
-        signalStreamProvider.busWithSupervision(),
+        signalStreamProvider.bus(),
         system,
         Metrics.globalMetricRegistry)
 

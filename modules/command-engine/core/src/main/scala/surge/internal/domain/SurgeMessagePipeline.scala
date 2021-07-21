@@ -2,36 +2,26 @@
 
 package surge.internal.domain
 
-import akka.actor.{ Actor, ActorRef, ActorSystem, Props }
+import akka.actor.{ ActorRef, ActorSystem }
 import com.typesafe.config.Config
 import org.slf4j.{ Logger, LoggerFactory }
 import play.api.libs.json.JsValue
-import surge.core.{ SurgePartitionRouter, SurgeProcessingTrait }
+import surge.core.{ Ack, SurgePartitionRouter, SurgeProcessingTrait }
 import surge.health.{ HealthSignalBusAware, HealthSignalBusTrait }
 import surge.internal.SurgeModel
-import surge.internal.akka.actor.ActorLifecycleManagerActor
 import surge.internal.akka.cluster.ActorSystemHostAwareness
 import surge.internal.akka.kafka.{ CustomConsumerGroupRebalanceListener, KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor }
 import surge.internal.core.SurgePartitionRouterImpl
 import surge.internal.health.HealthSignalStreamProvider
-import surge.internal.health.supervisor.{ ShutdownComponent, Stop => HealthSupervisedStop }
 import surge.internal.persistence.PersistentActorRegionCreator
 import surge.kafka.PartitionAssignments
 import surge.kafka.streams._
 
 import scala.concurrent.{ ExecutionContext, Future }
-import scala.util.{ Failure, Success }
+import scala.util.{ Failure, Success, Try }
 
 object SurgeMessagePipeline {
   val log: Logger = LoggerFactory.getLogger(getClass)
-  class PipelineControlActor[S, M, +R, E](pipeline: SurgeMessagePipeline[S, M, R, E]) extends Actor {
-    override def receive: Receive = {
-      case ShutdownComponent(_) =>
-        pipeline.shutdown()
-      case HealthSupervisedStop()          => context.self ! ActorLifecycleManagerActor.Stop
-      case ActorLifecycleManagerActor.Stop => context.stop(self)
-    }
-  }
 }
 
 /**
@@ -53,9 +43,10 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
 
   private val partitionTracker: KafkaConsumerPartitionAssignmentTracker = new KafkaConsumerPartitionAssignmentTracker(stateChangeActor)
 
-  // Get a supervised HealthSignalBus from the HealthSignalStream Provider.
-  //  Intentionally do not start on init i.e. busWithSupervision(startStreamOnInit = false).  Delegate start to pipeline lifecycle.
-  override val signalBus: HealthSignalBusTrait = signalStreamProvider.busWithSupervision()
+  // Get a HealthSignalBus from the HealthSignalStream Provider.
+  //  Intentionally do not start on init i.e. surge.health.bus.stream.start-on-init = false.
+  //  Delegate start to pipeline lifecycle.
+  override val signalBus: HealthSignalBusTrait = signalStreamProvider.bus()
 
   protected val kafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue] = new AggregateStateStoreKafkaStreams[JsValue](
     aggregateName = businessLogic.aggregateName,
@@ -68,8 +59,6 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     system = system,
     metrics = businessLogic.metrics,
     signalBus = signalBus)
-
-  private var pipelineControlActor: ActorRef = _
 
   protected val cqrsRegionCreator: PersistentActorRegionCreator[M] =
     new PersistentActorRegionCreator[M](actorSystem, businessLogic, kafkaStreamsImpl, partitionTracker, businessLogic.metrics, signalBus, config = config)
@@ -88,54 +77,82 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     system.actorOf(CustomConsumerGroupRebalanceListener.props(stateChangeActor, callback))
   }
 
-  override def start(): Unit = {
+  // todo: chain the component starts together; if one fails they all fail and we rollback and
+  //  stop any that have started. if all pass, we register..
+  override def start(): Future[Ack] = {
+    implicit val ec: ExecutionContext = system.dispatcher
+    val result = for {
+      _ <- startSignalStream()
+      _ <- actorRouter.start()
+      allStarted <- kafkaStreamsImpl.start()
+    } yield {
+      allStarted
+    }
+
+    result.onComplete(registrationCallback())
+    result
+  }
+
+  override def restart(): Future[Ack] = {
+    implicit val ec: ExecutionContext = system.dispatcher
+
+    val result = for {
+      _ <- stop()
+      started <- start()
+    } yield {
+      started
+    }
+
+    result
+  }
+
+  override def stop(): Future[Ack] = {
+    implicit val ec: ExecutionContext = system.dispatcher
+
+    val result = for {
+      _ <- stopSignalStream()
+      _ <- actorRouter.stop()
+      allStopped <- kafkaStreamsImpl.stop()
+    } yield {
+      allStopped
+    }
+
+    result
+  }
+
+  override def shutdown(): Future[Ack] = stop()
+
+  private def startSignalStream(): Future[Ack] = {
     val signalStream = signalBus.signalStream()
     log.debug("Starting Health Signal Stream")
     signalStream.start()
-    log.debug("Starting Actor Router")
-    actorRouter.start()
 
-    pipelineControlActor = system.actorOf(Props(new PipelineControlActor(pipeline = this)))
-    log.debug("Starting Kafka Streams")
-    kafkaStreamsImpl.start()
-
-    // Register an actorRef on behalf of the Pipeline for control.
-    log.debug("Registering Health Signal Bus with Health Supervisor")
-    val registrationResult = signalBus.register(
-      ref = pipelineControlActor,
-      componentName = "surge-message-pipeline",
-      restartSignalPatterns = restartSignalPatterns(),
-      shutdownSignalPatterns = shutdownSignalPatterns())
-
-    registrationResult.onComplete {
-      case Failure(exception) =>
-        log.error("AggregateStateStore registeration failed", exception)
-      case Success(done) =>
-        log.debug(s"AggregateStateStore registeration succeeded - ${done.success}")
-    }(system.dispatcher)
+    Future.successful[Ack](Ack())
   }
 
-  override def restart(): Unit = {
-    signalBus.signalStream().unsubscribe().stop()
-    kafkaStreamsImpl.restart()
-    signalBus.signalStream().subscribe().start()
-  }
-
-  override def stop(): Unit = {
-    // Stop router
-    log.debug("Stopping Actor Router")
-    actorRouter.stop()
-    // Stop Kafka Streams
-    log.debug("Stopping Kafka Streams")
-    kafkaStreamsImpl.stop()
-
-    // Stop Pipeline Control
-    Option(pipelineControlActor).foreach(a => a ! HealthSupervisedStop())
-
-    // Stop Signal Stream
+  private def stopSignalStream(): Future[Ack] = {
     log.debug("Stopping Health Signal Stream")
     signalBus.signalStream().unsubscribe().stop()
+    Future.successful[Ack](Ack())
   }
 
-  override def shutdown(): Unit = stop()
+  private def stopKafkaStreams(): Future[Ack] = kafkaStreamsImpl.stop()
+
+  private def registrationCallback(): Try[Any] => Unit = {
+    case Success(_) =>
+      val registrationResult = signalBus.register(
+        control = this,
+        componentName = "surge-message-pipeline",
+        restartSignalPatterns = restartSignalPatterns(),
+        shutdownSignalPatterns = shutdownSignalPatterns())
+
+      registrationResult.onComplete {
+        case Failure(exception) =>
+          log.error("AggregateStateStore registeration failed", exception)
+        case Success(_) =>
+          log.debug(s"AggregateStateStore registeration succeeded")
+      }(system.dispatcher)
+    case Failure(exception) =>
+      log.error("Failed to register start so unable to register for supervision", exception)
+  }
 }
