@@ -30,7 +30,8 @@ object HealthSignalWindowActor {
       actorSystem: ActorSystem,
       initialWindowProcessingDelay: FiniteDuration,
       windowFrequency: FiniteDuration,
-      advancer: Advancer[Window]): HealthSignalWindowActorRef = {
+      advancer: Advancer[Window],
+      windowCheckInterval: FiniteDuration = 1.second): HealthSignalWindowActorRef = {
 
     // note: we lose the window data on restarts
     val props = BackoffSupervisor.props(
@@ -44,17 +45,23 @@ object HealthSignalWindowActor {
         .withMaxNrOfRetries(BackoffConfig.HealthSignalWindowActor.maxRetries))
 
     val windowActor = actorSystem.actorOf(props)
-    new HealthSignalWindowActorRef(windowActor, initialWindowProcessingDelay, windowFrequency, actorSystem)
+    new HealthSignalWindowActorRef(windowActor, initialWindowProcessingDelay, windowFrequency, actorSystem, windowCheckInterval)
   }
 }
 
-class HealthSignalWindowActorRef(val actor: ActorRef, initialWindowProcessingDelay: FiniteDuration, windowFreq: FiniteDuration, actorSystem: ActorSystem) {
+class HealthSignalWindowActorRef(
+    val actor: ActorRef,
+    initialWindowProcessingDelay: FiniteDuration,
+    windowFreq: FiniteDuration,
+    actorSystem: ActorSystem,
+    windowCheckInterval: FiniteDuration = 1.second) {
   import HealthSignalWindowActor._
 
   private var listener: WindowStreamListeningActorRef = _
 
   private val scheduledTask: Cancellable =
-    actorSystem.scheduler.scheduleAtFixedRate(initialDelay = initialWindowProcessingDelay, interval = 1.second)(() => actor ! Tick())(ExecutionContext.global)
+    actorSystem.scheduler.scheduleAtFixedRate(initialDelay = initialWindowProcessingDelay, interval = windowCheckInterval)(() => actor ! Tick())(
+      ExecutionContext.global)
 
   def start(replyTo: Option[ActorRef]): HealthSignalWindowActorRef = {
     val window: Window = Window.windowFor(Instant.now(), windowFreq)
@@ -158,18 +165,14 @@ class HealthSignalWindowActor(frequency: FiniteDuration, windowAdvanceStrategy: 
       context.become(handleAddToWindow(window, signal, state))
     case CloseWindow(window, advance) =>
       context.become(handleCloseWindow(window, advance, state))
-    case Stop() => context.become(handleStop(state))
+    case Stop() => handleStop(state)
     case Tick() => handleTick(state)
 
     case CloseCurrentWindow =>
       state.window.foreach(w => context.self ! CloseWindow(w, advance = true))
   }
 
-  def terminating(state: WindowState): Receive = { case _ =>
-    unhandled(_)
-  }
-
-  private def handleStop(state: WindowState): Receive = {
+  private def handleStop(state: WindowState): Unit = {
     state.replyTo.foreach(a => {
       log.trace("Notifying {} that windowing stopped", a)
       a ! WindowStopped(state.window)
@@ -182,7 +185,6 @@ class HealthSignalWindowActor(frequency: FiniteDuration, windowAdvanceStrategy: 
       })
     }
     context.stop(self)
-    terminating(state)
   }
 
   private def handleSignal(signal: HealthSignal, state: WindowState): Receive = {
