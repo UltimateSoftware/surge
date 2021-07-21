@@ -126,10 +126,10 @@ class KafkaPartitionShardRouterActorSpec
 
       val newPartitionAssignments = Map[HostPort, List[TopicPartition]](hostPort1 -> List(partition0, partition1, partition2), hostPort2 -> List())
 
-      partitionProbe.send(routerActor, TracedMessage(PartitionAssignments(newPartitionAssignments), Map[String, String]()))
+      partitionProbe.send(routerActor, TracedMessage(PartitionAssignments(newPartitionAssignments)))
 
       val command = Command("partition2")
-      probe.send(routerActor, TracedMessage(command, Map[String, String]()))
+      probe.send(routerActor, TracedMessage(command))
       regionProbe.expectMsg(WrappedCmd(partition2, command))
       regionProbe.reply(command)
       probe.expectMsg(command)
@@ -164,7 +164,7 @@ class KafkaPartitionShardRouterActorSpec
       initializePartitionAssignments(partitionProbe, Map.empty)
 
       val command0 = Command("partition0")
-      probe.send(routerActor, TracedMessage(command0, Map[String, String]()))
+      probe.send(routerActor, TracedMessage(command0))
 
       partitionProbe.send(routerActor, PartitionAssignments(partitionAssignments))
 
@@ -201,7 +201,7 @@ class KafkaPartitionShardRouterActorSpec
 
       initializePartitionAssignments(partitionProbe)
 
-      routerActor ! TracedMessage(ThrowExceptionInExtractEntityId, Map[String, String]())
+      routerActor ! TracedMessage(ThrowExceptionInExtractEntityId)
 
       val dead = deadLetterProbe.expectMsgType[DeadLetter]
       dead.message shouldEqual ThrowExceptionInExtractEntityId

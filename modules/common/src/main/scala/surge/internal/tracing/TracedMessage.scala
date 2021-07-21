@@ -15,5 +15,5 @@ object TracedMessage {
 
 final case class TracedMessage[T](
     @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "messageType", visible = true) message: T,
-    headers: Map[String, String])
+    headers: Map[String, String] = Map.empty)
     extends JacksonSerializable
