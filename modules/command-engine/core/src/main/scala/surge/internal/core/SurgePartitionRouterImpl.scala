@@ -63,7 +63,7 @@ private[surge] final class SurgePartitionRouterImpl(
     implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PartitionRouter.askTimeout)
 
     actorRegion.ask(ActorLifecycleManagerActor.Stop).map {
-      case ack: ActorLifecycleManagerActor.Ack =>
+      case _: ActorLifecycleManagerActor.Ack =>
         Ack()
       case _ =>
         throw new RuntimeException("Unexpected response from actor stop request")
@@ -76,14 +76,10 @@ private[surge] final class SurgePartitionRouterImpl(
 
   override def restart(): Future[Ack] = {
     for {
-      stopped <- stop()
-      started <- start(stopped)
+      _ <- stop()
+      started <- start()
     } yield {
-      if (Option(stopped).isDefined && Option(started).isDefined) {
-        Ack()
-      } else {
-        throw new RuntimeException(s"Failed to restart $getClass")
-      }
+      started
     }
   }
 
@@ -97,14 +93,6 @@ private[surge] final class SurgePartitionRouterImpl(
       }
   }
 
-  private def start(stopped: Ack): Future[Ack] = {
-    if (Option(stopped).isDefined) {
-      start()
-    } else {
-      Future.failed(new RuntimeException("Failed to stop Surge Partition Router"))
-    }
-  }
-
   private def registrationCallback(): PartialFunction[Try[Ack], Unit] = {
     case Success(_) =>
       val registrationResult = signalBus.register(control = this, componentName = "router-actor", restartSignalPatterns())
@@ -112,7 +100,7 @@ private[surge] final class SurgePartitionRouterImpl(
       registrationResult.onComplete {
         case Failure(exception) =>
           log.error(s"$getClass registration failed", exception)
-        case Success(done) =>
+        case Success(_) =>
           log.debug(s"$getClass registration succeeded")
       }
     case Failure(error) =>

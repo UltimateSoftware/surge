@@ -82,41 +82,25 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
   override def start(): Future[Ack] = {
     implicit val ec: ExecutionContext = system.dispatcher
     val result = for {
-      signalStreamStarted <- startSignalStream()
-      actorRouterStarted <- startActorRouter(signalStreamStarted)
-      kafkaStreamsStarted <- startKafkaStreams(actorRouterStarted)
+      _ <- startSignalStream()
+      _ <- actorRouter.start()
+      allStarted <- kafkaStreamsImpl.start()
     } yield {
-      if (Option(signalStreamStarted).isDefined && Option(actorRouterStarted).isDefined && Option(kafkaStreamsStarted).isDefined) {
-        Ack()
-      } else {
-        throw new RuntimeException(s"Failed to start $getClass")
-      }
+      allStarted
     }
 
-    result.onComplete(registrationCallback())
+    result.andThen(registrationCallback())
     result
-  }
-
-  private def start(stopped: Ack): Future[Ack] = {
-    if (Option(stopped).isDefined) {
-      start()
-    } else {
-      throw new RuntimeException("Unable to start SurgeMessagePipeline")
-    }
   }
 
   override def restart(): Future[Ack] = {
     implicit val ec: ExecutionContext = system.dispatcher
 
     val result = for {
-      stopped <- stop()
-      started <- start(stopped)
+      _ <- stop()
+      started <- start()
     } yield {
-      if (Option(stopped).isDefined && Option(started).isDefined) {
-        Ack()
-      } else {
-        throw new RuntimeException(s"Failed to restart $getClass")
-      }
+      started
     }
 
     result
@@ -126,18 +110,11 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     implicit val ec: ExecutionContext = system.dispatcher
 
     val result = for {
-      signalStreamStopped <- stopSignalStream()
-      actorRouterStopped <- stopActorRouter()
-      kafkaStreamsStopped <- stopKafkaStreams()
+      _ <- stopSignalStream()
+      _ <- stopActorRouter()
+      allStopped <- stopKafkaStreams()
     } yield {
-      val success = (Option(signalStreamStopped).isDefined
-        && Option(actorRouterStopped).isDefined
-        && Option(kafkaStreamsStopped).isDefined)
-      if (success) {
-        Ack()
-      } else {
-        throw new RuntimeException(s"Failed to stop $getClass")
-      }
+      allStopped
     }
 
     result
@@ -153,22 +130,6 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     Future.successful[Ack](Ack())
   }
 
-  private def startActorRouter(signalStreamStarted: Ack): Future[Ack] = {
-    if (Option(signalStreamStarted).isDefined) {
-      actorRouter.start()
-    } else {
-      Future.failed[Ack](new RuntimeException("Failed to start actor router"))
-    }
-  }
-
-  private def startKafkaStreams(actorRouterStarted: Ack): Future[Ack] = {
-    if (Option(actorRouterStarted).isDefined) {
-      kafkaStreamsImpl.start()
-    } else {
-      Future.failed[Ack](new RuntimeException("Failed to start actor router"))
-    }
-  }
-
   private def stopActorRouter(): Future[Ack] = actorRouter.stop()
 
   private def stopSignalStream(): Future[Ack] = {
@@ -179,7 +140,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
 
   private def stopKafkaStreams(): Future[Ack] = kafkaStreamsImpl.stop()
 
-  private def registrationCallback(): Try[Any] => Unit = {
+  private def registrationCallback(): PartialFunction[Try[Ack], Unit] = {
     case Success(_) =>
       val registrationResult = signalBus.register(
         control = this,

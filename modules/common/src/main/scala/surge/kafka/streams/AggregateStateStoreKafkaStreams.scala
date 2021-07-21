@@ -92,7 +92,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
     underlyingActor
       .ask(ActorLifecycleManagerActor.Start)
       .map {
-        case ack: ActorLifecycleManagerActor.Ack =>
+        case _: ActorLifecycleManagerActor.Ack =>
           Ack()
         case _ =>
           throw new RuntimeException("Unexpected response from actor start request")
@@ -107,7 +107,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
   override def stop(): Future[Ack] = {
     implicit val ec: ExecutionContext = system.dispatcher
     underlyingActor.ask(ActorLifecycleManagerActor.Stop).map {
-      case ack: ActorLifecycleManagerActor.Ack =>
+      case _: ActorLifecycleManagerActor.Ack =>
         Ack()
       case _ =>
         throw new RuntimeException("Unexpected response from actor stop request")
@@ -117,14 +117,10 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
   override def restart(): Future[Ack] = {
     implicit val executionContext: ExecutionContext = system.dispatcher
     for {
-      stopped <- stop()
-      started <- start(stopped)
+      _ <- stop()
+      started <- start()
     } yield {
-      if (Option(stopped).isDefined && Option(started).isDefined) {
-        Ack()
-      } else {
-        throw new RuntimeException(s"Failed to restart $getClass")
-      }
+      started
     }
   }
 
@@ -186,18 +182,10 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
       registrationResult.onComplete {
         case Failure(exception) =>
           log.error(s"$getClass registration failed", exception)
-        case Success(done) =>
+        case Success(_) =>
           log.debug(s"$getClass registration succeeded")
       }(system.dispatcher)
     case Failure(error) =>
       log.error(s"Unable to register $getClass for supervision", error)
-  }
-
-  private def start(stopped: Ack): Future[Ack] = {
-    if (Option(stopped).isDefined) {
-      start()
-    } else {
-      Future.failed[Ack](new RuntimeException(s"Failed to stop $getClass"))
-    }
   }
 }

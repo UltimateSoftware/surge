@@ -131,14 +131,10 @@ class KafkaProducerActor(
 
   override def restart(): Future[Ack] = {
     for {
-      stopped <- stop()
-      started <- start(stopped)
+      _ <- stop()
+      started <- start()
     } yield {
-      if (Option(stopped).isDefined && Option(started).isDefined) {
-        Ack()
-      } else {
-        throw new RuntimeException(s"Failed to restart $getClass")
-      }
+      started
     }
   }
 
@@ -172,14 +168,6 @@ class KafkaProducerActor(
   }
 
   override def shutdown(): Future[Ack] = stop()
-
-  private def start(stopped: Ack): Future[Ack] = {
-    if (Option(stopped).isDefined) {
-      start()
-    } else {
-      Future.failed(new RuntimeException(s"Failed to stop $getClass"))
-    }
-  }
 
   private def registrationCallback(): PartialFunction[Try[Ack], Unit] = {
     case Success(_) =>
