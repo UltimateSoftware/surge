@@ -36,7 +36,7 @@ class HealthSignalWindowActorSpec
   }
 
   "HealthSignalWindowActor" should {
-    "tick" ignore {
+    "tick" in {
       var tickCount: Int = 0
       // override handleTick to track times tick was received
       val actorRef = TestActorRef(new HealthSignalWindowActor(frequency = 5.seconds, WindowSlider(1, 0)) {
@@ -65,7 +65,7 @@ class HealthSignalWindowActorSpec
       }
     }
 
-    "when sliding configured; advance on Window Expired" ignore {
+    "when sliding configured; advance on Window Expired" in {
       val actorRef: HealthSignalWindowActorRef =
         HealthSignalWindowActor(actorSystem = system, windowFrequency = 5.seconds, initialWindowProcessingDelay = 1.second, advancer = WindowSlider(1, 0))
       val probe = TestProbe()
@@ -105,7 +105,7 @@ class HealthSignalWindowActorSpec
       }
     }
 
-    "when sliding configured with no buffer; advance on AddedToWindow" ignore {
+    "when sliding configured with no buffer; advance on AddedToWindow" in {
       val actorRef =
         HealthSignalWindowActor(actorSystem = system, initialWindowProcessingDelay = 1.second, windowFrequency = 5.seconds, advancer = WindowSlider(1, 0))
       val probe = TestProbe()
@@ -132,7 +132,7 @@ class HealthSignalWindowActorSpec
       }
     }
 
-    "when sliding configured with buffer; advance on CloseWindow" ignore {
+    "when sliding configured with buffer; advance on CloseWindow" in {
       val actorRef =
         HealthSignalWindowActor(actorSystem = system, initialWindowProcessingDelay = 1.second, windowFrequency = 5.seconds, advancer = WindowSlider(1))
 

@@ -38,7 +38,7 @@ class HealthSupervisorActorSpec
   }
 
   "HealthSupervisorActorSpec" should {
-    "sliding stream; attempt to restart registered actor" ignore {
+    "sliding stream; attempt to restart registered actor" in {
       val probe = TestProbe()
 
       val bus: HealthSignalBusInternal = new SlidingHealthSignalStreamProvider(
@@ -76,7 +76,7 @@ class HealthSupervisorActorSpec
       }
     }
 
-    "receive registration" ignore {
+    "receive registration" in {
       val probe = TestProbe()
 
       val bus = new SlidingHealthSignalStreamProvider(
@@ -107,7 +107,7 @@ class HealthSupervisorActorSpec
       ref.stop()
     }
 
-    "receive signal" ignore {
+    "receive signal" in {
       val probe: TestProbe = TestProbe()
       val bus = new SlidingHealthSignalStreamProvider(
         WindowingStreamConfig(
@@ -137,7 +137,7 @@ class HealthSupervisorActorSpec
 
   "HealthSignalStreamMonitoringRefWithSupervisionSupport" should {
     import org.mockito.Mockito._
-    "proxy to actorRef" ignore {
+    "proxy to actorRef" in {
       val probe = TestProbe()
       val monitor = new HealthSignalStreamMonitoringRefWithSupervisionSupport(actor = probe.ref)
 
