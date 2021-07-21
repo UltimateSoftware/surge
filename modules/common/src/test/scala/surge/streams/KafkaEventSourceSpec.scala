@@ -12,6 +12,7 @@ import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.serialization.{ Deserializer, Serializer }
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.Eventually
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Millis, Seconds, Span }
@@ -27,7 +28,18 @@ import surge.kafka.streams.DefaultSerdes
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
-class KafkaEventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWordSpecLike with Matchers with EmbeddedKafka with Eventually {
+class KafkaEventSourceSpec
+    extends TestKit(ActorSystem("EventSourceSpec"))
+    with AnyWordSpecLike
+    with Matchers
+    with EmbeddedKafka
+    with Eventually
+    with BeforeAndAfterAll {
+
+  override def afterAll(): Unit = {
+    TestKit.shutdownActorSystem(system, duration = 15.seconds, verifySystemShutdown = true)
+  }
+
   private val log = LoggerFactory.getLogger(getClass)
 
   implicit override val patienceConfig: PatienceConfig =

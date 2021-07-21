@@ -8,6 +8,7 @@ import org.apache.kafka.common.TopicPartition
 import org.mockito.ArgumentMatchers.anyString
 import org.mockito.Mockito.when
 import org.mockito.invocation.InvocationOnMock
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
@@ -18,6 +19,7 @@ import surge.kafka.streams.{ HealthCheck, HealthCheckStatus }
 import surge.internal.tracing.{ NoopTracerFactory, TracedMessage }
 
 import scala.concurrent.Future
+import scala.concurrent.duration.DurationInt
 
 object KafkaPartitionShardRouterActorSpecModels {
   case class Command(id: String)
@@ -102,11 +104,16 @@ class KafkaPartitionShardRouterActorSpec
     extends TestKit(ActorSystem("KafkaPartitionShardRouterActorSpec"))
     with AnyWordSpecLike
     with Matchers
+    with BeforeAndAfterAll
     with KafkaPartitionShardRouterActorSpecLike
     with ActorSystemHostAwareness {
   import KafkaPartitionShardRouterActorSpecModels._
 
   override val actorSystem: ActorSystem = system
+
+  override def afterAll(): Unit = {
+    TestKit.shutdownActorSystem(system, duration = 15.seconds, verifySystemShutdown = true)
+  }
 
   private val hostPort1 = HostPort(localHostname, localPort)
   private val hostPort2 = HostPort("not-localhost", 1234)

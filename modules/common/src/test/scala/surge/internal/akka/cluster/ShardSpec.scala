@@ -4,6 +4,7 @@ package surge.internal.akka.cluster
 
 import akka.actor.{ Actor, ActorContext, ActorRef, ActorSystem, DeadLetter, PoisonPill, Props, Terminated }
 import akka.testkit.{ TestKit, TestProbe }
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
@@ -13,6 +14,7 @@ import surge.kafka.streams.{ HealthCheck, HealthCheckStatus }
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
+import scala.concurrent.duration.DurationInt
 
 object TestActor {
   def props(id: String): Props = Props(new TestActor(id))
@@ -74,9 +76,13 @@ class TestActor(id: String) extends Actor {
 
 }
 
-class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with AnyWordSpecLike with Matchers with MockitoSugar {
+class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with AnyWordSpecLike with Matchers with MockitoSugar with BeforeAndAfterAll {
   import TestActor._
   private val shardProps = Shard.props("testShard", new RegionLogicProvider(), TestActor.idExtractor)(NoopTracerFactory.create())
+
+  override def afterAll(): Unit = {
+    TestKit.shutdownActorSystem(system, duration = 15.seconds, verifySystemShutdown = true)
+  }
 
   private def passivateActor(shard: ActorRef, childId: String): ActorRef = {
     val probe = TestProbe()

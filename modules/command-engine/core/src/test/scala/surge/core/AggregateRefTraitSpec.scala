@@ -14,6 +14,7 @@ import surge.internal.persistence.{ AggregateRefTrait, PersistentActor }
 import surge.internal.tracing.{ NoopTracerFactory, ProbeWithTraceSupport }
 
 import scala.concurrent.Future
+import scala.concurrent.duration.DurationInt
 
 class AggregateRefTraitSpec
     extends TestKit(ActorSystem("AggregateRefTraitSpec"))
@@ -23,7 +24,7 @@ class AggregateRefTraitSpec
     with BeforeAndAfterAll {
 
   override def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system)
+    TestKit.shutdownActorSystem(system, duration = 15.seconds, verifySystemShutdown = true)
   }
 
   case class Person(name: String, favoriteColor: String)

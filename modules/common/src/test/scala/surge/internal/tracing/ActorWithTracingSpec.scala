@@ -5,10 +5,13 @@ package surge.internal.tracing
 import akka.actor.{ ActorSystem, NoSerializationVerificationNeeded, Props }
 import akka.testkit.{ TestKit, TestProbe }
 import io.opentelemetry.api.trace.{ Span, Tracer }
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import surge.internal.akka.ActorWithTracing
 import surge.internal.tracing.TracingHelper.{ SpanBuilderExt, SpanExt, TracerExt }
+
+import scala.concurrent.duration.DurationInt
 
 object ProbeWithTraceSupport {
   case object GetMostRecentSpan extends NoSerializationVerificationNeeded
@@ -23,13 +26,15 @@ class ProbeWithTraceSupport(probe: TestProbe, val tracer: Tracer) extends ActorW
       probe.ref.forward(msg)
     case ProbeWithTraceSupport.GetMostRecentSpan =>
       sender() ! ProbeWithTraceSupport.MostRecentSpan(mostRecentSpan)
-    case msg: String =>
-      probe.ref.forward(msg)
   }
 
 }
 
-class ActorWithTracingSpec extends TestKit(ActorSystem("ActorWithTracingSpec")) with AnyWordSpecLike with Matchers {
+class ActorWithTracingSpec extends TestKit(ActorSystem("ActorWithTracingSpec")) with AnyWordSpecLike with Matchers with BeforeAndAfterAll {
+
+  override def afterAll(): Unit = {
+    TestKit.shutdownActorSystem(system, duration = 15.seconds, verifySystemShutdown = true)
+  }
 
   val mockTracer = NoopTracerFactory.create()
 

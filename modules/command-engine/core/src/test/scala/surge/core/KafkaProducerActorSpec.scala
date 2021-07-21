@@ -38,7 +38,7 @@ class KafkaProducerActorSpec
   override implicit val patienceConfig: PatienceConfig = PatienceConfig(timeout = Span(3, Seconds), interval = Span(10, Millis))
 
   override def afterAll(): Unit = {
-    system.terminate()
+    TestKit.shutdownActorSystem(system, duration = 15.seconds, verifySystemShutdown = true)
     super.afterAll()
   }
 
