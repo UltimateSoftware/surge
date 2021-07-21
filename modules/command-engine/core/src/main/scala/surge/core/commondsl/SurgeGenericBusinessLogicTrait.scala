@@ -2,10 +2,10 @@
 
 package surge.core.commondsl
 
-import com.typesafe.config.{Config, ConfigFactory}
+import com.typesafe.config.{ Config, ConfigFactory }
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.trace.Tracer
-import surge.core.{SurgeAggregateReadFormatting, SurgeAggregateWriteFormatting}
+import surge.core.{ SurgeAggregateReadFormatting, SurgeAggregateWriteFormatting }
 import surge.internal.tracing.OpenTelemetryInstrumentation
 import surge.kafka.KafkaTopic
 import surge.metrics.Metrics

@@ -153,7 +153,7 @@ class KafkaPartitionShardRouterActor(
 
   private def uninitialized: Receive = {
     case msg: PartitionAssignments => handle(msg)
-    case _                         =>
+    case _ =>
       activeSpan.log("stashed")
       stash()
   }

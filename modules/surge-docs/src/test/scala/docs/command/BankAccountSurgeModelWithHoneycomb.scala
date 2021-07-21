@@ -6,7 +6,7 @@ import io.opentelemetry.api.trace.Tracer
 import io.opentelemetry.sdk.resources.Resource
 import surge.core._
 import surge.kafka.KafkaTopic
-import surge.scaladsl.command.{AggregateCommandModel, SurgeCommandBusinessLogic}
+import surge.scaladsl.command.{ AggregateCommandModel, SurgeCommandBusinessLogic }
 
 import java.util.UUID
 
