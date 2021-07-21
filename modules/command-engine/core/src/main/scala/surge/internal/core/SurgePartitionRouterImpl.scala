@@ -51,7 +51,7 @@ private[surge] final class SurgePartitionRouterImpl(
     actorRegion
       .ask(ActorLifecycleManagerActor.Start)
       .map {
-        case ack: ActorLifecycleManagerActor.Ack =>
+        case _: ActorLifecycleManagerActor.Ack =>
           Ack()
         case _ =>
           throw new RuntimeException("Unexpected response from actor start request")
@@ -76,14 +76,10 @@ private[surge] final class SurgePartitionRouterImpl(
 
   override def restart(): Future[Ack] = {
     for {
-      stopped <- stop()
-      started <- start(stopped)
+      _ <- stop()
+      started <- start()
     } yield {
-      if (Option(stopped).isDefined && Option(started).isDefined) {
-        Ack()
-      } else {
-        throw new RuntimeException(s"Failed to restart $getClass")
-      }
+      started
     }
   }
 
@@ -95,14 +91,6 @@ private[surge] final class SurgePartitionRouterImpl(
         log.error(s"Failed to get router-actor health check", err)
         Future.successful(HealthCheck(name = "router-actor", id = s"router-actor-${actorRegion.hashCode}", status = HealthCheckStatus.DOWN))
       }
-  }
-
-  private def start(stopped: Ack): Future[Ack] = {
-    if (Option(stopped).isDefined) {
-      start()
-    } else {
-      Future.failed(new RuntimeException("Failed to stop Surge Partition Router"))
-    }
   }
 
   private def registrationCallback(): PartialFunction[Try[Ack], Unit] = {

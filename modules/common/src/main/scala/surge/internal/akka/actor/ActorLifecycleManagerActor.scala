@@ -27,10 +27,12 @@ class ActorLifecycleManagerActor(
       val actor = managedActorName match {
         case Some(name) =>
           val actorRef = context.actorOf(managedActorProps, name)
-          initMessage.foreach(init => actorRef ! init())
           actorRef
         case _ => context.actorOf(managedActorProps)
       }
+
+      initMessage.foreach(init => actor ! init())
+
       context.watch(actor)
       context.become(running(actor))
       sender() ! Ack(true)
