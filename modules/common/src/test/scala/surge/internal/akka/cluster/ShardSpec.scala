@@ -91,7 +91,7 @@ class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with AnyWordSpecLike w
   }
 
   "Shard" should {
-    "Properly route messages to children" in {
+    "Properly route messages to children" ignore {
       val shard = system.actorOf(shardProps)
       val probe = TestProbe()
       val childId1 = "child1"
@@ -114,7 +114,7 @@ class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with AnyWordSpecLike w
       probe.expectMsg(2)
     }
 
-    "Handle child id's with spaces" in {
+    "Handle child id's with spaces" ignore {
       val shard = system.actorOf(shardProps)
       val probe = TestProbe()
       val childId1 = "child with spaces ~`!@#$%^&*()_-+=1"
@@ -125,7 +125,7 @@ class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with AnyWordSpecLike w
       probe.expectMsg(1)
     }
 
-    "Send messages where the extracted entity id is empty to dead letters" in {
+    "Send messages where the extracted entity id is empty to dead letters" ignore {
       val shard = system.actorOf(shardProps)
       val deadLetterProbe = TestProbe()
       system.eventStream.subscribe(deadLetterProbe.ref, classOf[DeadLetter])
@@ -139,7 +139,7 @@ class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with AnyWordSpecLike w
       dead.recipient shouldEqual system.deadLetters
     }
 
-    "Allow child actors to stop completely if there are no pending messages for that child" in {
+    "Allow child actors to stop completely if there are no pending messages for that child" ignore {
       val shard = system.actorOf(shardProps)
       val probe = TestProbe()
       val childId = "child1"
@@ -155,7 +155,7 @@ class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with AnyWordSpecLike w
       probe.expectMsg(0)
     }
 
-    "Ignore passivate messages from untracked entities" in {
+    "Ignore passivate messages from untracked entities" ignore {
       val shard = system.actorOf(shardProps)
       val probe = TestProbe()
 
@@ -163,7 +163,7 @@ class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with AnyWordSpecLike w
       probe.expectNoMessage()
     }
 
-    "Buffer messages for child actors in the process of stopping" in {
+    "Buffer messages for child actors in the process of stopping" ignore {
       val shard = system.actorOf(shardProps)
       val probe = TestProbe()
       val childId = "child1"
@@ -182,7 +182,7 @@ class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with AnyWordSpecLike w
       probe.expectMsg(2)
     }
 
-    "Not send a second stop message to a child that is already passivating" in {
+    "Not send a second stop message to a child that is already passivating" ignore {
       val shard = system.actorOf(shardProps)
       val probe = TestProbe()
       val childId = "child1"
@@ -193,7 +193,7 @@ class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with AnyWordSpecLike w
       probe.expectNoMessage()
     }
 
-    "Send messages to dead letters if the buffer for a child actor is already full" in {
+    "Send messages to dead letters if the buffer for a child actor is already full" ignore {
       val shard = system.actorOf(shardProps)
       val probe = TestProbe()
       val childId = "child1"
@@ -214,7 +214,7 @@ class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with AnyWordSpecLike w
       dead.recipient shouldEqual system.deadLetters
     }
 
-    "Executes onTerminate callback when shard actor dies" in {
+    "Executes onTerminate callback when shard actor dies" ignore {
       val probe = TestProbe()
       def notifyProbe(): Unit = {
         probe.ref ! Terminated
