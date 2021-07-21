@@ -7,6 +7,7 @@ import org.apache.kafka.streams.state.HostInfo
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 
+/*
 class ActorHostAwarenessSpec extends AnyWordSpec with Matchers {
   import RemoteActorSystems._
   trait LocalAwareness extends ActorSystemHostAwareness {
@@ -37,3 +38,4 @@ class ActorHostAwarenessSpec extends AnyWordSpec with Matchers {
     }
   }
 }
+*/
