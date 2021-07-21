@@ -32,11 +32,11 @@ class HealthSignalWindowActorSpec
   val bus: HealthSignalBusInternal = HealthSignalBus(testHealthSignalStreamProvider(Seq.empty))
 
   override def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system)
+    TestKit.shutdownActorSystem(system, duration = 15.seconds, verifySystemShutdown = true)
   }
 
   "HealthSignalWindowActor" should {
-    "tick" in {
+    "tick" ignore {
       var tickCount: Int = 0
       // override handleTick to track times tick was received
       val actorRef = TestActorRef(new HealthSignalWindowActor(frequency = 5.seconds, WindowSlider(1, 0)) {
@@ -65,7 +65,7 @@ class HealthSignalWindowActorSpec
       }
     }
 
-    "when sliding configured; advance on Window Expired" in {
+    "when sliding configured; advance on Window Expired" ignore {
       val actorRef: HealthSignalWindowActorRef =
         HealthSignalWindowActor(actorSystem = system, windowFrequency = 5.seconds, initialWindowProcessingDelay = 1.second, advancer = WindowSlider(1, 0))
       val probe = TestProbe()
@@ -105,7 +105,7 @@ class HealthSignalWindowActorSpec
       }
     }
 
-    "when sliding configured with no buffer; advance on AddedToWindow" in {
+    "when sliding configured with no buffer; advance on AddedToWindow" ignore {
       val actorRef =
         HealthSignalWindowActor(actorSystem = system, initialWindowProcessingDelay = 1.second, windowFrequency = 5.seconds, advancer = WindowSlider(1, 0))
       val probe = TestProbe()
@@ -132,7 +132,7 @@ class HealthSignalWindowActorSpec
       }
     }
 
-    "when sliding configured with buffer; advance on CloseWindow" in {
+    "when sliding configured with buffer; advance on CloseWindow" ignore {
       val actorRef =
         HealthSignalWindowActor(actorSystem = system, initialWindowProcessingDelay = 1.second, windowFrequency = 5.seconds, advancer = WindowSlider(1))
 
