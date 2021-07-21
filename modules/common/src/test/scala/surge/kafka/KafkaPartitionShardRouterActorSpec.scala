@@ -111,8 +111,7 @@ class KafkaPartitionShardRouterActorSpec
     with ActorSystemHostAwareness {
 
   override def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system)
-    super.afterAll()
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
   }
 
   import KafkaPartitionShardRouterActorSpecModels._

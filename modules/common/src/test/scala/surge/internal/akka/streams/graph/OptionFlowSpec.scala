@@ -13,8 +13,7 @@ import org.scalatest.wordspec.AnyWordSpecLike
 class OptionFlowSpec extends TestKit(ActorSystem("OptionFlowSpec")) with AnyWordSpecLike with Matchers with BeforeAndAfterAll {
 
   override def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system)
-    super.afterAll()
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
   }
 
   "OptionFlow" should {

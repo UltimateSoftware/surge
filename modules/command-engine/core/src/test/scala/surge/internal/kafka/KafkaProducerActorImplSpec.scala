@@ -54,8 +54,7 @@ class KafkaProducerActorImplSpec
   override implicit val patienceConfig: PatienceConfig = PatienceConfig(timeout = Span(3, Seconds), interval = Span(10, Millis))
 
   override def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system)
-    super.afterAll()
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
   }
 
   private def createRecordMeta(topic: String, partition: Int, offset: Int): RecordMetadata = {

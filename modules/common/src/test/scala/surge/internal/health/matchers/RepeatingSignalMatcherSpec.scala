@@ -26,8 +26,7 @@ class RepeatingSignalMatcherSpec extends TestKit(ActorSystem("RepeatingSignals")
   implicit val postOp: postfixOps = postfixOps
 
   override def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system)
-    super.afterAll()
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
   }
 
   private val testTraceSignal = HealthSignal(topic = "topic", name = "test.trace", signalType = SignalType.TRACE, data = Trace("test"))

@@ -70,8 +70,7 @@ class TestActor(id: String) extends Actor {
 
 class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with AnyWordSpecLike with Matchers with MockitoSugar with BeforeAndAfterAll {
   override def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system)
-    super.afterAll()
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
   }
 
   import TestActor._

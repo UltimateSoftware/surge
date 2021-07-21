@@ -27,8 +27,7 @@ class ReplayCoordinatorSpec
     with ActorSystemHostAwareness {
 
   override def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system)
-    super.afterAll()
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
   }
 
   override def actorSystem: ActorSystem = system

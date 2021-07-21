@@ -26,8 +26,7 @@ class KafkaStreamsPartitionTrackerActorImplSpec
     with MockitoSugar {
 
   override def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system)
-    super.afterAll()
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
   }
 
   private val tp0 = new TopicPartition("testTopic", 0)

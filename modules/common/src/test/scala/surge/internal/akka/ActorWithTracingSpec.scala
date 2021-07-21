@@ -31,8 +31,7 @@ class ProbeWithTraceSupport(probe: TestProbe, val tracer: Tracer) extends ActorW
 
 class ActorWithTracingSpec extends TestKit(ActorSystem("ActorWithTracingSpec")) with AnyWordSpecLike with Matchers with BeforeAndAfterAll {
   override def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system)
-    super.afterAll()
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
   }
 
   "ActorWithTracing" should {

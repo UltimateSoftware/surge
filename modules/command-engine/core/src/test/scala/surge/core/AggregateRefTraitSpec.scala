@@ -24,8 +24,7 @@ class AggregateRefTraitSpec
     with BeforeAndAfterAll {
 
   override def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system)
-    super.afterAll()
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
   }
 
   case class Person(name: String, favoriteColor: String)

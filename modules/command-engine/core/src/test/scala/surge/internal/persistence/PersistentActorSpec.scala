@@ -49,8 +49,7 @@ class PersistentActorSpec
 
   private implicit val timeout: Timeout = Timeout(10.seconds)
   override def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system)
-    super.afterAll()
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
   }
 
   def randomUUID: String = UUID.randomUUID().toString

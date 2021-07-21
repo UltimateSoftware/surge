@@ -19,8 +19,7 @@ import scala.concurrent.duration._
 class HealthSignalStreamProviderSpec extends TestKit(ActorSystem("HealthSignalStreamProviderSpec")) with AnyWordSpecLike with Matchers with BeforeAndAfterAll {
 
   override def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system)
-    super.afterAll()
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
   }
 
   import surge.internal.health.context.TestContext._

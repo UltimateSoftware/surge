@@ -15,8 +15,7 @@ import scala.concurrent.{ ExecutionContext, Future }
 
 class SurgeCommandServiceSinkSpec extends TestKit(ActorSystem("SurgeCommandServiceSinkSpec")) with AnyWordSpecLike with Matchers with BeforeAndAfterAll {
   override def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system)
-    super.afterAll()
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
   }
 
   private sealed trait TestCommand {

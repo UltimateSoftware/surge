@@ -46,8 +46,7 @@ trait MockitoHelper extends MockitoSugar {
 class HealthSignalBusSpec extends TestKit(ActorSystem("healthSignalBus")) with AnyWordSpecLike with Matchers with MockitoHelper with BeforeAndAfterAll {
 
   override def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system)
-    super.afterAll()
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
   }
 
   import surge.internal.health.context.TestContext._

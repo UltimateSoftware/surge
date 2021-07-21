@@ -24,8 +24,7 @@ class ActorRegistrySpec
     with PatienceConfiguration {
 
   override def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system)
-    super.afterAll()
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
   }
 
   private implicit val executionContext: ExecutionContext = ExecutionContext.global

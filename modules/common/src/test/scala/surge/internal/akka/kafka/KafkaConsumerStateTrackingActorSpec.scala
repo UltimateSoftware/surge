@@ -16,8 +16,7 @@ class KafkaConsumerStateTrackingActorSpec
     with Matchers
     with BeforeAndAfterAll {
   override def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system)
-    super.afterAll()
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
   }
 
   import KafkaConsumerStateTrackingActor._

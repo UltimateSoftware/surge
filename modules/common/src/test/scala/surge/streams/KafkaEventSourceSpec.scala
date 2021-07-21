@@ -37,8 +37,7 @@ class KafkaEventSourceSpec
     with BeforeAndAfterAll {
 
   override def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system)
-    super.afterAll()
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
   }
 
   private val log = LoggerFactory.getLogger(getClass)

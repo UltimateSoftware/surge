@@ -80,8 +80,7 @@ class SlidingHealthSignalStreamSpec
   }
 
   override def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system)
-    super.afterAll()
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
   }
 
   "SlidingHealthSignalStream" should {

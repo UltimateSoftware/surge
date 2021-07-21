@@ -34,8 +34,7 @@ class KafkaSubscriptionProviderSpec
     with BeforeAndAfterAll {
 
   override def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system)
-    super.afterAll()
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
   }
 
   private implicit val executionContext: ExecutionContext = ExecutionContext.global
