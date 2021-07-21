@@ -61,7 +61,6 @@ class Shard[IdType](shardId: String, regionLogicProvider: PerShardLogicProvider[
     case msg: Passivate  => receivePassivate(msg)
     case GetHealth       => getHealthCheck
     case msg if extractEntityId.isDefinedAt(msg) =>
-      println("here!")
       deliverMessage(msg, sender())
   }
 
