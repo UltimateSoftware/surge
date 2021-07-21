@@ -53,4 +53,8 @@ object TimeoutConfig {
       config.getDuration("surge.producer.ask-timeout", TimeUnit.MILLISECONDS).milliseconds
   }
 
+  object LifecycleManagerActor {
+    val askTimeout: FiniteDuration =
+      config.getDuration("surge.lifecycle-manager-actor.ask-timeout", TimeUnit.MILLISECONDS).milliseconds
+  }
 }

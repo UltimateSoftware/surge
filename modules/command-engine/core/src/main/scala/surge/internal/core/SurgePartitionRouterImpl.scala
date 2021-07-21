@@ -51,7 +51,7 @@ private[surge] final class SurgePartitionRouterImpl(
     actorRegion
       .ask(ActorLifecycleManagerActor.Start)
       .map {
-        case ack: ActorLifecycleManagerActor.Ack =>
+        case _: ActorLifecycleManagerActor.Ack =>
           Ack()
         case _ =>
           throw new RuntimeException("Unexpected response from actor start request")

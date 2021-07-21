@@ -14,7 +14,7 @@ import org.scalatest.time.{ Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach, PrivateMethodTester }
 import play.api.libs.json.{ JsValue, Json }
-import surge.core.TestBoundedContext
+import surge.core.{ Ack, TestBoundedContext }
 import surge.health.config.{ ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig }
 import surge.health.domain.{ Error, HealthSignal }
 import surge.health.matchers.{ SideEffectBuilder, SignalPatternMatcherDefinition }
@@ -100,7 +100,7 @@ class SurgeMessagePipelineSpec
 
         val result = stopped.futureValue
 
-        Option(result).isDefined shouldEqual true
+        result shouldEqual Ack()
       }
     }
 
@@ -112,9 +112,7 @@ class SurgeMessagePipelineSpec
         val restarted = pipeline.restart()
 
         val result = restarted.futureValue
-
-        Option(result).isDefined shouldEqual true
-
+        result shouldEqual Ack()
       }
     }
 

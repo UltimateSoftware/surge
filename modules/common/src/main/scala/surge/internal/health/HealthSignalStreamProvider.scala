@@ -89,9 +89,7 @@ trait HealthSignalStreamProvider {
    * @return
    *   HealthSignalBus
    */
-  def bus(): HealthSignalBusInternal = {
-    signalBus
-  }
+  def bus(): HealthSignalBusInternal = signalBus
 }
 
 class NullHealthSignalStream(config: HealthSignalBusConfig, bus: HealthSignalBusTrait, override val actorSystem: ActorSystem) extends HealthSignalStream {

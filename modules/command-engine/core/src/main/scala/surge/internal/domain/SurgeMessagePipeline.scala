@@ -111,8 +111,8 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
 
     val result = for {
       _ <- stopSignalStream()
-      _ <- stopActorRouter()
-      allStopped <- stopKafkaStreams()
+      _ <- actorRouter.stop()
+      allStopped <- kafkaStreamsImpl.stop()
     } yield {
       allStopped
     }
@@ -130,17 +130,14 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     Future.successful[Ack](Ack())
   }
 
-  private def stopActorRouter(): Future[Ack] = actorRouter.stop()
-
   private def stopSignalStream(): Future[Ack] = {
     log.debug("Stopping Health Signal Stream")
     signalBus.signalStream().unsubscribe().stop()
     Future.successful[Ack](Ack())
   }
 
-  private def stopKafkaStreams(): Future[Ack] = kafkaStreamsImpl.stop()
-
   private def registrationCallback(): PartialFunction[Try[Ack], Unit] = {
+
     case Success(_) =>
       val registrationResult = signalBus.register(
         control = this,
