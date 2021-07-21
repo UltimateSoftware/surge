@@ -28,23 +28,25 @@ object HealthSignalBus {
 
   val config: Config = ConfigFactory.load().getConfig("surge.health")
 
-  def apply(signalStream: HealthSignalStreamProvider): HealthSignalBusInternal = {
-    val streamingEnabled = config.getBoolean("bus.stream.enabled")
-    val stopStreamOnUnsubscribe, startStreamOnInit = config.getBoolean("bus.stream.start-on-init")
-    val bus = new HealthSignalBusImpl(
-      HealthSignalBusConfig(
-        streamingEnabled = config.getBoolean("bus.stream.enabled"),
-        signalTopic = config.getString("bus.signal-topic"),
-        registrationTopic = config.getString("bus.registration-topic"),
-        allowedSubscriberCount = config.getInt("bus.allowed-subscriber-count")),
-      signalStream,
-      stopStreamOnUnsubscribe)
+  def apply(healthSignalBusConfig: HealthSignalBusConfig, signalStream: HealthSignalStreamProvider, startOnInit: Boolean): HealthSignalBusInternal = {
+    val bus = new HealthSignalBusImpl(healthSignalBusConfig, signalStream, startOnInit)
 
-    if (startStreamOnInit && streamingEnabled) {
+    if (startOnInit && healthSignalBusConfig.streamingEnabled) {
       bus.signalStream().start()
     }
 
     bus
+  }
+
+  def apply(signalStream: HealthSignalStreamProvider): HealthSignalBusInternal = {
+    val startStreamOnInit = config.getBoolean("bus.stream.start-on-init")
+    val healthSignalBusConfig = HealthSignalBusConfig(
+      streamingEnabled = config.getBoolean("bus.stream.enabled"),
+      signalTopic = config.getString("bus.signal-topic"),
+      registrationTopic = config.getString("bus.registration-topic"),
+      allowedSubscriberCount = config.getInt("bus.allowed-subscriber-count"))
+
+    HealthSignalBus(healthSignalBusConfig, signalStream, startStreamOnInit)
   }
 }
 

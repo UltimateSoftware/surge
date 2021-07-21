@@ -119,7 +119,7 @@ class NullHealthSignalStream(config: HealthSignalBusConfig, bus: HealthSignalBus
 
 class DisabledHealthSignalStreamProvider(config: HealthSignalBusConfig, bus: HealthSignalBusTrait, override val actorSystem: ActorSystem)
     extends HealthSignalStreamProvider {
-  private val nullStream: HealthSignalStream = new NullHealthSignalStream(config, bus, actorSystem)
+  private lazy val nullStream: HealthSignalStream = new NullHealthSignalStream(config, bus, actorSystem)
 
   override def provide(bus: HealthSignalBusInternal): HealthSignalStream = nullStream
 
