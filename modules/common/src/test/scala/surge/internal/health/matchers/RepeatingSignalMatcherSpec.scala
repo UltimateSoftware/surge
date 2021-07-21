@@ -25,8 +25,10 @@ import scala.languageFeature.postfixOps
 class RepeatingSignalMatcherSpec extends TestKit(ActorSystem("RepeatingSignals")) with AnyWordSpecLike with BeforeAndAfterAll with Matchers {
   implicit val postOp: postfixOps = postfixOps
 
-  override def afterAll(): Unit =
+  override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)
+    super.afterAll()
+  }
 
   private val testTraceSignal = HealthSignal(topic = "topic", name = "test.trace", signalType = SignalType.TRACE, data = Trace("test"))
   private val testSignal1 = HealthSignal(topic = "topic", name = "foo", signalType = SignalType.TRACE, data = Trace("test"))

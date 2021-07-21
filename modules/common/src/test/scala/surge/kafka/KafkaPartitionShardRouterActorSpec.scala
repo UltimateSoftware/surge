@@ -9,6 +9,7 @@ import org.apache.kafka.common.TopicPartition
 import org.mockito.ArgumentMatchers.anyString
 import org.mockito.Mockito.when
 import org.mockito.invocation.InvocationOnMock
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
@@ -106,7 +107,14 @@ class KafkaPartitionShardRouterActorSpec
     with AnyWordSpecLike
     with Matchers
     with KafkaPartitionShardRouterActorSpecLike
+    with BeforeAndAfterAll
     with ActorSystemHostAwareness {
+
+  override def afterAll(): Unit = {
+    TestKit.shutdownActorSystem(system)
+    super.afterAll()
+  }
+
   import KafkaPartitionShardRouterActorSpecModels._
 
   override val actorSystem: ActorSystem = system

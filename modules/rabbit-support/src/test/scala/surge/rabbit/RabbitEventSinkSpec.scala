@@ -46,7 +46,9 @@ class RabbitEventSinkSpec extends TestKit(ActorSystem("RabbitEventSinkSpec")) wi
   }
 
   override def afterAll(): Unit = {
+    TestKit.shutdownActorSystem(system)
     stopRabbit()
+    super.afterAll()
   }
 
   "RabbitEventSink" should {

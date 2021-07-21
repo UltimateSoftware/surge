@@ -33,6 +33,7 @@ class HealthSignalWindowActorSpec
 
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)
+    super.afterAll()
   }
 
   "HealthSignalWindowActor" should {

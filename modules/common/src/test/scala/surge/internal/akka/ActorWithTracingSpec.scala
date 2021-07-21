@@ -6,6 +6,7 @@ import akka.actor.{ ActorSystem, NoSerializationVerificationNeeded, Props }
 import akka.testkit.{ TestKit, TestProbe }
 import io.opentracing.{ References, Span, Tracer }
 import io.opentracing.mock.{ MockSpan, MockTracer }
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import surge.tracing.TracedMessage
@@ -28,7 +29,12 @@ class ProbeWithTraceSupport(probe: TestProbe, val tracer: Tracer) extends ActorW
   }
 }
 
-class ActorWithTracingSpec extends TestKit(ActorSystem("ActorWithTracingSpec")) with AnyWordSpecLike with Matchers {
+class ActorWithTracingSpec extends TestKit(ActorSystem("ActorWithTracingSpec")) with AnyWordSpecLike with Matchers with BeforeAndAfterAll {
+  override def afterAll(): Unit = {
+    TestKit.shutdownActorSystem(system)
+    super.afterAll()
+  }
+
   "ActorWithTracing" should {
     "Directly forward any messages that are not marked as Traced" in {
       val expectedMsg = "Test!"

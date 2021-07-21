@@ -6,6 +6,7 @@ import akka.actor.{ ActorRef, ActorSystem, Props }
 import akka.testkit.{ TestKit, TestProbe }
 import io.opentracing.Tracer
 import io.opentracing.mock.MockTracer
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AsyncWordSpecLike
@@ -15,7 +16,17 @@ import surge.internal.persistence.{ AggregateRefTrait, PersistentActor }
 
 import scala.concurrent.Future
 
-class AggregateRefTraitSpec extends TestKit(ActorSystem("AggregateRefTraitSpec")) with AsyncWordSpecLike with Matchers with ScalaFutures {
+class AggregateRefTraitSpec
+    extends TestKit(ActorSystem("AggregateRefTraitSpec"))
+    with AsyncWordSpecLike
+    with Matchers
+    with ScalaFutures
+    with BeforeAndAfterAll {
+
+  override def afterAll(): Unit = {
+    TestKit.shutdownActorSystem(system)
+    super.afterAll()
+  }
 
   case class Person(name: String, favoriteColor: String)
 

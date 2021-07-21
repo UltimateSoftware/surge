@@ -4,6 +4,7 @@ package surge.internal.akka.cluster
 
 import akka.actor.{ Actor, ActorSystem, PoisonPill, Props }
 import akka.testkit.TestKit
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.{ Eventually, PatienceConfiguration, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Millis, Seconds, Span }
@@ -19,7 +20,13 @@ class ActorRegistrySpec
     with Matchers
     with Eventually
     with ScalaFutures
+    with BeforeAndAfterAll
     with PatienceConfiguration {
+
+  override def afterAll(): Unit = {
+    TestKit.shutdownActorSystem(system)
+    super.afterAll()
+  }
 
   private implicit val executionContext: ExecutionContext = ExecutionContext.global
 

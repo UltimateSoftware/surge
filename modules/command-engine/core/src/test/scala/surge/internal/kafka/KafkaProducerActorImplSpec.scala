@@ -55,6 +55,7 @@ class KafkaProducerActorImplSpec
 
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)
+    super.afterAll()
   }
 
   private def createRecordMeta(topic: String, partition: Int, offset: Int): RecordMetadata = {

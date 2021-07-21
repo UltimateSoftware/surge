@@ -39,6 +39,7 @@ class HealthSupervisorActorSpec
   private var bus: HealthSignalBusTrait = _
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)
+    super.afterAll()
   }
 
   override def beforeEach(): Unit = {

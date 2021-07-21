@@ -4,13 +4,20 @@ package surge.streams.sink
 
 import akka.actor.ActorSystem
 import akka.testkit.{ TestKit, TestProbe }
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import surge.streams._
 
 import scala.concurrent.{ ExecutionContext, Future }
 
-class MultiplexedEventSinkSpec extends TestKit(ActorSystem("MultiplexedEventSink")) with AnyWordSpecLike with Matchers {
+class MultiplexedEventSinkSpec extends TestKit(ActorSystem("MultiplexedEventSink")) with AnyWordSpecLike with Matchers with BeforeAndAfterAll {
+
+  override def afterAll(): Unit = {
+    TestKit.shutdownActorSystem(system)
+    super.afterAll()
+  }
+
   sealed trait TopLevelEvent
 
   sealed trait Subtype1 extends TopLevelEvent

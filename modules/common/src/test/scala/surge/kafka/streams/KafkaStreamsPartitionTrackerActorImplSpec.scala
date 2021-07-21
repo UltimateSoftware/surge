@@ -9,6 +9,7 @@ import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.streams.KafkaStreams
 import org.apache.kafka.streams.state.{ HostInfo, StreamsMetadata }
 import org.mockito.Mockito._
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
@@ -21,7 +22,13 @@ class KafkaStreamsPartitionTrackerActorImplSpec
     extends TestKit(ActorSystem("KafkaStreamsPartitionTrackerActorImplSpec"))
     with AnyWordSpecLike
     with Matchers
+    with BeforeAndAfterAll
     with MockitoSugar {
+
+  override def afterAll(): Unit = {
+    TestKit.shutdownActorSystem(system)
+    super.afterAll()
+  }
 
   private val tp0 = new TopicPartition("testTopic", 0)
   private val tp1 = new TopicPartition("testTopic", 1)

@@ -69,7 +69,9 @@ class RabbitEventSourceSpec
   }
 
   override def afterAll(): Unit = {
+    TestKit.shutdownActorSystem(system)
     stopRabbit()
+    super.afterAll()
   }
 
   "RabbitEventSource" should {

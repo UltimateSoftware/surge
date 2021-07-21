@@ -45,7 +45,7 @@ class StreamManagerSpec
   private implicit val byteArrayDeserializer: Deserializer[Array[Byte]] = DefaultSerdes.byteArraySerde.deserializer()
 
   override def afterAll(): Unit = {
-    system.terminate()
+    TestKit.shutdownActorSystem(system)
     super.afterAll()
   }
 

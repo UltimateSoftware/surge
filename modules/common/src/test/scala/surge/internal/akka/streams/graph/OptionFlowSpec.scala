@@ -6,10 +6,16 @@ import akka.actor.ActorSystem
 import akka.stream.scaladsl.{ Flow, Source }
 import akka.stream.testkit.scaladsl.TestSink
 import akka.testkit.TestKit
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 
-class OptionFlowSpec extends TestKit(ActorSystem("OptionFlowSpec")) with AnyWordSpecLike with Matchers {
+class OptionFlowSpec extends TestKit(ActorSystem("OptionFlowSpec")) with AnyWordSpecLike with Matchers with BeforeAndAfterAll {
+
+  override def afterAll(): Unit = {
+    TestKit.shutdownActorSystem(system)
+    super.afterAll()
+  }
 
   "OptionFlow" should {
     "Properly filter None and Some values to the appropriate flow" in {
