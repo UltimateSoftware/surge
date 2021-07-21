@@ -13,6 +13,7 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
 import surge.akka.cluster.{ EntityPropsProvider, PerShardLogicProvider }
+import surge.internal.akka.ActorWithTracing
 import surge.internal.akka.cluster.ActorSystemHostAwareness
 import surge.internal.akka.kafka.{ KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor }
 import surge.kafka.streams.{ HealthCheck, HealthCheckStatus }
@@ -25,7 +26,8 @@ object KafkaPartitionShardRouterActorSpecModels {
   case class Command(id: String)
   case class WrappedCmd(topicPartition: TopicPartition, cmd: Command)
 
-  class ProbeInterceptorActor(topicPartition: TopicPartition, probe: TestProbe) extends Actor {
+  class ProbeInterceptorActor(topicPartition: TopicPartition, probe: TestProbe) extends ActorWithTracing {
+    implicit val tracer = NoopTracerFactory.create()
     override def receive: Receive = { case cmd: Command =>
       probe.ref.forward(WrappedCmd(topicPartition, cmd))
     }
@@ -122,7 +124,7 @@ class KafkaPartitionShardRouterActorSpec
     Map[HostPort, List[TopicPartition]](hostPort1 -> List(partition0, partition1), hostPort2 -> List(partition2))
 
   "KafkaPartitionShardRouterActor" should {
-    "Handle updates to partition assignments using TracedMessages" ignore {
+    "Handle updates to partition assignments using TracedMessages" in {
       val testContext = setupTestContext()
       val probe = TestProbe()
       import testContext._
@@ -142,7 +144,7 @@ class KafkaPartitionShardRouterActorSpec
       probe.expectMsg(command)
     }
 
-    "Handle updates to partition assignments" ignore {
+    "Handle updates to partition assignments" in {
       val testContext = setupTestContext()
       val probe = TestProbe()
       import testContext._
@@ -162,7 +164,7 @@ class KafkaPartitionShardRouterActorSpec
       probe.expectMsg(command)
     }
 
-    "Stash traced messages before initialized" ignore {
+    "Stash traced messages before initialized" in {
       val testContext = setupTestContext()
       val probe = TestProbe()
       import testContext._
@@ -180,7 +182,7 @@ class KafkaPartitionShardRouterActorSpec
       probe.expectMsg(command0)
     }
 
-    "Stash messages before initialized" ignore {
+    "Stash messages before initialized" in {
       val testContext = setupTestContext()
       val probe = TestProbe()
       import testContext._
@@ -198,7 +200,7 @@ class KafkaPartitionShardRouterActorSpec
       probe.expectMsg(command0)
     }
 
-    "Send traced messages that can't be routed to dead letters" ignore {
+    "Send traced messages that can't be routed to dead letters" in {
       val testContext = setupTestContext()
       import testContext._
 
@@ -216,7 +218,7 @@ class KafkaPartitionShardRouterActorSpec
       dead.recipient shouldEqual system.deadLetters
     }
 
-    "Send messages that can't be routed to dead letters" ignore {
+    "Send messages that can't be routed to dead letters" in {
       val testContext = setupTestContext()
       import testContext._
 

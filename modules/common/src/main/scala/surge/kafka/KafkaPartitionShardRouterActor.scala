@@ -19,6 +19,7 @@ import surge.internal.tracing.TracedMessage
 import java.time.Instant
 import scala.concurrent.Future
 import scala.concurrent.duration._
+import scala.util.Try
 
 object KafkaPartitionShardRouterActor {
   private val config: Config = ConfigFactory.load()
@@ -36,6 +37,7 @@ object KafkaPartitionShardRouterActor {
     Props(new KafkaPartitionShardRouterActor(partitionTracker, producer, regionCreator, extractEntityId)(tracer))
   }
   case object GetPartitionRegionAssignments
+
 }
 
 /**
@@ -79,6 +81,13 @@ class KafkaPartitionShardRouterActor(
   private val enableDRStandbyInitial = config.getBoolean("surge.dr-standby-enabled")
 
   private val log: Logger = LoggerFactory.getLogger(getClass)
+
+  private def canExtractEntityId(msg: Any): Boolean = {
+    (for {
+      isDefined <- Try(extractEntityId.isDefinedAt(msg))
+      canExtract <- Try(extractEntityId(msg))
+    } yield canExtract).isSuccess
+  }
 
   private case class ActorState(
       partitionAssignments: PartitionAssignments,
@@ -160,19 +169,24 @@ class KafkaPartitionShardRouterActor(
 
   // In standby mode, just follow updates to partition assignments and let Kafka streams index the aggregate state
   private def standbyMode(state: ActorState): Receive = {
-    case msg if extractEntityId.isDefinedAt(msg) =>
-      becomeActiveAndDeliverMessage(state, msg)
     case msg: PartitionAssignments     => handle(state, msg)
     case GetPartitionRegionAssignments => sender() ! state.partitionRegions
     case GetHealth =>
       sender() ! HealthCheck(name = "shard-router-actor", id = s"router-actor-$hashCode", status = HealthCheckStatus.UP)
+    case msg if !canExtractEntityId(msg) =>
+      context.system.deadLetters ! msg
+    case msg =>
+      becomeActiveAndDeliverMessage(state, msg)
+
   }
 
   private def initialized(state: ActorState): Receive = healthCheckReceiver(state).orElse {
     case msg: PartitionAssignments     => handle(state, msg)
     case msg: Terminated               => handle(state, msg)
     case GetPartitionRegionAssignments => sender() ! state.partitionRegions
-    case msg if extractEntityId.isDefinedAt(msg) =>
+    case msg if !canExtractEntityId(msg) =>
+      context.system.deadLetters ! msg
+    case msg =>
       val entityId: String = extractEntityId(msg)
       activeSpan.log("extractEntityId", Map("entityId" -> entityId))
       deliverMessage(state, entityId, msg)
