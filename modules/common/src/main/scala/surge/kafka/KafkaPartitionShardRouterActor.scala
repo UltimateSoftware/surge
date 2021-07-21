@@ -153,7 +153,9 @@ class KafkaPartitionShardRouterActor(
 
   private def uninitialized: Receive = {
     case msg: PartitionAssignments => handle(msg)
-    case _                         => stash()
+    case _                         =>
+      activeSpan.log("stashed")
+      stash()
   }
 
   // In standby mode, just follow updates to partition assignments and let Kafka streams index the aggregate state
@@ -171,7 +173,7 @@ class KafkaPartitionShardRouterActor(
     case msg: Terminated               => handle(state, msg)
     case GetPartitionRegionAssignments => sender() ! state.partitionRegions
     case msg if extractEntityId.isDefinedAt(msg) =>
-      val entityId = extractEntityId(msg)
+      val entityId: String = extractEntityId(msg)
       activeSpan.log("extractEntityId", Map("entityId" -> entityId))
       deliverMessage(state, entityId, msg)
   }
@@ -184,9 +186,11 @@ class KafkaPartitionShardRouterActor(
     partitionRegionFor(state, aggregateId) match {
       case Some(responsiblePartitionRegion) =>
         log.trace(s"Forwarding command envelope for aggregate $aggregateId to region ${responsiblePartitionRegion.regionManager.pathString}.")
+        activeSpan.addEvent("forwarding message")
         val tracedMsg = TracedMessage(msg, parentSpan = activeSpan)
         responsiblePartitionRegion.regionManager.forward(tracedMsg)
       case None =>
+        activeSpan.addEvent("failed to forward")
         log.error(s"Could not find a responsible partition region for $aggregateId.")
     }
   }
@@ -290,7 +294,6 @@ class KafkaPartitionShardRouterActor(
       scheduledInitialize.cancel()
       unstashAll()
       log.debug(s"RouterActor initializing with partition assignments $partitionAssignments")
-
       val emptyState = ActorState(PartitionAssignments.empty, Map.empty)
       handle(emptyState, partitionAssignments)
     }
