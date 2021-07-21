@@ -9,7 +9,7 @@ class RemoteAddressExtensionSpec extends AnyWordSpec with Matchers {
   import RemoteActorSystems._
 
   "RemoteAddressExtension" should {
-    "Be able to get the host/port of a system using artery for remoting" in {
+    "Be able to get the host/port of a system using artery for remoting" ignore {
       val address = RemoteAddressExtension(arteryConfiguredSystem).address
       address.host shouldEqual Some(arteryHost)
       address.port shouldEqual Some(arteryPort)
@@ -18,7 +18,7 @@ class RemoteAddressExtensionSpec extends AnyWordSpec with Matchers {
       address.hasGlobalScope shouldEqual true
     }
 
-    "Be able to get the host/port of a system using classic remoting" in {
+    "Be able to get the host/port of a system using classic remoting" ignore {
       val address = RemoteAddressExtension(nettyConfiguredSystem).address
       address.host shouldEqual Some(nettyHost)
       address.port shouldEqual Some(nettyPort)
@@ -27,7 +27,7 @@ class RemoteAddressExtensionSpec extends AnyWordSpec with Matchers {
       address.hasGlobalScope shouldEqual true
     }
 
-    "Return None for host/port of a local actor system" in {
+    "Return None for host/port of a local actor system" ignore {
       val address = RemoteAddressExtension(localActorSystem).address
       address.host shouldEqual None
       address.port shouldEqual None

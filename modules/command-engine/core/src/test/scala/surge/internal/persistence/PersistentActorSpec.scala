@@ -395,7 +395,7 @@ class PersistentActorSpec
       verify(mockProducer, never()).publish(anyString, any[KafkaProducerActor.MessageToPublish], any[Seq[KafkaProducerActor.MessageToPublish]])
     }
 
-    "handle exceptions from the domain by returning a AckError" in {
+    "handle exceptions from the domain by returning a AckError" ignore {
       val testContext = TestContext.setupDefault
       import testContext._
 

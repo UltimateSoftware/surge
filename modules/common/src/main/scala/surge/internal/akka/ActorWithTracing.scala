@@ -54,11 +54,11 @@ trait ActorWithTracing extends AroundReceiveActor with ActorOps with TracingHelp
         activeSpan = TracePropagation.childFrom(tracedMsg, operationName)
         activeSpan.log("receive", getFields(messageName, tracedMsg.message))
         superAroundReceive(receive, tracedMsg.message)
-      case msg =>
-        val (messageName: String, operationName: String) = getNames(msg)
+      case other =>
+        val (messageName: String, operationName: String) = getNames(other)
         activeSpan = tracer.buildSpan(operationName).start()
-        activeSpan.log("receive", getFields(messageName, msg))
-        superAroundReceive(receive, msg)
+        activeSpan.log("receive", getFields(messageName, other))
+        superAroundReceive(receive, other)
     }
   }
 

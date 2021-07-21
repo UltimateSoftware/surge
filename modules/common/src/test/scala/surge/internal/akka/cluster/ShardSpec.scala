@@ -4,11 +4,13 @@ package surge.internal.akka.cluster
 
 import akka.actor.{ Actor, ActorContext, ActorRef, ActorSystem, DeadLetter, PoisonPill, Props, Terminated }
 import akka.testkit.{ TestKit, TestProbe }
+import io.opentelemetry.api.trace.Tracer
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
 import surge.akka.cluster.{ EntityPropsProvider, Passivate, PerShardLogicProvider }
+import surge.internal.akka.ActorWithTracing
 import surge.internal.tracing.NoopTracerFactory
 import surge.kafka.streams.{ HealthCheck, HealthCheckStatus }
 
@@ -59,8 +61,10 @@ object TestActor {
   }
 }
 
-class TestActor(id: String) extends Actor {
+class TestActor(id: String) extends ActorWithTracing {
   import TestActor._
+
+  implicit val tracer: Tracer = NoopTracerFactory.create()
 
   override def receive: Receive = onMessage(0)
 
@@ -81,7 +85,7 @@ class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with AnyWordSpecLike w
   private val shardProps = Shard.props("testShard", new RegionLogicProvider(), TestActor.idExtractor)(NoopTracerFactory.create())
 
   override def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system, duration = 15.seconds, verifySystemShutdown = true)
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
   }
 
   private def passivateActor(shard: ActorRef, childId: String): ActorRef = {
@@ -91,7 +95,7 @@ class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with AnyWordSpecLike w
   }
 
   "Shard" should {
-    "Properly route messages to children" ignore {
+    "Properly route messages to children" in {
       val shard = system.actorOf(shardProps)
       val probe = TestProbe()
       val childId1 = "child1"
@@ -101,10 +105,10 @@ class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with AnyWordSpecLike w
       probe.send(shard, Update(childId2, 2))
 
       probe.send(shard, Get(childId1))
-      probe.expectMsg(1)
+      probe.expectMsg(max = 10.seconds, 1)
 
       probe.send(shard, Get(childId2))
-      probe.expectMsg(2)
+      probe.expectMsg(max = 10.seconds, 2)
 
       probe.send(shard, Delete(childId1))
       probe.send(shard, Get(childId1))
@@ -114,7 +118,7 @@ class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with AnyWordSpecLike w
       probe.expectMsg(2)
     }
 
-    "Handle child id's with spaces" ignore {
+    "Handle child id's with spaces" in {
       val shard = system.actorOf(shardProps)
       val probe = TestProbe()
       val childId1 = "child with spaces ~`!@#$%^&*()_-+=1"
@@ -125,7 +129,7 @@ class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with AnyWordSpecLike w
       probe.expectMsg(1)
     }
 
-    "Send messages where the extracted entity id is empty to dead letters" ignore {
+    "Send messages where the extracted entity id is empty to dead letters" in {
       val shard = system.actorOf(shardProps)
       val deadLetterProbe = TestProbe()
       system.eventStream.subscribe(deadLetterProbe.ref, classOf[DeadLetter])
@@ -139,7 +143,7 @@ class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with AnyWordSpecLike w
       dead.recipient shouldEqual system.deadLetters
     }
 
-    "Allow child actors to stop completely if there are no pending messages for that child" ignore {
+    "Allow child actors to stop completely if there are no pending messages for that child" in {
       val shard = system.actorOf(shardProps)
       val probe = TestProbe()
       val childId = "child1"
@@ -155,7 +159,7 @@ class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with AnyWordSpecLike w
       probe.expectMsg(0)
     }
 
-    "Ignore passivate messages from untracked entities" ignore {
+    "Ignore passivate messages from untracked entities" in {
       val shard = system.actorOf(shardProps)
       val probe = TestProbe()
 
@@ -163,7 +167,7 @@ class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with AnyWordSpecLike w
       probe.expectNoMessage()
     }
 
-    "Buffer messages for child actors in the process of stopping" ignore {
+    "Buffer messages for child actors in the process of stopping" in {
       val shard = system.actorOf(shardProps)
       val probe = TestProbe()
       val childId = "child1"
@@ -182,7 +186,7 @@ class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with AnyWordSpecLike w
       probe.expectMsg(2)
     }
 
-    "Not send a second stop message to a child that is already passivating" ignore {
+    "Not send a second stop message to a child that is already passivating" in {
       val shard = system.actorOf(shardProps)
       val probe = TestProbe()
       val childId = "child1"
@@ -193,7 +197,7 @@ class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with AnyWordSpecLike w
       probe.expectNoMessage()
     }
 
-    "Send messages to dead letters if the buffer for a child actor is already full" ignore {
+    "Send messages to dead letters if the buffer for a child actor is already full" in {
       val shard = system.actorOf(shardProps)
       val probe = TestProbe()
       val childId = "child1"
@@ -214,7 +218,7 @@ class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with AnyWordSpecLike w
       dead.recipient shouldEqual system.deadLetters
     }
 
-    "Executes onTerminate callback when shard actor dies" ignore {
+    "Executes onTerminate callback when shard actor dies" in {
       val probe = TestProbe()
       def notifyProbe(): Unit = {
         probe.ref ! Terminated

@@ -57,10 +57,12 @@ class Shard[IdType](shardId: String, regionLogicProvider: PerShardLogicProvider[
   private val actorProvider = regionLogicProvider.actorProvider(context)
 
   override def receive: Receive = {
-    case msg: Terminated                         => receiveTerminated(msg)
-    case msg: Passivate                          => receivePassivate(msg)
-    case GetHealth                               => getHealthCheck
-    case msg if extractEntityId.isDefinedAt(msg) => deliverMessage(msg, sender())
+    case msg: Terminated => receiveTerminated(msg)
+    case msg: Passivate  => receivePassivate(msg)
+    case GetHealth       => getHealthCheck
+    case msg if extractEntityId.isDefinedAt(msg) =>
+      println("here!")
+      deliverMessage(msg, sender())
   }
 
   private def deliverMessage(msg: Any, send: ActorRef): Unit = {
