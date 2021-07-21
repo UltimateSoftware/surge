@@ -113,7 +113,7 @@ class HealthSignalWindowActor(frequency: FiniteDuration, windowAdvanceStrategy: 
    */
   override def receive: Receive = {
     case Start(window, replyTo) =>
-      log.debug(s"Starting window $window")
+      log.trace("Starting window {}", window)
       unstashAll()
       context.self ! OpenWindow(window, None)
       context.become(ready(WindowState().copy(replyTo = Some(replyTo))))
@@ -171,13 +171,13 @@ class HealthSignalWindowActor(frequency: FiniteDuration, windowAdvanceStrategy: 
 
   private def handleStop(state: WindowState): Receive = {
     state.replyTo.foreach(a => {
-      log.debug(s"Notifying $a that windowing stopped")
+      log.trace("Notifying {} that windowing stopped", a)
       a ! WindowStopped(state.window)
     })
 
     state.window.foreach { w =>
       state.replyTo.foreach(a => {
-        log.debug(s"Notifying $a that window closed")
+        log.trace("Notifying {} that window closed", a)
         a ! WindowClosed(w, WindowData(state.window.map(w => w.data).getOrElse(Seq.empty), frequency))
       })
     }
@@ -195,7 +195,7 @@ class HealthSignalWindowActor(frequency: FiniteDuration, windowAdvanceStrategy: 
       context.self ! cmd
     })
     state.replyTo.foreach(r => {
-      log.debug(s"Notifying $r that Health Signal was added to window")
+      log.trace("Notifying {} that Health Signal was added to window", r)
       r ! AddedToWindow(signal, window)
     })
 
@@ -203,23 +203,23 @@ class HealthSignalWindowActor(frequency: FiniteDuration, windowAdvanceStrategy: 
   }
 
   private def handleAdvanceWindow(window: Window, newWindow: Window, state: WindowState): Receive = {
-    log.debug(s"Window advanced $window")
+    log.trace("Window advanced {}", window)
     reportWindowAdvanced(window, newWindow, state)
     windowing(state = state.copy(window = Some(newWindow)))
   }
 
   private def handleCloseWindow(window: Window, advance: Boolean, state: WindowState): Receive = {
     val capturedSignals = state.window.map(w => w.data).getOrElse(Seq.empty)
-    log.debug(s"Closing window $window and informing ${state.replyTo}")
+    log.trace("Closing window {} and informing {}", window, state.replyTo)
     state.replyTo.foreach(r => {
-      log.debug(s"Notifying $r that window closed")
+      log.trace("Notifying {} that window closed", r)
       r ! WindowClosed(window, WindowData(capturedSignals, frequency))
     })
     val nextBehavior = ready(state.copy(window = None))
 
     if (advance) {
       // Advance Window on Close
-      log.debug("Checking if advance should occur")
+      log.trace("Checking if advance should occur")
       advanceWindowCommand(window, force = true).foreach(cmd => context.self ! cmd)
     }
 
@@ -241,9 +241,9 @@ class HealthSignalWindowActor(frequency: FiniteDuration, windowAdvanceStrategy: 
 
     maybeSignal.foreach(s => context.self ! s)
 
-    log.debug(s"Window opened $window")
+    log.trace("Window opened {}", window)
     state.replyTo.foreach(r => {
-      log.debug(s"Notifying $r that window opened")
+      log.trace("Notifying {} that window opened", r)
       r ! WindowOpened(window)
     })
 
@@ -252,13 +252,13 @@ class HealthSignalWindowActor(frequency: FiniteDuration, windowAdvanceStrategy: 
 
   private def advanceWindowCommand(window: Window, force: Boolean = false): Option[AdvanceWindow] = {
     val maybeAdvanced: Option[Window] = windowAdvanceStrategy.advance(window, force)
-    log.debug("Possible Window Advance => {}", maybeAdvanced)
+    log.trace("Possible Window Advance => {}", maybeAdvanced)
     maybeAdvanced.map(next => AdvanceWindow(window, next))
   }
 
   private def reportWindowAdvanced(oldWindow: Window, newWindow: Window, state: WindowState): Unit = {
     state.replyTo.foreach(r => {
-      log.debug(s"Notifying $r that window has advanced")
+      log.trace("Notifying {} that window has advanced", r)
       r ! WindowAdvanced(newWindow, WindowData(oldWindow.data, frequency))
     })
   }
