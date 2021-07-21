@@ -13,7 +13,7 @@
     <logger name="org.apache.kafka" level="ERROR" />
     <logger name="org.apache.zookeeper" level="ERROR" />
 
-    <root level="INFO">
+    <root level="ERROR">
         <appender-ref ref="STDOUT" />
     </root>
 
