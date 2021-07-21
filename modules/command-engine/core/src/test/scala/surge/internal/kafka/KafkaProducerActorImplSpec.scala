@@ -404,12 +404,12 @@ class KafkaProducerActorImplSpec
       verify(mockProducerFenceOnBegin).beginTransaction()
       verify(mockProducerFenceOnBegin, times(0)).putRecords(records(assignedPartition, testEvents1, testAggs1))
 
-      probe.watch(fencedOnCommit)
+      terminateWatcherProbe.watch(fencedOnCommit)
       probe.send(fencedOnCommit, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
       probe.send(fencedOnCommit, KafkaProducerActorImpl.FlushMessages)
       probe.expectMsgType[PublishFailure]
+      terminateWatcherProbe.expectTerminated(fencedOnCommit)
 
-      probe.expectTerminated(fencedOnCommit)
       verify(mockProducerFenceOnCommit).beginTransaction()
       verify(mockProducerFenceOnCommit).putRecords(records(assignedPartition, testEvents1, testAggs1))
       verify(mockProducerFenceOnCommit).commitTransaction()

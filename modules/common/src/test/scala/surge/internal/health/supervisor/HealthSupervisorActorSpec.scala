@@ -42,9 +42,9 @@ class HealthSupervisorActorSpec
       WindowingStreamConfig(
         advancerConfig = WindowingStreamSliderConfig(buffer = 10, advanceAmount = 1),
         throttleConfig = ThrottleConfig(elements = 100, duration = 5.seconds),
-        windowingDelay = 5.seconds,
+        windowingDelay = 10.milliseconds,
         maxWindowSize = 500,
-        frequencies = Seq(10.seconds)),
+        frequencies = Seq(100.milliseconds)),
       system,
       streamMonitoring = Some(new StreamMonitoringRef(probe.ref)),
       Seq(SignalNameEqualsMatcher(name = "test.trace", Some(SideEffect(Seq(testHealthSignal)))))).bus()
@@ -65,29 +65,24 @@ class HealthSupervisorActorSpec
       // Start signal streaming
       bus.signalStream().start()
 
+      val componentName = "boomControl"
       val restartProbe = TestProbe()
       val control = new ControllableAdapter() {
         override def restart(): Future[Ack] = Future {
-          restartProbe.ref ! RestartComponent("component", probe.ref)
+          restartProbe.ref ! RestartComponent(componentName, probe.ref)
           Ack()
         }(system.dispatcher)
       }
 
       // Register
-      val componentName = "boomControl"
-      whenReady(bus.register(control, componentName = componentName, Seq(Pattern.compile("boom")))) { done =>
-        done shouldBe a[Ack]
-        probe.receiveN(1)
+      bus.register(control, componentName = componentName, Seq(Pattern.compile("boom"))).futureValue shouldBe an[Ack]
 
-        // Signal
-        bus.signalWithTrace(name = "test.trace", Trace("test trace")).emit()
+      // Signal
+      bus.signalWithTrace(name = "test.trace", Trace("test trace")).emit()
 
-        eventually {
-          // Verify restart
-          val restart = restartProbe.expectMsgType[RestartComponent]
-          restart.name shouldEqual componentName
-        }
-      }
+      // Verify restart
+      val restart = restartProbe.expectMsgType[RestartComponent]
+      restart.name shouldEqual componentName
     }
 
     "receive registration" in testContext { ctx =>
@@ -97,20 +92,15 @@ class HealthSupervisorActorSpec
       val control = new ControllableAdapter()
       val message = bus.registration(control, componentName = "boomControl", Seq.empty)
 
-      whenReady(ref.register(message.underlyingRegistration())) { done =>
-        done shouldBe a[Ack]
-      }
+      ref.register(message.underlyingRegistration()).futureValue shouldBe an[Ack]
 
+      // FIXME expectMsgType below has the same problem as described below where it receives a bunch of
+      //  window updates in addition to the HealthRegistrationReceived
       eventually {
-        val received = probe.receiveN(1, max = 10.seconds)
-
-        received.headOption.nonEmpty shouldEqual true
-        received.head shouldBe a[HealthRegistrationReceived]
-
-        received.head.asInstanceOf[HealthRegistrationReceived].registration.componentName shouldEqual message.underlyingRegistration().componentName
-
-        ref.registrationLinks().exists(l => l.componentName == "boomControl")
+        val received = probe.expectMsgType[HealthRegistrationReceived]
+        received.registration.componentName shouldEqual message.underlyingRegistration().componentName
       }
+      ref.registrationLinks().exists(l => l.componentName == "boomControl")
       ref.stop()
     }
 
@@ -121,13 +111,9 @@ class HealthSupervisorActorSpec
       val control = new ControllableAdapter()
       val message = bus.registration(control, componentName = "boomControl", Seq.empty)
 
-      whenReady(ref.register(message.underlyingRegistration())) { done =>
-        done shouldBe a[Ack]
-      }
+      ref.register(message.underlyingRegistration()).futureValue shouldBe an[Ack]
 
-      eventually {
-        ref.registrationLinks().exists(l => l.componentName == "boomControl") shouldEqual true
-      }
+      ref.registrationLinks().exists(l => l.componentName == "boomControl") shouldEqual true
 
       ref
         .registrationLinks()
@@ -145,11 +131,19 @@ class HealthSupervisorActorSpec
       import ctx._
       val ref: HealthSupervisorTrait = bus.supervisor().get
 
-      bus.signalStream().start()
+      // FIXME now that things start up so quickly in this test the message below can be emitted to the bus before anything
+      //  is listening to it. It will require a bit of plumbing to check that it's started before sending the message so
+      //  going with the quick and dirty Thread.sleep for now. Rather than plumbing that all the way through, maybe this test wants to be
+      //  refactored a bit to focus on just the HealthSupervisorActor aspect of things
+      Thread.sleep(1000L)
+
       val message = bus.signalWithTrace(name = "test", Trace("test trace"))
       message.emit()
 
-      val received = probe.fishForMessage(max = 1.second) { case msg =>
+      // FIXME This probe is receiving a ton of messages. Ideally it should register itself
+      //  in a way that it would just receive these relevant HealthSignalReceived messages and
+      //  not additionally receive all of the windowing events.
+      val received = probe.fishForMessage(max = 3.seconds) { case msg =>
         msg.isInstanceOf[HealthSignalReceived]
       }
 

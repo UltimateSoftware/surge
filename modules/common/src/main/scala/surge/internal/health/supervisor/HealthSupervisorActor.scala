@@ -3,7 +3,6 @@
 package surge.internal.health.supervisor
 
 import java.util.regex.Pattern
-
 import akka.Done
 import akka.actor.{ Actor, ActorContext, ActorRef, ActorSystem, PoisonPill, Props, Terminated }
 import akka.pattern.{ ask, BackoffOpts, BackoffSupervisor }
@@ -192,7 +191,6 @@ case class SupervisedComponentRegistration(
 case class HealthState(registered: Map[String, SupervisedComponentRegistration] = Map.empty, replyTo: Option[ActorRef] = None)
 
 object HealthSupervisorActor {
-  val log: Logger = LoggerFactory.getLogger(getClass)
 
   def apply(signalBus: HealthSignalBusInternal, filters: Seq[SignalPatternMatcher], actorSystem: ActorSystem): HealthSupervisorActorRef = {
     val props = BackoffSupervisor.props(
@@ -227,6 +225,7 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, filters:
     extends Actor
     with HealthSignalListener
     with HealthRegistrationListener {
+  private val log: Logger = LoggerFactory.getLogger(getClass)
   import HealthSupervisorActor._
   implicit val askTimeout: Timeout = TimeoutConfig.HealthSupervision.actorAskTimeout
   implicit val executionContext: ExecutionContext = ExecutionContext.global
@@ -282,7 +281,7 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, filters:
       case sig: HealthSignal =>
         handleSignal(sig)
       case other =>
-        HealthSupervisorActor.log.error(s"Unable to handle message of type $other.getClass()")
+        log.error(s"Unable to handle message of type $other.getClass()")
     }
   }
 
@@ -340,7 +339,7 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, filters:
           case Success(events) =>
             state.replyTo.foreach(r =>
               events.foreach(e => {
-                HealthSupervisorActor.log.debug("replying with event {}", e)
+                log.debug("replying with event {}", e)
                 r ! e
               }))
         }
