@@ -21,6 +21,7 @@ Scala
 Java
 :    Java examples coming soon..
 
+#### Screenshot
 
 ### Using Jaeger 
 
@@ -35,5 +36,9 @@ Scala
 
 Java
 :    Java examples coming soon..
+
+#### Screenshot
+
+![Jaeger Screenshot](images/tracing-with-jaeger.png)
 
 

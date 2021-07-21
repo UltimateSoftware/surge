@@ -3,9 +3,10 @@
 package docs.command
 
 import io.opentelemetry.exporter.jaeger.JaegerGrpcSpanExporter
+import io.opentelemetry.sdk.resources.Resource
 import surge.core._
 import surge.kafka.KafkaTopic
-import surge.scaladsl.command.{ AggregateCommandModel, SurgeCommandBusinessLogic }
+import surge.scaladsl.command.{AggregateCommandModel, SurgeCommandBusinessLogic}
 
 import java.util.UUID
 
@@ -29,6 +30,7 @@ object BankAccountSurgeModelWithJaeger
 
     val sdkTracerProvider = SdkTracerProvider.builder()
       .addSpanProcessor(BatchSpanProcessor.builder(exporter).build())
+      .setResource(Resource.builder().put("service.name", "bank").build())
       .build()
 
     val openTelemetry: OpenTelemetrySdk = OpenTelemetrySdk.builder()

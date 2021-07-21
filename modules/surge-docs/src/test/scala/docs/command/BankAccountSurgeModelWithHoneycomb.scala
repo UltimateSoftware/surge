@@ -3,9 +3,10 @@
 package docs.command
 
 import io.opentelemetry.api.trace.Tracer
+import io.opentelemetry.sdk.resources.Resource
 import surge.core._
 import surge.kafka.KafkaTopic
-import surge.scaladsl.command.{ AggregateCommandModel, SurgeCommandBusinessLogic }
+import surge.scaladsl.command.{AggregateCommandModel, SurgeCommandBusinessLogic}
 
 import java.util.UUID
 
@@ -24,11 +25,11 @@ object BankAccountSurgeModelWithHoneycomb
   override val openTelemetry = {
 
     val sdkTracerProvider = SdkTracerProvider.builder()
-
       .addSpanProcessor(BatchSpanProcessor.builder(OtlpGrpcSpanExporter.builder()
         .setEndpoint("https://api.honeycomb.io")
         .addHeader("x-honeycomb-dataset", "data-set-name")
         .addHeader("x-honeycomb-team", "YOUR_API_KEY").build()).build())
+      .setResource(Resource.builder().put("service.name", "bank").build())
       .build()
 
     val openTelemetry: OpenTelemetrySdk = OpenTelemetrySdk.builder()
