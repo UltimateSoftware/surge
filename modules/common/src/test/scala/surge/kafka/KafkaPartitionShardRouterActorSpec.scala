@@ -8,7 +8,6 @@ import org.apache.kafka.common.TopicPartition
 import org.mockito.ArgumentMatchers.anyString
 import org.mockito.Mockito.when
 import org.mockito.invocation.InvocationOnMock
-import org.scalatest.Resources.should
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
@@ -115,8 +114,8 @@ class KafkaPartitionShardRouterActorSpec
   val partitionAssignments: Map[HostPort, List[TopicPartition]] =
     Map[HostPort, List[TopicPartition]](hostPort1 -> List(partition0, partition1), hostPort2 -> List(partition2))
 
-  "KafkaPartitionShardRouterActor" ignore should {
-    "Handle updates to partition assignments using TracedMessages" in {
+  "KafkaPartitionShardRouterActor" should {
+    "Handle updates to partition assignments using TracedMessages" ignore {
       val testContext = setupTestContext()
       val probe = TestProbe()
       import testContext._
@@ -136,7 +135,7 @@ class KafkaPartitionShardRouterActorSpec
       probe.expectMsg(command)
     }
 
-    "Handle updates to partition assignments" in {
+    "Handle updates to partition assignments" ignore {
       val testContext = setupTestContext()
       val probe = TestProbe()
       import testContext._
@@ -156,7 +155,7 @@ class KafkaPartitionShardRouterActorSpec
       probe.expectMsg(command)
     }
 
-    "Stash traced messages before initialized" in {
+    "Stash traced messages before initialized" ignore {
       val testContext = setupTestContext()
       val probe = TestProbe()
       import testContext._
@@ -174,7 +173,7 @@ class KafkaPartitionShardRouterActorSpec
       probe.expectMsg(command0)
     }
 
-    "Stash messages before initialized" in {
+    "Stash messages before initialized" ignore {
       val testContext = setupTestContext()
       val probe = TestProbe()
       import testContext._
@@ -192,7 +191,7 @@ class KafkaPartitionShardRouterActorSpec
       probe.expectMsg(command0)
     }
 
-    "Send traced messages that can't be routed to dead letters" in {
+    "Send traced messages that can't be routed to dead letters" ignore {
       val testContext = setupTestContext()
       import testContext._
 
@@ -210,7 +209,7 @@ class KafkaPartitionShardRouterActorSpec
       dead.recipient shouldEqual system.deadLetters
     }
 
-    "Send messages that can't be routed to dead letters" in {
+    "Send messages that can't be routed to dead letters" ignore {
       val testContext = setupTestContext()
       import testContext._
 
