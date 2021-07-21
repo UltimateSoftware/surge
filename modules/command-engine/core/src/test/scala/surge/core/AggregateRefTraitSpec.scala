@@ -48,7 +48,7 @@ class AggregateRefTraitSpec
   private val testPerson2 = Person("Joyce", "Green")
 
   "AggregateRef" should {
-    "Be able to fetch state for an aggregate" ignore {
+    "Be able to fetch state for an aggregate" in {
       val testProbe1 = TestProbe()
       val aggregateRef1 = TestAggregateRef(testPerson1.name, testProbe1)
 
@@ -72,7 +72,7 @@ class AggregateRefTraitSpec
       }
     }
 
-    "Handle sending commands to the underlying aggregate" ignore {
+    "Handle sending commands to the underlying aggregate" in {
       val testProbe1 = TestProbe()
       val aggregateRef1 = TestAggregateRef(testPerson1.name, testProbe1)
       val testPerson1StateFut = aggregateRef1.sendCommand("Command1")
@@ -109,7 +109,7 @@ class AggregateRefTraitSpec
       }
     }
 
-    "Handle applying events to the underlying aggregate" ignore {
+    "Handle applying events to the underlying aggregate" in {
       val testProbe1 = TestProbe()
       val aggregateRef1 = TestAggregateRef(testPerson1.name, testProbe1)
       val testPerson1StateFut = aggregateRef1.applyEvent("Event1")
