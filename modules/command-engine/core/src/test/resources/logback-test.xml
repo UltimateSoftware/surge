@@ -7,7 +7,11 @@
         </layout>
     </appender>
 
-    <root level="OFF">
+    <logger name="surge" level="DEBUG" />
+
+    <logger name="org.apache.kafka" level="WARN" />
+
+    <root level="INFO">
         <appender-ref ref="STDOUT" />
     </root>
 

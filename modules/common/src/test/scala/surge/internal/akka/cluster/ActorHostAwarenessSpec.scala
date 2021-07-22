@@ -3,13 +3,21 @@
 package surge.internal.akka.cluster
 
 import akka.actor.ActorSystem
+import akka.testkit.TestKit
 import org.apache.kafka.streams.state.HostInfo
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 
-/*
-class ActorHostAwarenessSpec extends AnyWordSpec with Matchers {
+class ActorHostAwarenessSpec extends AnyWordSpec with Matchers with BeforeAndAfterAll {
   import RemoteActorSystems._
+
+  override def afterAll(): Unit = {
+    TestKit.shutdownActorSystem(localActorSystem, verifySystemShutdown = true)
+    TestKit.shutdownActorSystem(arteryConfiguredSystem, verifySystemShutdown = true)
+    TestKit.shutdownActorSystem(nettyConfiguredSystem, verifySystemShutdown = true)
+  }
+
   trait LocalAwareness extends ActorSystemHostAwareness {
     override def actorSystem: ActorSystem = localActorSystem
   }
@@ -38,4 +46,3 @@ class ActorHostAwarenessSpec extends AnyWordSpec with Matchers {
     }
   }
 }
- */
