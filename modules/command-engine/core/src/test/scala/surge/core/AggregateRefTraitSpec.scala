@@ -4,17 +4,17 @@ package surge.core
 
 import akka.actor.{ ActorRef, ActorSystem, Props }
 import akka.testkit.{ TestKit, TestProbe }
-import io.opentracing.Tracer
-import io.opentracing.mock.MockTracer
+import io.opentelemetry.api.trace.Tracer
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AsyncWordSpecLike
 import surge.exceptions.SurgeUnexpectedException
-import surge.internal.akka.ProbeWithTraceSupport
 import surge.internal.persistence.{ AggregateRefTrait, PersistentActor }
+import surge.internal.tracing.{ NoopTracerFactory, ProbeWithTraceSupport }
 
 import scala.concurrent.Future
+import scala.concurrent.duration.DurationInt
 
 class AggregateRefTraitSpec
     extends TestKit(ActorSystem("AggregateRefTraitSpec"))
@@ -29,10 +29,10 @@ class AggregateRefTraitSpec
 
   case class Person(name: String, favoriteColor: String)
 
-  private val mockTracer = new MockTracer()
+  private val noopTracer = NoopTracerFactory.create()
   case class TestAggregateRef(aggregateId: String, regionTestProbe: TestProbe) extends AggregateRefTrait[String, Person, String, String] {
-    override val region: ActorRef = system.actorOf(Props(new ProbeWithTraceSupport(regionTestProbe, mockTracer)))
-    override val tracer: Tracer = mockTracer
+    override val region: ActorRef = system.actorOf(Props(new ProbeWithTraceSupport(regionTestProbe, noopTracer)))
+    override val tracer: Tracer = noopTracer
 
     def sendCommand(command: String, retries: Int = 0): Future[Either[Throwable, Option[Person]]] = {
       val envelope = PersistentActor.ProcessMessage(aggregateId, command)

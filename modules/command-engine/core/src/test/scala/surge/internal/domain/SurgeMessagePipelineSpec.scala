@@ -12,7 +12,7 @@ import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Milliseconds, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
-import org.scalatest.{ BeforeAndAfterAll, PrivateMethodTester }
+import org.scalatest.{ BeforeAndAfterAll, Ignore, PrivateMethodTester }
 import play.api.libs.json.{ JsValue, Json }
 import surge.core.{ Ack, TestBoundedContext }
 import surge.health.config.{ ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig }
@@ -29,6 +29,7 @@ import surge.metrics.Metrics
 
 import scala.concurrent.duration._
 
+@Ignore
 class SurgeMessagePipelineSpec
     extends TestKit(ActorSystem("SurgeMessagePipelineSpec", ConfigFactory.load("artery-test-config")))
     with AnyWordSpecLike

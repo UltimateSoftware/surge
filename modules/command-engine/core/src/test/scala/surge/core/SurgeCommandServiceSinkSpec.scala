@@ -11,9 +11,11 @@ import surge.core.command.{ SurgeCommandServiceSink, SurgeMultiCommandServiceSin
 import surge.streams.sink.TestEventSource
 
 import java.util.UUID
+import scala.concurrent.duration.DurationInt
 import scala.concurrent.{ ExecutionContext, Future }
 
 class SurgeCommandServiceSinkSpec extends TestKit(ActorSystem("SurgeCommandServiceSinkSpec")) with AnyWordSpecLike with Matchers with BeforeAndAfterAll {
+
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
   }

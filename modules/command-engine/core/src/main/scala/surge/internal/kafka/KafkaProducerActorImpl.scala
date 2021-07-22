@@ -4,26 +4,25 @@ package surge.internal.kafka
 
 import akka.actor.{ ActorRef, NoSerializationVerificationNeeded, Stash, Status, Timers }
 import akka.pattern._
+import akka.util.Timeout
 import com.typesafe.config.{ Config, ConfigFactory }
-import io.opentracing.Tracer
+import io.opentelemetry.api.trace.Tracer
 import org.apache.kafka.clients.producer.{ ProducerConfig, ProducerRecord }
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.{ AuthorizationException, ProducerFencedException }
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.core.KafkaProducerActor
+import surge.health.{ HealthSignalBusTrait, HealthyPublisher }
 import surge.internal.akka.ActorWithTracing
+import surge.internal.akka.cluster.ActorHostAwareness
+import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.kafka.streams.HealthyActor.GetHealth
 import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, HealthCheck, HealthCheckStatus }
 import surge.kafka.{ KafkaBytesProducer, KafkaRecordMetadata, KafkaTopicTrait, LagInfo }
 import surge.metrics.{ MetricInfo, Metrics, Rate, Timer }
+
 import java.time.Instant
 import java.util.concurrent.TimeUnit
-
-import akka.util.Timeout
-import surge.health.{ HealthSignalBusTrait, HealthyPublisher }
-import surge.internal.akka.cluster.ActorHostAwareness
-import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
-
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.{ Failure, Success, Try }

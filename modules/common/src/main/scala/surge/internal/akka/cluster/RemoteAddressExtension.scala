@@ -15,6 +15,6 @@ class RemoteAddressExtensionImpl(system: ExtendedActorSystem) extends Extension 
   def address: Address = system.provider.getDefaultAddress
 }
 object RemoteAddressExtension extends ExtensionId[RemoteAddressExtensionImpl] with ExtensionIdProvider {
-  override def lookup(): ExtensionId[RemoteAddressExtensionImpl] = RemoteAddressExtension
+  override def lookup: ExtensionId[RemoteAddressExtensionImpl] = RemoteAddressExtension
   override def createExtension(system: ExtendedActorSystem): RemoteAddressExtensionImpl = new RemoteAddressExtensionImpl(system)
 }

@@ -16,14 +16,15 @@ import org.scalatestplus.mockito.MockitoSugar
 import surge.internal.akka.kafka.KafkaConsumerStateTrackingActor
 import surge.kafka.HostPort
 
+import scala.concurrent.duration.DurationInt
 import scala.jdk.CollectionConverters._
 
 class KafkaStreamsPartitionTrackerActorImplSpec
     extends TestKit(ActorSystem("KafkaStreamsPartitionTrackerActorImplSpec"))
     with AnyWordSpecLike
     with Matchers
-    with BeforeAndAfterAll
-    with MockitoSugar {
+    with MockitoSugar
+    with BeforeAndAfterAll {
 
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system, verifySystemShutdown = true)

@@ -9,19 +9,19 @@ import akka.remote.testkit.{ MultiNodeConfig, MultiNodeSpec, MultiNodeSpecCallba
 import akka.stream.scaladsl.Flow
 import akka.testkit.TestProbe
 import com.typesafe.config.{ Config, ConfigFactory }
-import io.opentracing.Tracer
-import io.opentracing.noop.NoopTracerFactory
-import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
+import io.opentelemetry.api.trace.Tracer
+import net.manub.embeddedkafka._
 import org.apache.kafka.clients.producer.ProducerRecord
-import org.apache.kafka.common.serialization.{ ByteArrayDeserializer, Deserializer, Serializer, StringDeserializer }
+import org.apache.kafka.common.serialization._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
-import org.scalatest.{ BeforeAndAfterAll, OptionValues }
+import org.scalatest._
 import surge.internal.akka.kafka.AkkaKafkaConsumer
+import surge.internal.tracing.NoopTracerFactory
 import surge.kafka.KafkaTopic
 import surge.kafka.streams.DefaultSerdes
-import surge.streams.replay.{ DefaultEventReplaySettings, KafkaForeverReplaySettings, KafkaForeverReplayStrategy, NoOpEventReplayStrategy }
+import surge.streams.replay._
 import surge.streams.{ DataHandler, EventPlusStreamMeta }
 
 import scala.concurrent.duration._

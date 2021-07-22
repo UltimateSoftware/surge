@@ -2,15 +2,17 @@
 
 package surge.internal.akka.cluster
 
-import akka.Done
-import akka.actor.{ Actor, ActorContext, ActorRef, ActorSystem, DeadLetter, PoisonPill, Props, Terminated }
+import akka.actor.{ ActorContext, ActorRef, ActorSystem, DeadLetter, PoisonPill, Props, Terminated }
 import akka.testkit.{ TestKit, TestProbe }
+import io.opentelemetry.api.trace.Tracer
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
 import surge.akka.cluster.{ EntityPropsProvider, Passivate, PerShardLogicProvider }
 import surge.core.ControllableAdapter
+import surge.internal.akka.ActorWithTracing
+import surge.internal.tracing.NoopTracerFactory
 import surge.kafka.streams.{ HealthCheck, HealthCheckStatus }
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -51,8 +53,10 @@ object TestActor {
   }
 }
 
-class TestActor(id: String) extends Actor {
+class TestActor(id: String) extends ActorWithTracing {
   import TestActor._
+
+  implicit val tracer: Tracer = NoopTracerFactory.create()
 
   override def receive: Receive = onMessage(0)
 
@@ -69,12 +73,12 @@ class TestActor(id: String) extends Actor {
 }
 
 class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with AnyWordSpecLike with Matchers with MockitoSugar with BeforeAndAfterAll {
+  import TestActor._
+  private val shardProps = Shard.props("testShard", new RegionLogicProvider(), TestActor.idExtractor)(NoopTracerFactory.create())
+
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
   }
-
-  import TestActor._
-  private val shardProps = Shard.props("testShard", new RegionLogicProvider(), TestActor.idExtractor)
 
   private def passivateActor(shard: ActorRef, childId: String): ActorRef = {
     val probe = TestProbe()
@@ -212,7 +216,7 @@ class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with AnyWordSpecLike w
         probe.ref ! Terminated
         ()
       }
-      val shardActor = system.actorOf(Shard.props("testShard", new RegionLogicProvider(() => notifyProbe()), TestActor.idExtractor))
+      val shardActor = system.actorOf(Shard.props("testShard", new RegionLogicProvider(() => notifyProbe()), TestActor.idExtractor)(NoopTracerFactory.create()))
       probe.expectNoMessage()
       probe.send(shardActor, PoisonPill)
       probe.expectMsg(Terminated)
