@@ -15,7 +15,7 @@ import scala.concurrent.{ ExecutionContext, Future }
 class MultiplexedEventSinkSpec extends TestKit(ActorSystem("MultiplexedEventSink")) with AnyWordSpecLike with Matchers with BeforeAndAfterAll {
 
   override def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system, duration = 15.seconds, verifySystemShutdown = true)
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
   }
 
   sealed trait TopLevelEvent

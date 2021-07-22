@@ -27,7 +27,7 @@ class KafkaStreamsPartitionTrackerActorImplSpec
     with BeforeAndAfterAll {
 
   override def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system, duration = 15.seconds, verifySystemShutdown = true)
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
   }
 
   private val tp0 = new TopicPartition("testTopic", 0)

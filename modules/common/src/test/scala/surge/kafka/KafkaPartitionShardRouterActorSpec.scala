@@ -115,7 +115,7 @@ class KafkaPartitionShardRouterActorSpec
   override val actorSystem: ActorSystem = system
 
   override def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system, duration = 15.seconds, verifySystemShutdown = true)
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
   }
 
   private val hostPort1 = HostPort(localHostname, localPort)

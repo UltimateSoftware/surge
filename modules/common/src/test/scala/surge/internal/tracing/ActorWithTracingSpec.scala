@@ -21,11 +21,12 @@ object ProbeWithTraceSupport {
 class ProbeWithTraceSupport(probe: TestProbe, val tracer: Tracer) extends ActorWithTracing {
   var mostRecentSpan: Option[Span] = None
   override def receive: Receive = {
+    case ProbeWithTraceSupport.GetMostRecentSpan =>
+      sender() ! ProbeWithTraceSupport.MostRecentSpan(mostRecentSpan)
     case msg =>
       mostRecentSpan = Some(activeSpan)
       probe.ref.forward(msg)
-    case ProbeWithTraceSupport.GetMostRecentSpan =>
-      sender() ! ProbeWithTraceSupport.MostRecentSpan(mostRecentSpan)
+
   }
 
 }
@@ -33,7 +34,7 @@ class ProbeWithTraceSupport(probe: TestProbe, val tracer: Tracer) extends ActorW
 class ActorWithTracingSpec extends TestKit(ActorSystem("ActorWithTracingSpec")) with AnyWordSpecLike with Matchers with BeforeAndAfterAll {
 
   override def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system, duration = 15.seconds, verifySystemShutdown = true)
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
   }
 
   val mockTracer = NoopTracerFactory.create()
