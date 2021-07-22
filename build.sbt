@@ -1,7 +1,7 @@
 // Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 import Dependencies.Jackson
-import Dependencies.autoImport.OpenTelemetry.{HoneycombSample, JaegerSample}
+import Dependencies.autoImport.OpenTelemetry.{ HoneycombSample, JaegerSample }
 import sbt.Keys._
 
 scalaVersion in ThisBuild := "2.13.5"
