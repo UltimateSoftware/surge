@@ -30,13 +30,14 @@
 <span class="home-icon">⌂</span>Surge
 </a>
 <div class="version-number">
-0.5.12*
+0.5.16*
 </div>
 </div>
 <div class="nav-toc">
 <ul>
   <li><a href="overview.html" class="active page">Overview</a></li>
   <li><a href="command-usage.html" class="page">Command Side Usage</a></li>
+  <li><a href="tracing-usage.html" class="page">Open Telemetry Integration</a></li>
 </ul>
 </div>
 
@@ -68,13 +69,14 @@ C16.952,7,17,6.553,17,6c0-0.553-0.048-1-0.6-1H3.6C3.048,5,3,5.447,3,6C3,6.553,3.
 <span class="home-icon">⌂</span>Surge
 </a>
 <div class="version-number">
-0.5.12*
+0.5.16*
 </div>
 </div>
 <div class="nav-toc">
 <ul>
   <li><a href="overview.html" class="active page">Overview</a></li>
   <li><a href="command-usage.html" class="page">Command Side Usage</a></li>
+  <li><a href="tracing-usage.html" class="page">Open Telemetry Integration</a></li>
 </ul>
 </div>
 
@@ -106,6 +108,8 @@ C16.952,7,17,6.553,17,6c0-0.553-0.048-1-0.6-1H3.6C3.048,5,3,5.447,3,6C3,6.553,3.
 <p>The Surge command engine is a library component that lives inside of a domain command application. The engine indexes an aggregate state snapshot Kafka topic to maintain the state for each aggregate created by a domain service. It is also responsible for managing a cluster of domain aggregates to map each unique aggregate id for a domain aggregate to a single actor within the application cluster that is responsible for that aggregate. Because the engine maintains this state, it handles the routing of any messages to the actor instance responsible for the aggregate id the incoming message is destined for. To determine how commands and events for an aggregate should be handled, the engine leverages an implementation of a command model interface which is provided to the engine at compile time when creating the engine.</p>
 <h3><a href="#in-depth-overview" name="in-depth-overview" class="anchor"><span class="anchor-link"></span></a>In depth overview</h3>
 <p><img src="images/cqrs-on-kafka-streams.png" alt="Kafka Streams Command In Depth" /></p>
+<h4><a href="#command-and-event-flow-sequence" name="command-and-event-flow-sequence" class="anchor"><span class="anchor-link"></span></a>Command and Event Flow Sequence</h4>
+<p><img src="images/surge-sequence.png" alt="Kafka Streams Command In Depth" /></p>
 <p><strong>Note</strong> All of these in depth details are implemented in/provided by the Surge engine out of the box and do not have to be implemented in a domain app. The details described are for anyone interested in taking a look at how things work.</p>
 <h4><a href="#state-tracking" name="state-tracking" class="anchor"><span class="anchor-link"></span></a>State Tracking</h4>
 <p>When an aggregate emits new events, they are accompanied by an update to the aggregate state via a message produced to the aggregate state snapshot topic. An aggregate id will always send state updates to the same Kafka partition - this is important for being able to compact away older aggregate snapshots and guarantee any updates to a particular aggregate id as well as provide routing (described in more detail later). State updates sent to the state topic are consumed internally by the Surge command engine and indexed in a Kafka Streams KTable (key value store). Since we are subscribing to Kafka to build up the state store, service nodes coordinate via a Kafka consumer group to determine which nodes are responsible for which partitions, and therefore any aggregate ids associated with that partition.</p>
@@ -204,7 +208,7 @@ The source code for this page can be found <a href="https://github.com/UltimateS
 <script type="text/javascript" src="lib/prettify/prettify.js"></script>
 <script type="text/javascript" src="lib/prettify/lang-scala.js"></script>
 <script type="text/javascript">jQuery(function(){window.prettyPrint && prettyPrint()});</script>
-<script type="text/javascript">jQuery(function(jq){initOldVersionWarnings(jq, '0.5.12-SNAPSHOT', '')});</script>
+<script type="text/javascript">jQuery(function(jq){initOldVersionWarnings(jq, '0.5.16-SNAPSHOT', '')});</script>
 
 
 </html>
