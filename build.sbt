@@ -67,9 +67,7 @@ lazy val `surge-engine-command-core` = (project in file("modules/command-engine/
     scalatest,
     scalatestPlusMockito,
     embeddedKafka,
-    OpenTracing.mock,
-    OpenTracing.noop,
-    OpenTracing.api,
+    OpenTelemetry.api,
     logback,
     typesafeConfig))
   .dependsOn(`surge-common` % "compile->compile;test->test")
