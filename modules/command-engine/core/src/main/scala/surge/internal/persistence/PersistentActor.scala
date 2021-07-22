@@ -292,7 +292,6 @@ class PersistentActor[S, M, R, E](
         s"Aggregate actor for $aggregateId received a ReceiveTimeout message in uninitialized state. " +
           "This should not happen and is likely a logic error. Dropping the ReceiveTimeout message.")
     case other =>
-      println("stashing")
       log.debug(s"PersistentActor actor for $aggregateId stashing a message with class [{}] from the 'uninitialized' state", other.getClass)
       activeSpan.addEvent("stashed")
       stash()
