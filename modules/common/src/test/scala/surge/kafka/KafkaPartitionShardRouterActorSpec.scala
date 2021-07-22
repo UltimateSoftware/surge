@@ -4,28 +4,31 @@ package surge.kafka
 
 import akka.actor.{ Actor, ActorContext, ActorSystem, DeadLetter, Props }
 import akka.testkit.{ TestKit, TestProbe }
-import io.opentracing.noop.NoopTracerFactory
 import org.apache.kafka.common.TopicPartition
 import org.mockito.ArgumentMatchers.anyString
 import org.mockito.Mockito.when
 import org.mockito.invocation.InvocationOnMock
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
 import surge.akka.cluster.{ EntityPropsProvider, PerShardLogicProvider }
+import surge.internal.akka.ActorWithTracing
 import surge.core.Ack
 import surge.internal.akka.cluster.ActorSystemHostAwareness
 import surge.internal.akka.kafka.{ KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor }
 import surge.kafka.streams.{ HealthCheck, HealthCheckStatus }
-import surge.tracing.TracedMessage
+import surge.internal.tracing.{ NoopTracerFactory, TracedMessage }
 
 import scala.concurrent.Future
+import scala.concurrent.duration.DurationInt
 
 object KafkaPartitionShardRouterActorSpecModels {
   case class Command(id: String)
   case class WrappedCmd(topicPartition: TopicPartition, cmd: Command)
 
-  class ProbeInterceptorActor(topicPartition: TopicPartition, probe: TestProbe) extends Actor {
+  class ProbeInterceptorActor(topicPartition: TopicPartition, probe: TestProbe) extends ActorWithTracing {
+    implicit val tracer = NoopTracerFactory.create()
     override def receive: Receive = { case cmd: Command =>
       probe.ref.forward(WrappedCmd(topicPartition, cmd))
     }
@@ -89,8 +92,7 @@ trait KafkaPartitionShardRouterActorSpecLike extends MockitoSugar {
         partitionTracker = new KafkaConsumerPartitionAssignmentTracker(partitionProbe.ref),
         kafkaStateProducer = producer,
         regionCreator = new ProbeInterceptorRegionCreator(regionProbe),
-        extractEntityId = extractEntityId,
-        tracer))
+        extractEntityId = extractEntityId)(tracer))
 
     TestContext(partitionProbe = partitionProbe, regionProbe = regionProbe, shardRouterProps = shardRouterProps)
   }
@@ -105,11 +107,16 @@ class KafkaPartitionShardRouterActorSpec
     extends TestKit(ActorSystem("KafkaPartitionShardRouterActorSpec"))
     with AnyWordSpecLike
     with Matchers
+    with BeforeAndAfterAll
     with KafkaPartitionShardRouterActorSpecLike
     with ActorSystemHostAwareness {
   import KafkaPartitionShardRouterActorSpecModels._
 
   override val actorSystem: ActorSystem = system
+
+  override def afterAll(): Unit = {
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
+  }
 
   private val hostPort1 = HostPort(localHostname, localPort)
   private val hostPort2 = HostPort("not-localhost", 1234)
@@ -129,10 +136,10 @@ class KafkaPartitionShardRouterActorSpec
 
       val newPartitionAssignments = Map[HostPort, List[TopicPartition]](hostPort1 -> List(partition0, partition1, partition2), hostPort2 -> List())
 
-      partitionProbe.send(routerActor, TracedMessage(PartitionAssignments(newPartitionAssignments), Map[String, String]()))
+      partitionProbe.send(routerActor, TracedMessage(PartitionAssignments(newPartitionAssignments)))
 
       val command = Command("partition2")
-      probe.send(routerActor, TracedMessage(command, Map[String, String]()))
+      probe.send(routerActor, TracedMessage(command))
       regionProbe.expectMsg(WrappedCmd(partition2, command))
       regionProbe.reply(command)
       probe.expectMsg(command)
@@ -167,7 +174,7 @@ class KafkaPartitionShardRouterActorSpec
       initializePartitionAssignments(partitionProbe, Map.empty)
 
       val command0 = Command("partition0")
-      probe.send(routerActor, TracedMessage(command0, Map[String, String]()))
+      probe.send(routerActor, TracedMessage(command0))
 
       partitionProbe.send(routerActor, PartitionAssignments(partitionAssignments))
 
@@ -204,7 +211,7 @@ class KafkaPartitionShardRouterActorSpec
 
       initializePartitionAssignments(partitionProbe)
 
-      routerActor ! TracedMessage(ThrowExceptionInExtractEntityId, Map[String, String]())
+      routerActor ! TracedMessage(ThrowExceptionInExtractEntityId)
 
       val dead = deadLetterProbe.expectMsgType[DeadLetter]
       dead.message shouldEqual ThrowExceptionInExtractEntityId

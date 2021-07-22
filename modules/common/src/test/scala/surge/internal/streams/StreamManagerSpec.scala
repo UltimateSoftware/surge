@@ -7,7 +7,6 @@ import akka.kafka.Subscriptions
 import akka.stream.scaladsl.Flow
 import akka.testkit.{ TestKit, TestProbe }
 import akka.{ Done, NotUsed }
-import io.opentracing.noop.NoopTracerFactory
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.serialization.{ Deserializer, Serializer }
@@ -19,6 +18,7 @@ import org.scalatest.time.{ Millis, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
 import surge.internal.akka.kafka.AkkaKafkaConsumer
 import surge.internal.akka.streams.FlowConverter
+import surge.internal.tracing.NoopTracerFactory
 import surge.kafka.KafkaTopic
 import surge.kafka.streams.DefaultSerdes
 import surge.streams.DataPipeline._

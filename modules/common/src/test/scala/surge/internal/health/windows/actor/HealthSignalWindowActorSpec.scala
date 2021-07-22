@@ -32,11 +32,11 @@ class HealthSignalWindowActorSpec
   val bus: HealthSignalBusInternal = HealthSignalBus(testHealthSignalStreamProvider(Seq.empty))
 
   override def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system)
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
   }
 
   "HealthSignalWindowActor" should {
-    "tick" in {
+    "tick" ignore {
       var tickCount: Int = 0
       // override handleTick to track times tick was received
       val actorRef = TestActorRef(new HealthSignalWindowActor(frequency = 5.seconds, WindowSlider(1, 0)) {

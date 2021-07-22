@@ -3,15 +3,14 @@
 package surge.streams
 
 import java.util.Properties
-
 import akka.actor.ActorSystem
 import akka.kafka.{ AutoSubscription, ConsumerSettings, Subscriptions }
 import com.typesafe.config.{ Config, ConfigFactory }
-import io.opentracing.Tracer
-import io.opentracing.noop.NoopTracerFactory
+import io.opentelemetry.api.trace.Tracer
 import org.apache.kafka.common.serialization.Deserializer
 import surge.internal.akka.kafka.AkkaKafkaConsumer
 import surge.internal.streams.{ KafkaOffsetManagementSubscriptionProvider, KafkaStreamManager, ManagedDataPipeline, ManualOffsetManagementSubscriptionProvider }
+import surge.internal.tracing.NoopTracerFactory
 import surge.kafka.KafkaTopic
 import surge.metrics.Metrics
 import surge.streams.replay.{ DefaultEventReplaySettings, EventReplaySettings, EventReplayStrategy, NoOpEventReplayStrategy }

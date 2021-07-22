@@ -21,15 +21,13 @@ import play.api.libs.json.{ JsValue, Json }
 import surge.akka.cluster.Passivate
 import surge.core.{ KafkaProducerActor, TestBoundedContext }
 import surge.exceptions.{ AggregateInitializationException, KafkaPublishTimeoutException }
+import surge.health.HealthSignalBusTrait
 import surge.internal.kafka.HeadersHelper
 import surge.internal.persistence.PersistentActor.{ ACKError, ApplyEvent, Stop }
 import surge.kafka.streams.AggregateStateStoreKafkaStreams
 import surge.metrics.Metrics
 
 import java.util.UUID
-
-import surge.health.HealthSignalBusTrait
-
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
 class IsAtLeastOneElementSeq extends ArgumentMatcher[Seq[KafkaProducerActor.MessageToPublish]] {
@@ -49,7 +47,7 @@ class PersistentActorSpec
 
   private implicit val timeout: Timeout = Timeout(10.seconds)
   override def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system)
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
   }
 
   def randomUUID: String = UUID.randomUUID().toString
@@ -399,31 +397,30 @@ class PersistentActorSpec
       val testContext = TestContext.setupDefault
       import testContext._
 
-      val testException = new RuntimeException("This is an expected exception")
-      val testEnvelope = envelope(FailCommandProcessing(testAggregateId, testException))
+      val testEnvelope: PersistentActor.ProcessMessage[BaseTestCommand] = envelope(FailCommandProcessing(testAggregateId, errorMsg = "failed"))
 
       probe.send(actor, testEnvelope)
       val commandError = probe.expectMsgClass(classOf[PersistentActor.ACKError])
       // Fuzzy matching because serializing and deserializing gets a different object and messes up .equals even though the two are identical
-      commandError.exception.getMessage shouldEqual testException.getMessage
+      commandError.exception.getMessage shouldEqual "failed"
 
-      val testEnvelope2 = envelope(CreateExceptionThrowingEvent(testAggregateId, testException))
+      val testEnvelope2 = envelope(CreateExceptionThrowingEvent(testAggregateId, errorMsg = "failed"))
       probe.send(actor, testEnvelope2)
       val eventError = probe.expectMsgClass(classOf[PersistentActor.ACKError])
       // Fuzzy matching because serializing and deserializing gets a different object and messes up .equals even though the two are identical
-      eventError.exception.getMessage shouldEqual testException.getMessage
+      eventError.exception.getMessage shouldEqual "failed"
 
-      val applyEvent = PersistentActor.ApplyEvent(testAggregateId, ExceptionThrowingEvent(testAggregateId, 1, testException))
+      val applyEvent = PersistentActor.ApplyEvent(testAggregateId, ExceptionThrowingEvent(testAggregateId, 1, errorMsg = "failed"))
       probe.send(actor, applyEvent)
       val applyEventError = probe.expectMsgClass(classOf[PersistentActor.ACKError])
       // Fuzzy matching because serializing and deserializing gets a different object and messes up .equals even though the two are identical
-      applyEventError.exception.getMessage shouldEqual testException.getMessage
+      applyEventError.exception.getMessage shouldEqual "failed"
 
-      val unserializableEventEnvelope = envelope(CreateUnserializableEvent(testAggregateId, testException))
+      val unserializableEventEnvelope = envelope(CreateUnserializableEvent(testAggregateId, errorMsg = "failed"))
       probe.send(actor, unserializableEventEnvelope)
       val unserializableError = probe.expectMsgClass(classOf[PersistentActor.ACKError])
       // Fuzzy matching because serializing and deserializing gets a different object and messes up .equals even though the two are identical
-      unserializableError.exception.getMessage shouldEqual testException.getMessage
+      unserializableError.exception.getMessage shouldEqual "failed"
 
       // Finally send a command that doesn't produce an error to ensure the actor is left in a state that can handle commands
       val finallySuccessful = envelope(DoNothing(testAggregateId))
