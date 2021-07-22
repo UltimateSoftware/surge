@@ -18,7 +18,6 @@ class SurgeCommandServiceSinkSpec extends TestKit(ActorSystem("SurgeCommandServi
 
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
-    super.afterAll()
   }
 
   private sealed trait TestCommand {
