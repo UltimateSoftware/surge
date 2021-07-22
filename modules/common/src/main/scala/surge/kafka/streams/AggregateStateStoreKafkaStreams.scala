@@ -3,11 +3,10 @@
 package surge.kafka.streams
 
 import java.util.regex.Pattern
-
 import akka.actor.{ ActorRef, ActorSystem, Props }
 import akka.pattern.{ ask, BackoffOpts, BackoffSupervisor }
 import akka.util.Timeout
-import com.typesafe.config.ConfigFactory
+import com.typesafe.config.{ Config, ConfigFactory }
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.streams.Topology
 import surge.core.Ack
@@ -70,10 +69,11 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
     clientId: String,
     signalBus: HealthSignalBusTrait,
     system: ActorSystem,
-    metrics: Metrics)
+    metrics: Metrics,
+    config: Config)
     extends HealthyComponent
     with Logging {
-  private[streams] lazy val settings = AggregateStateStoreKafkaStreamsImplSettings(applicationId, aggregateName, clientId)
+  private[streams] lazy val settings = AggregateStateStoreKafkaStreamsImplSettings(config, applicationId, aggregateName, clientId)
 
   private[streams] val underlyingActor = createUnderlyingActorWithBackOff()
 
@@ -147,7 +147,15 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
     }
 
     val aggregateStateStoreKafkaStreamsImplProps =
-      AggregateStateStoreKafkaStreamsImpl.props(aggregateName, stateTopic, partitionTrackerProvider, aggregateValidator, applicationHostPort, settings, metrics)
+      AggregateStateStoreKafkaStreamsImpl.props(
+        aggregateName,
+        stateTopic,
+        partitionTrackerProvider,
+        aggregateValidator,
+        applicationHostPort,
+        settings,
+        metrics,
+        config)
 
     val underlyingActorProps = BackoffSupervisor.props(
       BackoffOpts

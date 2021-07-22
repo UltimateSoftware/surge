@@ -5,6 +5,7 @@ package surge.core
 import akka.actor.{ ActorRef, ActorSystem, PoisonPill, Props }
 import akka.pattern._
 import akka.util.Timeout
+import com.typesafe.config.Config
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.header.Headers
 import org.slf4j.LoggerFactory
@@ -32,6 +33,7 @@ object KafkaProducerActor {
       kStreams: AggregateStateStoreKafkaStreams[_],
       partitionTracker: KafkaConsumerPartitionAssignmentTracker,
       signalBus: HealthSignalBusTrait,
+      config: Config,
       kafkaProducerOverride: Option[KafkaBytesProducer] = None): KafkaProducerActor = {
 
     val kafkaProducerProps = Props(
@@ -42,6 +44,7 @@ object KafkaProducerActor {
         kStreams = kStreams,
         partitionTracker = partitionTracker,
         signalBus = signalBus,
+        config = config,
         kafkaProducerOverride = kafkaProducerOverride)).withDispatcher(dispatcherName)
 
     new KafkaProducerActor(

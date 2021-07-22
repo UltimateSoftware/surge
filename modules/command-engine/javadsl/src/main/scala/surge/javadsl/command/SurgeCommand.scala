@@ -2,10 +2,8 @@
 
 package surge.javadsl.command
 
-import java.util.concurrent.CompletionStage
-
 import akka.actor.ActorSystem
-import com.typesafe.config.{ Config, ConfigFactory }
+import com.typesafe.config.Config
 import surge.core
 import surge.core.command._
 import surge.core.commondsl.{ SurgeCommandBusinessLogicTrait, SurgeRejectableCommandBusinessLogicTrait }
@@ -17,6 +15,7 @@ import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamPro
 import surge.javadsl.common.{ HealthCheck, HealthCheckTrait }
 import surge.metrics.Metric
 
+import java.util.concurrent.CompletionStage
 import scala.compat.java8.FutureConverters
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.jdk.CollectionConverters._
@@ -31,8 +30,7 @@ object SurgeCommand {
   def create[AggId, Agg, Command, Evt](
       businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Evt]): SurgeCommand[AggId, Agg, Command, Nothing, Evt] = {
     val actorSystem = ActorSystem(s"${businessLogic.aggregateName}ActorSystem")
-    val config = ConfigFactory.load()
-    create(actorSystem, businessLogic, config)
+    create(actorSystem, businessLogic, businessLogic.config)
   }
 
   def create[AggId, Agg, Command, Evt](
@@ -42,7 +40,7 @@ object SurgeCommand {
     new SurgeCommandImpl(
       actorSystem,
       SurgeCommandModel(businessLogic),
-      new SlidingHealthSignalStreamProvider(WindowingStreamConfigLoader.load(), actorSystem, filters = SignalPatternMatcherRegistry.load().toSeq),
+      new SlidingHealthSignalStreamProvider(WindowingStreamConfigLoader.load(config), actorSystem, filters = SignalPatternMatcherRegistry.load().toSeq),
       businessLogic.aggregateIdToString,
       config)
   }
@@ -54,7 +52,7 @@ object SurgeCommand {
     new SurgeCommandImpl(
       actorSystem,
       SurgeCommandModel(businessLogic),
-      new SlidingHealthSignalStreamProvider(WindowingStreamConfigLoader.load(), actorSystem, filters = SignalPatternMatcherRegistry.load().toSeq),
+      new SlidingHealthSignalStreamProvider(WindowingStreamConfigLoader.load(config), actorSystem, filters = SignalPatternMatcherRegistry.load().toSeq),
       businessLogic.aggregateIdToString,
       config)
   }
