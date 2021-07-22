@@ -205,11 +205,12 @@ class PersistentActor[S, M, R, E](
   override def receive: Receive = uninitialized
 
   private def freeToProcess(state: InternalActorState): Receive = {
-    case pm: ProcessMessage[M] => handle(state, pm)
-    case ae: ApplyEvent[E]     => handle(state, ae)
-    case GetState(_)           => sender() ! StateResponse(state.stateOpt)
-    case ReceiveTimeout        => handlePassivate()
-    case Stop                  => handleStop()
+    case pm: ProcessMessage[M] =>
+      handle(state, pm)
+    case ae: ApplyEvent[E] => handle(state, ae)
+    case GetState(_)       => sender() ! StateResponse(state.stateOpt)
+    case ReceiveTimeout    => handlePassivate()
+    case Stop              => handleStop()
   }
 
   private def handle(initializeWithState: InitializeWithState): Unit = {
@@ -291,6 +292,7 @@ class PersistentActor[S, M, R, E](
         s"Aggregate actor for $aggregateId received a ReceiveTimeout message in uninitialized state. " +
           "This should not happen and is likely a logic error. Dropping the ReceiveTimeout message.")
     case other =>
+      println("stashing")
       log.debug(s"PersistentActor actor for $aggregateId stashing a message with class [{}] from the 'uninitialized' state", other.getClass)
       activeSpan.addEvent("stashed")
       stash()

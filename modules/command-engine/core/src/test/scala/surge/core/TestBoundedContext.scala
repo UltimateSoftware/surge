@@ -33,11 +33,11 @@ object TestBoundedContext {
   case class DoNothing(aggregateId: String) extends BaseTestCommand
   case class CreateNoOpEvent(aggregateId: String) extends BaseTestCommand
 
-  case class FailCommandProcessing(failProcessingId: String, withError: Throwable) extends BaseTestCommand {
+  case class FailCommandProcessing(failProcessingId: String, errorMsg: String) extends BaseTestCommand {
     val aggregateId: String = failProcessingId
   }
-  case class CreateExceptionThrowingEvent(aggregateId: String, throwable: Throwable) extends BaseTestCommand
-  case class CreateUnserializableEvent(aggregateId: String, throwable: Throwable) extends BaseTestCommand
+  case class CreateExceptionThrowingEvent(aggregateId: String, errorMsg: String) extends BaseTestCommand
+  case class CreateUnserializableEvent(aggregateId: String, errorMsg: String) extends BaseTestCommand
 
   implicit val countIncrementedFormat: Format[CountIncremented] = Json.format
   implicit val countDecrementedFormat: Format[CountDecremented] = Json.format
@@ -69,7 +69,7 @@ object TestBoundedContext {
     val eventName: String = "no-op"
   }
 
-  case class ExceptionThrowingEvent(aggregateId: String, sequenceNumber: Int, throwable: Throwable) extends BaseTestEvent {
+  case class ExceptionThrowingEvent(aggregateId: String, sequenceNumber: Int, errorMsg: String) extends BaseTestEvent {
     val eventName: String = "exception-throwing"
   }
 
@@ -97,7 +97,7 @@ trait TestBoundedContext {
           current.copy(count = current.count - decrementBy, version = sequenceNumber)
         case _: NoOpEvent                              => current
         case UnserializableEvent(_, sequenceNumber, _) => current.copy(version = sequenceNumber)
-        case ExceptionThrowingEvent(_, _, e)           => throw e
+        case ExceptionThrowingEvent(_, _, errorMsg)    => throw new Exception(errorMsg)
       }
       Some(newState)
     }
@@ -111,11 +111,11 @@ trait TestBoundedContext {
         case CreateNoOpEvent(aggregateId) => Future.successful(Right(Seq(NoOpEvent(aggregateId, newSequenceNumber))))
         case _: DoNothing                 => Future.successful(Right(Seq.empty))
         case fail: FailCommandProcessing =>
-          Future.failed(fail.withError)
-        case CreateExceptionThrowingEvent(aggregateId, throwable) =>
-          Future.successful(Right(Seq(ExceptionThrowingEvent(aggregateId, newSequenceNumber, throwable))))
-        case CreateUnserializableEvent(aggregateId, throwable) =>
-          Future.successful(Right(Seq(UnserializableEvent(aggregateId, newSequenceNumber, throwable))))
+          Future.failed(new Exception(fail.errorMsg))
+        case CreateExceptionThrowingEvent(aggregateId, errorMsg) =>
+          Future.successful(Right(Seq(ExceptionThrowingEvent(aggregateId, newSequenceNumber, errorMsg))))
+        case CreateUnserializableEvent(aggregateId, errorMsg) =>
+          Future.successful(Right(Seq(UnserializableEvent(aggregateId, newSequenceNumber, new Exception(errorMsg)))))
         case _ =>
           throw new RuntimeException("Received unexpected message in command handler! This should not happen and indicates a bad test")
       }
