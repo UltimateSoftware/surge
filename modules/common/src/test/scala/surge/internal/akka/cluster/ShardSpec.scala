@@ -2,8 +2,7 @@
 
 package surge.internal.akka.cluster
 
-import akka.Done
-import akka.actor.{ Actor, ActorContext, ActorRef, ActorSystem, DeadLetter, PoisonPill, Props, Terminated }
+import akka.actor.{ ActorContext, ActorRef, ActorSystem, DeadLetter, PoisonPill, Props, Terminated }
 import akka.testkit.{ TestKit, TestProbe }
 import io.opentelemetry.api.trace.Tracer
 import org.scalatest.BeforeAndAfterAll
@@ -11,14 +10,13 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
 import surge.akka.cluster.{ EntityPropsProvider, Passivate, PerShardLogicProvider }
+import surge.core.ControllableAdapter
 import surge.internal.akka.ActorWithTracing
 import surge.internal.tracing.NoopTracerFactory
-import surge.core.ControllableAdapter
 import surge.kafka.streams.{ HealthCheck, HealthCheckStatus }
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
-import scala.concurrent.duration.DurationInt
 
 object TestActor {
   def props(id: String): Props = Props(new TestActor(id))

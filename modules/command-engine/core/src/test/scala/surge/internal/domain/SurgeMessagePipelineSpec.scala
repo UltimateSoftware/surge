@@ -1,12 +1,6 @@
 // Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 package surge.internal.domain
 
-import java.util.regex.Pattern
-
-import akka.actor.{ ActorSystem, PoisonPill }
-import akka.testkit.{ TestKit, TestProbe }
-import com.typesafe.config.{ Config, ConfigFactory }
-import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import akka.actor.ActorSystem
 import akka.testkit.{ TestKit, TestProbe }
 import com.typesafe.config.{ Config, ConfigFactory }
@@ -16,13 +10,7 @@ import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
-import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach, Ignore }
-import play.api.libs.json.{ JsValue, Json }
-import surge.core.TestBoundedContext
-import surge.health.config.{ ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig }
-import surge.health.domain.{ Error, HealthSignal }
-import surge.health.{ HealthListener, HealthMessage, RestartComponentAttempted, SignalType }
-import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach, PrivateMethodTester }
+import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach, Ignore, PrivateMethodTester }
 import play.api.libs.json.{ JsValue, Json }
 import surge.core.{ Ack, TestBoundedContext }
 import surge.health.config.{ ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig }
@@ -37,6 +25,7 @@ import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamPro
 import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, MockPartitionTracker, MockState }
 import surge.metrics.Metrics
 
+import java.util.regex.Pattern
 import scala.concurrent.duration._
 
 @Ignore

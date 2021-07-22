@@ -12,9 +12,9 @@ import surge.internal.akka.ActorWithTracing
 import surge.internal.akka.cluster.{ ActorHostAwareness, Shard }
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.config.TimeoutConfig
+import surge.internal.tracing.TracedMessage
 import surge.kafka.streams.HealthyActor.GetHealth
 import surge.kafka.streams.{ HealthCheck, HealthCheckStatus, HealthyActor }
-import surge.internal.tracing.TracedMessage
 
 import java.time.Instant
 import scala.concurrent.Future

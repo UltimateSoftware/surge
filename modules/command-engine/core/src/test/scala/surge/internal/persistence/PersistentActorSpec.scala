@@ -21,15 +21,13 @@ import play.api.libs.json.{ JsValue, Json }
 import surge.akka.cluster.Passivate
 import surge.core.{ KafkaProducerActor, TestBoundedContext }
 import surge.exceptions.{ AggregateInitializationException, KafkaPublishTimeoutException }
+import surge.health.HealthSignalBusTrait
 import surge.internal.kafka.HeadersHelper
 import surge.internal.persistence.PersistentActor.{ ACKError, ApplyEvent, Stop }
 import surge.kafka.streams.AggregateStateStoreKafkaStreams
 import surge.metrics.Metrics
 
 import java.util.UUID
-
-import surge.health.HealthSignalBusTrait
-
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
 class IsAtLeastOneElementSeq extends ArgumentMatcher[Seq[KafkaProducerActor.MessageToPublish]] {
