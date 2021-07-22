@@ -2,7 +2,7 @@
 
 package surge.internal
 
-import io.opentracing.Tracer
+import io.opentelemetry.api.trace.Tracer
 import surge.core.{ SurgeAggregateReadFormatting, SurgeAggregateWriteFormatting, SurgeEventWriteFormatting }
 import surge.internal.domain.AggregateProcessingModel
 import surge.internal.kafka.{ ProducerActorContext, SurgeKafkaConfig }

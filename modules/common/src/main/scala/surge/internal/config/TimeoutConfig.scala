@@ -27,8 +27,16 @@ object TimeoutConfig {
     val actorAskTimeout: FiniteDuration = 10.seconds
   }
 
+  object HealthSupervision {
+    val actorAskTimeout: FiniteDuration = 10.seconds
+  }
+
   object PartitionTracker {
     val updateTimeout: FiniteDuration = 20.seconds
+  }
+
+  object PartitionRouter {
+    val askTimeout: FiniteDuration = 20.seconds
   }
 
   object ActorRegistry {
@@ -43,4 +51,8 @@ object TimeoutConfig {
       config.getDuration("surge.producer.aggregate-state-current-timeout", TimeUnit.MILLISECONDS).milliseconds
   }
 
+  object LifecycleManagerActor {
+    val askTimeout: FiniteDuration =
+      config.getDuration("surge.lifecycle-manager-actor.ask-timeout", TimeUnit.MILLISECONDS).milliseconds
+  }
 }

@@ -3,9 +3,10 @@
 package surge.core.commondsl
 
 import com.typesafe.config.{ Config, ConfigFactory }
-import io.opentracing.Tracer
-import io.opentracing.noop.NoopTracerFactory
+import io.opentelemetry.api.OpenTelemetry
+import io.opentelemetry.api.trace.Tracer
 import surge.core.{ SurgeAggregateReadFormatting, SurgeAggregateWriteFormatting }
+import surge.internal.tracing.OpenTelemetryInstrumentation
 import surge.kafka.KafkaTopic
 import surge.metrics.Metrics
 
@@ -29,7 +30,9 @@ trait SurgeGenericBusinessLogicTrait[AggId, Agg, Command, Rej, Event] {
 
   def metrics: Metrics = Metrics.globalMetricRegistry
 
-  def tracer: Tracer = NoopTracerFactory.create()
+  val openTelemetry: OpenTelemetry = OpenTelemetry.noop()
+
+  private[surge] def tracer: Tracer = openTelemetry.getTracer(OpenTelemetryInstrumentation.Name, OpenTelemetryInstrumentation.Version)
 
   def consumerGroupBase: String = {
     val environment = config.getString("app.environment")

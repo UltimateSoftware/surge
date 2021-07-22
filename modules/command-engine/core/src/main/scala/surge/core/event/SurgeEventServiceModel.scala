@@ -2,7 +2,8 @@
 
 package surge.core.event
 
-import io.opentracing.Tracer
+import io.opentelemetry.api.OpenTelemetry
+import io.opentelemetry.api.trace.Tracer
 import surge.core.commondsl.SurgeEventBusinessLogicTrait
 import surge.core.{ SurgeAggregateReadFormatting, SurgeAggregateWriteFormatting, SurgeEventWriteFormatting }
 import surge.internal.SurgeModel
@@ -25,6 +26,7 @@ object SurgeEventServiceModel {
       aggregateWriteFormatting = businessLogic.aggregateWriteFormatting,
       aggregateReadFormatting = businessLogic.aggregateReadFormatting,
       metrics = businessLogic.metrics,
+      openTelemetry = businessLogic.openTelemetry,
       tracer = businessLogic.tracer)
   }
 }
@@ -35,6 +37,7 @@ private[surge] case class SurgeEventServiceModel[Agg, Event](
     override val aggregateReadFormatting: SurgeAggregateReadFormatting[Agg],
     override val aggregateWriteFormatting: SurgeAggregateWriteFormatting[Agg],
     override val metrics: Metrics,
+    override val openTelemetry: OpenTelemetry,
     override val tracer: Tracer)
     extends SurgeModel[Agg, Nothing, Nothing, Event] {
   override def eventWriteFormattingOpt: Option[SurgeEventWriteFormatting[Event]] = None

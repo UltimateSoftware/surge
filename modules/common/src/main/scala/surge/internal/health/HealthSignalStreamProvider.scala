@@ -20,9 +20,9 @@ class StreamMonitoringRef(override val actor: ActorRef) extends WindowStreamList
   /**
    * Forward WindowAdvanced to provided actor
    * @param window
-   *   Window[EVENT]
+   *   Window
    * @param data
-   *   Seq[EVENT]
+   *   Seq[HealthSignal]
    */
   override def windowAdvanced(window: Window, data: Seq[HealthSignal]): Unit = {
     actor ! WindowAdvanced(window, WindowData(data, window.duration))
@@ -31,9 +31,9 @@ class StreamMonitoringRef(override val actor: ActorRef) extends WindowStreamList
   /**
    * Forward WindowClosed to provided actor
    * @param window
-   *   Window[EVENT]
+   *   Window
    * @param data
-   *   Seq[EVENT]
+   *   Seq[HealthSignal]
    */
   override def windowClosed(window: Window, data: Seq[HealthSignal]): Unit = {
     actor ! WindowClosed(window, WindowData(data, window.duration))
@@ -42,7 +42,7 @@ class StreamMonitoringRef(override val actor: ActorRef) extends WindowStreamList
   /**
    * Forward WindowOpened to provided actor
    * @param window
-   *   Window[EVENT]
+   *   Window
    */
   override def windowOpened(window: Window): Unit = {
     actor ! WindowOpened(window)
@@ -51,7 +51,7 @@ class StreamMonitoringRef(override val actor: ActorRef) extends WindowStreamList
   /**
    * Forward WindowStopped to provided actor
    * @param window
-   *   Window[EVENT]
+   *   Window
    */
   override def windowStopped(window: Option[Window]): Unit = {
     actor ! WindowStopped(window)
@@ -60,9 +60,9 @@ class StreamMonitoringRef(override val actor: ActorRef) extends WindowStreamList
   /**
    * Forward AddedToWindow to provided actor
    * @param data
-   *   EVENT
+   *   HealthSignal
    * @param window
-   *   Window[EVENT]
+   *   Window
    */
   override def dataAddedToWindow(data: HealthSignal, window: Window): Unit = {
     actor ! AddedToWindow(data, window)
@@ -70,7 +70,8 @@ class StreamMonitoringRef(override val actor: ActorRef) extends WindowStreamList
 }
 
 trait HealthSignalStreamProvider {
-  private var signalBus: HealthSignalBusInternal = _
+  private val signalBus: HealthSignalBusInternal =
+    HealthSignalBus(signalStream = this).withStreamSupervision(bus => HealthSupervisorActor(bus, filters(), actorSystem), streamMonitoring)
 
   def actorSystem: ActorSystem
   def provide(bus: HealthSignalBusInternal): HealthSignalStream
@@ -81,19 +82,10 @@ trait HealthSignalStreamProvider {
   /**
    * Creates a HealthSignalBus with a backing HealthSupervisorActor that is bound to the provided HealthSignalStream. If a signalBus already exists; the
    * existing signalBus is returned.
-   * @param startStreamOnInit
-   *   Boolean
    * @return
    *   HealthSignalBus
    */
-  def busWithSupervision(startStreamOnInit: Boolean = false): HealthSignalBusInternal = {
-    Option(signalBus) match {
-      case Some(bus) => bus
-      case None =>
-        signalBus = HealthSignalBus(signalStream = this, startStreamOnInit = startStreamOnInit)
-          .withStreamSupervision(bus => HealthSupervisorActor(bus, filters(), actorSystem), streamMonitoring)
-
-        signalBus
-    }
+  def bus(): HealthSignalBusInternal = {
+    signalBus
   }
 }

@@ -4,22 +4,24 @@ package surge.kafka.streams
 
 import java.util.regex.Pattern
 
-import akka.actor.{ ActorRef, ActorSystem }
+import akka.actor.{ ActorRef, ActorSystem, Props }
 import akka.pattern.{ ask, BackoffOpts, BackoffSupervisor }
 import akka.util.Timeout
 import com.typesafe.config.{ Config, ConfigFactory }
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.streams.Topology
+import surge.core.Ack
 import surge.health.HealthSignalBusTrait
+import surge.internal.akka.actor.ActorLifecycleManagerActor
 import surge.internal.config.{ BackoffConfig, TimeoutConfig }
 import surge.internal.utils.{ BackoffChildActorTerminationWatcher, Logging }
-import surge.kafka.{ KafkaTopic, LagInfo }
 import surge.kafka.streams.AggregateStateStoreKafkaStreamsImpl._
-import surge.kafka.streams.KafkaStreamLifeCycleManagement.{ Restart, Start, Stop }
+import surge.kafka.streams.KafkaStreamLifeCycleManagement.{ Start, Stop }
+import surge.kafka.{ KafkaTopic, LagInfo }
 import surge.metrics.Metrics
 
 import scala.concurrent.{ ExecutionContext, Future }
-import scala.util.{ Failure, Success }
+import scala.util.{ Failure, Success, Try }
 
 object AggregateStreamsWriteBufferSettings extends WriteBufferSettings {
   private val config = ConfigFactory.load()
@@ -82,32 +84,41 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
    * Used to actually start the Kafka Streams process. Optionally cleans up persistent state directories left behind by previous runs if
    * `kafka.streams.wipe-state-on-start` config setting is set to true.
    */
-  override def start(): Unit = {
-    underlyingActor ! Start
-    val registrationResult = signalBus.register(
-      underlyingActor,
-      componentName = "state-store-kafka-streams",
-      shutdownSignalPatterns = shutdownSignalPatterns(),
-      restartSignalPatterns = restartSignalPatterns())
-
-    registrationResult.onComplete {
-      case Failure(exception) =>
-        log.error("AggregateStateStore registration failed", exception)
-      case Success(done) =>
-        log.debug(s"AggregateStateStore registration succeeded - ${done.success}")
-    }(system.dispatcher)
+  override def start(): Future[Ack] = {
+    implicit val ec: ExecutionContext = system.dispatcher
+    underlyingActor
+      .ask(ActorLifecycleManagerActor.Start)
+      .map {
+        case ack: ActorLifecycleManagerActor.Ack =>
+          Ack()
+        case _ =>
+          throw new RuntimeException("Unexpected response from actor start request")
+      }
+      .andThen(registrationCallback())
   }
 
-  override def shutdown(): Unit = {
+  override def shutdown(): Future[Ack] = {
     stop()
   }
 
-  override def stop(): Unit = {
-    underlyingActor ! Stop
+  override def stop(): Future[Ack] = {
+    implicit val ec: ExecutionContext = system.dispatcher
+    underlyingActor.ask(ActorLifecycleManagerActor.Stop).map {
+      case _: ActorLifecycleManagerActor.Ack =>
+        Ack()
+      case _ =>
+        throw new RuntimeException("Unexpected response from actor stop request")
+    }
   }
 
-  override def restart(): Unit = {
-    underlyingActor ! Restart
+  override def restart(): Future[Ack] = {
+    implicit val executionContext: ExecutionContext = system.dispatcher
+    for {
+      _ <- stop()
+      started <- start()
+    } yield {
+      started
+    }
   }
 
   def partitionLag(topicPartition: TopicPartition)(implicit ec: ExecutionContext): Future[Option[LagInfo]] = {
@@ -145,7 +156,8 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
           randomFactor = BackoffConfig.StateStoreKafkaStreamActor.randomFactor)
         .withMaxNrOfRetries(BackoffConfig.StateStoreKafkaStreamActor.maxRetries))
 
-    val underlyingCreatedActor = system.actorOf(underlyingActorProps)
+    val underlyingCreatedActor =
+      system.actorOf(Props(new ActorLifecycleManagerActor(underlyingActorProps, initMessage = Some(() => Start), finalizeMessage = Some(() => Stop))))
 
     system.actorOf(BackoffChildActorTerminationWatcher.props(underlyingCreatedActor, () => onMaxRetries()))
 
@@ -154,5 +166,23 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
 
   private[streams] def getTopology: Future[Topology] = {
     underlyingActor.ask(GetTopology).mapTo[Topology]
+  }
+
+  private def registrationCallback(): PartialFunction[Try[Ack], Unit] = {
+    case Success(_) =>
+      val registrationResult = signalBus.register(
+        control = this,
+        componentName = "state-store-kafka-streams",
+        shutdownSignalPatterns = shutdownSignalPatterns(),
+        restartSignalPatterns = restartSignalPatterns())
+
+      registrationResult.onComplete {
+        case Failure(exception) =>
+          log.error(s"$getClass registration failed", exception)
+        case Success(done) =>
+          log.debug(s"$getClass registration succeeded")
+      }(system.dispatcher)
+    case Failure(error) =>
+      log.error(s"Unable to register $getClass for supervision", error)
   }
 }

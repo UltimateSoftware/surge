@@ -4,26 +4,25 @@ package surge.internal.kafka
 
 import akka.actor.{ ActorRef, NoSerializationVerificationNeeded, Stash, Status, Timers }
 import akka.pattern._
+import akka.util.Timeout
 import com.typesafe.config.{ Config, ConfigFactory }
-import io.opentracing.Tracer
+import io.opentelemetry.api.trace.Tracer
 import org.apache.kafka.clients.producer.{ ProducerConfig, ProducerRecord }
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.{ AuthorizationException, ProducerFencedException }
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.core.KafkaProducerActor
+import surge.health.{ HealthSignalBusTrait, HealthyPublisher }
 import surge.internal.akka.ActorWithTracing
+import surge.internal.akka.cluster.ActorHostAwareness
+import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.kafka.streams.HealthyActor.GetHealth
 import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, HealthCheck, HealthCheckStatus }
 import surge.kafka.{ KafkaBytesProducer, KafkaRecordMetadata, KafkaTopicTrait, LagInfo }
 import surge.metrics.{ MetricInfo, Metrics, Rate, Timer }
+
 import java.time.Instant
 import java.util.concurrent.TimeUnit
-
-import akka.util.Timeout
-import surge.health.{ HealthSignalBusTrait, HealthyPublisher }
-import surge.internal.akka.cluster.ActorHostAwareness
-import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
-
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.{ Failure, Success, Try }
@@ -35,7 +34,7 @@ object KafkaProducerActorImpl {
 
   sealed trait KafkaProducerActorMessage extends NoSerializationVerificationNeeded
   case class Publish(state: KafkaProducerActor.MessageToPublish, eventsToPublish: Seq[KafkaProducerActor.MessageToPublish]) extends KafkaProducerActorMessage
-  case class IsAggregateStateCurrent(aggregateId: String, expirationTime: Instant) extends KafkaProducerActorMessage
+  case class IsAggregateStateCurrent(aggregateId: String) extends KafkaProducerActorMessage
 
   object AggregateStateRates {
     def apply(aggregateName: String, metrics: Metrics): AggregateStateRates = AggregateStateRates(
@@ -165,7 +164,7 @@ class KafkaProducerActorImpl(
     case GetHealth                  => doHealthCheck()
     case _: KTableProgressUpdate    => stash() // process only AFTER flush message is sent
     case _: Publish                 => stash()
-    case _: IsAggregateStateCurrent => stash()
+    case _: IsAggregateStateCurrent => sender().tell(false, self)
   }
 
   private def waitingForKTableIndexing(): Receive = {
@@ -173,7 +172,7 @@ class KafkaProducerActorImpl(
     case FlushMessages              => // Ignore from this state
     case GetHealth                  => doHealthCheck()
     case _: Publish                 => stash()
-    case _: IsAggregateStateCurrent => stash()
+    case _: IsAggregateStateCurrent => sender().tell(false, self)
   }
 
   private def fenced(state: KafkaProducerActorState): Receive = {
@@ -272,7 +271,7 @@ class KafkaProducerActorImpl(
       unstashAll()
       context.become(processing(KafkaProducerActorState.empty))
     } else {
-      log.debug("Producer actor still waiting for KTable to finish indexing, current lag is {}", kTableProgressUpdate.lagInfo)
+      log.debug("Producer actor still waiting for KTable to finish indexing, current lag is {}", kTableProgressUpdate.lagInfo.offsetLag)
     }
   }
 
@@ -414,12 +413,12 @@ class KafkaProducerActorImpl(
   private def handle(state: KafkaProducerActorState, isAggregateStateCurrent: IsAggregateStateCurrent): Unit = {
     val aggregateId = isAggregateStateCurrent.aggregateId
     val noRecordsInFlight = state.inFlightForAggregate(aggregateId).isEmpty
+    sender() ! noRecordsInFlight
 
     if (noRecordsInFlight) {
       rates.current.mark()
-      sender() ! noRecordsInFlight
     } else {
-      context.become(processing(state.addPendingInitialization(sender(), isAggregateStateCurrent)))
+      rates.notCurrent.mark()
     }
   }
 
@@ -444,7 +443,6 @@ class KafkaProducerActorImpl(
       details = Some(
         Map(
           "inFlight" -> state.inFlight.size.toString,
-          "pendingInitializations" -> state.pendingInitializations.size.toString,
           "pendingWrites" -> state.pendingWrites.size.toString,
           "currentTransactionTimeMillis" -> state.currentTransactionTimeMillis.toString)))
     sender() ! healthCheck
@@ -453,7 +451,7 @@ class KafkaProducerActorImpl(
 
 private[internal] object KafkaProducerActorState {
   def empty(implicit sender: ActorRef, rates: KafkaProducerActorImpl.AggregateStateRates): KafkaProducerActorState = {
-    KafkaProducerActorState(Seq.empty, Seq.empty, Seq.empty, transactionInProgressSince = None, sender = sender, rates = rates)
+    KafkaProducerActorState(Seq.empty, Seq.empty, transactionInProgressSince = None, sender = sender, rates = rates)
   }
 }
 // TODO optimize:
@@ -461,7 +459,6 @@ private[internal] object KafkaProducerActorState {
 private[internal] case class KafkaProducerActorState(
     inFlight: Seq[KafkaRecordMetadata[String]],
     pendingWrites: Seq[KafkaProducerActorImpl.PublishWithSender],
-    pendingInitializations: Seq[KafkaProducerActorImpl.PendingInitialization],
     transactionInProgressSince: Option[Instant],
     sender: ActorRef,
     rates: KafkaProducerActorImpl.AggregateStateRates) {
@@ -482,12 +479,6 @@ private[internal] case class KafkaProducerActorState(
 
   def inFlightForAggregate(aggregateId: String): Seq[KafkaRecordMetadata[String]] = {
     inFlightByKey.getOrElse(aggregateId, Seq.empty)
-  }
-
-  def addPendingInitialization(sender: ActorRef, isAggregateStateCurrent: IsAggregateStateCurrent): KafkaProducerActorState = {
-    val pendingInitialization = PendingInitialization(sender, isAggregateStateCurrent.aggregateId, isAggregateStateCurrent.expirationTime)
-
-    this.copy(pendingInitializations = pendingInitializations :+ pendingInitialization)
   }
 
   def addPendingWrites(sender: ActorRef, publish: Publish): KafkaProducerActorState = {
@@ -527,29 +518,6 @@ private[internal] case class KafkaProducerActorState(
     }
     val newInFlight = inFlight.filterNot(processedRecordsFromPartition.contains)
 
-    val newPendingAggregates = {
-      val processedAggregates = pendingInitializations.filter { pending =>
-        !newInFlight.exists(_.key.contains(pending.key))
-      }
-      if (processedAggregates.nonEmpty) {
-        processedAggregates.foreach { pending =>
-          pending.actor ! true // scalastyle:ignore simplify.boolean.expression
-        }
-        rates.current.mark(processedAggregates.length)
-      }
-
-      val expiredAggregates = pendingInitializations.filter(pending => Instant.now().isAfter(pending.expiration)).filterNot(processedAggregates.contains)
-
-      if (expiredAggregates.nonEmpty) {
-        expiredAggregates.foreach { pending =>
-          log.debug(s"Aggregate ${pending.key} expiring since it is past ${pending.expiration}")
-          pending.actor ! false // scalastyle:ignore simplify.boolean.expression
-        }
-        rates.notCurrent.mark(expiredAggregates.length)
-      }
-      pendingInitializations.filterNot(agg => processedAggregates.contains(agg) || expiredAggregates.contains(agg))
-    }
-
-    copy(inFlight = newInFlight, pendingInitializations = newPendingAggregates)
+    copy(inFlight = newInFlight)
   }
 }

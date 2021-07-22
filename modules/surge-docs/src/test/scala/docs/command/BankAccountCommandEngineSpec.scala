@@ -7,6 +7,7 @@ import java.util.UUID
 import com.typesafe.config.ConfigFactory
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.common.config.TopicConfig
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Milliseconds, Seconds, Span }
@@ -15,10 +16,17 @@ import surge.scaladsl.common.{ CommandFailure, CommandSuccess }
 
 import scala.concurrent.{ ExecutionContext, Future }
 
-class BankAccountCommandEngineSpec extends AnyWordSpec with Matchers with EmbeddedKafka with ScalaFutures {
+class BankAccountCommandEngineSpec extends AnyWordSpec with BeforeAndAfterAll with Matchers with ScalaFutures with EmbeddedKafka {
   implicit val ec: ExecutionContext = ExecutionContext.global
   private val config = ConfigFactory.load()
   private val kafkaConfig: EmbeddedKafkaConfig = EmbeddedKafkaConfig(kafkaPort = config.getInt("kafka.port"), zooKeeperPort = 0)
+  override def beforeAll(): Unit = {
+    BankAccountEngine.surgeEngine.start()
+  }
+
+  override def afterAll(): Unit = {
+    BankAccountEngine.surgeEngine.stop()
+  }
 
   override implicit val patienceConfig: PatienceConfig = PatienceConfig(timeout = Span(15, Seconds), interval = Span(50, Milliseconds))
 
@@ -62,9 +70,7 @@ class BankAccountCommandEngineSpec extends AnyWordSpec with Matchers with Embedd
         // #rebalance_listener
         val rebalanceListener = new BankAccountRebalanceListener
         BankAccountEngine.surgeEngine.registerRebalanceListener(rebalanceListener)
-        // #rebalance_listener
-
-        BankAccountEngine.surgeEngine.stop()
+      // #rebalance_listener
       }
     }
   }

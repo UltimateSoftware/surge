@@ -11,7 +11,7 @@ import akka.stream.scaladsl.{ Flow, RestartSource, Sink }
 import akka.util.Timeout
 import akka.{ Done, NotUsed }
 import com.typesafe.config.ConfigFactory
-import io.opentracing.Tracer
+import io.opentelemetry.api.trace.Tracer
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.serialization.Deserializer
 import org.apache.kafka.common.{ Metric, MetricName }

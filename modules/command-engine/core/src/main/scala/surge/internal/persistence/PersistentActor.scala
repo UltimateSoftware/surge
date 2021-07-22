@@ -6,7 +6,7 @@ import akka.actor.{ NoSerializationVerificationNeeded, Props, ReceiveTimeout, St
 import akka.pattern.pipe
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import com.typesafe.config.{ Config, ConfigFactory }
-import io.opentracing.{ Span, Tracer }
+import io.opentelemetry.api.trace.Tracer
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.akka.cluster.{ JacksonSerializable, Passivate }
 import surge.core._
@@ -16,13 +16,11 @@ import surge.internal.akka.ActorWithTracing
 import surge.internal.config.{ RetryConfig, TimeoutConfig }
 import surge.internal.domain.HandledMessageResult
 import surge.internal.kafka.HeadersHelper
-import surge.internal.utils.SpanExtensions._
 import surge.kafka.streams.AggregateStateStoreKafkaStreams
 import surge.metrics.{ MetricInfo, Metrics, Timer }
 
 import java.time.Instant
 import java.util.concurrent.Executors
-
 import scala.concurrent.duration.{ Duration, FiniteDuration }
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.{ Failure, Success, Try }
@@ -165,13 +163,7 @@ class PersistentActor[S, M, R, E](
 
   private case class EventPublishTimedOut(reason: Throwable, startTime: Instant) extends Internal
 
-  protected case class InternalSpans(messageProcessingSpan: Option[Span] = None)
-
-  protected case class InternalActorState(stateOpt: Option[S], spans: InternalSpans = InternalSpans()) {
-    def withMessageProcessingSpan(span: Span): InternalActorState = copy(spans = spans.copy(messageProcessingSpan = Some(span)))
-
-    def completeMessageProcessingSpan(): Unit = spans.messageProcessingSpan.foreach(_.finish())
-  }
+  protected case class InternalActorState(stateOpt: Option[S])
 
   override type ActorState = InternalActorState
 
@@ -198,6 +190,11 @@ class PersistentActor[S, M, R, E](
   private val publishStateOnly: Boolean = businessLogic.kafka.eventsTopicOpt.isEmpty
 
   assert(!publishStateOnly || businessLogic.eventWriteFormattingOpt.nonEmpty, "businessLogic.eventWriteFormattingOpt may not be none when publishing events")
+
+  override def messageNameForTracedMessages: MessageNameExtractor = { case t: ProcessMessage[_] =>
+    s"ProcessMessage[${t.message.getClass.getSimpleName}]"
+  }
+
   override def preStart(): Unit = {
     initializeState(initializationAttempts = 0, None)
     super.preStart()
@@ -208,12 +205,14 @@ class PersistentActor[S, M, R, E](
   override def receive: Receive = uninitialized
 
   private def freeToProcess(state: InternalActorState): Receive = {
-    case pm: ProcessMessage[M] => handle(state, pm)
-    case ae: ApplyEvent[E]     => handle(state, ae)
-    case GetState(_)           => sender() ! StateResponse(state.stateOpt)
-    case ReceiveTimeout        => handlePassivate()
-    case Stop                  => handleStop()
+    case pm: ProcessMessage[M] =>
+      handle(state, pm)
+    case ae: ApplyEvent[E] => handle(state, ae)
+    case GetState(_)       => sender() ! StateResponse(state.stateOpt)
+    case ReceiveTimeout    => handlePassivate()
+    case Stop              => handleStop()
   }
+
   private def handle(initializeWithState: InitializeWithState): Unit = {
     log.debug(s"Actor state for aggregate $aggregateId successfully initialized")
     unstashAll()
@@ -225,9 +224,8 @@ class PersistentActor[S, M, R, E](
   }
 
   private def handle(state: InternalActorState, msg: ProcessMessage[M]): Unit = {
-    val ProcessMessageSpan = createSpan("process_message").setTag("aggregateId", aggregateId)
     context.setReceiveTimeout(Duration.Inf)
-    context.become(persistingEvents(state.withMessageProcessingSpan(ProcessMessageSpan)))
+    context.become(persistingEvents(state))
 
     processMessage(state, msg)
       .flatMap {
@@ -295,6 +293,7 @@ class PersistentActor[S, M, R, E](
           "This should not happen and is likely a logic error. Dropping the ReceiveTimeout message.")
     case other =>
       log.debug(s"PersistentActor actor for $aggregateId stashing a message with class [{}] from the 'uninitialized' state", other.getClass)
+      activeSpan.addEvent("stashed")
       stash()
   }
 
@@ -345,7 +344,6 @@ class PersistentActor[S, M, R, E](
   }
 
   override def onPersistenceSuccess(newState: InternalActorState): Unit = {
-    newState.completeMessageProcessingSpan()
     context.setReceiveTimeout(receiveTimeout)
     context.become(freeToProcess(newState))
 
@@ -355,8 +353,6 @@ class PersistentActor[S, M, R, E](
   }
 
   override def onPersistenceFailure(state: InternalActorState, cause: Throwable): Unit = {
-    state.spans.messageProcessingSpan.foreach(_.error(cause))
-    state.completeMessageProcessingSpan()
     log.error(s"Error while trying to publish to Kafka, crashing actor for $aggregateName $aggregateId", cause)
     sender() ! ACKError(cause)
     context.stop(self)
