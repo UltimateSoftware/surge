@@ -99,10 +99,10 @@ class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with AnyWordSpecLike w
       probe.send(shard, Update(childId2, 2))
 
       probe.send(shard, Get(childId1))
-      probe.expectMsg(max = 10.seconds, 1)
+      probe.expectMsg(1)
 
       probe.send(shard, Get(childId2))
-      probe.expectMsg(max = 10.seconds, 2)
+      probe.expectMsg(2)
 
       probe.send(shard, Delete(childId1))
       probe.send(shard, Get(childId1))

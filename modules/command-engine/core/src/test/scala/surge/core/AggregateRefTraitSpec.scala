@@ -29,10 +29,10 @@ class AggregateRefTraitSpec
 
   case class Person(name: String, favoriteColor: String)
 
-  private val mockTracer = NoopTracerFactory.create()
+  private val noopTracer = NoopTracerFactory.create()
   case class TestAggregateRef(aggregateId: String, regionTestProbe: TestProbe) extends AggregateRefTrait[String, Person, String, String] {
-    override val region: ActorRef = system.actorOf(Props(new ProbeWithTraceSupport(regionTestProbe, mockTracer)))
-    override val tracer: Tracer = mockTracer
+    override val region: ActorRef = system.actorOf(Props(new ProbeWithTraceSupport(regionTestProbe, noopTracer)))
+    override val tracer: Tracer = noopTracer
 
     def sendCommand(command: String, retries: Int = 0): Future[Either[Throwable, Option[Person]]] = {
       val envelope = PersistentActor.ProcessMessage(aggregateId, command)
