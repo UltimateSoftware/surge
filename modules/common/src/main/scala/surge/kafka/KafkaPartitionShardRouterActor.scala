@@ -174,6 +174,7 @@ class KafkaPartitionShardRouterActor(
     case GetHealth =>
       sender() ! HealthCheck(name = "shard-router-actor", id = s"router-actor-$hashCode", status = HealthCheckStatus.UP)
     case msg if !canExtractEntityId(msg) =>
+      log.warn("Entity id extractor is throwing exceptions, discarding message {}", msg.getClass.getSimpleName)
       context.system.deadLetters ! msg
     case msg =>
       becomeActiveAndDeliverMessage(state, msg)
@@ -185,6 +186,7 @@ class KafkaPartitionShardRouterActor(
     case msg: Terminated               => handle(state, msg)
     case GetPartitionRegionAssignments => sender() ! state.partitionRegions
     case msg if !canExtractEntityId(msg) =>
+      log.warn("Entity id extractor is throwing exceptions, discarding message {}", msg.getClass.getSimpleName)
       context.system.deadLetters ! msg
     case msg =>
       val entityId: String = extractEntityId(msg)
