@@ -146,7 +146,7 @@ class HealthSupervisorActorSpec
       val message = bus.signalWithTrace(name = "test", Trace("test trace"))
       message.emit()
 
-      val received = probe.fishForMessage(max = 1.second) { case msg =>
+      val received = probe.fishForMessage(max = 3.second) { case msg =>
         msg.isInstanceOf[HealthSignalReceived]
       }
 
