@@ -1,4 +1,4 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 import Dependencies.autoImport.OpenTelemetry.{ HoneycombSample, JaegerSample }
 import sbt.Keys._
@@ -57,18 +57,21 @@ lazy val `surge-rabbitmq-support` = (project in file("modules/rabbit-support"))
   .dependsOn(`surge-common`)
 
 lazy val `surge-engine-command-core` = (project in file("modules/command-engine/core"))
-  .settings(
-    libraryDependencies ++= Seq(
-      Akka.actor,
-      Akka.remote,
-      Kafka.kafkaClients,
-      Akka.testKit,
-      Akka.akkaStreamTestKit,
-      mockitoCore,
-      scalatest,
-      scalatestPlusMockito,
-      logback,
-      typesafeConfig))
+  .settings(libraryDependencies ++= Seq(
+    Akka.actor,
+    Akka.remote,
+    Kafka.kafkaClients,
+    Akka.testKit,
+    Akka.akkaStreamTestKit,
+    mockitoCore,
+    scalatest,
+    scalatestPlusMockito,
+    embeddedKafka,
+    OpenTracing.mock,
+    OpenTracing.noop,
+    OpenTracing.api,
+    logback,
+    typesafeConfig))
   .dependsOn(`surge-common` % "compile->compile;test->test")
 
 lazy val `surge-engine-command-scaladsl` = (project in file("modules/command-engine/scaladsl")).dependsOn(`surge-engine-command-core`)

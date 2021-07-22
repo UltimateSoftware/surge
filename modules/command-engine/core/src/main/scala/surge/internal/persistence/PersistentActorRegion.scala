@@ -7,7 +7,7 @@ import com.typesafe.config.Config
 import org.apache.kafka.common.TopicPartition
 import play.api.libs.json.JsValue
 import surge.akka.cluster.{ EntityPropsProvider, PerShardLogicProvider }
-import surge.core.KafkaProducerActor
+import surge.core.{ Ack, KafkaProducerActor }
 import surge.health.HealthSignalBusTrait
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.persistence
@@ -16,7 +16,7 @@ import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, HealthCheck }
 import surge.kafka.{ PersistentActorRegionCreator => KafkaPersistentActorRegionCreator }
 import surge.metrics.Metrics
 
-import scala.concurrent.Future
+import scala.concurrent.{ ExecutionContext, Future }
 
 trait PersistentActorPropsFactory[M] extends {
   def props(aggregateId: String, businessLogic: BusinessLogic, resources: PersistentEntitySharedResources): Props
@@ -72,11 +72,19 @@ class PersistentActorRegion[M](
     actorId: String => PersistentActor.props(actorId, businessLogic, signalBus, sharedResources, config)
   }
 
-  override def restart(): Unit = kafkaProducerActor.restart()
+  override def restart(): Future[Ack] = {
+    implicit val executionContext: ExecutionContext = system.dispatcher
+    for {
+      _ <- stop()
+      started <- start()
+    } yield {
+      started
+    }
+  }
 
-  override def start(): Unit = kafkaProducerActor.start()
+  override def start(): Future[Ack] = kafkaProducerActor.start()
 
-  override def stop(): Unit = kafkaProducerActor.stop()
+  override def stop(): Future[Ack] = kafkaProducerActor.stop()
 
-  override def shutdown(): Unit = stop()
+  override def shutdown(): Future[Ack] = stop()
 }

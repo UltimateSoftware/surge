@@ -19,7 +19,44 @@ import surge.kafka.streams._
 import surge.metrics.{ MetricInfo, Metrics, Timer }
 
 import scala.concurrent.{ ExecutionContext, Future }
-import scala.util.{ Failure, Success }
+import scala.util.{ Failure, Success, Try }
+
+object KafkaProducerActor {
+  private val dispatcherName: String = "kafka-publisher-actor-dispatcher"
+
+  def apply(
+      actorSystem: ActorSystem,
+      assignedPartition: TopicPartition,
+      metrics: Metrics,
+      businessLogic: SurgeModel[_, _, _, _],
+      kStreams: AggregateStateStoreKafkaStreams[_],
+      partitionTracker: KafkaConsumerPartitionAssignmentTracker,
+      signalBus: HealthSignalBusTrait,
+      kafkaProducerOverride: Option[KafkaBytesProducer] = None): KafkaProducerActor = {
+
+    val kafkaProducerProps = Props(
+      new KafkaProducerActorImpl(
+        assignedPartition = assignedPartition,
+        metrics = metrics,
+        businessLogic,
+        kStreams = kStreams,
+        partitionTracker = partitionTracker,
+        signalBus = signalBus,
+        kafkaProducerOverride = kafkaProducerOverride)).withDispatcher(dispatcherName)
+
+    new KafkaProducerActor(
+      actorSystem.actorOf(Props(new ActorLifecycleManagerActor(kafkaProducerProps))),
+      metrics,
+      businessLogic.aggregateName,
+      assignedPartition,
+      signalBus)
+  }
+
+  sealed trait PublishResult
+  case object PublishSuccess extends PublishResult
+  case class PublishFailure(t: Throwable) extends PublishResult
+  case class MessageToPublish(key: String, value: Array[Byte], headers: Headers)
+}
 
 /**
  * A stateful producer actor responsible for publishing all states + events for aggregates that belong to a particular state topic partition. The state
@@ -92,64 +129,70 @@ class KafkaProducerActor(
       }(ExecutionContext.global)
   }
 
-  override def restart(): Unit = {}
-
-  override def start(): Unit = {
-    publisherActor ! ActorLifecycleManagerActor.Start
-
-    // todo: Register with reference to Controllable rather than ActorRef
-    // Register
-    val registrationResult =
-      signalBus.register(publisherActor, componentName = "kafka-producer-actor", restartSignalPatterns = restartSignalPatterns())
-
-    registrationResult.onComplete {
-      case Failure(exception) =>
-        log.error("KafkaProducerActor registration failed", exception)
-      case Success(done) =>
-        log.debug(s"KafkaProducerActor registration succeeded - ${done.success}")
+  override def restart(): Future[Ack] = {
+    for {
+      stopped <- stop()
+      started <- start(stopped)
+    } yield {
+      if (Option(stopped).isDefined && Option(started).isDefined) {
+        Ack()
+      } else {
+        throw new RuntimeException(s"Failed to restart $getClass")
+      }
     }
   }
 
-  override def stop(): Unit = {
-    publisherActor ! ActorLifecycleManagerActor.Stop
+  override def start(): Future[Ack] = {
+    implicit val askTimeout: Timeout = Timeout(TimeoutConfig.LifecycleManagerActor.askTimeout)
+
+    val result = publisherActor
+      .ask(ActorLifecycleManagerActor.Start)
+      .map {
+        case _: ActorLifecycleManagerActor.Ack =>
+          Ack()
+        case _ =>
+          throw new RuntimeException("Unexpected response from actor start request")
+      }
+      .andThen(registrationCallback())
+
+    result
   }
 
-  override def shutdown(): Unit = stop()
-}
+  override def stop(): Future[Ack] = {
+    implicit val askTimeout: Timeout = Timeout(TimeoutConfig.LifecycleManagerActor.askTimeout)
 
-object KafkaProducerActor {
-  private val dispatcherName: String = "kafka-publisher-actor-dispatcher"
+    val result = publisherActor.ask(ActorLifecycleManagerActor.Stop).map[Ack] {
+      case _: ActorLifecycleManagerActor.Ack =>
+        Ack()
+      case _ =>
+        throw new RuntimeException("Unexpected response from actor stop request")
+    }
 
-  def apply(
-      actorSystem: ActorSystem,
-      assignedPartition: TopicPartition,
-      metrics: Metrics,
-      businessLogic: SurgeModel[_, _, _, _],
-      kStreams: AggregateStateStoreKafkaStreams[_],
-      partitionTracker: KafkaConsumerPartitionAssignmentTracker,
-      signalBus: HealthSignalBusTrait,
-      kafkaProducerOverride: Option[KafkaBytesProducer] = None): KafkaProducerActor = {
-
-    val kafkaProducerProps = Props(
-      new KafkaProducerActorImpl(
-        assignedPartition = assignedPartition,
-        metrics = metrics,
-        businessLogic,
-        kStreams = kStreams,
-        partitionTracker = partitionTracker,
-        signalBus = signalBus,
-        kafkaProducerOverride = kafkaProducerOverride)).withDispatcher(dispatcherName)
-
-    new KafkaProducerActor(
-      actorSystem.actorOf(Props(new ActorLifecycleManagerActor(kafkaProducerProps))),
-      metrics,
-      businessLogic.aggregateName,
-      assignedPartition,
-      signalBus)
+    result
   }
 
-  sealed trait PublishResult
-  case object PublishSuccess extends PublishResult
-  case class PublishFailure(t: Throwable) extends PublishResult
-  case class MessageToPublish(key: String, value: Array[Byte], headers: Headers)
+  override def shutdown(): Future[Ack] = stop()
+
+  private def start(stopped: Ack): Future[Ack] = {
+    if (Option(stopped).isDefined) {
+      start()
+    } else {
+      Future.failed(new RuntimeException(s"Failed to stop $getClass"))
+    }
+  }
+
+  private def registrationCallback(): PartialFunction[Try[Ack], Unit] = {
+    case Success(_) =>
+      val registrationResult =
+        signalBus.register(control = this, componentName = "kafka-producer-actor", restartSignalPatterns = restartSignalPatterns())
+
+      registrationResult.onComplete {
+        case Failure(exception) =>
+          log.error(s"$getClass registration failed", exception)
+        case Success(_) =>
+          log.debug(s"$getClass registration succeeded")
+      }
+    case Failure(error) =>
+      log.error(s"Unable to register $getClass for supervision", error)
+  }
 }

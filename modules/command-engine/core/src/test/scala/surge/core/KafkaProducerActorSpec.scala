@@ -2,9 +2,7 @@
 
 package surge.core
 
-import java.util.regex.Pattern
-
-import akka.actor.{ ActorRef, ActorSystem }
+import akka.actor.ActorSystem
 import akka.actor.Status.Failure
 import akka.pattern.AskTimeoutException
 import akka.testkit.{ TestKit, TestProbe }
@@ -48,7 +46,7 @@ class KafkaProducerActorSpec
       val invokable: InvokableHealthRegistration = Mockito.mock(classOf[InvokableHealthRegistration])
 
       Mockito
-        .when(signalBus.registration(ArgumentMatchers.any(classOf[ActorRef]), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any()))
+        .when(signalBus.registration(ArgumentMatchers.any(classOf[Controllable]), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any()))
         .thenReturn(invokable)
       new KafkaProducerActor(testProbe.ref, Metrics.globalMetricRegistry, "test-aggregate-name", new TopicPartition("testTopic", 1), signalBus)
     }

@@ -2,6 +2,7 @@
 
 package surge.internal.akka.cluster
 
+import akka.Done
 import akka.actor.{ Actor, ActorContext, ActorRef, ActorSystem, DeadLetter, PoisonPill, Props, Terminated }
 import akka.testkit.{ TestKit, TestProbe }
 import io.opentelemetry.api.trace.Tracer
@@ -12,6 +13,7 @@ import org.scalatestplus.mockito.MockitoSugar
 import surge.akka.cluster.{ EntityPropsProvider, Passivate, PerShardLogicProvider }
 import surge.internal.akka.ActorWithTracing
 import surge.internal.tracing.NoopTracerFactory
+import surge.core.ControllableAdapter
 import surge.kafka.streams.{ HealthCheck, HealthCheckStatus }
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -41,7 +43,7 @@ object TestActor {
     m.actorIdentifier
   }
 
-  class RegionLogicProvider(onShardTerminatedCallback: () => Unit = () => {}) extends PerShardLogicProvider[String] {
+  class RegionLogicProvider(onShardTerminatedCallback: () => Unit = () => {}) extends ControllableAdapter with PerShardLogicProvider[String] {
     override def actorProvider(context: ActorContext): EntityPropsProvider[String] = (actorId: String) => props(actorId)
 
     override def healthCheck(): Future[HealthCheck] = Future {
@@ -50,14 +52,6 @@ object TestActor {
 
     override def onShardTerminated(): Unit =
       onShardTerminatedCallback()
-
-    override def start(): Unit = {}
-
-    override def restart(): Unit = {}
-
-    override def stop(): Unit = {}
-
-    override def shutdown(): Unit = {}
   }
 }
 
