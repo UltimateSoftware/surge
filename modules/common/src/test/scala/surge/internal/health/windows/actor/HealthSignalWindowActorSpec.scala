@@ -6,7 +6,7 @@ import akka.actor.ActorSystem
 import akka.testkit.{ TestActorRef, TestKit, TestProbe }
 import com.typesafe.config.ConfigFactory
 import org.mockito.Mockito._
-import org.scalatest.BeforeAndAfterAll
+import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach }
 import org.scalatest.concurrent.Eventually
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Seconds, Span }
@@ -17,11 +17,11 @@ import surge.internal.health.windows.WindowSlider
 import surge.internal.health.{ HealthSignalBus, HealthSignalBusInternal }
 
 import scala.concurrent.duration._
-import scala.languageFeature.postfixOps
 class HealthSignalWindowActorSpec
     extends TestKit(ActorSystem("HealthSignalWindowActorSpec", ConfigFactory.load("artery-test-config")))
     with AnyWordSpecLike
     with Matchers
+    with BeforeAndAfterEach
     with BeforeAndAfterAll
     with Eventually {
   import surge.internal.health.context.TestContext._
@@ -122,8 +122,7 @@ class HealthSignalWindowActorSpec
       }
 
       maybeAddedEvent shouldBe a[AddedToWindow]
-
-      probe.expectMsgClass(10.seconds, classOf[WindowAdvanced])
+      probe.expectMsgClass(15.seconds, classOf[WindowAdvanced])
 
       actorRef.stop()
 

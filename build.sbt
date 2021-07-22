@@ -1,5 +1,6 @@
 // Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
+import Dependencies.Jackson
 import sbt.Keys._
 
 scalaVersion in ThisBuild := "2.13.5"
@@ -41,6 +42,7 @@ lazy val `surge-common` = (project in file("modules/common"))
       OpenTracing.mock,
       OpenTracing.noop,
       PlayFramework.json,
+      Jackson.databind,
       typesafeConfig,
       Akka.akkaStreamTestKit,
       embeddedKafka,
