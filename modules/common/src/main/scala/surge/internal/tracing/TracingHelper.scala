@@ -23,10 +23,12 @@ private[surge] trait SpanSupport {
 
 trait TracingHelper {
 
+  // alias for easy migration from OpenTracing
   implicit class TracerExt(tracer: Tracer) {
     def buildSpan(operationName: String): SpanBuilder = tracer.spanBuilder(operationName).setNoParent()
   }
 
+  // alias for easy migration from OpenTracing
   implicit class SpanBuilderExt(spanBuilder: SpanBuilder) {
     def start(): Span = spanBuilder.startSpan()
   }
@@ -37,13 +39,7 @@ trait TracingHelper {
       log("error", Map("message" -> throwable.getMessage))
     }
 
-    /*
-     * The purpose of this is to add a .log method on Span in order to make it more Scala friendly (i.e.
-     * to be able to pass in a Scala map instead of a Java map).
-     * @param eventName name of the event
-     * @param fields fields as a Scala map
-     * @return a span
-     */
+    // alias for easy migration from OpenTracing
     def log(eventName: String, fields: Map[String, String] = Map.empty): Span = {
       val attributesBuilder = Attributes.builder()
       fields.foreach { case (k, v) => attributesBuilder.put(k, v) }
@@ -51,8 +47,10 @@ trait TracingHelper {
       span.addEvent(eventName, attributes)
     }
 
+    // alias for easy migration from OpenTracing
     def finish(): Unit = span.end()
 
+    // alias for easy migration from OpenTracing
     def setTag(key: String, value: String): Span = span.setAttribute(key, value)
 
   }
