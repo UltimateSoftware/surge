@@ -38,7 +38,7 @@ class HealthSupervisorActorSpec
   private var probe: TestProbe = _
   private var bus: HealthSignalBusTrait = _
   override def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system)
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
   }
 
   override def beforeEach(): Unit = {
@@ -146,7 +146,7 @@ class HealthSupervisorActorSpec
       val message = bus.signalWithTrace(name = "test", Trace("test trace"))
       message.emit()
 
-      val received = probe.fishForMessage(max = 1.second) { case msg =>
+      val received = probe.fishForMessage(max = 3.second) { case msg =>
         msg.isInstanceOf[HealthSignalReceived]
       }
 

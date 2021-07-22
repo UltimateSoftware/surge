@@ -2,11 +2,19 @@
 
 package surge.internal.akka.cluster
 
+import akka.testkit.TestKit
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 
-class RemoteAddressExtensionSpec extends AnyWordSpec with Matchers {
+class RemoteAddressExtensionSpec extends AnyWordSpec with Matchers with BeforeAndAfterAll {
   import RemoteActorSystems._
+
+  override def afterAll(): Unit = {
+    TestKit.shutdownActorSystem(localActorSystem, verifySystemShutdown = true)
+    TestKit.shutdownActorSystem(arteryConfiguredSystem, verifySystemShutdown = true)
+    TestKit.shutdownActorSystem(nettyConfiguredSystem, verifySystemShutdown = true)
+  }
 
   "RemoteAddressExtension" should {
     "Be able to get the host/port of a system using artery for remoting" in {

@@ -8,7 +8,7 @@ import surge.internal.akka.actor.ActorLifecycleManagerActor.Ack
 object ActorLifecycleManagerActor {
   case object Start
   case object Stop
-  case class Ack(success: Boolean)
+  case class Ack()
   def apply(managedActorProps: Props, managedActorName: Option[String]): ActorLifecycleManagerActor = {
     new ActorLifecycleManagerActor(managedActorProps, managedActorName)
   }
@@ -35,7 +35,7 @@ class ActorLifecycleManagerActor(
 
       context.watch(actor)
       context.become(running(actor))
-      sender() ! Ack(true)
+      sender() ! Ack()
     case msg => context.system.deadLetters ! msg
   }
 
@@ -47,7 +47,7 @@ class ActorLifecycleManagerActor(
           context.stop(managedActor)
       }
       context.become(stopped)
-      sender() ! Ack(true)
+      sender() ! Ack()
     case Terminated(actorRef) if actorRef == managedActor => context.become(stopped)
     case msg                                              => managedActor.forward(msg)
   }

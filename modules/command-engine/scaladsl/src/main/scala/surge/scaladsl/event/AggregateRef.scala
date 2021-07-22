@@ -3,7 +3,7 @@
 package surge.scaladsl.event
 
 import akka.actor.ActorRef
-import io.opentracing.Tracer
+import io.opentelemetry.api.trace.Tracer
 import surge.scaladsl.common._
 
 import scala.concurrent.Future

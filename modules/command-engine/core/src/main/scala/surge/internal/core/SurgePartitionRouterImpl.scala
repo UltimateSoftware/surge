@@ -39,8 +39,7 @@ private[surge] final class SurgePartitionRouterImpl(
     businessLogic.partitioner,
     businessLogic.kafka.stateTopic,
     regionCreator,
-    RoutableMessage.extractEntityId,
-    businessLogic.tracer)
+    RoutableMessage.extractEntityId)(businessLogic.tracer)
 
   private val lifecycleManager = system.actorOf(Props(new ActorLifecycleManagerActor(shardRouterProps, Some(s"${businessLogic.aggregateName}RouterActor"))))
   override val actorRegion: ActorRef = lifecycleManager
@@ -48,26 +47,13 @@ private[surge] final class SurgePartitionRouterImpl(
   override def start(): Future[Ack] = {
     implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PartitionRouter.askTimeout)
 
-    actorRegion
-      .ask(ActorLifecycleManagerActor.Start)
-      .map {
-        case _: ActorLifecycleManagerActor.Ack =>
-          Ack()
-        case _ =>
-          throw new RuntimeException("Unexpected response from actor start request")
-      }
-      .andThen(registrationCallback())
+    actorRegion.ask(ActorLifecycleManagerActor.Start).mapTo[ActorLifecycleManagerActor.Ack].map(_ => Ack()).andThen(registrationCallback())
   }
 
   override def stop(): Future[Ack] = {
     implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PartitionRouter.askTimeout)
 
-    actorRegion.ask(ActorLifecycleManagerActor.Stop).map {
-      case _: ActorLifecycleManagerActor.Ack =>
-        Ack()
-      case _ =>
-        throw new RuntimeException("Unexpected response from actor stop request")
-    }
+    actorRegion.ask(ActorLifecycleManagerActor.Stop).mapTo[ActorLifecycleManagerActor.Ack].map(_ => Ack())
   }
 
   override def shutdown(): Future[Ack] = stop()

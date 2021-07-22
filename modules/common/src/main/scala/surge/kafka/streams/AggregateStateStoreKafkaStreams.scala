@@ -89,15 +89,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
    */
   override def start(): Future[Ack] = {
     implicit val ec: ExecutionContext = system.dispatcher
-    underlyingActor
-      .ask(ActorLifecycleManagerActor.Start)
-      .map {
-        case _: ActorLifecycleManagerActor.Ack =>
-          Ack()
-        case _ =>
-          throw new RuntimeException("Unexpected response from actor start request")
-      }
-      .andThen(registrationCallback())
+    underlyingActor.ask(ActorLifecycleManagerActor.Start).mapTo[ActorLifecycleManagerActor.Ack].map(_ => Ack()).andThen(registrationCallback())
   }
 
   override def shutdown(): Future[Ack] = {
@@ -106,12 +98,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
 
   override def stop(): Future[Ack] = {
     implicit val ec: ExecutionContext = system.dispatcher
-    underlyingActor.ask(ActorLifecycleManagerActor.Stop).map {
-      case _: ActorLifecycleManagerActor.Ack =>
-        Ack()
-      case _ =>
-        throw new RuntimeException("Unexpected response from actor stop request")
-    }
+    underlyingActor.ask(ActorLifecycleManagerActor.Stop).mapTo[ActorLifecycleManagerActor.Ack].map(_ => Ack())
   }
 
   override def restart(): Future[Ack] = {

@@ -436,14 +436,14 @@ class KafkaProducerActorImplSpec
       probe.watch(fencedOnCommit)
       probe.send(fencedOnCommit, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
       probe.send(fencedOnCommit, KafkaProducerActorImpl.FlushMessages)
-      probe.expectMsgType[PublishFailure]
+      probe.expectMsgType[PublishFailure](max = 15.seconds)
       verify(mockProducerFenceOnCommit).beginTransaction()
       verify(mockProducerFenceOnCommit).putRecords(records(assignedPartition, testEvents1, testAggs1))
       verify(mockProducerFenceOnCommit).commitTransaction()
 
       probe.send(fencedOnCommit, KafkaProducerActorImpl.Publish(testAggs2, testEvents2))
       probe.send(fencedOnCommit, KafkaProducerActorImpl.FlushMessages)
-      probe.expectMsg(PublishSuccess)
+      probe.expectMsg(max = 15.seconds, PublishSuccess)
       verify(mockProducerFenceOnCommit).putRecords(records(assignedPartition, testEvents2, testAggs2))
     }
   }

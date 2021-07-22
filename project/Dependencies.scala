@@ -1,5 +1,6 @@
 // Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
+import sbt.Keys.libraryDependencies
 import sbt._
 
 object Dependencies extends AutoPlugin {
@@ -32,12 +33,26 @@ object Dependencies extends AutoPlugin {
       val kafkaStreamsTestUtils = "org.apache.kafka" % "kafka-streams-test-utils" % kafkaVersion % Test
     }
 
-    object OpenTracing {
-      val version = "0.33.0"
-      val api = "io.opentracing" % "opentracing-api" % version
-      val mock = "io.opentracing" % "opentracing-mock" % version % Test
-      val noop = "io.opentracing" % "opentracing-noop" % version
+    object OpenTelemetry {
+
+      val version = "1.4.1"
+      val api = "io.opentelemetry" % "opentelemetry-api" % version
+      val sdk = "io.opentelemetry" % "opentelemetry-sdk" % OpenTelemetry.version
+      val sdkTesting = "io.opentelemetry" % "opentelemetry-sdk-testing" % OpenTelemetry.version
+      val grpcChannel = "io.grpc" % "grpc-netty-shaded" % "1.39.0" % Test
+
+      object HoneycombSample {
+        val sdk = OpenTelemetry.sdk
+        val exporter = "io.opentelemetry" % "opentelemetry-exporter-otlp" % OpenTelemetry.version % Test
+        val grpc = OpenTelemetry.grpcChannel
+      }
+      object JaegerSample {
+        val sdk = OpenTelemetry.sdk
+        val exporter = "io.opentelemetry" % "opentelemetry-exporter-jaeger" % OpenTelemetry.version % Test
+        val grpc = OpenTelemetry.grpcChannel
+      }
     }
+
     object PlayFramework {
       val json = "com.typesafe.play" %% "play-json" % "2.9.1"
     }

@@ -141,15 +141,7 @@ class KafkaProducerActor(
   override def start(): Future[Ack] = {
     implicit val askTimeout: Timeout = Timeout(TimeoutConfig.LifecycleManagerActor.askTimeout)
 
-    val result = publisherActor
-      .ask(ActorLifecycleManagerActor.Start)
-      .map {
-        case _: ActorLifecycleManagerActor.Ack =>
-          Ack()
-        case _ =>
-          throw new RuntimeException("Unexpected response from actor start request")
-      }
-      .andThen(registrationCallback())
+    val result = publisherActor.ask(ActorLifecycleManagerActor.Start).mapTo[ActorLifecycleManagerActor.Ack].map(_ => Ack()).andThen(registrationCallback())
 
     result
   }
@@ -157,12 +149,7 @@ class KafkaProducerActor(
   override def stop(): Future[Ack] = {
     implicit val askTimeout: Timeout = Timeout(TimeoutConfig.LifecycleManagerActor.askTimeout)
 
-    val result = publisherActor.ask(ActorLifecycleManagerActor.Stop).map[Ack] {
-      case _: ActorLifecycleManagerActor.Ack =>
-        Ack()
-      case _ =>
-        throw new RuntimeException("Unexpected response from actor stop request")
-    }
+    val result = publisherActor.ask(ActorLifecycleManagerActor.Stop).mapTo[ActorLifecycleManagerActor.Ack].map(_ => Ack())
 
     result
   }
