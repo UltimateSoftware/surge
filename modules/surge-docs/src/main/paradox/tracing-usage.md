@@ -21,10 +21,10 @@ Scala
 Java
 :    Java examples coming soon..
 
+#### Screenshot
+
 ![Honeycomb Screenshot](images/tracing-with-honeycomb.png)
 
-
-#### Screenshot
 
 ### Using Jaeger 
 
@@ -43,5 +43,3 @@ Java
 #### Screenshot
 
 ![Jaeger Screenshot](images/tracing-with-jaeger.png)
-
-

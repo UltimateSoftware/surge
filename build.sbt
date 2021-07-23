@@ -94,7 +94,7 @@ lazy val `surge-metrics` = (project in file("modules/metrics")).settings(
 
 lazy val `surge-docs` = (project in file("modules/surge-docs"))
   .dependsOn(`surge-common`, `surge-engine-command-core`, `surge-engine-command-javadsl`, `surge-engine-command-scaladsl`, `surge-metrics`)
-  .enablePlugins(ParadoxPlugin, ParadoxSitePlugin)
+  .enablePlugins(ParadoxPlugin, ParadoxSitePlugin, GhpagesPlugin)
   .settings(
     skip in publish := true,
     paradoxTheme := Some(builtinParadoxTheme("generic")),
