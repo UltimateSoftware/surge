@@ -36,7 +36,7 @@ object Dependencies extends AutoPlugin {
 
       val version = "1.4.1"
       val api = "io.opentelemetry" % "opentelemetry-api" % version
-      val sdk = "io.opentelemetry" % "opentelemetry-sdk" % OpenTelemetry.version
+      val sdk = "io.opentelemetry" % "opentelemetry-sdk" % OpenTelemetry.version % Test
       val sdkTesting = "io.opentelemetry" % "opentelemetry-sdk-testing" % OpenTelemetry.version % Test
       val grpcChannel = "io.grpc" % "grpc-netty-shaded" % "1.39.0" % Test
 
