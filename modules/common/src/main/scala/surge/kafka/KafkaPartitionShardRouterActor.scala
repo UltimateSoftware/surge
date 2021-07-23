@@ -166,16 +166,15 @@ class KafkaPartitionShardRouterActor(
     case GetPartitionRegionAssignments => sender() ! state.partitionRegions
     case GetHealth =>
       sender() ! HealthCheck(name = "shard-router-actor", id = s"router-actor-$hashCode", status = HealthCheckStatus.UP)
-    case msg =>
+    case msg if extractEntityId.isDefinedAt(msg) =>
       becomeActiveAndDeliverMessage(state, msg)
-
   }
 
   private def initialized(state: ActorState): Receive = healthCheckReceiver(state).orElse {
     case msg: PartitionAssignments     => handle(state, msg)
     case msg: Terminated               => handle(state, msg)
     case GetPartitionRegionAssignments => sender() ! state.partitionRegions
-    case msg =>
+    case msg if extractEntityId.isDefinedAt(msg) =>
       val entityId: String = extractEntityId(msg)
       activeSpan.log("extractEntityId", Map("entityId" -> entityId))
       deliverMessage(state, entityId, msg)
