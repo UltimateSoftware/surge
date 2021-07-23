@@ -3,12 +3,13 @@
 package surge.internal.kafka
 
 import java.nio.ByteBuffer
-
 import org.apache.kafka.common.TopicPartition
 import play.api.libs.json.{ Format, JsNumber, JsObject, JsPath, JsString, JsValue, Json, Reads, Writes }
 import play.api.libs.json.Reads._
 import play.api.libs.functional.syntax._
 import surge.kafka.HostPort
+
+import scala.util.Try
 
 private object ByteBufferUtils {
   def toString(byteBuffer: ByteBuffer): String = {
@@ -39,7 +40,7 @@ object AssignmentInfo {
   implicit val format: Format[AssignmentInfo] = Json.format
   def decode(byteBuffer: ByteBuffer): Option[AssignmentInfo] = {
     val jsonString = ByteBufferUtils.toString(byteBuffer)
-    Json.parse(jsonString).asOpt[AssignmentInfo]
+    Try(Json.parse(jsonString)).toOption.flatMap(_.asOpt[AssignmentInfo])
   }
 }
 case class AssignmentInfo(partitionAssignments: List[(TopicPartition, HostPort)]) {
