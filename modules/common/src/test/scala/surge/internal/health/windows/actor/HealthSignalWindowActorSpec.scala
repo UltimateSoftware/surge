@@ -21,7 +21,6 @@ class HealthSignalWindowActorSpec
     extends TestKit(ActorSystem("HealthSignalWindowActorSpec", ConfigFactory.load("artery-test-config")))
     with AnyWordSpecLike
     with Matchers
-    with BeforeAndAfterEach
     with BeforeAndAfterAll
     with Eventually {
   import surge.internal.health.context.TestContext._

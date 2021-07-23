@@ -1,6 +1,5 @@
 // Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
-import Dependencies.Jackson
 import Dependencies.autoImport.OpenTelemetry.{ HoneycombSample, JaegerSample }
 import sbt.Keys._
 
@@ -43,7 +42,7 @@ lazy val `surge-common` = (project in file("modules/common"))
       OpenTelemetry.sdk,
       OpenTelemetry.sdkTesting,
       PlayFramework.json,
-      Jackson.databind,
+//      Jackson.databind,
       typesafeConfig,
       Akka.akkaStreamTestKit,
       embeddedKafka,

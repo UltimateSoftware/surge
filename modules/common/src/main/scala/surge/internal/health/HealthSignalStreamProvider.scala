@@ -3,15 +3,15 @@
 package surge.internal.health
 
 import akka.Done
-import akka.actor.{ ActorRef, ActorSystem }
+import akka.actor.{ActorRef, ActorSystem}
 import surge.health.config.HealthSignalBusConfig
-import surge.health.{ HealthSignalBusTrait, HealthSignalListener, HealthSignalStream, SignalHandler }
 import surge.health.domain.HealthSignal
 import surge.health.matchers.SignalPatternMatcher
-import surge.health.windows.{ WindowStreamListener, _ }
+import surge.health.windows.{WindowStreamListener, _}
+import surge.health.{HealthSignalBusTrait, HealthSignalListener, HealthSignalStream, SignalHandler}
 import surge.internal.health.supervisor.HealthSupervisorActor
 
-import scala.util.Try
+import scala.util.Success
 
 /**
  * StreamMonitoringRef holds a reference to an Actor responsible for forwarding stream processing events to an underlying akka Actor via the provided ActorRef.
@@ -94,10 +94,7 @@ trait HealthSignalStreamProvider {
 
 class NullHealthSignalStream(config: HealthSignalBusConfig, bus: HealthSignalBusTrait, override val actorSystem: ActorSystem) extends HealthSignalStream {
 
-  override def signalHandler: SignalHandler = (_: HealthSignal) =>
-    Try {
-      Done
-    }
+  override def signalHandler: SignalHandler = (_: HealthSignal) => Success(Done)
 
   override def filters(): Seq[SignalPatternMatcher] = Seq.empty
 

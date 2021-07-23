@@ -89,7 +89,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
    */
   override def start(): Future[Ack] = {
     implicit val ec: ExecutionContext = system.dispatcher
-    underlyingActor.ask(ActorLifecycleManagerActor.Start).mapTo[ActorLifecycleManagerActor.Ack].map(_ => Ack()).andThen(registrationCallback())
+    underlyingActor.ask(ActorLifecycleManagerActor.Start).mapTo[Ack].andThen(registrationCallback())
   }
 
   override def shutdown(): Future[Ack] = {
@@ -98,7 +98,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
 
   override def stop(): Future[Ack] = {
     implicit val ec: ExecutionContext = system.dispatcher
-    underlyingActor.ask(ActorLifecycleManagerActor.Stop).mapTo[ActorLifecycleManagerActor.Ack].map(_ => Ack())
+    underlyingActor.ask(ActorLifecycleManagerActor.Stop).mapTo[Ack]
   }
 
   override def restart(): Future[Ack] = {

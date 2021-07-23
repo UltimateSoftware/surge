@@ -2,13 +2,12 @@
 
 package surge.internal.akka.actor
 
-import akka.actor.{ Actor, ActorRef, Props, Terminated }
-import surge.internal.akka.actor.ActorLifecycleManagerActor.Ack
+import akka.actor.{Actor, ActorRef, Props, Terminated}
+import surge.core.Ack
 
 object ActorLifecycleManagerActor {
   case object Start
   case object Stop
-  case class Ack()
   def apply(managedActorProps: Props, managedActorName: Option[String]): ActorLifecycleManagerActor = {
     new ActorLifecycleManagerActor(managedActorProps, managedActorName)
   }

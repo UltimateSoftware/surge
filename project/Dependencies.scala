@@ -38,7 +38,7 @@ object Dependencies extends AutoPlugin {
       val version = "1.4.1"
       val api = "io.opentelemetry" % "opentelemetry-api" % version
       val sdk = "io.opentelemetry" % "opentelemetry-sdk" % OpenTelemetry.version
-      val sdkTesting = "io.opentelemetry" % "opentelemetry-sdk-testing" % OpenTelemetry.version
+      val sdkTesting = "io.opentelemetry" % "opentelemetry-sdk-testing" % OpenTelemetry.version % Test
       val grpcChannel = "io.grpc" % "grpc-netty-shaded" % "1.39.0" % Test
 
       object HoneycombSample {
@@ -73,7 +73,7 @@ object Dependencies extends AutoPlugin {
     val typesafeConfig = "com.typesafe" % "config" % "1.4.1"
   }
 
-  object Jackson {
-    val databind = "com.fasterxml.jackson.core" % "jackson-databind" % "2.10.1"
-  }
+//  object Jackson {
+//    val databind = "com.fasterxml.jackson.core" % "jackson-databind" % "2.10.1"
+//  }
 }
