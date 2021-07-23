@@ -82,8 +82,8 @@ trait KafkaPartitionShardRouterActorSpecLike extends MockitoSugar {
       partitionMappings.get(key)
     })
 
-    val extractEntityId: PartialFunction[Any, String] = {
-      case cmd: Command                    => cmd.id
+    val extractEntityId: PartialFunction[Any, String] = { case cmd: Command =>
+      cmd.id
     }
     val shardRouterProps = Props(
       new KafkaPartitionShardRouterActor(
