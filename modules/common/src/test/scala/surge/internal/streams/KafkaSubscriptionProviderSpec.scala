@@ -11,6 +11,7 @@ import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.serialization.{ Deserializer, Serializer }
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.Eventually
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Millis, Seconds, Span }
@@ -24,7 +25,18 @@ import surge.streams.{ DataHandler, EventPlusStreamMeta, OffsetManager }
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
 
-class KafkaSubscriptionProviderSpec extends TestKit(ActorSystem("StreamManagerSpec")) with AnyWordSpecLike with Matchers with Eventually with EmbeddedKafka {
+class KafkaSubscriptionProviderSpec
+    extends TestKit(ActorSystem("StreamManagerSpec"))
+    with AnyWordSpecLike
+    with Matchers
+    with Eventually
+    with EmbeddedKafka
+    with BeforeAndAfterAll {
+
+  override def afterAll(): Unit = {
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
+  }
+
   private implicit val executionContext: ExecutionContext = ExecutionContext.global
   private implicit val stringSer: Serializer[String] = DefaultSerdes.stringSerde.serializer()
   private implicit val stringDeserializer: Deserializer[String] = DefaultSerdes.stringSerde.deserializer()

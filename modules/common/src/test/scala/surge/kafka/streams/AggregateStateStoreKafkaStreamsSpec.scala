@@ -52,7 +52,7 @@ class AggregateStateStoreKafkaStreamsSpec
   private val system = ActorSystem("test-actor-system")
 
   override def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system)
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
   }
 
   val config: EmbeddedKafkaConfig = EmbeddedKafkaConfig(kafkaPort = 0, zooKeeperPort = 0)

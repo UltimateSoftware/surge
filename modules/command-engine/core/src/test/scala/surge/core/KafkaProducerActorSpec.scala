@@ -37,7 +37,6 @@ class KafkaProducerActorSpec
 
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
-    super.afterAll()
   }
 
   "KafkaProducerActor" should {

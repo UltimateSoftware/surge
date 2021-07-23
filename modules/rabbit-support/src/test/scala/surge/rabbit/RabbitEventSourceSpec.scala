@@ -69,6 +69,7 @@ class RabbitEventSourceSpec
   }
 
   override def afterAll(): Unit = {
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
     stopRabbit()
   }
 
