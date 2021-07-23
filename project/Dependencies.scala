@@ -1,6 +1,5 @@
 // Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
-import sbt.Keys.libraryDependencies
 import sbt._
 
 object Dependencies extends AutoPlugin {
@@ -72,8 +71,4 @@ object Dependencies extends AutoPlugin {
     val slf4jApi = "org.slf4j" % "slf4j-api" % "1.7.30"
     val typesafeConfig = "com.typesafe" % "config" % "1.4.1"
   }
-
-//  object Jackson {
-//    val databind = "com.fasterxml.jackson.core" % "jackson-databind" % "2.10.1"
-//  }
 }

@@ -42,7 +42,6 @@ lazy val `surge-common` = (project in file("modules/common"))
       OpenTelemetry.sdk,
       OpenTelemetry.sdkTesting,
       PlayFramework.json,
-//      Jackson.databind,
       typesafeConfig,
       Akka.akkaStreamTestKit,
       embeddedKafka,
