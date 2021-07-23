@@ -33,3 +33,5 @@ trait KafkaSecurityConfiguration {
     setIfDefined(props, SslConfigs.SSL_KEYSTORE_PASSWORD_CONFIG, "kafka.ssl.keystore.password")
   }
 }
+
+object KafkaSecurityConfiguration extends KafkaSecurityConfiguration
