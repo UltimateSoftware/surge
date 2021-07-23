@@ -3,7 +3,6 @@
 package surge.internal.health.supervisor
 
 import java.util.regex.Pattern
-
 import akka.Done
 import akka.actor.{ Actor, ActorContext, ActorRef, ActorSystem, PoisonPill, Props, Terminated }
 import akka.pattern.{ ask, BackoffOpts, BackoffSupervisor }
@@ -15,7 +14,6 @@ import surge.health.domain.HealthSignal
 import surge.health.matchers.SignalPatternMatcher
 import surge.internal.config.{ BackoffConfig, TimeoutConfig }
 import surge.internal.health._
-import surge.internal.health.supervisor.HealthSupervisorActorRef.log
 
 import scala.collection.mutable
 import scala.concurrent.duration._
@@ -45,10 +43,6 @@ class HealthSignalStreamMonitoringRefWithSupervisionSupport(override val actor: 
   }
 }
 
-object HealthSupervisorActorRef {
-  val log: Logger = LoggerFactory.getLogger(getClass)
-}
-
 private class ControllableLookupImpl(resource: mutable.Map[String, Controllable]) extends ControllableLookup {
   override def lookup(identifier: String): Option[Controllable] = {
     resource.get(identifier)
@@ -62,6 +56,7 @@ private class ControllableRemoverImpl(resource: mutable.Map[String, Controllable
 }
 
 class ControlProxyActor(finder: ControllableLookup, remover: ControllableRemover, supervisorActorRef: ActorRef, actorSystem: ActorSystem) extends Actor {
+  private val log: Logger = LoggerFactory.getLogger(getClass)
   implicit val ec: ExecutionContext = actorSystem.dispatcher
   implicit val askTimeout: Timeout = TimeoutConfig.HealthSupervision.actorAskTimeout
 
@@ -116,7 +111,7 @@ class ControlProxyActor(finder: ControllableLookup, remover: ControllableRemover
  *   ActorSystem
  */
 class HealthSupervisorActorRef(val actor: ActorRef, askTimeout: FiniteDuration, override val actorSystem: ActorSystem) extends HealthSupervisorTrait {
-  import HealthSupervisorActorRef._
+  private val log: Logger = LoggerFactory.getLogger(getClass)
 
   private var started: Boolean = false
   private implicit val executionContext: ExecutionContext = actorSystem.dispatcher
@@ -196,7 +191,6 @@ case class SupervisedComponentRegistration(
 case class HealthState(registered: Map[String, SupervisedComponentRegistration] = Map.empty, replyTo: Option[ActorRef] = None)
 
 object HealthSupervisorActor {
-  val log: Logger = LoggerFactory.getLogger(getClass)
 
   def apply(signalBus: HealthSignalBusInternal, filters: Seq[SignalPatternMatcher], actorSystem: ActorSystem): HealthSupervisorActorRef = {
     val props = BackoffSupervisor.props(
@@ -231,6 +225,7 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, filters:
     extends Actor
     with HealthSignalListener
     with HealthRegistrationListener {
+  private val log: Logger = LoggerFactory.getLogger(getClass)
   import HealthSupervisorActor._
   implicit val askTimeout: Timeout = TimeoutConfig.HealthSupervision.actorAskTimeout
   implicit val executionContext: ExecutionContext = ExecutionContext.global
@@ -286,7 +281,7 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, filters:
       case sig: HealthSignal =>
         handleSignal(sig)
       case other =>
-        HealthSupervisorActor.log.error(s"Unable to handle message of type $other.getClass()")
+        log.error(s"Unable to handle message of type $other.getClass()")
     }
   }
 
@@ -344,7 +339,7 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, filters:
           case Success(events) =>
             state.replyTo.foreach(r =>
               events.foreach(e => {
-                HealthSupervisorActor.log.debug("replying with event", e)
+                log.debug("replying with event {}", e)
                 r ! e
               }))
         }

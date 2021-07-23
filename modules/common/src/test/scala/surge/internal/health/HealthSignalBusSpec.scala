@@ -8,6 +8,7 @@ import akka.testkit.{ TestKit, TestProbe }
 import org.mockito.Mockito._
 import org.mockito.stubbing.Stubber
 import org.mockito.{ ArgumentMatchers, Mockito }
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
@@ -44,7 +45,12 @@ trait MockitoHelper extends MockitoSugar {
   }
 }
 
-class HealthSignalBusSpec extends TestKit(ActorSystem("healthSignalBus")) with AnyWordSpecLike with Matchers with MockitoHelper {
+class HealthSignalBusSpec extends TestKit(ActorSystem("healthSignalBus")) with AnyWordSpecLike with Matchers with MockitoHelper with BeforeAndAfterAll {
+
+  override def afterAll(): Unit = {
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
+  }
+
   import surge.internal.health.context.TestContext._
   val signalStreamProvider: HealthSignalStreamProvider = testHealthSignalStreamProvider(Seq.empty)
 

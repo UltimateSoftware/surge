@@ -50,7 +50,7 @@ class AggregateStateStoreKafkaStreamsSpec
   private val system = ActorSystem("test-actor-system")
 
   override def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system)
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
   }
 
   // Silly mock validator that expects the `string` field of a MockState to be "stateN" where N is the value of the MockState int
