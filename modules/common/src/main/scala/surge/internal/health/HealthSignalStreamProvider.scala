@@ -3,12 +3,12 @@
 package surge.internal.health
 
 import akka.Done
-import akka.actor.{ActorRef, ActorSystem}
+import akka.actor.{ ActorRef, ActorSystem }
 import surge.health.config.HealthSignalBusConfig
 import surge.health.domain.HealthSignal
 import surge.health.matchers.SignalPatternMatcher
-import surge.health.windows.{WindowStreamListener, _}
-import surge.health.{HealthSignalBusTrait, HealthSignalListener, HealthSignalStream, SignalHandler}
+import surge.health.windows.{ WindowStreamListener, _ }
+import surge.health.{ HealthSignalBusTrait, HealthSignalListener, HealthSignalStream, SignalHandler }
 import surge.internal.health.supervisor.HealthSupervisorActor
 
 import scala.util.Success

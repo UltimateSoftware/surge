@@ -2,7 +2,7 @@
 
 package surge.internal.akka.actor
 
-import akka.actor.{Actor, ActorRef, Props, Terminated}
+import akka.actor.{ Actor, ActorRef, Props, Terminated }
 import surge.core.Ack
 
 object ActorLifecycleManagerActor {
