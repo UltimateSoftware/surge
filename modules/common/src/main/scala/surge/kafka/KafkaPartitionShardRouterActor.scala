@@ -82,13 +82,6 @@ class KafkaPartitionShardRouterActor(
 
   private val log: Logger = LoggerFactory.getLogger(getClass)
 
-  private def canExtractEntityId(msg: Any): Boolean = {
-    (for {
-      isDefined <- Try(extractEntityId.isDefinedAt(msg))
-      canExtract <- Try(extractEntityId(msg))
-    } yield canExtract).isSuccess
-  }
-
   private case class ActorState(
       partitionAssignments: PartitionAssignments,
       partitionRegions: Map[Int, PartitionRegion],
@@ -173,9 +166,6 @@ class KafkaPartitionShardRouterActor(
     case GetPartitionRegionAssignments => sender() ! state.partitionRegions
     case GetHealth =>
       sender() ! HealthCheck(name = "shard-router-actor", id = s"router-actor-$hashCode", status = HealthCheckStatus.UP)
-    case msg if !canExtractEntityId(msg) =>
-      log.warn("Entity id extractor is throwing exceptions, discarding message {}", msg.getClass.getSimpleName)
-      context.system.deadLetters ! msg
     case msg =>
       becomeActiveAndDeliverMessage(state, msg)
 
@@ -185,9 +175,6 @@ class KafkaPartitionShardRouterActor(
     case msg: PartitionAssignments     => handle(state, msg)
     case msg: Terminated               => handle(state, msg)
     case GetPartitionRegionAssignments => sender() ! state.partitionRegions
-    case msg if !canExtractEntityId(msg) =>
-      log.warn("Entity id extractor is throwing exceptions, discarding message {}", msg.getClass.getSimpleName)
-      context.system.deadLetters ! msg
     case msg =>
       val entityId: String = extractEntityId(msg)
       activeSpan.log("extractEntityId", Map("entityId" -> entityId))
