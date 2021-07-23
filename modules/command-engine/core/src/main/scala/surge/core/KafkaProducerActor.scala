@@ -131,55 +131,26 @@ class KafkaProducerActor(
 
   override def restart(): Future[Ack] = {
     for {
-      stopped <- stop()
-      started <- start(stopped)
+      _ <- stop()
+      started <- start()
     } yield {
-      if (Option(stopped).isDefined && Option(started).isDefined) {
-        Ack()
-      } else {
-        throw new RuntimeException(s"Failed to restart $getClass")
-      }
+      started
     }
   }
 
   override def start(): Future[Ack] = {
     implicit val askTimeout: Timeout = Timeout(TimeoutConfig.LifecycleManagerActor.askTimeout)
 
-    val result = publisherActor
-      .ask(ActorLifecycleManagerActor.Start)
-      .map {
-        case _: ActorLifecycleManagerActor.Ack =>
-          Ack()
-        case _ =>
-          throw new RuntimeException("Unexpected response from actor start request")
-      }
-      .andThen(registrationCallback())
-
-    result
+    publisherActor.ask(ActorLifecycleManagerActor.Start).mapTo[Ack].andThen(registrationCallback())
   }
 
   override def stop(): Future[Ack] = {
     implicit val askTimeout: Timeout = Timeout(TimeoutConfig.LifecycleManagerActor.askTimeout)
 
-    val result = publisherActor.ask(ActorLifecycleManagerActor.Stop).map[Ack] {
-      case _: ActorLifecycleManagerActor.Ack =>
-        Ack()
-      case _ =>
-        throw new RuntimeException("Unexpected response from actor stop request")
-    }
-
-    result
+    publisherActor.ask(ActorLifecycleManagerActor.Stop).mapTo[Ack]
   }
 
   override def shutdown(): Future[Ack] = stop()
-
-  private def start(stopped: Ack): Future[Ack] = {
-    if (Option(stopped).isDefined) {
-      start()
-    } else {
-      Future.failed(new RuntimeException(s"Failed to stop $getClass"))
-    }
-  }
 
   private def registrationCallback(): PartialFunction[Try[Ack], Unit] = {
     case Success(_) =>

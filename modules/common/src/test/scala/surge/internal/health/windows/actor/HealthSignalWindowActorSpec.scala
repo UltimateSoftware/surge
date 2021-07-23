@@ -17,7 +17,6 @@ import surge.internal.health.windows.WindowSlider
 import surge.internal.health.{ HealthSignalBus, HealthSignalBusInternal }
 
 import scala.concurrent.duration._
-import scala.languageFeature.postfixOps
 
 class HealthSignalWindowActorSpec
     extends TestKit(ActorSystem("HealthSignalWindowActorSpec", ConfigFactory.load("artery-test-config")))
@@ -133,9 +132,11 @@ class HealthSignalWindowActorSpec
 
       maybeAddedEvent shouldBe a[AddedToWindow]
 
-      probe.expectMsgType[WindowAdvanced]
-
-      actorRef.stop()
+      try {
+        probe.expectMsgClass(15.seconds, classOf[WindowAdvanced])
+      } finally {
+        actorRef.stop()
+      }
 
       eventually {
         probe.expectTerminated(actorRef.actor)
