@@ -48,10 +48,14 @@ class HealthSignalWindowActorSpec
       val probe = TestProbe()
       probe.watch(actorRef)
 
-      // WindowActorRef that will tick every 1 second
+      // WindowActorRef that will tick every 10 millis
       val windowRef =
-        new HealthSignalWindowActorRef(actor = actorRef, windowFreq = 1.second, initialWindowProcessingDelay = 10.milliseconds, actorSystem = system)
-          .start(Some(probe.ref))
+        new HealthSignalWindowActorRef(
+          actor = actorRef,
+          windowFreq = 1.second,
+          initialWindowProcessingDelay = 10.milliseconds,
+          tickInterval = 10.milliseconds,
+          actorSystem = system).start(Some(probe.ref))
 
       eventually {
         // HealthSignalWindowActor should handleTick 5 times; 1 tick per second
