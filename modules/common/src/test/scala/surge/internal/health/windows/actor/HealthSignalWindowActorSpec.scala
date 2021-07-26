@@ -55,11 +55,11 @@ class HealthSignalWindowActorSpec
           windowFreq = 1.second,
           initialWindowProcessingDelay = 10.milliseconds,
           actorSystem = system,
-          windowCheckInterval = 10.milliseconds).start(Some(probe.ref))
+          windowCheckInterval = 1.second).start(Some(probe.ref))
 
       eventually {
         // HealthSignalWindowActor should handleTick 5 times; 1 tick per second
-        tickCount shouldBe >=(5)
+        tickCount shouldBe >=(right = 5)
       }
 
       windowRef.stop()
