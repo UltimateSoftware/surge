@@ -87,7 +87,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
       allStarted
     }
 
-    result.onComplete(registrationCallback())
+    result.andThen(registrationCallback())
     result
   }
 
@@ -134,9 +134,8 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     Future.successful[Ack](Ack())
   }
 
-  private def stopKafkaStreams(): Future[Ack] = kafkaStreamsImpl.stop()
+  private def registrationCallback(): PartialFunction[Try[Ack], Unit] = {
 
-  private def registrationCallback(): Try[Any] => Unit = {
     case Success(_) =>
       val registrationResult = signalBus.register(
         control = this,

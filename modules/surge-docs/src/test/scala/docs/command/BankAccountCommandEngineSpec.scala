@@ -7,14 +7,14 @@ import java.util.UUID
 import com.typesafe.config.ConfigFactory
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.common.config.TopicConfig
-import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach }
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import surge.scaladsl.common.{ CommandFailure, CommandSuccess }
 
-import scala.concurrent.{ Await, ExecutionContext, Future }
 import scala.concurrent.duration._
+import scala.concurrent.{ Await, ExecutionContext, Future }
 
 class BankAccountCommandEngineSpec extends AnyWordSpec with BeforeAndAfterAll with Matchers with ScalaFutures with EmbeddedKafka {
   implicit val ec: ExecutionContext = ExecutionContext.global
