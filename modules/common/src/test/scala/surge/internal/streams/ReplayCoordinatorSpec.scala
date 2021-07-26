@@ -7,6 +7,7 @@ import akka.actor.{ ActorSystem, Props }
 import akka.testkit.{ TestKit, TestProbe }
 import org.mockito.ArgumentMatchers._
 import org.mockito.Mockito._
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
@@ -22,7 +23,12 @@ class ReplayCoordinatorSpec
     with AnyWordSpecLike
     with Matchers
     with MockitoSugar
+    with BeforeAndAfterAll
     with ActorSystemHostAwareness {
+
+  override def afterAll(): Unit = {
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
+  }
 
   override def actorSystem: ActorSystem = system
 

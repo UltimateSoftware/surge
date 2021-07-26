@@ -16,10 +16,10 @@ case object Stop
 protected class HealthSignalStreamActor(val windowListener: Option[WindowStreamListener] = None) extends Actor with WindowStreamListener {
   override def receive: Receive = {
     case WindowAdvanced(w, data) => slide(w, data.signals)
-    case WindowClosed(w, data)   => windowClosed(w.asInstanceOf[Window], data.signals)
-    case WindowOpened(w)         => windowOpened(w.asInstanceOf[Window])
-    case WindowStopped(w)        => windowStopped(w.asInstanceOf[Option[Window]])
-    case AddedToWindow(d, w)     => dataAddedToWindow(d.asInstanceOf[HealthSignal], w.asInstanceOf[Window])
+    case WindowClosed(w, data)   => windowClosed(w, data.signals)
+    case WindowOpened(w)         => windowOpened(w)
+    case WindowStopped(w)        => windowStopped(w)
+    case AddedToWindow(d, w)     => dataAddedToWindow(d, w)
 
     case Stop => context.stop(self)
     case other =>

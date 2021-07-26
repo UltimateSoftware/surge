@@ -9,7 +9,7 @@ import org.mockito.Mockito._
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.Eventually
 import org.scalatest.matchers.should.Matchers
-import org.scalatest.time.{ Seconds, Span }
+import org.scalatest.time.{ Milliseconds, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
 import surge.health.domain.HealthSignal
 import surge.health.windows.{ AddedToWindow, WindowAdvanced, WindowClosed, WindowOpened }
@@ -17,7 +17,7 @@ import surge.internal.health.windows.WindowSlider
 import surge.internal.health.{ HealthSignalBus, HealthSignalBusInternal }
 
 import scala.concurrent.duration._
-import scala.languageFeature.postfixOps
+
 class HealthSignalWindowActorSpec
     extends TestKit(ActorSystem("HealthSignalWindowActorSpec", ConfigFactory.load("artery-test-config")))
     with AnyWordSpecLike
@@ -27,7 +27,7 @@ class HealthSignalWindowActorSpec
   import surge.internal.health.context.TestContext._
 
   implicit override val patienceConfig: PatienceConfig =
-    PatienceConfig(timeout = scaled(Span(160, Seconds)), interval = scaled(Span(5, Seconds)))
+    PatienceConfig(timeout = scaled(Span(10, Seconds)), interval = scaled(Span(10, Milliseconds)))
 
   val bus: HealthSignalBusInternal = HealthSignalBus(testHealthSignalStreamProvider(Seq.empty))
 
@@ -36,7 +36,7 @@ class HealthSignalWindowActorSpec
   }
 
   "HealthSignalWindowActor" should {
-    "tick" ignore {
+    "tick" in {
       var tickCount: Int = 0
       // override handleTick to track times tick was received
       val actorRef = TestActorRef(new HealthSignalWindowActor(frequency = 5.seconds, WindowSlider(1, 0)) {
@@ -50,12 +50,16 @@ class HealthSignalWindowActorSpec
 
       // WindowActorRef that will tick every 1 second
       val windowRef =
-        new HealthSignalWindowActorRef(actor = actorRef, windowFreq = 1.second, initialWindowProcessingDelay = 1.second, actorSystem = system)
-          .start(Some(probe.ref))
+        new HealthSignalWindowActorRef(
+          actor = actorRef,
+          windowFreq = 1.second,
+          initialWindowProcessingDelay = 10.milliseconds,
+          actorSystem = system,
+          windowCheckInterval = 10.milliseconds).start(Some(probe.ref))
 
       eventually {
         // HealthSignalWindowActor should handleTick 5 times; 1 tick per second
-        tickCount shouldEqual 5
+        tickCount shouldBe >=(5)
       }
 
       windowRef.stop()
@@ -67,7 +71,12 @@ class HealthSignalWindowActorSpec
 
     "when sliding configured; advance on Window Expired" in {
       val actorRef: HealthSignalWindowActorRef =
-        HealthSignalWindowActor(actorSystem = system, windowFrequency = 5.seconds, initialWindowProcessingDelay = 1.second, advancer = WindowSlider(1, 0))
+        HealthSignalWindowActor(
+          actorSystem = system,
+          windowFrequency = 100.milliseconds,
+          initialWindowProcessingDelay = 10.milliseconds,
+          advancer = WindowSlider(1, 0),
+          windowCheckInterval = 10.milliseconds)
       val probe = TestProbe()
       probe.watch(actorRef.actor)
 
@@ -83,20 +92,15 @@ class HealthSignalWindowActorSpec
       maybeWindow.nonEmpty shouldEqual true
 
       // Wait for window to expire
-      eventually {
-        val advancedWindow = probe.fishForMessage(max = 1.second) { case _: WindowAdvanced =>
-          true
-        }
-
-        val windowExpired = Option(advancedWindow).exists(adv =>
-          adv
-            .asInstanceOf[WindowAdvanced]
-            .window()
-            .exists(w => {
-              w.expired()
-            }))
-        windowExpired shouldEqual true
+      val closedWindow = eventually {
+        probe.expectMsgType[WindowClosed]
       }
+      closedWindow.window() shouldBe defined
+      closedWindow.window().get.expired() shouldEqual true
+
+      val advancedWindow = probe.expectMsgType[WindowAdvanced]
+      advancedWindow.window() shouldBe defined
+      advancedWindow.window().get.expired() shouldEqual false
 
       actorRef.stop()
 
@@ -107,7 +111,12 @@ class HealthSignalWindowActorSpec
 
     "when sliding configured with no buffer; advance on AddedToWindow" in {
       val actorRef =
-        HealthSignalWindowActor(actorSystem = system, initialWindowProcessingDelay = 1.second, windowFrequency = 5.seconds, advancer = WindowSlider(1, 0))
+        HealthSignalWindowActor(
+          actorSystem = system,
+          initialWindowProcessingDelay = 10.milliseconds,
+          windowFrequency = 100.milliseconds,
+          advancer = WindowSlider(1, 0),
+          windowCheckInterval = 10.milliseconds)
       val probe = TestProbe()
       probe.watch(actorRef.actor)
       actorRef.start(Some(probe.ref))
@@ -123,9 +132,11 @@ class HealthSignalWindowActorSpec
 
       maybeAddedEvent shouldBe a[AddedToWindow]
 
-      probe.expectMsgClass(10.seconds, classOf[WindowAdvanced])
-
-      actorRef.stop()
+      try {
+        probe.expectMsgClass(15.seconds, classOf[WindowAdvanced])
+      } finally {
+        actorRef.stop()
+      }
 
       eventually {
         probe.expectTerminated(actorRef.actor)
@@ -134,7 +145,12 @@ class HealthSignalWindowActorSpec
 
     "when sliding configured with buffer; advance on CloseWindow" in {
       val actorRef =
-        HealthSignalWindowActor(actorSystem = system, initialWindowProcessingDelay = 1.second, windowFrequency = 5.seconds, advancer = WindowSlider(1))
+        HealthSignalWindowActor(
+          actorSystem = system,
+          initialWindowProcessingDelay = 10.milliseconds,
+          windowFrequency = 100.milliseconds,
+          advancer = WindowSlider(1),
+          windowCheckInterval = 10.milliseconds)
 
       val probe = TestProbe()
       probe.watch(actorRef.actor)
@@ -154,10 +170,10 @@ class HealthSignalWindowActorSpec
 
       maybeAddedEvent shouldBe a[AddedToWindow]
 
-      probe.expectMsgClass(max = 10.seconds, classOf[WindowClosed])
-      probe.expectMsgClass(max = 10.seconds, classOf[WindowAdvanced])
+      probe.expectMsgType[WindowClosed]
+      val advanced = probe.expectMsgType[WindowAdvanced]
 
-      // todo: verify WindowAdvanced message has expected WindowData captured.
+      (advanced.d.signals should have).length(1)
 
       actorRef.stop()
 
