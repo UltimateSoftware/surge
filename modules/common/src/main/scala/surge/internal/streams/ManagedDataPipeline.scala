@@ -2,14 +2,13 @@
 
 package surge.internal.streams
 
-import java.util.UUID
-
 import com.typesafe.config.ConfigFactory
 import surge.metrics.Metrics
 import surge.streams.DataPipeline
 import surge.streams.DataPipeline.ReplayResult
 import surge.streams.replay.ReplayControl
 
+import java.util.UUID
 import scala.concurrent.Future
 import scala.jdk.CollectionConverters._
 

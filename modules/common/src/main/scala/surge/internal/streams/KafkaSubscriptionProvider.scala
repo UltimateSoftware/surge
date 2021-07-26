@@ -2,8 +2,6 @@
 
 package surge.internal.streams
 
-import java.util.UUID
-
 import akka.Done
 import akka.actor.ActorSystem
 import akka.kafka.ConsumerMessage.CommittableOffset
@@ -17,6 +15,7 @@ import surge.internal.akka.cluster.ActorSystemHostAwareness
 import surge.internal.kafka.HostAwarenessConfig
 import surge.streams.{ DataHandler, OffsetManager }
 
+import java.util.UUID
 import scala.concurrent.duration.Duration
 
 trait KafkaSubscriptionProvider[Key, Value] {
