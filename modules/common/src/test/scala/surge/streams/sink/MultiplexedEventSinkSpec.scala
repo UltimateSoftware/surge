@@ -3,14 +3,16 @@
 package surge.streams.sink
 
 import akka.actor.ActorSystem
-import akka.testkit.{ TestKit, TestProbe }
+import akka.testkit.{TestKit, TestProbe}
+import io.opentelemetry.api.trace.Tracer
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
+import surge.internal.tracing.NoopTracerFactory
 import surge.streams._
 
 import scala.concurrent.duration.DurationInt
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.{ExecutionContext, Future}
 
 class MultiplexedEventSinkSpec extends TestKit(ActorSystem("MultiplexedEventSink")) with AnyWordSpecLike with Matchers with BeforeAndAfterAll {
 
@@ -32,6 +34,8 @@ class MultiplexedEventSinkSpec extends TestKit(ActorSystem("MultiplexedEventSink
   class SubtypeEventSink[T](probe: TestProbe) extends EventSink[T] {
     override def handleEvent(key: String, event: T, headers: Map[String, Array[Byte]]): Future[Any] = Future { probe.ref ! event }(ExecutionContext.global)
     override def partitionBy(key: String, event: T, headers: Map[String, Array[Byte]]): String = key
+
+    override val tracer: Tracer = NoopTracerFactory.create()
   }
   class Subtype1Adapter(probe: TestProbe) extends EventSinkMultiplexAdapter[TopLevelEvent, Subtype1] {
     override def convertEvent(event: TopLevelEvent): Option[Subtype1] = event match {
@@ -58,6 +62,8 @@ class MultiplexedEventSinkSpec extends TestKit(ActorSystem("MultiplexedEventSink
         override def partitionBy(key: String, event: TopLevelEvent, headers: Map[String, Array[Byte]]): String = key
         override def destinationSinks: Seq[EventSinkMultiplexAdapter[TopLevelEvent, _ <: TopLevelEvent]] =
           Seq(new Subtype1Adapter(subtype1Probe), new Subtype2Adapter(subtype2Probe))
+
+        override val tracer: Tracer = NoopTracerFactory.create()
       }
       val control = eventSource.to(testMultiplexedSink, "")
       control.sendEvent(Subtype1Event1("subtype-1"))

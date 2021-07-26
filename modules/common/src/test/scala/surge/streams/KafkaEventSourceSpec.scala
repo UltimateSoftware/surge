@@ -75,6 +75,8 @@ class KafkaEventSourceSpec
     override def partitionBy(key: String, event: String, headers: Map[String, Array[Byte]]): String = {
       event
     }
+
+    override val tracer: Tracer = NoopTracerFactory.create()
   }
 
   "EventSource" should {
@@ -170,6 +172,8 @@ class KafkaEventSourceSpec
           override def partitionBy(key: String, event: String, headers: Map[String, Array[Byte]]): String = {
             event
           }
+
+          override val tracer: Tracer = NoopTracerFactory.create()
         }
 
         consumer1.to(consumerSettings)(testSink, autoStart = true)
@@ -248,6 +252,8 @@ class KafkaEventSourceSpec
             }
           }
           override def partitionBy(key: String, event: String, headers: Map[String, Array[Byte]]): String = event
+
+          override val tracer: Tracer = NoopTracerFactory.create()
         }
 
         val consumerSettings = testConsumerSettings(embeddedBroker, groupId)
@@ -281,6 +287,8 @@ class KafkaEventSourceSpec
             Future.successful(Done)
           }
           override def partitionBy(key: String, event: String, headers: Map[String, Array[Byte]]): String = event
+
+          override val tracer: Tracer = NoopTracerFactory.create()
         }
 
         consumer1.to(consumerSettings)(countingEventSink, autoStart = true)
