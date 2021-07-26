@@ -2,19 +2,19 @@
 
 package surge.core
 
-import akka.actor.{ActorSystem, NoSerializationVerificationNeeded}
-import akka.testkit.{TestKit, TestProbe}
+import akka.actor.{ ActorSystem, NoSerializationVerificationNeeded }
+import akka.testkit.{ TestKit, TestProbe }
 import io.opentelemetry.api.trace.Tracer
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
-import surge.core.command.{SurgeCommandServiceSink, SurgeMultiCommandServiceSink}
+import surge.core.command.{ SurgeCommandServiceSink, SurgeMultiCommandServiceSink }
 import surge.internal.tracing.NoopTracerFactory
 import surge.streams.sink.TestEventSource
 
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ ExecutionContext, Future }
 
 class SurgeCommandServiceSinkSpec extends TestKit(ActorSystem("SurgeCommandServiceSinkSpec")) with AnyWordSpecLike with Matchers with BeforeAndAfterAll {
 

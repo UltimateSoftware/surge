@@ -3,7 +3,7 @@
 package surge.streams.sink
 
 import akka.actor.ActorSystem
-import akka.testkit.{TestKit, TestProbe}
+import akka.testkit.{ TestKit, TestProbe }
 import io.opentelemetry.api.trace.Tracer
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
@@ -12,7 +12,7 @@ import surge.internal.tracing.NoopTracerFactory
 import surge.streams._
 
 import scala.concurrent.duration.DurationInt
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ ExecutionContext, Future }
 
 class MultiplexedEventSinkSpec extends TestKit(ActorSystem("MultiplexedEventSink")) with AnyWordSpecLike with Matchers with BeforeAndAfterAll {
 

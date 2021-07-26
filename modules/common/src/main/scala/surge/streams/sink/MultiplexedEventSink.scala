@@ -27,5 +27,5 @@ trait MultiplexedEventSink[Event] extends EventSink[Event] {
     Future.sequence(futureHandled)
   }
 
-  override val sinkName: String = destinationSinks.map(_.sink).map(_.sinkName).mkString("[", sep=", ", "]")
+  override val sinkName: String = destinationSinks.map(_.sink).map(_.sinkName).mkString("[", sep = ", ", "]")
 }
