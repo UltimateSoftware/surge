@@ -13,7 +13,6 @@ import surge.internal.tracing.NoopTracerFactory
 import surge.streams.sink.TestEventSource
 
 import java.util.UUID
-import scala.concurrent.duration.DurationInt
 import scala.concurrent.{ ExecutionContext, Future }
 
 class SurgeCommandServiceSinkSpec extends TestKit(ActorSystem("SurgeCommandServiceSinkSpec")) with AnyWordSpecLike with Matchers with BeforeAndAfterAll {

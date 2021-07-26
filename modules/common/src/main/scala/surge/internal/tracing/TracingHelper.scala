@@ -5,8 +5,6 @@ package surge.internal.tracing
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.{ Span, SpanBuilder, Tracer }
 
-import scala.jdk.CollectionConverters._
-
 private[surge] trait SpanSupport {
   protected def tracer: Tracer
 
