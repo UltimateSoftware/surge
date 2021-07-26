@@ -50,12 +50,8 @@ class HealthSignalWindowActorSpec
 
       // WindowActorRef that will tick every 1 second
       val windowRef =
-        new HealthSignalWindowActorRef(
-          actor = actorRef,
-          windowFreq = 1.second,
-          initialWindowProcessingDelay = 10.milliseconds,
-          actorSystem = system,
-          windowCheckInterval = 1.second).start(Some(probe.ref))
+        new HealthSignalWindowActorRef(actor = actorRef, windowFreq = 1.second, initialWindowProcessingDelay = 10.milliseconds, actorSystem = system)
+          .start(Some(probe.ref))
 
       eventually {
         // HealthSignalWindowActor should handleTick 5 times; 1 tick per second

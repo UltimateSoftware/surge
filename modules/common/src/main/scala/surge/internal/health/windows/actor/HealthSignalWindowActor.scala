@@ -54,13 +54,13 @@ class HealthSignalWindowActorRef(
     initialWindowProcessingDelay: FiniteDuration,
     windowFreq: FiniteDuration,
     actorSystem: ActorSystem,
-    windowCheckInterval: FiniteDuration = 1.second) {
+    tickInterval: FiniteDuration = 1.second) {
   import HealthSignalWindowActor._
 
   private var listener: WindowStreamListeningActorRef = _
 
   private val scheduledTask: Cancellable =
-    actorSystem.scheduler.scheduleAtFixedRate(initialDelay = initialWindowProcessingDelay, interval = windowCheckInterval)(() => actor ! Tick())(
+    actorSystem.scheduler.scheduleAtFixedRate(initialDelay = initialWindowProcessingDelay, interval = tickInterval)(() => actor ! Tick())(
       ExecutionContext.global)
 
   def start(replyTo: Option[ActorRef]): HealthSignalWindowActorRef = {
