@@ -1,6 +1,5 @@
 // Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
-import sbt.Keys.libraryDependencies
 import sbt._
 
 object Dependencies extends AutoPlugin {
