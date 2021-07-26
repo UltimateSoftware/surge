@@ -5,11 +5,20 @@ package surge.internal.akka.kafka
 import akka.actor.{ ActorRef, ActorSystem }
 import akka.testkit.{ TestKit, TestProbe }
 import org.apache.kafka.common.TopicPartition
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import surge.kafka.{ HostPort, PartitionAssignments }
 
-class KafkaConsumerStateTrackingActorSpec extends TestKit(ActorSystem("KafkaConsumerStateTrackingActorSpec")) with AnyWordSpecLike with Matchers {
+class KafkaConsumerStateTrackingActorSpec
+    extends TestKit(ActorSystem("KafkaConsumerStateTrackingActorSpec"))
+    with AnyWordSpecLike
+    with Matchers
+    with BeforeAndAfterAll {
+  override def afterAll(): Unit = {
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
+  }
+
   import KafkaConsumerStateTrackingActor._
 
   private val initialState = Map[HostPort, List[TopicPartition]](
