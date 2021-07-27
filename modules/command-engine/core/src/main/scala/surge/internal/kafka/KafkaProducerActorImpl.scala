@@ -216,11 +216,17 @@ class KafkaProducerActorImpl(
   }
 
   private def checkKTableProgress(): Unit = {
-    kStreams.partitionLag(assignedPartition).foreach { lagOpt =>
-      lagOpt.foreach { lag =>
-        self ! KTableProgressUpdate(assignedPartition, lag)
+    kStreams
+      .partitionLag(assignedPartition)
+      .map {
+        case Some(lag) =>
+          self ! KTableProgressUpdate(assignedPartition, lag)
+        case None =>
+          log.debug(s"Could not find partition lag for partition $assignedPartition")
       }
-    }
+      .recover { case e =>
+        log.warn(s"Error fetching partition lag for $assignedPartition. Will retry in $ktableCheckInterval", e)
+      }
   }
 
   private def initializeTransactions(): Unit = {
