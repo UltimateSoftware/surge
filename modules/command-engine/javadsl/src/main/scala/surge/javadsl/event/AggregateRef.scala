@@ -3,7 +3,7 @@
 package surge.javadsl.event
 
 import akka.actor.ActorRef
-import io.opentracing.Tracer
+import io.opentelemetry.api.trace.Tracer
 import surge.javadsl.common._
 
 import java.util.Optional

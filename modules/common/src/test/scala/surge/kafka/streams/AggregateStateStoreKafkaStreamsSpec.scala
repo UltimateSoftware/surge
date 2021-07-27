@@ -3,9 +3,9 @@
 package surge.kafka.streams
 
 import java.util.UUID
-
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
+import com.typesafe.config.ConfigFactory
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.common.serialization.StringSerializer
 import org.apache.kafka.streams.{ KafkaStreams, TopologyTestDriver }
@@ -16,7 +16,6 @@ import org.scalatest.wordspec.AnyWordSpec
 import org.scalatest.{ Assertion, BeforeAndAfterAll }
 import org.scalatestplus.mockito.MockitoSugar
 import play.api.libs.json.{ Format, JsValue, Json }
-import surge.internal.health.HealthSignalBus
 import surge.internal.kafka.JsonSerdes
 import surge.kafka.KafkaTopic
 import surge.kafka.streams.AggregateStateStoreKafkaStreamsImpl.AggregateStateStoreKafkaStreamsImplSettings
@@ -51,7 +50,7 @@ class AggregateStateStoreKafkaStreamsSpec
   private val system = ActorSystem("test-actor-system")
 
   override def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system)
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
   }
 
   // Silly mock validator that expects the `string` field of a MockState to be "stateN" where N is the value of the MockState int
@@ -61,6 +60,8 @@ class AggregateStateStoreKafkaStreamsSpec
     newValueObj.string == "state" + newValueObj.int
   }
   val config: EmbeddedKafkaConfig = EmbeddedKafkaConfig(kafkaPort = 0, zooKeeperPort = 0)
+
+  private val defaultConfig = ConfigFactory.load()
 
   "AggregateStateStoreKafkaStreams" should {
     def assertStoreKeyValue(
@@ -105,12 +106,15 @@ class AggregateStateStoreKafkaStreamsSpec
           applicationHostPort = Some("localhost:1234"),
           applicationId = appId,
           clientId = "",
-          HealthSignalBus(testHealthSignalStreamProvider(Seq.empty)),
+          testHealthSignalStreamProvider(Seq.empty).bus(),
           system,
-          Metrics.globalMetricRegistry) {
+          Metrics.globalMetricRegistry,
+          defaultConfig) {
           override lazy val settings: AggregateStateStoreKafkaStreamsImplSettings =
-            AggregateStateStoreKafkaStreamsImplSettings(appId, testAggregateName, "").copy(brokers = Seq(s"localhost:${actualConfig.kafkaPort}"))
+            AggregateStateStoreKafkaStreamsImplSettings(defaultConfig, appId, testAggregateName, "").copy(brokers = Seq(s"localhost:${actualConfig.kafkaPort}"))
         }
+
+        aggStoreKafkaStreams.start()
 
         val topology = aggStoreKafkaStreams.getTopology.futureValue
 
@@ -144,12 +148,15 @@ class AggregateStateStoreKafkaStreamsSpec
           applicationHostPort = Some("localhost:1234"),
           applicationId = appId,
           clientId = "",
-          HealthSignalBus(testHealthSignalStreamProvider(Seq.empty)),
+          testHealthSignalStreamProvider(Seq.empty).bus(),
           system,
-          Metrics.globalMetricRegistry) {
+          Metrics.globalMetricRegistry,
+          defaultConfig) {
           override lazy val settings: AggregateStateStoreKafkaStreamsImplSettings =
-            AggregateStateStoreKafkaStreamsImplSettings(appId, testAggregateName, "").copy(brokers = Seq(s"localhost:${actualConfig.kafkaPort}"))
+            AggregateStateStoreKafkaStreamsImplSettings(defaultConfig, appId, testAggregateName, "").copy(brokers = Seq(s"localhost:${actualConfig.kafkaPort}"))
         }
+
+        aggStoreKafkaStreams.start()
 
         val topology = aggStoreKafkaStreams.getTopology.futureValue
 

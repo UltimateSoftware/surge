@@ -4,11 +4,12 @@ package surge.internal.health
 
 import java.util.regex.Pattern
 
-import akka.actor.{ Actor, ActorRef, ActorSystem, Props }
+import akka.actor.{ Actor, ActorSystem, BootstrapSetup, Props, ProviderSelection }
 import akka.event.LookupClassification
 import akka.pattern._
 import com.typesafe.config.{ Config, ConfigFactory }
 import org.slf4j.{ Logger, LoggerFactory }
+import surge.core.{ Ack, Controllable }
 import surge.health._
 import surge.health.config.HealthSignalBusConfig
 import surge.health.domain.{ EmittableHealthSignal, Error, HealthSignal, Trace, Warning }
@@ -17,32 +18,35 @@ import surge.internal.health.supervisor._
 
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
-import scala.languageFeature.postfixOps
 import scala.util.Try
 
 case class SubscriberInfo(name: String, id: String)
 
 object HealthSignalBus {
-  implicit val system: ActorSystem = ActorSystem("HealthSignalBusActorSystem")
+  implicit val system: ActorSystem = ActorSystem.create("HealthSignalBusActorSystem", BootstrapSetup().withActorRefProvider(ProviderSelection.local()))
   val log: Logger = LoggerFactory.getLogger(getClass)
 
   val config: Config = ConfigFactory.load().getConfig("surge.health")
 
-  def apply(signalStream: HealthSignalStreamProvider, startStreamOnInit: Boolean = false): HealthSignalBusInternal = {
-    val stopStreamOnUnsubscribe = startStreamOnInit
-    val bus = new HealthSignalBusImpl(
-      HealthSignalBusConfig(
-        signalTopic = config.getString("bus.signal-topic"),
-        registrationTopic = config.getString("bus.registration-topic"),
-        allowedSubscriberCount = config.getInt("bus.allowed-subscriber-count")),
-      signalStream,
-      stopStreamOnUnsubscribe)
+  def apply(healthSignalBusConfig: HealthSignalBusConfig, signalStream: HealthSignalStreamProvider, startOnInit: Boolean): HealthSignalBusInternal = {
+    val bus = new HealthSignalBusImpl(healthSignalBusConfig, signalStream, startOnInit)
 
-    if (startStreamOnInit) {
+    if (startOnInit && healthSignalBusConfig.streamingEnabled) {
       bus.signalStream().start()
     }
 
     bus
+  }
+
+  def apply(signalStream: HealthSignalStreamProvider): HealthSignalBusInternal = {
+    val startStreamOnInit = config.getBoolean("bus.stream.start-on-init")
+    val healthSignalBusConfig = HealthSignalBusConfig(
+      streamingEnabled = config.getBoolean("bus.stream.enabled"),
+      signalTopic = config.getString("bus.signal-topic"),
+      registrationTopic = config.getString("bus.registration-topic"),
+      allowedSubscriberCount = config.getInt("bus.allowed-subscriber-count"))
+
+    HealthSignalBus(healthSignalBusConfig, signalStream, startStreamOnInit)
   }
 }
 
@@ -56,8 +60,22 @@ trait HealthSignalBusInternal extends HealthSignalBusTrait with LookupClassifica
 
 private class InvokableHealthRegistrationImpl(healthRegistration: HealthRegistration, supervisor: HealthSupervisorTrait, signalBus: HealthSignalBusTrait)
     extends InvokableHealthRegistration {
+  implicit val ec: ExecutionContext = supervisor.actorSystem().dispatcher
+
   override def invoke(): Future[Ack] = {
-    supervisor.register(healthRegistration).map(a => a.asInstanceOf[Ack])(supervisor.actorSystem().dispatcher)
+    supervisor.register(healthRegistration).map(a => a.asInstanceOf[Ack])
+  }
+
+  override def underlyingRegistration(): HealthRegistration = healthRegistration
+}
+
+object NoopInvokableHealthRegistration {
+  val log: Logger = LoggerFactory.getLogger(getClass)
+}
+
+private class NoopInvokableHealthRegistration(healthRegistration: HealthRegistration) extends InvokableHealthRegistration {
+  override def invoke(): Future[Ack] = {
+    Future.successful[Ack](Ack())
   }
 
   override def underlyingRegistration(): HealthRegistration = healthRegistration
@@ -122,9 +140,15 @@ private class EmittableHealthSignalImpl(healthSignal: HealthSignal, signalBus: H
 
 private[surge] class HealthSignalBusImpl(config: HealthSignalBusConfig, signalStreamSupplier: HealthSignalStreamProvider, stopStreamOnUnsubscribe: Boolean)
     extends HealthSignalBusInternal {
-  implicit val actorSystem: ActorSystem = ActorSystem("healthSignalBusActorSystem")
+  implicit val actorSystem: ActorSystem =
+    ActorSystem.create(name = "healthSignalBusActorSystem", BootstrapSetup().withActorRefProvider(ProviderSelection.local()))
 
-  private lazy val stream: HealthSignalStream = signalStreamSupplier.provide(bus = this).subscribe()
+  private lazy val stream: HealthSignalStream = if (config.streamingEnabled) {
+    signalStreamSupplier.provide(bus = this).subscribe()
+  } else {
+    new DisabledHealthSignalStreamProvider(config, bus = this, actorSystem).provide(bus = this).subscribe()
+  }
+
   private var supervisorRef: Option[HealthSupervisorActorRef] = None
   private var monitoringRef: Option[HealthSignalStreamMonitoringRefWithSupervisionSupport] = None
 
@@ -160,7 +184,7 @@ private[surge] class HealthSignalBusImpl(config: HealthSignalBusConfig, signalSt
       case None =>
         val actor = actorSystem.actorOf(Props(new Actor() {
           override def receive: Receive = {
-            case HealthRegistrationReceived(registration: HealthRegistration) =>
+            case HealthRegistrationReceived(registration: RegisterSupervisedComponentRequest) =>
               log.debug("Health Registration received {}", registration)
             case HealthSignalReceived(signal: HealthSignal) =>
               log.debug("Health Signal received {}", signal)
@@ -184,14 +208,18 @@ private[surge] class HealthSignalBusImpl(config: HealthSignalBusConfig, signalSt
   }
 
   override def supervise(): HealthSignalBusTrait = {
-    supervisor()
-      .map(s => {
+    supervisor() match {
+      case Some(s) =>
         if (!s.state().started) {
           s.start(monitoringRef.map(ref => ref.actor))
         }
         this
-      })
-      .getOrElse(this)
+      case None =>
+        val ref = HealthSupervisorActor(this, signalStreamSupplier.filters(), actorSystem)
+        supervisorRef = Some(ref)
+        ref.start(monitoringRef.map(ref => ref.actor))
+        this
+    }
   }
 
   override def unsupervise(): HealthSignalBusTrait = {
@@ -218,42 +246,54 @@ private[surge] class HealthSignalBusImpl(config: HealthSignalBusConfig, signalSt
   }
 
   override def register(
-      ref: ActorRef,
+      control: Controllable,
       componentName: String,
       restartSignalPatterns: Seq[Pattern],
       shutdownSignalPatterns: Seq[Pattern] = Seq.empty): Future[Ack] = {
-    registration(ref, componentName, restartSignalPatterns, shutdownSignalPatterns).invoke()
+    registration(control, componentName, restartSignalPatterns, shutdownSignalPatterns).invoke()
   }
 
   override def registration(
-      ref: ActorRef,
+      control: Controllable,
       componentName: String,
       restartSignalPatterns: Seq[Pattern],
       shutdownSignalPatterns: Seq[Pattern]): InvokableHealthRegistration = {
     supervisor() match {
       case Some(exists) =>
         new InvokableHealthRegistrationImpl(
-          HealthRegistration(ref, config.registrationTopic, componentName, restartSignalPatterns, shutdownSignalPatterns),
+          HealthRegistration(
+            control = control,
+            topic = config.registrationTopic,
+            componentName = componentName,
+            restartSignalPatterns = restartSignalPatterns,
+            shutdownSignalPatterns = shutdownSignalPatterns),
           exists,
           signalBus = this)
       case None =>
-        throw new RuntimeException("missing Health Supervisor")
+        log.warn(s"The Health Signal Bus is not being supervised so HealthRegistration cannot be performed for $componentName")
+        new NoopInvokableHealthRegistration(
+          HealthRegistration(
+            control = control,
+            topic = config.registrationTopic,
+            componentName = componentName,
+            restartSignalPatterns = restartSignalPatterns,
+            shutdownSignalPatterns = shutdownSignalPatterns))
     }
 
   }
 
-  override def registrations(): Future[Seq[HealthRegistration]] = {
+  override def registrations(): Future[Seq[SupervisedComponentRegistration]] = {
     supervisorRef match {
       case Some(ref) =>
-        val result = ref.actor.ask(HealthRegistrationRequest)(timeout = 10.seconds)
+        val result = ref.actor.ask(HealthRegistrationDetailsRequest)(timeout = 10.seconds)
 
-        result.map(a => a.asInstanceOf[List[HealthRegistration]])(actorSystem.dispatcher)
+        result.map(a => a.asInstanceOf[List[SupervisedComponentRegistration]])(actorSystem.dispatcher)
       case None => Future.successful(Seq.empty)
     }
   }
 
-  override def registrations(matching: Pattern): Future[Seq[HealthRegistration]] = {
-    registrations().map(r => r.filter(f => matching.matcher(f.name).matches()))(ExecutionContext.global)
+  override def registrations(matching: Pattern): Future[Seq[SupervisedComponentRegistration]] = {
+    registrations().map(r => r.filter(f => matching.matcher(f.componentName).matches()))(ExecutionContext.global)
   }
 
   override def signalWithError(name: String, error: Error, metadata: Map[String, String] = Map.empty): EmittableHealthSignal = {

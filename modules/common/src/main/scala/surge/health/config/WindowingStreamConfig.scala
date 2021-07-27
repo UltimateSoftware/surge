@@ -67,22 +67,17 @@ object WindowingStreamSliderConfigLoader extends WindowingStreamAdvancerConfigLo
 }
 
 object WindowingStreamConfigLoader {
-  private val config = ConfigFactory.load().getConfig("surge.health.window.stream")
-
   def load(config: Config): WindowingStreamConfig = {
-    val maxDelay = config.getDuration("delay").toMillis.millis
-    val maxStreamSize = config.getInt("max-size")
-    val frequencies = config.getDurationList("frequencies").asScala.map(d => d.toMillis.millis)
+    val windowStreamConfig = config.getConfig("surge.health.window.stream")
+    val maxDelay = windowStreamConfig.getDuration("delay").toMillis.millis
+    val maxStreamSize = windowStreamConfig.getInt("max-size")
+    val frequencies = windowStreamConfig.getDurationList("frequencies").asScala.map(d => d.toMillis.millis)
 
-    val throttleConfig = config.getConfig("throttle")
+    val throttleConfig = windowStreamConfig.getConfig("throttle")
     val windowStreamThrottleConfig = ThrottleConfig(throttleConfig.getInt("elements"), throttleConfig.getDuration("duration").toMillis.millis)
-    val advancerConfig = config.getConfig("advancer")
+    val advancerConfig = windowStreamConfig.getConfig("advancer")
     val windowStreamAdvancerConfig = WindowingStreamAdvancerConfigLoader(advancerConfig.getString("type")).load(advancerConfig)
 
     WindowingStreamConfig(maxDelay, maxStreamSize, frequencies.toSeq, windowStreamThrottleConfig, windowStreamAdvancerConfig)
-  }
-
-  def load(): WindowingStreamConfig = {
-    load(config)
   }
 }

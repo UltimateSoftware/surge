@@ -25,3 +25,10 @@ jobs:
       - uses: codecov/codecov-action@v1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+      - name: build docs
+        run: 'sbt surge-docs/clean surge-docs/makeSite'
+      - name: publish docs
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          deploy_key: ${{ secrets.ACTIONS_DEPLOY_KEY }}
+          publish_dir: ./modules/surge-docs/target/site

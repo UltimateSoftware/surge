@@ -2,14 +2,12 @@
 
 package surge.internal.config
 
+import com.typesafe.config.Config
+
 import java.util.concurrent.TimeUnit
-
-import com.typesafe.config.ConfigFactory
-
 import scala.concurrent.duration._
 
-object RetryConfig {
-  private val config = ConfigFactory.load()
+class RetryConfig(config: Config) {
 
   object AggregateActor {
     val fetchStateRetryInterval: FiniteDuration =

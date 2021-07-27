@@ -1,5 +1,6 @@
-// Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
+import Dependencies.autoImport.OpenTelemetry.{ HoneycombSample, JaegerSample }
 import sbt.Keys._
 
 scalaVersion in ThisBuild := "2.13.5"
@@ -37,9 +38,9 @@ lazy val `surge-common` = (project in file("modules/common"))
       Kafka.kafkaStreams,
       Kafka.kafkaStreamsScala,
       Kafka.kafkaStreamsTestUtils,
-      OpenTracing.api,
-      OpenTracing.mock,
-      OpenTracing.noop,
+      OpenTelemetry.api,
+      OpenTelemetry.sdk,
+      OpenTelemetry.sdkTesting,
       PlayFramework.json,
       typesafeConfig,
       Akka.akkaStreamTestKit,
@@ -58,18 +59,19 @@ lazy val `surge-rabbitmq-support` = (project in file("modules/rabbit-support"))
   .dependsOn(`surge-common`)
 
 lazy val `surge-engine-command-core` = (project in file("modules/command-engine/core"))
-  .settings(
-    libraryDependencies ++= Seq(
-      Akka.actor,
-      Akka.remote,
-      Kafka.kafkaClients,
-      Akka.testKit,
-      Akka.akkaStreamTestKit,
-      mockitoCore,
-      scalatest,
-      scalatestPlusMockito,
-      logback,
-      typesafeConfig))
+  .settings(libraryDependencies ++= Seq(
+    Akka.actor,
+    Akka.remote,
+    Kafka.kafkaClients,
+    Akka.testKit,
+    Akka.akkaStreamTestKit,
+    mockitoCore,
+    scalatest,
+    scalatestPlusMockito,
+    embeddedKafka,
+    OpenTelemetry.api,
+    logback,
+    typesafeConfig))
   .dependsOn(`surge-common` % "compile->compile;test->test")
 
 lazy val `surge-engine-command-scaladsl` = (project in file("modules/command-engine/scaladsl")).dependsOn(`surge-engine-command-core`)
@@ -92,11 +94,23 @@ lazy val `surge-metrics` = (project in file("modules/metrics")).settings(
 
 lazy val `surge-docs` = (project in file("modules/surge-docs"))
   .dependsOn(`surge-common`, `surge-engine-command-core`, `surge-engine-command-javadsl`, `surge-engine-command-scaladsl`, `surge-metrics`)
-  .enablePlugins(ParadoxPlugin, ParadoxSitePlugin)
+  .enablePlugins(ParadoxPlugin, ParadoxSitePlugin, GhpagesPlugin)
   .settings(
     skip in publish := true,
     paradoxTheme := Some(builtinParadoxTheme("generic")),
-    libraryDependencies ++= Seq(typesafeConfig, embeddedKafka, logback, scalatest, scalatestPlusMockito, mockitoCore))
+    libraryDependencies ++= Seq(
+      typesafeConfig,
+      embeddedKafka,
+      logback,
+      scalatest,
+      scalatestPlusMockito,
+      mockitoCore,
+      HoneycombSample.sdk,
+      HoneycombSample.exporter,
+      HoneycombSample.grpc,
+      JaegerSample.sdk,
+      JaegerSample.exporter,
+      JaegerSample.grpc))
 
 lazy val `surge` = project
   .in(file("."))

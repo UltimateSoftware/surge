@@ -2,19 +2,32 @@
 
 package surge.core
 
+import scala.concurrent.Future
+
+final case class Ack()
+
+trait ControllableLookup {
+  def lookup(identifier: String): Option[Controllable]
+}
+
+trait ControllableRemover {
+  def remove(identifier: String): Option[Controllable]
+}
+
 trait Controllable {
-  def start(): Unit
-  def restart(): Unit
-  def stop(): Unit
-  def shutdown(): Unit
+  def start(): Future[Ack]
+  def restart(): Future[Ack]
+  def stop(): Future[Ack]
+  def shutdown(): Future[Ack]
 }
 
 class ControllableAdapter extends Controllable {
-  override def start(): Unit = {}
 
-  override def restart(): Unit = {}
+  override def start(): Future[Ack] = Future.successful[Ack](Ack())
 
-  override def stop(): Unit = {}
+  override def restart(): Future[Ack] = Future.successful[Ack](Ack())
 
-  override def shutdown(): Unit = {}
+  override def stop(): Future[Ack] = Future.successful[Ack](Ack())
+
+  override def shutdown(): Future[Ack] = Future.successful(Ack())
 }

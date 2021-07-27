@@ -9,19 +9,19 @@ import akka.remote.testkit.{ MultiNodeConfig, MultiNodeSpec, MultiNodeSpecCallba
 import akka.stream.scaladsl.Flow
 import akka.testkit.TestProbe
 import com.typesafe.config.{ Config, ConfigFactory }
-import io.opentracing.Tracer
-import io.opentracing.noop.NoopTracerFactory
-import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
+import io.opentelemetry.api.trace.Tracer
+import net.manub.embeddedkafka._
 import org.apache.kafka.clients.producer.ProducerRecord
-import org.apache.kafka.common.serialization.{ ByteArrayDeserializer, Deserializer, Serializer, StringDeserializer }
+import org.apache.kafka.common.serialization._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
-import org.scalatest.{ BeforeAndAfterAll, OptionValues }
+import org.scalatest._
 import surge.internal.akka.kafka.AkkaKafkaConsumer
+import surge.internal.tracing.NoopTracerFactory
 import surge.kafka.KafkaTopic
 import surge.kafka.streams.DefaultSerdes
-import surge.streams.replay.{ DefaultEventReplaySettings, KafkaForeverReplaySettings, KafkaForeverReplayStrategy, NoOpEventReplayStrategy }
+import surge.streams.replay._
 import surge.streams.{ DataHandler, EventPlusStreamMeta }
 
 import scala.concurrent.duration._
@@ -59,6 +59,7 @@ class StreamManagerSpecBase
     with OptionValues {
   import StreamManagerSpecConfig._
 
+  private val defaultConfig = ConfigFactory.load()
   val tracer: Tracer = NoopTracerFactory.create()
   override def initialParticipants: Int = roles.size
 
@@ -82,7 +83,7 @@ class StreamManagerSpecBase
           }
       }
       val embeddedBroker = s"${node(node0).address.host.getOrElse("localhost")}:${config.kafkaPort}"
-      val consumerSettings = AkkaKafkaConsumer.consumerSettings[String, Array[Byte]](system, "replay-test").withBootstrapServers(embeddedBroker)
+      val consumerSettings = new AkkaKafkaConsumer(defaultConfig).consumerSettings[String, Array[Byte]](system, "replay-test", embeddedBroker, "earliest")
 
       runOn(node0) {
         withRunningKafka {
@@ -93,12 +94,12 @@ class StreamManagerSpecBase
             enterBarrier("afterReplay")
             ()
           }
-          val replaySettings = KafkaForeverReplaySettings(topic.name).copy(brokers = List(embeddedBroker))
+          val replaySettings = KafkaForeverReplaySettings(defaultConfig, topic.name).copy(brokers = List(embeddedBroker))
           val kafkaForeverReplayStrategy = KafkaForeverReplayStrategy.create(actorSystem = system, settings = replaySettings, postReplay = postReplayDef)
 
           val probe = TestProbe()
           val subscriptionProvider =
-            new KafkaOffsetManagementSubscriptionProvider(topic.name, Subscriptions.topics(topic.name), consumerSettings, sendToTestProbe(probe))
+            new KafkaOffsetManagementSubscriptionProvider(defaultConfig, topic.name, Subscriptions.topics(topic.name), consumerSettings, sendToTestProbe(probe))
           val consumer = new KafkaStreamManager(
             topicName = topic.name,
             consumerSettings = consumerSettings,
@@ -107,7 +108,8 @@ class StreamManagerSpecBase
             valueDeserializer = new ByteArrayDeserializer,
             replayStrategy = kafkaForeverReplayStrategy,
             replaySettings = replaySettings,
-            tracer = tracer)
+            tracer = tracer,
+            config = ConfigFactory.load())
 
           consumer.start()
           probe.expectMsgAnyOf(20.seconds, record1, record2)
@@ -119,7 +121,7 @@ class StreamManagerSpecBase
       runOn(node1) {
         val probe = TestProbe()
         val subscriptionProvider =
-          new KafkaOffsetManagementSubscriptionProvider(topic.name, Subscriptions.topics(topic.name), consumerSettings, sendToTestProbe(probe))
+          new KafkaOffsetManagementSubscriptionProvider(defaultConfig, topic.name, Subscriptions.topics(topic.name), consumerSettings, sendToTestProbe(probe))
         val consumer = new KafkaStreamManager(
           topicName = topic.name,
           consumerSettings = consumerSettings,
@@ -128,7 +130,8 @@ class StreamManagerSpecBase
           valueDeserializer = new ByteArrayDeserializer,
           replayStrategy = new NoOpEventReplayStrategy,
           replaySettings = DefaultEventReplaySettings,
-          tracer = tracer)
+          tracer = tracer,
+          config = ConfigFactory.load())
 
         consumer.start()
         probe.expectMsgAnyOf(20.seconds, record1, record2)

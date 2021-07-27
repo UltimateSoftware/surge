@@ -2,12 +2,16 @@
 
 package surge.internal.health
 
+import akka.Done
 import akka.actor.{ ActorRef, ActorSystem }
-import surge.health.HealthSignalStream
+import surge.health.config.HealthSignalBusConfig
 import surge.health.domain.HealthSignal
 import surge.health.matchers.SignalPatternMatcher
 import surge.health.windows.{ WindowStreamListener, _ }
+import surge.health.{ HealthSignalBusTrait, HealthSignalListener, HealthSignalStream, SignalHandler }
 import surge.internal.health.supervisor.HealthSupervisorActor
+
+import scala.util.Success
 
 /**
  * StreamMonitoringRef holds a reference to an Actor responsible for forwarding stream processing events to an underlying akka Actor via the provided ActorRef.
@@ -20,9 +24,9 @@ class StreamMonitoringRef(override val actor: ActorRef) extends WindowStreamList
   /**
    * Forward WindowAdvanced to provided actor
    * @param window
-   *   Window[EVENT]
+   *   Window
    * @param data
-   *   Seq[EVENT]
+   *   Seq[HealthSignal]
    */
   override def windowAdvanced(window: Window, data: Seq[HealthSignal]): Unit = {
     actor ! WindowAdvanced(window, WindowData(data, window.duration))
@@ -31,9 +35,9 @@ class StreamMonitoringRef(override val actor: ActorRef) extends WindowStreamList
   /**
    * Forward WindowClosed to provided actor
    * @param window
-   *   Window[EVENT]
+   *   Window
    * @param data
-   *   Seq[EVENT]
+   *   Seq[HealthSignal]
    */
   override def windowClosed(window: Window, data: Seq[HealthSignal]): Unit = {
     actor ! WindowClosed(window, WindowData(data, window.duration))
@@ -42,7 +46,7 @@ class StreamMonitoringRef(override val actor: ActorRef) extends WindowStreamList
   /**
    * Forward WindowOpened to provided actor
    * @param window
-   *   Window[EVENT]
+   *   Window
    */
   override def windowOpened(window: Window): Unit = {
     actor ! WindowOpened(window)
@@ -51,7 +55,7 @@ class StreamMonitoringRef(override val actor: ActorRef) extends WindowStreamList
   /**
    * Forward WindowStopped to provided actor
    * @param window
-   *   Window[EVENT]
+   *   Window
    */
   override def windowStopped(window: Option[Window]): Unit = {
     actor ! WindowStopped(window)
@@ -60,9 +64,9 @@ class StreamMonitoringRef(override val actor: ActorRef) extends WindowStreamList
   /**
    * Forward AddedToWindow to provided actor
    * @param data
-   *   EVENT
+   *   HealthSignal
    * @param window
-   *   Window[EVENT]
+   *   Window
    */
   override def dataAddedToWindow(data: HealthSignal, window: Window): Unit = {
     actor ! AddedToWindow(data, window)
@@ -70,7 +74,8 @@ class StreamMonitoringRef(override val actor: ActorRef) extends WindowStreamList
 }
 
 trait HealthSignalStreamProvider {
-  private var signalBus: HealthSignalBusInternal = _
+  private val signalBus: HealthSignalBusInternal =
+    HealthSignalBus(signalStream = this).withStreamSupervision(bus => HealthSupervisorActor(bus, filters(), actorSystem), streamMonitoring)
 
   def actorSystem: ActorSystem
   def provide(bus: HealthSignalBusInternal): HealthSignalStream
@@ -81,19 +86,37 @@ trait HealthSignalStreamProvider {
   /**
    * Creates a HealthSignalBus with a backing HealthSupervisorActor that is bound to the provided HealthSignalStream. If a signalBus already exists; the
    * existing signalBus is returned.
-   * @param startStreamOnInit
-   *   Boolean
    * @return
    *   HealthSignalBus
    */
-  def busWithSupervision(startStreamOnInit: Boolean = false): HealthSignalBusInternal = {
-    Option(signalBus) match {
-      case Some(bus) => bus
-      case None =>
-        signalBus = HealthSignalBus(signalStream = this, startStreamOnInit = startStreamOnInit)
-          .withStreamSupervision(bus => HealthSupervisorActor(bus, filters(), actorSystem), streamMonitoring)
+  def bus(): HealthSignalBusInternal = signalBus
+}
 
-        signalBus
-    }
+class NullHealthSignalStream(config: HealthSignalBusConfig, bus: HealthSignalBusTrait, override val actorSystem: ActorSystem) extends HealthSignalStream {
+
+  override def signalHandler: SignalHandler = (_: HealthSignal) => Success(Done)
+
+  override def filters(): Seq[SignalPatternMatcher] = Seq.empty
+
+  override def signalBus(): HealthSignalBusTrait = bus
+
+  override def subscribe(signalHandler: SignalHandler): HealthSignalListener = {
+    bus.subscribe(subscriber = this, config.signalTopic)
+    this
   }
+
+  override def start(maybeSideEffect: Option[() => Unit]): HealthSignalListener = this
+
+  override def stop(): HealthSignalListener = this
+
+  override def id(): String = "null-health-signal-stream"
+}
+
+class DisabledHealthSignalStreamProvider(config: HealthSignalBusConfig, bus: HealthSignalBusTrait, override val actorSystem: ActorSystem)
+    extends HealthSignalStreamProvider {
+  private lazy val nullStream: HealthSignalStream = new NullHealthSignalStream(config, bus, actorSystem)
+
+  override def provide(bus: HealthSignalBusInternal): HealthSignalStream = nullStream
+
+  override def filters(): Seq[SignalPatternMatcher] = Seq.empty
 }

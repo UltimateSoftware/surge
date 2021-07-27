@@ -3,7 +3,7 @@
 package surge.scaladsl.command
 
 import akka.actor.ActorRef
-import io.opentracing.Tracer
+import io.opentelemetry.api.trace.Tracer
 import surge.internal.persistence.{ AggregateRefTrait, PersistentActor }
 import surge.scaladsl.common.{ AggregateRefBaseTrait, _ }
 

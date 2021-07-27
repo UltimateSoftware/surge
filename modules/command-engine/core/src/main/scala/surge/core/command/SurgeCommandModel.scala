@@ -2,7 +2,8 @@
 
 package surge.core.command
 
-import io.opentracing.Tracer
+import io.opentelemetry.api.OpenTelemetry
+import io.opentelemetry.api.trace.Tracer
 import surge.core.commondsl.{ SurgeCommandBusinessLogicTrait, SurgeRejectableCommandBusinessLogicTrait }
 import surge.core.{ SurgeAggregateReadFormatting, SurgeAggregateWriteFormatting, SurgeEventWriteFormatting }
 import surge.internal.SurgeModel
@@ -34,6 +35,7 @@ private[surge] object SurgeCommandModel {
       eventWriteFormatting = businessLogic.eventWriteFormatting,
       aggregateValidator = businessLogic.aggregateValidatorLambda,
       metrics = businessLogic.metrics,
+      openTelemetry = businessLogic.openTelemetry,
       tracer = businessLogic.tracer)
   }
   def apply[AggId, Agg, Command, Rej, Event](
@@ -47,6 +49,7 @@ private[surge] object SurgeCommandModel {
       eventWriteFormatting = businessLogic.eventWriteFormatting,
       aggregateValidator = businessLogic.aggregateValidatorLambda,
       metrics = businessLogic.metrics,
+      openTelemetry = businessLogic.openTelemetry,
       tracer = businessLogic.tracer)
   }
 
@@ -58,6 +61,7 @@ private[surge] case class SurgeCommandModel[Agg, Command, +Rej, Event](
     override val aggregateWriteFormatting: SurgeAggregateWriteFormatting[Agg],
     override val aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) => Boolean,
     override val metrics: Metrics,
+    override val openTelemetry: OpenTelemetry,
     override val tracer: Tracer,
     override val aggregateReadFormatting: SurgeAggregateReadFormatting[Agg],
     eventWriteFormatting: SurgeEventWriteFormatting[Event])
