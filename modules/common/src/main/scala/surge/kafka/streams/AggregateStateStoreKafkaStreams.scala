@@ -3,7 +3,6 @@
 package surge.kafka.streams
 
 import java.util.regex.Pattern
-
 import akka.actor.{ ActorRef, ActorSystem, Props }
 import akka.pattern.{ ask, BackoffOpts, BackoffSupervisor }
 import akka.util.Timeout
@@ -67,10 +66,10 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
     signalBus: HealthSignalBusTrait,
     system: ActorSystem,
     metrics: Metrics,
-    config: Config = ConfigFactory.load())
+    config: Config)
     extends HealthyComponent
     with Logging {
-  private[streams] lazy val settings = AggregateStateStoreKafkaStreamsImplSettings(applicationId, aggregateName, clientId)
+  private[streams] lazy val settings = AggregateStateStoreKafkaStreamsImplSettings(config, applicationId, aggregateName, clientId)
 
   private[streams] val underlyingActor = createUnderlyingActorWithBackOff()
 

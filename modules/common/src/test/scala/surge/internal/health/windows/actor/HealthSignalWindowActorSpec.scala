@@ -149,7 +149,7 @@ class HealthSignalWindowActorSpec
           actorSystem = system,
           initialWindowProcessingDelay = 10.milliseconds,
           windowFrequency = 100.milliseconds,
-          advancer = WindowSlider(1),
+          advancer = WindowSlider(1, 10),
           windowCheckInterval = 10.milliseconds)
 
       val probe = TestProbe()
