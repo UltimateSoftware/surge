@@ -76,7 +76,7 @@ class StreamManagerSpecBase
       val record1 = "record 1"
       val record2 = "record 2"
       def sendToTestProbe(testProbe: TestProbe): DataHandler[String, Array[Byte]] = new DataHandler[String, Array[Byte]] {
-        override def dataHandler[Meta](openTelemetry: OpenTelemetry): Flow[EventPlusStreamMeta[String, Array[Byte], Meta], Meta, NotUsed] =
+        override def dataHandler[Meta]: Flow[EventPlusStreamMeta[String, Array[Byte], Meta], Meta, NotUsed] =
           Flow[EventPlusStreamMeta[String, Array[Byte], Meta]].map { eventPlusOffset =>
             val msg = stringDeserializer.deserialize("", eventPlusOffset.messageBody)
             testProbe.ref ! msg

@@ -68,8 +68,8 @@ class StreamManagerSpec
     val tupleFlow: (String, Array[Byte], Map[String, Array[Byte]]) => Future[_] = { (k, v, _) => businessLogic(k, v) }
     val partitionBy: (String, Array[Byte], Map[String, Array[Byte]]) => String = { (k, _, _) => k }
     val businessFlow = new DataHandler[String, Array[Byte]] {
-      override def dataHandler[Meta](openTelemetry: OpenTelemetry): Flow[EventPlusStreamMeta[String, Array[Byte], Meta], Meta, NotUsed] =
-        FlowConverter.flowFor[String, Array[Byte], Meta]("test-sink", tupleFlow, partitionBy, new DefaultDataSinkExceptionHandler, parallelism, openTelemetry)
+      override def dataHandler[Meta]: Flow[EventPlusStreamMeta[String, Array[Byte], Meta], Meta, NotUsed] =
+        FlowConverter.flowFor[String, Array[Byte], Meta]("test-sink", tupleFlow, partitionBy, new DefaultDataSinkExceptionHandler, parallelism)
     }
     val subscriptionProvider = new KafkaOffsetManagementSubscriptionProvider(topic.name, Subscriptions.topics(topic.name), consumerSettings, businessFlow)
     new KafkaStreamManager(

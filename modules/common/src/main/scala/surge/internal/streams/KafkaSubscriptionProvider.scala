@@ -62,7 +62,7 @@ class KafkaOffsetManagementSubscriptionProvider[Key, Value](
   private val committerMaxInterval = config.getDuration("surge.kafka-event-source.committer.max-interval")
   private val committerParallelism = config.getInt("surge.kafka-event-source.committer.parallelism")
 
-  private val kafkaFlow = KafkaStreamManager.wrapBusinessFlow(businessFlow.dataHandler(OpenTelemetry.noop()))
+  private val kafkaFlow = KafkaStreamManager.wrapBusinessFlow(businessFlow.dataHandler)
   override def createSubscription(actorSystem: ActorSystem): Source[Done, Consumer.Control] = {
     val committerSettings =
       CommitterSettings(actorSystem).withMaxBatch(committerMaxBatch).withMaxInterval(committerMaxInterval).withParallelism(committerParallelism)
@@ -81,7 +81,7 @@ class ManualOffsetManagementSubscriptionProvider[Key, Value](
     maxPartitions: Int = 10)
     extends KafkaSubscriptionProvider[Key, Value] {
   private val log = LoggerFactory.getLogger(getClass)
-  private val kafkaFlow = KafkaStreamManager.wrapBusinessFlow(businessFlow.dataHandler(OpenTelemetry.noop()))
+  private val kafkaFlow = KafkaStreamManager.wrapBusinessFlow(businessFlow.dataHandler)
   override def createSubscription(actorSystem: ActorSystem): Source[Done, Consumer.Control] = {
     val consumerSettings = createConsumerSettings(actorSystem, baseConsumerSettings)
     log.debug("Creating Kafka source for topic {} with client id {}", Seq(topicName, clientId): _*)

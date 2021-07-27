@@ -50,7 +50,7 @@ trait RabbitDataSource[Key, Value] extends DataSource[Key, Value] {
         val eventPlusMeta = EventPlusStreamMeta(key, value, streamMeta = None, headers)
         eventPlusMeta
       }
-      .via(sink.dataHandler(openTelemetry))
+      .via(sink.dataHandler)
 
     Flow[CommittableReadResult].via(PassThroughFlow(handleEventFlow, Keep.right))
   }

@@ -12,7 +12,7 @@ import scala.concurrent.{ ExecutionContext, Future }
 object KafkaDataHandler {
   def from[Key, Value](genericHandler: DataHandler[Key, Value]): KafkaDataHandler[Key, Value] = new KafkaDataHandler[Key, Value] {
     override def dataHandler(openTelemetry: OpenTelemetry): Flow[EventPlusStreamMeta[Key, Value, KafkaStreamMeta], KafkaStreamMeta, NotUsed] =
-      genericHandler.dataHandler[KafkaStreamMeta](openTelemetry)
+      genericHandler.dataHandler[KafkaStreamMeta]
   }
 }
 trait KafkaDataHandler[Key, Value] {
@@ -28,6 +28,6 @@ trait KafkaDataSink[Key, Value] extends KafkaDataHandler[Key, Value] {
   def sinkExceptionHandler: DataSinkExceptionHandler[Key, Value]
 
   override def dataHandler(openTelemetry: OpenTelemetry): Flow[EventPlusStreamMeta[Key, Value, KafkaStreamMeta], KafkaStreamMeta, NotUsed] = {
-    FlowConverter.flowFor(sinkName, handle, partitionBy, sinkExceptionHandler, parallelism, openTelemetry)(ExecutionContext.global)
+    FlowConverter.flowFor(sinkName, handle, partitionBy, sinkExceptionHandler, parallelism)(ExecutionContext.global)
   }
 }

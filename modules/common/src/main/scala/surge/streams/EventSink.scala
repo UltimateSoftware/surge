@@ -16,7 +16,7 @@ case class EventPlusStreamMeta[Key, Value, Meta](messageKey: Key, messageBody: V
 abstract class EventSinkExceptionHandler[Evt] extends DataSinkExceptionHandler[String, Evt]
 
 trait EventHandler[Event] {
-  def eventHandler[Meta](openTelemetry: OpenTelemetry): Flow[EventPlusStreamMeta[String, Event, Meta], Meta, NotUsed]
+  def eventHandler[Meta]: Flow[EventPlusStreamMeta[String, Event, Meta], Meta, NotUsed]
   def nullEventFactory(key: String, headers: Map[String, Array[Byte]]): Option[Event] = None
   def sinkExceptionHandler: DataSinkExceptionHandler[String, Event] = new DefaultDataSinkExceptionHandler[String, Event]
 }
@@ -29,7 +29,7 @@ trait EventSink[Event] extends EventHandler[Event] {
   def handleEvent(key: String, event: Event, headers: Map[String, Array[Byte]]): Future[Any]
   def partitionBy(key: String, event: Event, headers: Map[String, Array[Byte]]): String
 
-  override def eventHandler[Meta](openTelemetry: OpenTelemetry): Flow[EventPlusStreamMeta[String, Event, Meta], Meta, NotUsed] = {
-    FlowConverter.flowFor(sinkName, handleEvent, partitionBy, sinkExceptionHandler, parallelism, openTelemetry)(ExecutionContext.global)
+  override def eventHandler[Meta]: Flow[EventPlusStreamMeta[String, Event, Meta], Meta, NotUsed] = {
+    FlowConverter.flowFor(sinkName, handleEvent, partitionBy, sinkExceptionHandler, parallelism)(ExecutionContext.global)
   }
 }

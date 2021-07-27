@@ -19,7 +19,7 @@ class TestEventSource[Event](implicit system: ActorSystem) extends EventSource[E
 
   val openTelemetry = OpenTelemetry.noop()
   private def connectSourceToSink(sink: EventHandler[Event]): TestDataPipeline[Event] = {
-    val probe = TestSource.probe[EventPlusStreamMeta[String, Event, String]].toMat(sink.eventHandler(openTelemetry).to(Sink.ignore))(Keep.left).run()
+    val probe = TestSource.probe[EventPlusStreamMeta[String, Event, String]].toMat(sink.eventHandler.to(Sink.ignore))(Keep.left).run()
     new TestDataPipeline[Event](probe)
   }
 }

@@ -31,7 +31,7 @@ trait RabbitEventSink[Event] extends EventHandler[Event] {
 
   private val log = LoggerFactory.getLogger(getClass)
 
-  override def eventHandler[Meta](openTelemetry: OpenTelemetry): Flow[EventPlusStreamMeta[String, Event, Meta], Meta, NotUsed] = {
+  override def eventHandler[Meta]: Flow[EventPlusStreamMeta[String, Event, Meta], Meta, NotUsed] = {
     Flow[EventPlusStreamMeta[String, Event, Meta]]
       .map { evtPlusOffset =>
         val serialized = formatting.writeEvent(evtPlusOffset.messageBody)
