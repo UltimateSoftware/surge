@@ -35,10 +35,14 @@ class ActorLifecycleManagerActor(
       context.watch(actor)
       context.become(running(actor))
       sender() ! Ack()
+    case ActorLifecycleManagerActor.Stop =>
+      sender() ! Ack()
     case msg => context.system.deadLetters ! msg
   }
 
   private def running(managedActor: ActorRef): Receive = {
+    case ActorLifecycleManagerActor.Start =>
+      sender() ! Ack()
     case ActorLifecycleManagerActor.Stop =>
       finalizeMessage match {
         case Some(fin) => managedActor ! fin()
