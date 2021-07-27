@@ -7,13 +7,16 @@ import akka.kafka.ConsumerMessage.CommittableOffset
 import akka.kafka.ConsumerSettings
 import akka.stream.scaladsl.Flow
 import io.opentelemetry.api.OpenTelemetry
-import org.apache.kafka.common.serialization.{ ByteArrayDeserializer, Deserializer, StringDeserializer }
+import io.opentelemetry.api.trace.Tracer
+import io.opentelemetry.context.Context
+import org.apache.kafka.common.serialization.{ByteArrayDeserializer, Deserializer, StringDeserializer}
 import org.slf4j.LoggerFactory
 import surge.internal.akka.streams.graph.EitherFlow
 import surge.core.SurgeEventReadFormatting
-import surge.metrics.{ MetricInfo, Metrics, Timer }
+import surge.internal.tracing.OpenTelemetryInstrumentation
+import surge.metrics.{MetricInfo, Metrics, Timer}
 
-import scala.util.{ Failure, Success, Try }
+import scala.util.{Failure, Success, Try}
 
 trait EventSourceDeserialization[Event] {
   private val log = LoggerFactory.getLogger(getClass)
@@ -41,22 +44,35 @@ trait EventSourceDeserialization[Event] {
     log.error("Unable to read event from byte array", exception)
   }
 
+  private def deserializeMessage[Meta]
+  (eventPlusOffset: EventPlusStreamMeta[String, Array[Byte], Meta])(tracer: Tracer) = {
+    import surge.internal.tracing.TracingHelper._
+    val span = tracer.spanBuilder("deserialize event").setNoParent().startSpan()
+    val payloadByteArray: Array[Byte] = eventPlusOffset.messageBody
+    val key = eventPlusOffset.messageKey
+    Try(eventDeserializationTimer.time(formatting.readEvent(payloadByteArray))) match {
+      case Failure(exception) =>
+        onDeserializationFailure(key, payloadByteArray, exception)
+        span.error(exception)
+        span.end()
+        Left(eventPlusOffset.streamMeta)
+      case Success(event) =>
+        span.end()
+        Right(EventPlusStreamMeta(key, event, eventPlusOffset.streamMeta, eventPlusOffset.headers, span))
+    }
+  }
+
   protected def dataHandler(eventHandler: EventHandler[Event]): DataHandler[String, Array[Byte]] = {
     new DataHandler[String, Array[Byte]] {
       override def dataHandler[Meta](openTelemetry: OpenTelemetry): Flow[EventPlusStreamMeta[String, Array[Byte], Meta], Meta, NotUsed] = {
+        val tracer: Tracer = openTelemetry.getTracer(OpenTelemetryInstrumentation.Name, OpenTelemetryInstrumentation.Version)
         Flow[EventPlusStreamMeta[String, Array[Byte], Meta]]
-          .map { eventPlusOffset =>
+          .map { eventPlusOffset: EventPlusStreamMeta[String, Array[Byte], Meta] =>
             val key = eventPlusOffset.messageKey
             Option(eventPlusOffset.messageBody) match {
-              case Some(value) =>
+              case Some(_: Array[Byte]) =>
                 if (shouldParseMessage(key, eventPlusOffset.headers)) {
-                  Try(eventDeserializationTimer.time(formatting.readEvent(value))) match {
-                    case Failure(exception) =>
-                      onDeserializationFailure(key, value, exception)
-                      Left(eventPlusOffset.streamMeta)
-                    case Success(event) =>
-                      Right(EventPlusStreamMeta(key, event, eventPlusOffset.streamMeta, eventPlusOffset.headers))
-                  }
+                  deserializeMessage(eventPlusOffset)(tracer)
                 } else {
                   Left(eventPlusOffset.streamMeta)
                 }

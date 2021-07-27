@@ -4,16 +4,15 @@ package surge.internal.akka.streams
 
 import akka.NotUsed
 import akka.stream.FlowShape
-import akka.stream.scaladsl.{ Flow, GraphDSL, Merge, Partition }
+import akka.stream.scaladsl.{Flow, GraphDSL, Merge, Partition}
 import io.opentelemetry.api.OpenTelemetry
-import io.opentelemetry.api.trace.{ Span, Tracer }
 import io.opentelemetry.context.Context.root
 import surge.internal.tracing.OpenTelemetryInstrumentation
-import surge.streams.{ DataSinkExceptionHandler, EventPlusStreamMeta }
+import surge.streams.{DataSinkExceptionHandler, EventPlusStreamMeta}
 
-import scala.concurrent.{ ExecutionContext, Future }
-import scala.util.{ Failure, Success }
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.hashing.MurmurHash3
+import scala.util.{Failure, Success}
 
 object FlowConverter {
 
