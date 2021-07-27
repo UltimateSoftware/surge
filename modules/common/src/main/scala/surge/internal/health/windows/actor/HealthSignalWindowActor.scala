@@ -212,7 +212,7 @@ class HealthSignalWindowActor(frequency: FiniteDuration, windowAdvanceStrategy: 
 
   private def handleCloseWindow(window: Window, advance: Boolean, state: WindowState): Receive = {
     val capturedSignals = state.window.map(w => w.data).getOrElse(Seq.empty)
-    log.trace("Closing window {} and informing {}", window, state.replyTo)
+    log.trace("Closing window {} and informing {}", Seq(window, state.replyTo): _*)
     state.replyTo.foreach(r => {
       log.trace("Notifying {} that window closed", r)
       r ! WindowClosed(window, WindowData(capturedSignals, frequency))
