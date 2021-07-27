@@ -51,7 +51,6 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     aggregateName = businessLogic.aggregateName,
     stateTopic = businessLogic.kafka.stateTopic,
     partitionTrackerProvider = new KafkaStreamsPartitionTrackerActorProvider(stateChangeActor),
-    aggregateValidator = businessLogic.aggregateValidator,
     applicationHostPort = applicationHostPort,
     applicationId = businessLogic.kafka.streamsApplicationId,
     clientId = businessLogic.kafka.clientId,

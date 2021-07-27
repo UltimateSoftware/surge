@@ -8,6 +8,7 @@ import akka.testkit.TestKit
 import com.typesafe.config.ConfigFactory
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.common.serialization.StringSerializer
+import org.apache.kafka.streams.state.KeyValueBytesStoreSupplier
 import org.apache.kafka.streams.{ KafkaStreams, TopologyTestDriver }
 import org.scalatest.concurrent.{ PatienceConfiguration, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
@@ -53,12 +54,6 @@ class AggregateStateStoreKafkaStreamsSpec
     TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
   }
 
-  // Silly mock validator that expects the `string` field of a MockState to be "stateN" where N is the value of the MockState int
-  // to trigger valid/invalid validation results
-  private def mockValidator(key: String, newValue: Array[Byte], oldValue: Option[Array[Byte]]): Boolean = {
-    val newValueObj = Json.parse(newValue).as[MockState]
-    newValueObj.string == "state" + newValueObj.int
-  }
   val config: EmbeddedKafkaConfig = EmbeddedKafkaConfig(kafkaPort = 0, zooKeeperPort = 0)
 
   private val defaultConfig = ConfigFactory.load()
@@ -102,7 +97,6 @@ class AggregateStateStoreKafkaStreamsSpec
           aggregateName = testAggregateName,
           stateTopic = stateTopic,
           partitionTrackerProvider = new MockPartitionTrackerProvider,
-          aggregateValidator = mockValidator,
           applicationHostPort = Some("localhost:1234"),
           applicationId = appId,
           clientId = "",
@@ -124,15 +118,14 @@ class AggregateStateStoreKafkaStreamsSpec
       }
     }
     "Restart the stream on any errors" in {
-      var errorCount = 0
-      def mockValidatorWithAnError(key: String, newValue: Array[Byte], oldValue: Option[Array[Byte]]): Boolean = {
-        if (errorCount < 1) {
-          errorCount = errorCount + 1
-          throw new RuntimeException("This is Expected")
-        } else {
-          true
-        }
-      }
+      val exceptionThrowingConfig = ConfigFactory
+        .parseString("""
+          exception-throwing {
+            plugin-class = "surge.kafka.streams.SingleExceptionThrowingPersistenceProvider"
+          }
+          surge.kafka-streams.state-store-plugin = exception-throwing
+          """.stripMargin)
+        .withFallback(ConfigFactory.load())
       withRunningKafkaOnFoundPort(config) { implicit actualConfig =>
         val topicName = "testStateTopic"
         createCustomTopic(topicName)
@@ -144,14 +137,13 @@ class AggregateStateStoreKafkaStreamsSpec
           aggregateName = testAggregateName,
           stateTopic = stateTopic,
           partitionTrackerProvider = new MockPartitionTrackerProvider,
-          aggregateValidator = mockValidatorWithAnError,
           applicationHostPort = Some("localhost:1234"),
           applicationId = appId,
           clientId = "",
           testHealthSignalStreamProvider(Seq.empty).bus(),
           system,
           Metrics.globalMetricRegistry,
-          defaultConfig) {
+          exceptionThrowingConfig) {
           override lazy val settings: AggregateStateStoreKafkaStreamsImplSettings =
             AggregateStateStoreKafkaStreamsImplSettings(defaultConfig, appId, testAggregateName, "").copy(brokers = Seq(s"localhost:${actualConfig.kafkaPort}"))
         }
@@ -168,4 +160,9 @@ class AggregateStateStoreKafkaStreamsSpec
       }
     }
   }
+}
+
+class SingleExceptionThrowingPersistenceProvider extends SurgeKafkaStreamsPersistencePlugin {
+  override def createSupplier(storeName: String): KeyValueBytesStoreSupplier = new SingleExceptionThrowingKeyValueStoreSupplier(storeName)
+  override def enableLogging: Boolean = true
 }

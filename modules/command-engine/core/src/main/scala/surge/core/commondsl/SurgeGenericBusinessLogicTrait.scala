@@ -26,8 +26,6 @@ trait SurgeGenericBusinessLogicTrait[AggId, Agg, Command, Rej, Event] {
   def aggregateReadFormatting: SurgeAggregateReadFormatting[Agg]
   def aggregateWriteFormatting: SurgeAggregateWriteFormatting[Agg]
 
-  protected[surge] def aggregateValidatorLambda: (String, Array[Byte], Option[Array[Byte]]) => Boolean
-
   protected[surge] def aggregateIdToString(aggId: AggId): String = aggId.toString
 
   def metrics: Metrics = Metrics.globalMetricRegistry

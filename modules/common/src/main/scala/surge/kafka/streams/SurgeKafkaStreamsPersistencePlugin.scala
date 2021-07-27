@@ -23,6 +23,7 @@ class RocksDBPersistencePlugin extends SurgeKafkaStreamsPersistencePlugin {
 
 object SurgeKafkaStreamsPersistencePluginLoader {
   private val log = LoggerFactory.getLogger(getClass)
+
   private val defaultPersistencePluginName = "rocksdb"
   private lazy val defaultPersistencePlugin = new RocksDBPersistencePlugin
 
