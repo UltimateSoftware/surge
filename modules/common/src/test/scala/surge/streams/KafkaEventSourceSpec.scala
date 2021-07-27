@@ -7,6 +7,7 @@ import akka.Done
 import akka.actor.ActorSystem
 import akka.kafka.ConsumerSettings
 import akka.testkit.{ TestKit, TestProbe }
+import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.trace.Tracer
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.clients.consumer.ConsumerConfig
@@ -56,6 +57,8 @@ class KafkaEventSourceSpec
       override def formatting: SurgeEventReadFormatting[String] = bytes => new String(bytes)
       override def actorSystem: ActorSystem = system
       override def tracer: Tracer = NoopTracerFactory.create()
+
+      override val openTelemetry: OpenTelemetry = OpenTelemetry.noop()
     }
   }
 
@@ -76,7 +79,6 @@ class KafkaEventSourceSpec
       event
     }
 
-    override val tracer: Tracer = NoopTracerFactory.create()
   }
 
   "EventSource" should {
@@ -173,7 +175,6 @@ class KafkaEventSourceSpec
             event
           }
 
-          override val tracer: Tracer = NoopTracerFactory.create()
         }
 
         consumer1.to(consumerSettings)(testSink, autoStart = true)
@@ -198,6 +199,8 @@ class KafkaEventSourceSpec
           override def actorSystem: ActorSystem = system
           override def tracer: Tracer = NoopTracerFactory.create()
           override def shouldParseMessage(key: String, headers: Map[String, Array[Byte]]): Boolean = !headers.contains(skipMessagesWithThisHeader)
+
+          override val openTelemetry: OpenTelemetry = OpenTelemetry.noop()
         }
         val probe = TestProbe()
         val testSink = testEventSink(probe)
@@ -253,7 +256,6 @@ class KafkaEventSourceSpec
           }
           override def partitionBy(key: String, event: String, headers: Map[String, Array[Byte]]): String = event
 
-          override val tracer: Tracer = NoopTracerFactory.create()
         }
 
         val consumerSettings = testConsumerSettings(embeddedBroker, groupId)
@@ -288,7 +290,6 @@ class KafkaEventSourceSpec
           }
           override def partitionBy(key: String, event: String, headers: Map[String, Array[Byte]]): String = event
 
-          override val tracer: Tracer = NoopTracerFactory.create()
         }
 
         consumer1.to(consumerSettings)(countingEventSink, autoStart = true)

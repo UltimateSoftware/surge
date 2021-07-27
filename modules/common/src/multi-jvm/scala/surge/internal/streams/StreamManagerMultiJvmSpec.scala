@@ -5,10 +5,11 @@ package surge.internal.streams
 import akka.NotUsed
 import akka.kafka.Subscriptions
 import akka.remote.testconductor.RoleName
-import akka.remote.testkit.{ MultiNodeConfig, MultiNodeSpec, MultiNodeSpecCallbacks }
+import akka.remote.testkit.{MultiNodeConfig, MultiNodeSpec, MultiNodeSpecCallbacks}
 import akka.stream.scaladsl.Flow
 import akka.testkit.TestProbe
-import com.typesafe.config.{ Config, ConfigFactory }
+import com.typesafe.config.{Config, ConfigFactory}
+import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.trace.Tracer
 import net.manub.embeddedkafka._
 import org.apache.kafka.clients.producer.ProducerRecord
@@ -22,9 +23,10 @@ import surge.internal.tracing.NoopTracerFactory
 import surge.kafka.KafkaTopic
 import surge.kafka.streams.DefaultSerdes
 import surge.streams.replay._
-import surge.streams.{ DataHandler, EventPlusStreamMeta }
+import surge.streams.{DataHandler, EventPlusStreamMeta}
 
 import scala.concurrent.duration._
+import scala.language.implicitConversions
 
 trait StreamManagerMultiNodeSpec extends MultiNodeSpecCallbacks with AnyWordSpecLike with Matchers with BeforeAndAfterAll {
   self: MultiNodeSpec =>
@@ -74,7 +76,7 @@ class StreamManagerSpecBase
       val record1 = "record 1"
       val record2 = "record 2"
       def sendToTestProbe(testProbe: TestProbe): DataHandler[String, Array[Byte]] = new DataHandler[String, Array[Byte]] {
-        override def dataHandler[Meta]: Flow[EventPlusStreamMeta[String, Array[Byte], Meta], Meta, NotUsed] =
+        override def dataHandler[Meta](openTelemetry: OpenTelemetry): Flow[EventPlusStreamMeta[String, Array[Byte], Meta], Meta, NotUsed] =
           Flow[EventPlusStreamMeta[String, Array[Byte], Meta]].map { eventPlusOffset =>
             val msg = stringDeserializer.deserialize("", eventPlusOffset.messageBody)
             testProbe.ref ! msg

@@ -8,6 +8,8 @@ import akka.stream.alpakka.amqp.scaladsl.AmqpFlow
 import akka.stream.scaladsl.{ Flow, Keep }
 import akka.util.ByteString
 import com.rabbitmq.client.AMQP.BasicProperties
+import io.opentelemetry.api.OpenTelemetry
+import io.opentelemetry.api.trace.Tracer
 import org.slf4j.LoggerFactory
 import surge.core.SurgeEventWriteFormatting
 import surge.streams.{ EventHandler, EventPlusStreamMeta }
@@ -29,7 +31,7 @@ trait RabbitEventSink[Event] extends EventHandler[Event] {
 
   private val log = LoggerFactory.getLogger(getClass)
 
-  override def eventHandler[Meta]: Flow[EventPlusStreamMeta[String, Event, Meta], Meta, NotUsed] = {
+  override def eventHandler[Meta](openTelemetry: OpenTelemetry): Flow[EventPlusStreamMeta[String, Event, Meta], Meta, NotUsed] = {
     Flow[EventPlusStreamMeta[String, Event, Meta]]
       .map { evtPlusOffset =>
         val serialized = formatting.writeEvent(evtPlusOffset.messageBody)

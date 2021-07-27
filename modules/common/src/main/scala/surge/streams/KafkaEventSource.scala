@@ -6,6 +6,7 @@ import akka.NotUsed
 import akka.kafka.ConsumerMessage.CommittableOffset
 import akka.kafka.ConsumerSettings
 import akka.stream.scaladsl.Flow
+import io.opentelemetry.api.OpenTelemetry
 import org.apache.kafka.common.serialization.{ ByteArrayDeserializer, Deserializer, StringDeserializer }
 import org.slf4j.LoggerFactory
 import surge.internal.akka.streams.graph.EitherFlow
@@ -19,6 +20,7 @@ trait EventSourceDeserialization[Event] {
   def formatting: SurgeEventReadFormatting[Event]
   def metrics: Metrics = Metrics.globalMetricRegistry
   def baseEventName: String = ""
+  val openTelemetry: OpenTelemetry
 
   protected lazy val eventDeserializationTimer: Timer = {
     val metricTags = if (baseEventName.nonEmpty) {
@@ -41,7 +43,7 @@ trait EventSourceDeserialization[Event] {
 
   protected def dataHandler(eventHandler: EventHandler[Event]): DataHandler[String, Array[Byte]] = {
     new DataHandler[String, Array[Byte]] {
-      override def dataHandler[Meta]: Flow[EventPlusStreamMeta[String, Array[Byte], Meta], Meta, NotUsed] = {
+      override def dataHandler[Meta](openTelemetry: OpenTelemetry): Flow[EventPlusStreamMeta[String, Array[Byte], Meta], Meta, NotUsed] = {
         Flow[EventPlusStreamMeta[String, Array[Byte], Meta]]
           .map { eventPlusOffset =>
             val key = eventPlusOffset.messageKey
@@ -67,7 +69,7 @@ trait EventSourceDeserialization[Event] {
                   .getOrElse(Left(eventPlusOffset.streamMeta))
             }
           }
-          .via(EitherFlow(rightFlow = eventHandler.eventHandler, leftFlow = Flow[Meta].map(identity)))
+          .via(EitherFlow(rightFlow = eventHandler.eventHandler(openTelemetry), leftFlow = Flow[Meta].map(identity)))
       }
     }
   }

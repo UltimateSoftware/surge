@@ -54,7 +54,6 @@ class SurgeCommandServiceSinkSpec extends TestKit(ActorSystem("SurgeCommandServi
       override def aggregateIdFromCommand: TestCommand => String = _.aggregateId
       override def partitionBy(key: String, event: TestEvent, headers: Map[String, Array[Byte]]): String = ""
 
-      override val tracer: Tracer = NoopTracerFactory.create()
     }
   }
   private def testMultiSink(probe: TestProbe): SurgeMultiCommandServiceSink[String, TestCommand, TestEvent] = {
@@ -68,7 +67,6 @@ class SurgeCommandServiceSinkSpec extends TestKit(ActorSystem("SurgeCommandServi
       override def aggregateIdFromCommand: TestCommand => String = _.aggregateId
       override def partitionBy(key: String, event: TestEvent, headers: Map[String, Array[Byte]]): String = ""
 
-      override val tracer: Tracer = NoopTracerFactory.create()
     }
   }
   "SurgeCommandServiceSink" should {

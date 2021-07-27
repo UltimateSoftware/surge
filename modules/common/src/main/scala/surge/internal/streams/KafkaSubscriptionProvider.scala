@@ -9,10 +9,12 @@ import akka.kafka.scaladsl.{ Committer, Consumer }
 import akka.kafka.{ AutoSubscription, CommitterSettings, ConsumerSettings, Subscription }
 import akka.stream.scaladsl.{ Flow, Source }
 import com.typesafe.config.ConfigFactory
+import io.opentelemetry.api.OpenTelemetry
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.slf4j.LoggerFactory
 import surge.internal.akka.cluster.ActorSystemHostAwareness
 import surge.internal.kafka.HostAwarenessConfig
+import surge.internal.tracing.NoopTracerFactory
 import surge.streams.{ DataHandler, OffsetManager }
 
 import java.util.UUID
@@ -60,7 +62,7 @@ class KafkaOffsetManagementSubscriptionProvider[Key, Value](
   private val committerMaxInterval = config.getDuration("surge.kafka-event-source.committer.max-interval")
   private val committerParallelism = config.getInt("surge.kafka-event-source.committer.parallelism")
 
-  private val kafkaFlow = KafkaStreamManager.wrapBusinessFlow(businessFlow.dataHandler)
+  private val kafkaFlow = KafkaStreamManager.wrapBusinessFlow(businessFlow.dataHandler(OpenTelemetry.noop()))
   override def createSubscription(actorSystem: ActorSystem): Source[Done, Consumer.Control] = {
     val committerSettings =
       CommitterSettings(actorSystem).withMaxBatch(committerMaxBatch).withMaxInterval(committerMaxInterval).withParallelism(committerParallelism)
@@ -79,7 +81,7 @@ class ManualOffsetManagementSubscriptionProvider[Key, Value](
     maxPartitions: Int = 10)
     extends KafkaSubscriptionProvider[Key, Value] {
   private val log = LoggerFactory.getLogger(getClass)
-  private val kafkaFlow = KafkaStreamManager.wrapBusinessFlow(businessFlow.dataHandler)
+  private val kafkaFlow = KafkaStreamManager.wrapBusinessFlow(businessFlow.dataHandler(OpenTelemetry.noop()))
   override def createSubscription(actorSystem: ActorSystem): Source[Done, Consumer.Control] = {
     val consumerSettings = createConsumerSettings(actorSystem, baseConsumerSettings)
     log.debug("Creating Kafka source for topic {} with client id {}", Seq(topicName, clientId): _*)

@@ -35,7 +35,6 @@ class MultiplexedEventSinkSpec extends TestKit(ActorSystem("MultiplexedEventSink
     override def handleEvent(key: String, event: T, headers: Map[String, Array[Byte]]): Future[Any] = Future { probe.ref ! event }(ExecutionContext.global)
     override def partitionBy(key: String, event: T, headers: Map[String, Array[Byte]]): String = key
 
-    override val tracer: Tracer = NoopTracerFactory.create()
   }
   class Subtype1Adapter(probe: TestProbe) extends EventSinkMultiplexAdapter[TopLevelEvent, Subtype1] {
     override def convertEvent(event: TopLevelEvent): Option[Subtype1] = event match {
@@ -63,7 +62,6 @@ class MultiplexedEventSinkSpec extends TestKit(ActorSystem("MultiplexedEventSink
         override def destinationSinks: Seq[EventSinkMultiplexAdapter[TopLevelEvent, _ <: TopLevelEvent]] =
           Seq(new Subtype1Adapter(subtype1Probe), new Subtype2Adapter(subtype2Probe))
 
-        override val tracer: Tracer = NoopTracerFactory.create()
       }
       val control = eventSource.to(testMultiplexedSink, "")
       control.sendEvent(Subtype1Event1("subtype-1"))

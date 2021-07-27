@@ -3,13 +3,13 @@
 package surge.rabbit
 
 import java.util.Collections
-
 import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.stream.alpakka.amqp._
 import akka.stream.alpakka.amqp.scaladsl.{ AmqpSource, CommittableReadResult }
 import akka.stream.scaladsl.{ Flow, Keep }
 import akka.util.ByteString
+import io.opentelemetry.api.OpenTelemetry
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.streams.{ DataHandler, DataPipeline, DataSource, EventPlusStreamMeta }
 
@@ -37,6 +37,8 @@ trait RabbitDataSource[Key, Value] extends DataSource[Key, Value] {
 
   def bufferSize: Int
 
+  val openTelemetry: OpenTelemetry
+
   private val connectionProvider: AmqpConnectionProvider = AmqpUriConnectionProvider(rabbitMqUri)
 
   private def businessFlow(sink: DataHandler[Key, Value]): Flow[CommittableReadResult, CommittableReadResult, NotUsed] = {
@@ -48,7 +50,7 @@ trait RabbitDataSource[Key, Value] extends DataSource[Key, Value] {
         val eventPlusMeta = EventPlusStreamMeta(key, value, streamMeta = None, headers)
         eventPlusMeta
       }
-      .via(sink.dataHandler)
+      .via(sink.dataHandler(openTelemetry))
 
     Flow[CommittableReadResult].via(PassThroughFlow(handleEventFlow, Keep.right))
   }

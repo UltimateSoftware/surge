@@ -6,6 +6,8 @@ import akka.actor.ActorSystem
 import akka.stream.scaladsl.{ Keep, Sink }
 import akka.stream.testkit.TestPublisher
 import akka.stream.testkit.scaladsl.TestSource
+import io.opentelemetry.api.OpenTelemetry
+import surge.internal.tracing.NoopTracerFactory
 import surge.streams.replay.{ NoOpEventReplayControl, ReplayControl }
 import surge.streams.{ DataPipeline, EventHandler, EventPlusStreamMeta, EventSource }
 
@@ -15,8 +17,9 @@ class TestEventSource[Event](implicit system: ActorSystem) extends EventSource[E
   override def to(sink: EventHandler[Event], consumerGroup: String): TestDataPipeline[Event] = connectSourceToSink(sink)
   override def to(sink: EventHandler[Event], consumerGroup: String, autoStart: Boolean): TestDataPipeline[Event] = connectSourceToSink(sink)
 
+  val openTelemetry = OpenTelemetry.noop()
   private def connectSourceToSink(sink: EventHandler[Event]): TestDataPipeline[Event] = {
-    val probe = TestSource.probe[EventPlusStreamMeta[String, Event, String]].toMat(sink.eventHandler.to(Sink.ignore))(Keep.left).run()
+    val probe = TestSource.probe[EventPlusStreamMeta[String, Event, String]].toMat(sink.eventHandler(openTelemetry).to(Sink.ignore))(Keep.left).run()
     new TestDataPipeline[Event](probe)
   }
 }
