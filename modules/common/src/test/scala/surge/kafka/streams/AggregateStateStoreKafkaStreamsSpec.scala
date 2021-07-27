@@ -3,9 +3,9 @@
 package surge.kafka.streams
 
 import java.util.UUID
-
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
+import com.typesafe.config.ConfigFactory
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.common.serialization.StringSerializer
 import org.apache.kafka.streams.{ KafkaStreams, TopologyTestDriver }
@@ -61,6 +61,8 @@ class AggregateStateStoreKafkaStreamsSpec
   }
   val config: EmbeddedKafkaConfig = EmbeddedKafkaConfig(kafkaPort = 0, zooKeeperPort = 0)
 
+  private val defaultConfig = ConfigFactory.load()
+
   "AggregateStateStoreKafkaStreams" should {
     def assertStoreKeyValue(
         testDriver: TopologyTestDriver,
@@ -106,9 +108,10 @@ class AggregateStateStoreKafkaStreamsSpec
           clientId = "",
           testHealthSignalStreamProvider(Seq.empty).bus(),
           system,
-          Metrics.globalMetricRegistry) {
+          Metrics.globalMetricRegistry,
+          defaultConfig) {
           override lazy val settings: AggregateStateStoreKafkaStreamsImplSettings =
-            AggregateStateStoreKafkaStreamsImplSettings(appId, testAggregateName, "").copy(brokers = Seq(s"localhost:${actualConfig.kafkaPort}"))
+            AggregateStateStoreKafkaStreamsImplSettings(defaultConfig, appId, testAggregateName, "").copy(brokers = Seq(s"localhost:${actualConfig.kafkaPort}"))
         }
 
         aggStoreKafkaStreams.start()
@@ -147,9 +150,10 @@ class AggregateStateStoreKafkaStreamsSpec
           clientId = "",
           testHealthSignalStreamProvider(Seq.empty).bus(),
           system,
-          Metrics.globalMetricRegistry) {
+          Metrics.globalMetricRegistry,
+          defaultConfig) {
           override lazy val settings: AggregateStateStoreKafkaStreamsImplSettings =
-            AggregateStateStoreKafkaStreamsImplSettings(appId, testAggregateName, "").copy(brokers = Seq(s"localhost:${actualConfig.kafkaPort}"))
+            AggregateStateStoreKafkaStreamsImplSettings(defaultConfig, appId, testAggregateName, "").copy(brokers = Seq(s"localhost:${actualConfig.kafkaPort}"))
         }
 
         aggStoreKafkaStreams.start()
