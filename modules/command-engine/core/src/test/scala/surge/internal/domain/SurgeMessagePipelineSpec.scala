@@ -5,7 +5,7 @@ package surge.internal.domain
 import java.util.regex.Pattern
 import akka.actor.ActorSystem
 import akka.testkit.{ TestKit, TestProbe }
-import com.typesafe.config.{ Config, ConfigFactory }
+import com.typesafe.config.ConfigFactory
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.streams.KafkaStreams
 import org.scalatest.concurrent.{ Eventually, ScalaFutures }
@@ -45,6 +45,7 @@ class SurgeMessagePipelineSpec
     PatienceConfig(timeout = scaled(Span(30, Seconds)), interval = scaled(Span(10, Milliseconds)))
 
   private val config: EmbeddedKafkaConfig = EmbeddedKafkaConfig(kafkaPort = 6001)
+  private val defaultConfig = ConfigFactory.load()
 
   case class TestContext(
       probe: TestProbe,
@@ -75,7 +76,7 @@ class SurgeMessagePipelineSpec
           .toMatcher))
 
     // Create SurgeMessagePipeline
-    val pipeline = createPipeline(signalStreamProvider, config)
+    val pipeline = createPipeline(signalStreamProvider)
     // Start Pipeline
     pipeline.start().futureValue shouldBe an[Ack]
 
@@ -293,14 +294,13 @@ class SurgeMessagePipelineSpec
     newValueObj.string == "state" + newValueObj.int
   }
 
-  private def createPipeline(
-      signalStreamProvider: SlidingHealthSignalStreamProvider,
-      config: Config): SurgeMessagePipeline[State, BaseTestCommand, Nothing, BaseTestEvent] = {
-    new SurgeMessagePipeline[State, BaseTestCommand, Nothing, BaseTestEvent](system, businessLogic, signalStreamProvider, config) {
+  private def createPipeline(signalStreamProvider: SlidingHealthSignalStreamProvider): SurgeMessagePipeline[State, BaseTestCommand, Nothing, BaseTestEvent] = {
+    new SurgeMessagePipeline[State, BaseTestCommand, Nothing, BaseTestEvent](system, businessLogic, signalStreamProvider, defaultConfig) {
       override def actorSystem: ActorSystem = system
 
       override protected val actorRouter: SurgePartitionRouterImpl =
         new SurgePartitionRouterImpl(
+          defaultConfig,
           actorSystem,
           new KafkaConsumerPartitionAssignmentTracker(stateChangeActor),
           businessLogic,
@@ -316,7 +316,8 @@ class SurgeMessagePipelineSpec
         clientId = businessLogic.kafka.clientId,
         signalStreamProvider.bus(),
         system,
-        Metrics.globalMetricRegistry)
+        Metrics.globalMetricRegistry,
+        defaultConfig)
 
       override def shutdownSignalPatterns(): Seq[Pattern] = Seq(Pattern.compile("kafka.streams.fatal.retries.exceeded.error"))
     }

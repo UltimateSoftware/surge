@@ -2,10 +2,11 @@
 
 package surge.kafka
 
+import com.typesafe.config.Config
+
 import java.util.Properties
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.{ ExecutorService, Executors }
-
 import org.apache.kafka.clients.consumer.{ ConsumerConfig, ConsumerRecord, KafkaConsumer }
 import org.apache.kafka.common.serialization.{ ByteArrayDeserializer, StringDeserializer }
 import org.apache.kafka.common.{ PartitionInfo, TopicPartition }
@@ -99,7 +100,11 @@ abstract class KafkaConsumerTrait[K, V] extends KafkaSecurityConfiguration {
   }
 }
 
-final case class KafkaStringConsumer(override val brokers: Seq[String], override val consumerConfig: UltiKafkaConsumerConfig, kafkaConfig: Map[String, String])
+final case class KafkaStringConsumer(
+    override val config: Config,
+    override val brokers: Seq[String],
+    override val consumerConfig: UltiKafkaConsumerConfig,
+    kafkaConfig: Map[String, String])
     extends KafkaConsumerTrait[String, String] {
   val props: Properties = {
     val p = defaultProps
@@ -111,7 +116,11 @@ final case class KafkaStringConsumer(override val brokers: Seq[String], override
   override val consumer: KafkaConsumer[String, String] = new KafkaConsumer[String, String](props)
 }
 
-final case class KafkaBytesConsumer(override val brokers: Seq[String], override val consumerConfig: UltiKafkaConsumerConfig, kafkaConfig: Map[String, String])
+final case class KafkaBytesConsumer(
+    override val config: Config,
+    override val brokers: Seq[String],
+    override val consumerConfig: UltiKafkaConsumerConfig,
+    kafkaConfig: Map[String, String])
     extends KafkaConsumerTrait[String, Array[Byte]] {
   val props: Properties = {
     val p = defaultProps

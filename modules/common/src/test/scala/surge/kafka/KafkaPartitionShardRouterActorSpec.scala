@@ -4,6 +4,7 @@ package surge.kafka
 
 import akka.actor.{ Actor, ActorContext, ActorSystem, DeadLetter, Props }
 import akka.testkit.{ TestKit, TestProbe }
+import com.typesafe.config.ConfigFactory
 import org.apache.kafka.common.TopicPartition
 import org.mockito.ArgumentMatchers.anyString
 import org.mockito.Mockito.when
@@ -60,6 +61,8 @@ trait KafkaPartitionShardRouterActorSpecLike extends MockitoSugar {
 
   implicit val system: ActorSystem
 
+  private val defaultConfig = ConfigFactory.load()
+
   val partitionAssignments: Map[HostPort, List[TopicPartition]]
   private val tracer = NoopTracerFactory.create()
   private val trackedTopic = KafkaTopic("test")
@@ -87,6 +90,7 @@ trait KafkaPartitionShardRouterActorSpecLike extends MockitoSugar {
     }
     val shardRouterProps = Props(
       new KafkaPartitionShardRouterActor(
+        config = defaultConfig,
         partitionTracker = new KafkaConsumerPartitionAssignmentTracker(partitionProbe.ref),
         kafkaStateProducer = producer,
         regionCreator = new ProbeInterceptorRegionCreator(regionProbe),

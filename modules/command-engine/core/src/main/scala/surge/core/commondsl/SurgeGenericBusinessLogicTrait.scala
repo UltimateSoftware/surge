@@ -15,7 +15,7 @@ import scala.concurrent.ExecutionContext.global
 
 trait SurgeGenericBusinessLogicTrait[AggId, Agg, Command, Rej, Event] {
 
-  protected val config: Config = ConfigFactory.load()
+  def config: Config = ConfigFactory.load()
 
   def aggregateName: String
 
