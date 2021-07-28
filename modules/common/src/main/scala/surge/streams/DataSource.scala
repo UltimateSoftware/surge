@@ -68,9 +68,9 @@ trait KafkaDataSource[Key, Value] extends DataSource[Key, Value] {
     val topicName = kafkaTopic.name
     val subscriptionProvider = offsetManager match {
       case _: DefaultKafkaOffsetManager =>
-        new KafkaOffsetManagementSubscriptionProvider[Key, Value](config, topicName, subscription, consumerSettings, sink)
+        new KafkaOffsetManagementSubscriptionProvider[Key, Value](config, topicName, subscription, consumerSettings, sink)(tracer)
       case _ =>
-        new ManualOffsetManagementSubscriptionProvider[Key, Value](config, topicName, subscription, consumerSettings, sink, offsetManager)
+        new ManualOffsetManagementSubscriptionProvider[Key, Value](config, topicName, subscription, consumerSettings, sink, offsetManager)(tracer)
     }
     new KafkaStreamManager[Key, Value](
       topicName = topicName,
@@ -80,8 +80,7 @@ trait KafkaDataSource[Key, Value] extends DataSource[Key, Value] {
       valueDeserializer = valueDeserializer,
       replayStrategy = replayStrategy,
       replaySettings = replaySettings,
-      tracer = tracer,
-      config = config)
+      config = config)(tracer)
   }
 
   private[streams] def to(consumerSettings: ConsumerSettings[Key, Value])(sink: DataHandler[Key, Value], autoStart: Boolean): DataPipeline = {

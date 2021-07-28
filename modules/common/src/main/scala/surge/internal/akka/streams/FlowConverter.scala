@@ -22,7 +22,9 @@ object FlowConverter {
       implicit ec: ExecutionContext): Future[Any] = {
     import surge.internal.tracing.TracingHelper._
     val span = evtPlusMeta.span
-    span.log("execute business logic", Map("sink class name" -> sinkName))
+    span.log("execute business logic", Map("sink class name" -> sinkName,
+      "event" -> evtPlusMeta.messageBody.getClass.getSimpleName
+    ))
     val businessLogicFut: Future[Any] = businessLogic(evtPlusMeta.messageKey, evtPlusMeta.messageBody, evtPlusMeta.headers)
     businessLogicFut.transform {
       case failure @ Failure(exception) =>

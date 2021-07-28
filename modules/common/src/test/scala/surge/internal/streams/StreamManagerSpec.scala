@@ -48,6 +48,8 @@ class StreamManagerSpec
 
   private val defaultConfig = ConfigFactory.load()
 
+  private val tracer = NoopTracerFactory.create()
+
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
   }
@@ -75,7 +77,7 @@ class StreamManagerSpec
         FlowConverter.flowFor[String, Array[Byte], Meta]("test-sink", tupleFlow, partitionBy, new DefaultDataSinkExceptionHandler, parallelism)
     }
     val subscriptionProvider =
-      new KafkaOffsetManagementSubscriptionProvider(defaultConfig, topic.name, Subscriptions.topics(topic.name), consumerSettings, businessFlow)
+      new KafkaOffsetManagementSubscriptionProvider(defaultConfig, topic.name, Subscriptions.topics(topic.name), consumerSettings, businessFlow)(tracer)
     new KafkaStreamManager(
       topic.name,
       consumerSettings,
@@ -84,8 +86,7 @@ class StreamManagerSpec
       byteArrayDeserializer,
       replayStrategy,
       replaySettings,
-      NoopTracerFactory.create(),
-      defaultConfig)
+      defaultConfig)(tracer)
   }
 
   "StreamManager" should {

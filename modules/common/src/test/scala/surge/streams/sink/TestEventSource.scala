@@ -28,7 +28,9 @@ class TestDataPipeline[Event](probe: TestPublisher.Probe[EventPlusStreamMeta[Str
   override def stop(): Unit = {}
   override def replay(): Future[DataPipeline.ReplayResult] = Future.successful(DataPipeline.ReplaySuccessfullyStarted())
   def sendEvent(event: Event): DataPipeline = {
-    val eventPlusStreamMeta = EventPlusStreamMeta("", event, "", Map.empty)
+    val tracer = NoopTracerFactory.create()
+    val span = tracer.spanBuilder("sendEvent (TestDataPipeline)").setNoParent().startSpan()
+    val eventPlusStreamMeta = EventPlusStreamMeta("", event, "", Map.empty, span)
     probe.sendNext(eventPlusStreamMeta)
     this
   }

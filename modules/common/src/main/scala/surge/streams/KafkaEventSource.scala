@@ -75,8 +75,8 @@ trait EventSourceDeserialization[Event] {
               case _ =>
                 eventHandler
                   .nullEventFactory(key, eventPlusOffset.headers)
-                  .map { event =>
-                    Right(EventPlusStreamMeta(key, event, eventPlusOffset.streamMeta, eventPlusOffset.headers))
+                  .map { event: Event =>
+                    Right(EventPlusStreamMeta(key, event, eventPlusOffset.streamMeta, eventPlusOffset.headers, eventPlusOffset.span))
                   }
                   .getOrElse(Left(eventPlusOffset.streamMeta))
             }
