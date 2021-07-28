@@ -61,6 +61,7 @@ class StreamManagerSpecBase
     with OptionValues {
   import StreamManagerSpecConfig._
 
+  private val defaultConfig = ConfigFactory.load()
   val tracer: Tracer = NoopTracerFactory.create()
   override def initialParticipants: Int = roles.size
 
@@ -84,7 +85,7 @@ class StreamManagerSpecBase
           }
       }
       val embeddedBroker = s"${node(node0).address.host.getOrElse("localhost")}:${config.kafkaPort}"
-      val consumerSettings = AkkaKafkaConsumer.consumerSettings[String, Array[Byte]](system, "replay-test").withBootstrapServers(embeddedBroker)
+      val consumerSettings = new AkkaKafkaConsumer(defaultConfig).consumerSettings[String, Array[Byte]](system, "replay-test", embeddedBroker, "earliest")
 
       runOn(node0) {
         withRunningKafka {
@@ -95,12 +96,12 @@ class StreamManagerSpecBase
             enterBarrier("afterReplay")
             ()
           }
-          val replaySettings = KafkaForeverReplaySettings(topic.name).copy(brokers = List(embeddedBroker))
+          val replaySettings = KafkaForeverReplaySettings(defaultConfig, topic.name).copy(brokers = List(embeddedBroker))
           val kafkaForeverReplayStrategy = KafkaForeverReplayStrategy.create(actorSystem = system, settings = replaySettings, postReplay = postReplayDef)
 
           val probe = TestProbe()
           val subscriptionProvider =
-            new KafkaOffsetManagementSubscriptionProvider(topic.name, Subscriptions.topics(topic.name), consumerSettings, sendToTestProbe(probe))
+            new KafkaOffsetManagementSubscriptionProvider(defaultConfig, topic.name, Subscriptions.topics(topic.name), consumerSettings, sendToTestProbe(probe))
           val consumer = new KafkaStreamManager(
             topicName = topic.name,
             consumerSettings = consumerSettings,
@@ -109,7 +110,8 @@ class StreamManagerSpecBase
             valueDeserializer = new ByteArrayDeserializer,
             replayStrategy = kafkaForeverReplayStrategy,
             replaySettings = replaySettings,
-            tracer = tracer)
+            tracer = tracer,
+            config = ConfigFactory.load())
 
           consumer.start()
           probe.expectMsgAnyOf(20.seconds, record1, record2)
@@ -121,7 +123,7 @@ class StreamManagerSpecBase
       runOn(node1) {
         val probe = TestProbe()
         val subscriptionProvider =
-          new KafkaOffsetManagementSubscriptionProvider(topic.name, Subscriptions.topics(topic.name), consumerSettings, sendToTestProbe(probe))
+          new KafkaOffsetManagementSubscriptionProvider(defaultConfig, topic.name, Subscriptions.topics(topic.name), consumerSettings, sendToTestProbe(probe))
         val consumer = new KafkaStreamManager(
           topicName = topic.name,
           consumerSettings = consumerSettings,
@@ -130,7 +132,8 @@ class StreamManagerSpecBase
           valueDeserializer = new ByteArrayDeserializer,
           replayStrategy = new NoOpEventReplayStrategy,
           replaySettings = DefaultEventReplaySettings,
-          tracer = tracer)
+          tracer = tracer,
+          config = ConfigFactory.load())
 
         consumer.start()
         probe.expectMsgAnyOf(20.seconds, record1, record2)

@@ -33,7 +33,6 @@ private[surge] object SurgeCommandModel {
       aggregateWriteFormatting = businessLogic.aggregateWriteFormatting,
       aggregateReadFormatting = businessLogic.aggregateReadFormatting,
       eventWriteFormatting = businessLogic.eventWriteFormatting,
-      aggregateValidator = businessLogic.aggregateValidatorLambda,
       metrics = businessLogic.metrics,
       openTelemetry = businessLogic.openTelemetry,
       tracer = businessLogic.tracer)
@@ -47,7 +46,6 @@ private[surge] object SurgeCommandModel {
       aggregateWriteFormatting = businessLogic.aggregateWriteFormatting,
       aggregateReadFormatting = businessLogic.aggregateReadFormatting,
       eventWriteFormatting = businessLogic.eventWriteFormatting,
-      aggregateValidator = businessLogic.aggregateValidatorLambda,
       metrics = businessLogic.metrics,
       openTelemetry = businessLogic.openTelemetry,
       tracer = businessLogic.tracer)
@@ -59,7 +57,6 @@ private[surge] case class SurgeCommandModel[Agg, Command, +Rej, Event](
     override val kafka: SurgeCommandKafkaConfig,
     override val model: AggregateProcessingModel[Agg, Command, Rej, Event],
     override val aggregateWriteFormatting: SurgeAggregateWriteFormatting[Agg],
-    override val aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) => Boolean,
     override val metrics: Metrics,
     override val openTelemetry: OpenTelemetry,
     override val tracer: Tracer,

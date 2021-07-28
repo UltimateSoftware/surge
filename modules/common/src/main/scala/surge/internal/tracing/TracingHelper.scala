@@ -8,12 +8,39 @@ import io.opentelemetry.api.trace.{ Span, SpanBuilder, Tracer }
 private[surge] trait SpanSupport {
   protected def tracer: Tracer
 
+  /**
+   * Creates a brand new span with no parent span
+   * @param operationName
+   *   The name for the created span
+   * @return
+   *   A new span with no configured parents
+   */
   def newSpan(operationName: String): Span = {
     tracer.spanBuilder(operationName).setNoParent().startSpan()
   }
 
-  def createSpan(operationName: String): Span = newSpan(operationName)
+  /**
+   * Creates a new span whose parent automatically propagated from the current thread if one exists
+   * @param operationName
+   *   The name for the created span
+   * @return
+   *   A new span
+   */
+  def createSpan(operationName: String): Span = {
+    val span = tracer.spanBuilder(operationName).startSpan()
+    span.makeCurrent()
+    span
+  }
 
+  /**
+   * Creates a new span with an explicit parent
+   * @param operationName
+   *   The name for the created span
+   * @param parentSpan
+   *   The parent span for the newly created span
+   * @return
+   *   A new span with the explicitly provided parent
+   */
   def childSpan(operationName: String, parentSpan: Span): Span = {
     tracer.spanBuilder(operationName).setParent(io.opentelemetry.context.Context.root().`with`(parentSpan)).startSpan()
   }

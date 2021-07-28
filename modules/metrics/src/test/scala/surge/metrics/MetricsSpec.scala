@@ -81,8 +81,8 @@ class MetricsSpec extends AnyWordSpec with Matchers with MockitoSugar {
     }
 
     "Not allow duplicate metrics to be registered" in {
-      val testMetric = Metric(MetricInfo("test", "test"), RecordingLevel.Info, new Max, MetricsConfig.fromConfig)
-      val metrics = new Metrics(MetricsConfig.fromConfig)
+      val testMetric = Metric(MetricInfo("test", "test"), RecordingLevel.Info, new Max, MetricsConfig(RecordingLevel.Info))
+      val metrics = new Metrics(MetricsConfig(RecordingLevel.Info))
 
       metrics.registerMetric(testMetric)
       an[IllegalArgumentException] should be thrownBy metrics.registerMetric(testMetric)

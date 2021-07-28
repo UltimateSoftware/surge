@@ -25,7 +25,6 @@ object SurgeEventServiceModel {
       model = businessLogic.eventModel.toCore,
       aggregateWriteFormatting = businessLogic.aggregateWriteFormatting,
       aggregateReadFormatting = businessLogic.aggregateReadFormatting,
-      aggregateValidator = businessLogic.aggregateValidatorLambda,
       metrics = businessLogic.metrics,
       openTelemetry = businessLogic.openTelemetry,
       tracer = businessLogic.tracer)
@@ -37,7 +36,6 @@ private[surge] case class SurgeEventServiceModel[Agg, Event](
     override val model: AggregateProcessingModel[Agg, Nothing, Nothing, Event],
     override val aggregateReadFormatting: SurgeAggregateReadFormatting[Agg],
     override val aggregateWriteFormatting: SurgeAggregateWriteFormatting[Agg],
-    override val aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) => Boolean,
     override val metrics: Metrics,
     override val openTelemetry: OpenTelemetry,
     override val tracer: Tracer)

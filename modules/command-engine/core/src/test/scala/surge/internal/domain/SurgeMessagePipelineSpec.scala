@@ -2,18 +2,17 @@
 
 package surge.internal.domain
 
-import java.util.regex.Pattern
 import akka.actor.ActorSystem
 import akka.testkit.{ TestKit, TestProbe }
-import com.typesafe.config.{ Config, ConfigFactory }
+import com.typesafe.config.ConfigFactory
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.streams.KafkaStreams
 import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Milliseconds, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
-import org.scalatest.{ BeforeAndAfterAll, Ignore, PrivateMethodTester }
-import play.api.libs.json.{ JsValue, Json }
+import org.scalatest.{ BeforeAndAfterAll, PrivateMethodTester }
+import play.api.libs.json.JsValue
 import surge.core.{ Ack, TestBoundedContext }
 import surge.health.config.{ ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig }
 import surge.health.domain.{ Error, HealthSignal }
@@ -24,12 +23,12 @@ import surge.internal.core.SurgePartitionRouterImpl
 import surge.internal.health.StreamMonitoringRef
 import surge.internal.health.supervisor.ShutdownComponent
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
-import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, MockPartitionTracker, MockState }
+import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, MockPartitionTracker }
 import surge.metrics.Metrics
 
+import java.util.regex.Pattern
 import scala.concurrent.duration._
 
-@Ignore
 class SurgeMessagePipelineSpec
     extends TestKit(ActorSystem("SurgeMessagePipelineSpec", ConfigFactory.load("artery-test-config")))
     with AnyWordSpecLike
@@ -46,6 +45,7 @@ class SurgeMessagePipelineSpec
     PatienceConfig(timeout = scaled(Span(30, Seconds)), interval = scaled(Span(10, Milliseconds)))
 
   private val config: EmbeddedKafkaConfig = EmbeddedKafkaConfig(kafkaPort = 6001)
+  private val defaultConfig = ConfigFactory.load()
 
   case class TestContext(
       probe: TestProbe,
@@ -53,7 +53,6 @@ class SurgeMessagePipelineSpec
       pipeline: SurgeMessagePipeline[State, BaseTestCommand, Nothing, BaseTestEvent])
 
   def withTestContext[T](testFun: TestContext => T): T = {
-    val config = ConfigFactory.load()
     val probe = TestProbe()
 
     // Create a SignalStreamProvider
@@ -76,7 +75,7 @@ class SurgeMessagePipelineSpec
           .toMatcher))
 
     // Create SurgeMessagePipeline
-    val pipeline = createPipeline(signalStreamProvider, config)
+    val pipeline = createPipeline(signalStreamProvider)
     // Start Pipeline
     pipeline.start().futureValue shouldBe an[Ack]
 
@@ -289,19 +288,14 @@ class SurgeMessagePipelineSpec
     }
   }
 
-  private def mockValidator(key: String, newValue: Array[Byte], oldValue: Option[Array[Byte]]): Boolean = {
-    val newValueObj = Json.parse(newValue).as[MockState]
-    newValueObj.string == "state" + newValueObj.int
-  }
+  private def createPipeline(signalStreamProvider: SlidingHealthSignalStreamProvider): SurgeMessagePipeline[State, BaseTestCommand, Nothing, BaseTestEvent] = {
+    new SurgeMessagePipeline[State, BaseTestCommand, Nothing, BaseTestEvent](system, businessLogic, signalStreamProvider, defaultConfig) {
 
-  private def createPipeline(
-      signalStreamProvider: SlidingHealthSignalStreamProvider,
-      config: Config): SurgeMessagePipeline[State, BaseTestCommand, Nothing, BaseTestEvent] = {
-    new SurgeMessagePipeline[State, BaseTestCommand, Nothing, BaseTestEvent](system, businessLogic, signalStreamProvider, config) {
       override def actorSystem: ActorSystem = system
 
       override protected val actorRouter: SurgePartitionRouterImpl =
         new SurgePartitionRouterImpl(
+          defaultConfig,
           actorSystem,
           new KafkaConsumerPartitionAssignmentTracker(stateChangeActor),
           businessLogic,
@@ -311,16 +305,15 @@ class SurgeMessagePipelineSpec
         businessLogic.aggregateName,
         businessLogic.kafka.stateTopic,
         (streams: KafkaStreams) => new MockPartitionTracker(streams),
-        aggregateValidator = mockValidator,
         applicationHostPort = Some("localhost:1234"),
         applicationId = "test-app",
         clientId = businessLogic.kafka.clientId,
         signalStreamProvider.bus(),
         system,
-        Metrics.globalMetricRegistry)
+        Metrics.globalMetricRegistry,
+        defaultConfig)
 
       override def shutdownSignalPatterns(): Seq[Pattern] = Seq(Pattern.compile("kafka.streams.fatal.retries.exceeded.error"))
     }
-
   }
 }

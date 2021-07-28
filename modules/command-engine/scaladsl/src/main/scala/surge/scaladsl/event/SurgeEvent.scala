@@ -3,7 +3,7 @@
 package surge.scaladsl.event
 
 import akka.actor.ActorSystem
-import com.typesafe.config.{ Config, ConfigFactory }
+import com.typesafe.config.Config
 import surge.core
 import surge.core.event.SurgeEventServiceModel
 import surge.health.config.WindowingStreamConfigLoader
@@ -23,13 +23,15 @@ trait SurgeEvent[AggId, Agg, Evt] extends core.SurgeProcessingTrait[Agg, Nothing
 object SurgeEvent {
   def create[AggId, Agg, Evt](businessLogic: SurgeEventBusinessLogic[AggId, Agg, Evt]): SurgeEvent[AggId, Agg, Evt] = {
     val actorSystem = ActorSystem(s"${businessLogic.aggregateName}ActorSystem")
-    val config = ConfigFactory.load()
     new SurgeEventImpl(
       actorSystem,
       SurgeEventServiceModel.apply(businessLogic),
-      new SlidingHealthSignalStreamProvider(WindowingStreamConfigLoader.load(), actorSystem, filters = SignalPatternMatcherRegistry.load().toSeq),
+      new SlidingHealthSignalStreamProvider(
+        WindowingStreamConfigLoader.load(businessLogic.config),
+        actorSystem,
+        filters = SignalPatternMatcherRegistry.load().toSeq),
       businessLogic.aggregateIdToString,
-      config)
+      businessLogic.config)
   }
 
 }

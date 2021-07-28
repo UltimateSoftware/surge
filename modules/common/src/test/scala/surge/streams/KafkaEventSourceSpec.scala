@@ -8,6 +8,7 @@ import akka.actor.ActorSystem
 import akka.kafka.ConsumerSettings
 import akka.testkit.{ TestKit, TestProbe }
 import io.opentelemetry.api.OpenTelemetry
+import com.typesafe.config.ConfigFactory
 import io.opentelemetry.api.trace.Tracer
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.clients.consumer.ConsumerConfig
@@ -37,6 +38,8 @@ class KafkaEventSourceSpec
     with Eventually
     with BeforeAndAfterAll {
 
+  private val defaultConfig = ConfigFactory.load()
+
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
   }
@@ -62,8 +65,8 @@ class KafkaEventSourceSpec
   }
 
   private def testConsumerSettings(kafkaBrokers: String, groupId: String): ConsumerSettings[String, Array[Byte]] = {
-    AkkaKafkaConsumer
-      .consumerSettings[String, Array[Byte]](system, groupId)
+    new AkkaKafkaConsumer(defaultConfig)
+      .consumerSettings[String, Array[Byte]](system, groupId, kafkaBrokers, "earliest")
       .withBootstrapServers(kafkaBrokers)
       .withProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
   }

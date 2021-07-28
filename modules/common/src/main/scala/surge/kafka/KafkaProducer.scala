@@ -2,8 +2,9 @@
 
 package surge.kafka
 
-import java.util.Properties
+import com.typesafe.config.{ Config, ConfigFactory }
 
+import java.util.Properties
 import org.apache.kafka.clients.consumer.OffsetAndMetadata
 import org.apache.kafka.clients.producer._
 import org.apache.kafka.common.TopicPartition
@@ -130,10 +131,11 @@ trait KafkaProducerTrait[K, V] extends KafkaSecurityConfiguration with KafkaProd
 
 object KafkaStringProducer {
   def create(brokers: java.util.Collection[String], topic: KafkaTopic): KafkaStringProducer = {
-    KafkaStringProducer(brokers.asScala.toSeq, topic)
+    KafkaStringProducer(ConfigFactory.load(), brokers.asScala.toSeq, topic)
   }
 }
 case class KafkaStringProducer(
+    override val config: Config,
     brokers: Seq[String],
     override val topic: KafkaTopic,
     override val partitioner: KafkaPartitionerBase[String] = NoPartitioner[String],
@@ -153,6 +155,7 @@ case class KafkaStringProducer(
 }
 
 case class KafkaBytesProducer(
+    override val config: Config,
     brokers: Seq[String],
     override val topic: KafkaTopicTrait,
     override val partitioner: KafkaPartitionerBase[String] = NoPartitioner[String],

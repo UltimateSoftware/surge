@@ -3,6 +3,7 @@
 package surge.internal.streams
 
 import com.typesafe.config.ConfigFactory
+import java.util.UUID
 import surge.metrics.Metrics
 import surge.streams.DataPipeline
 import surge.streams.DataPipeline.ReplayResult
@@ -12,10 +13,9 @@ import java.util.UUID
 import scala.concurrent.Future
 import scala.jdk.CollectionConverters._
 
-private[surge] class ManagedDataPipeline[Key, Value](underlyingManager: KafkaStreamManager[Key, Value], metrics: Metrics) extends DataPipeline {
+private[surge] class ManagedDataPipeline[Key, Value](underlyingManager: KafkaStreamManager[Key, Value], metrics: Metrics, enableMetrics: Boolean)
+    extends DataPipeline {
   private val kafkaConsumerMetricsName: String = s"kafka-consumer-metrics-${UUID.randomUUID()}"
-  private val config = ConfigFactory.load()
-  private val enableMetrics = config.getBoolean("surge.kafka-event-source.enable-kafka-metrics")
   override def stop(): Unit = {
     if (enableMetrics) {
       metrics.unregisterKafkaMetric(kafkaConsumerMetricsName)
