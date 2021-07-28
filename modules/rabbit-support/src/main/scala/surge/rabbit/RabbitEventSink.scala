@@ -8,8 +8,6 @@ import akka.stream.alpakka.amqp.scaladsl.AmqpFlow
 import akka.stream.scaladsl.{ Flow, Keep }
 import akka.util.ByteString
 import com.rabbitmq.client.AMQP.BasicProperties
-import io.opentelemetry.api.OpenTelemetry
-import io.opentelemetry.api.trace.Tracer
 import org.slf4j.LoggerFactory
 import surge.core.SurgeEventWriteFormatting
 import surge.streams.{ EventHandler, EventPlusStreamMeta }

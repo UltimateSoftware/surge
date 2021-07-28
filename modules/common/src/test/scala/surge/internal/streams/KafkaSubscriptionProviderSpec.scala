@@ -7,7 +7,6 @@ import akka.kafka.Subscriptions
 import akka.stream.scaladsl.{ Flow, Sink }
 import akka.testkit.{ TestKit, TestProbe }
 import akka.{ Done, NotUsed }
-import io.opentelemetry.api.OpenTelemetry
 import com.typesafe.config.ConfigFactory
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.clients.producer.ProducerRecord

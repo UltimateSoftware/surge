@@ -6,7 +6,6 @@ import akka.actor.ActorSystem
 import akka.stream.scaladsl.{ Keep, Sink }
 import akka.stream.testkit.TestPublisher
 import akka.stream.testkit.scaladsl.TestSource
-import io.opentelemetry.api.OpenTelemetry
 import surge.internal.tracing.NoopTracerFactory
 import surge.streams.replay.{ NoOpEventReplayControl, ReplayControl }
 import surge.streams.{ DataPipeline, EventHandler, EventPlusStreamMeta, EventSource }

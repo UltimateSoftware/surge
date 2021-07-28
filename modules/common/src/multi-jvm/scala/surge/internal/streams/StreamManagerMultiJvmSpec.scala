@@ -9,15 +9,14 @@ import akka.remote.testkit.{MultiNodeConfig, MultiNodeSpec, MultiNodeSpecCallbac
 import akka.stream.scaladsl.Flow
 import akka.testkit.TestProbe
 import com.typesafe.config.{Config, ConfigFactory}
-import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.trace.Tracer
 import net.manub.embeddedkafka._
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.serialization._
+import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
-import org.scalatest._
 import surge.internal.akka.kafka.AkkaKafkaConsumer
 import surge.internal.tracing.NoopTracerFactory
 import surge.kafka.KafkaTopic

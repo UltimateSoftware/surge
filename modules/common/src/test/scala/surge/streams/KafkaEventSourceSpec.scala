@@ -2,12 +2,10 @@
 
 package surge.streams
 
-import java.time.Instant
 import akka.Done
 import akka.actor.ActorSystem
 import akka.kafka.ConsumerSettings
 import akka.testkit.{ TestKit, TestProbe }
-import io.opentelemetry.api.OpenTelemetry
 import com.typesafe.config.ConfigFactory
 import io.opentelemetry.api.trace.Tracer
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
@@ -27,6 +25,7 @@ import surge.internal.tracing.NoopTracerFactory
 import surge.kafka.KafkaTopic
 import surge.kafka.streams.DefaultSerdes
 
+import java.time.Instant
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
@@ -60,7 +59,6 @@ class KafkaEventSourceSpec
       override def formatting: SurgeEventReadFormatting[String] = bytes => new String(bytes)
       override def actorSystem: ActorSystem = system
       override def tracer: Tracer = NoopTracerFactory.create()
-
     }
   }
 
@@ -80,7 +78,6 @@ class KafkaEventSourceSpec
     override def partitionBy(key: String, event: String, headers: Map[String, Array[Byte]]): String = {
       event
     }
-
   }
 
   "EventSource" should {
@@ -176,7 +173,6 @@ class KafkaEventSourceSpec
           override def partitionBy(key: String, event: String, headers: Map[String, Array[Byte]]): String = {
             event
           }
-
         }
 
         consumer1.to(consumerSettings)(testSink, autoStart = true)
@@ -201,7 +197,6 @@ class KafkaEventSourceSpec
           override def actorSystem: ActorSystem = system
           override def tracer: Tracer = NoopTracerFactory.create()
           override def shouldParseMessage(key: String, headers: Map[String, Array[Byte]]): Boolean = !headers.contains(skipMessagesWithThisHeader)
-
         }
         val probe = TestProbe()
         val testSink = testEventSink(probe)
@@ -256,7 +251,6 @@ class KafkaEventSourceSpec
             }
           }
           override def partitionBy(key: String, event: String, headers: Map[String, Array[Byte]]): String = event
-
         }
 
         val consumerSettings = testConsumerSettings(embeddedBroker, groupId)
@@ -290,7 +284,6 @@ class KafkaEventSourceSpec
             Future.successful(Done)
           }
           override def partitionBy(key: String, event: String, headers: Map[String, Array[Byte]]): String = event
-
         }
 
         consumer1.to(consumerSettings)(countingEventSink, autoStart = true)

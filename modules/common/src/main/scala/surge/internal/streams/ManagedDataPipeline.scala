@@ -2,8 +2,6 @@
 
 package surge.internal.streams
 
-import com.typesafe.config.ConfigFactory
-import java.util.UUID
 import surge.metrics.Metrics
 import surge.streams.DataPipeline
 import surge.streams.DataPipeline.ReplayResult
