@@ -25,3 +25,5 @@ jobs:
       - uses: codecov/codecov-action@v1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+      - name: build docs
+        run: 'sbt surge-docs/clean surge-docs/makeSite'
