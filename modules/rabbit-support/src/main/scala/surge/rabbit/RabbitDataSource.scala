@@ -6,13 +6,13 @@ import java.util.Collections
 import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.stream.alpakka.amqp._
-import akka.stream.alpakka.amqp.scaladsl.{AmqpSource, CommittableReadResult}
-import akka.stream.scaladsl.{Flow, Keep}
+import akka.stream.alpakka.amqp.scaladsl.{ AmqpSource, CommittableReadResult }
+import akka.stream.scaladsl.{ Flow, Keep }
 import akka.util.ByteString
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.trace.Tracer
-import org.slf4j.{Logger, LoggerFactory}
-import surge.streams.{DataHandler, DataPipeline, DataSource, EventPlusStreamMeta}
+import org.slf4j.{ Logger, LoggerFactory }
+import surge.streams.{ DataHandler, DataPipeline, DataSource, EventPlusStreamMeta }
 
 import scala.jdk.CollectionConverters._
 

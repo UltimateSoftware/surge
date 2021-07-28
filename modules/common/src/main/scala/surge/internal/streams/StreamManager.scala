@@ -58,7 +58,6 @@ object KafkaStreamManager {
     MDC.put("kafka.offset", kafkaStreamMeta.offset.toString)
   }
 
-
   def wrapBusinessFlow[Key, Value](business: Flow[EventPlusStreamMeta[Key, Value, KafkaStreamMeta], KafkaStreamMeta, NotUsed])(
       tracer: Tracer): Flow[ConsumerMessage.CommittableMessage[Key, Value], KafkaStreamMeta, NotUsed] = {
     val contextToPropagate = MDC.getCopyOfContextMap

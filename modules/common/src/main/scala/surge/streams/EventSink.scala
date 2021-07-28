@@ -8,7 +8,7 @@ import io.opentelemetry.api.trace.Span
 import surge.internal.akka.streams.FlowConverter
 import surge.internal.streams.DefaultDataSinkExceptionHandler
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ ExecutionContext, Future }
 
 case class EventPlusStreamMeta[Key, Value, Meta](messageKey: Key, messageBody: Value, streamMeta: Meta, headers: Map[String, Array[Byte]], span: Span)
 

@@ -5,16 +5,16 @@ package surge.internal.streams
 import akka.Done
 import akka.actor.ActorSystem
 import akka.kafka.ConsumerMessage.CommittableOffset
-import akka.kafka.scaladsl.{Committer, Consumer}
-import akka.kafka.{AutoSubscription, CommitterSettings, ConsumerSettings, Subscription}
-import akka.stream.scaladsl.{Flow, Source}
+import akka.kafka.scaladsl.{ Committer, Consumer }
+import akka.kafka.{ AutoSubscription, CommitterSettings, ConsumerSettings, Subscription }
+import akka.stream.scaladsl.{ Flow, Source }
 import com.typesafe.config.Config
 import io.opentelemetry.api.trace.Tracer
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.slf4j.LoggerFactory
 import surge.internal.akka.cluster.ActorSystemHostAwareness
 import surge.internal.kafka.HostAwarenessConfig
-import surge.streams.{DataHandler, OffsetManager}
+import surge.streams.{ DataHandler, OffsetManager }
 
 import java.util.UUID
 import scala.concurrent.duration.Duration
