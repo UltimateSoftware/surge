@@ -2,6 +2,7 @@
 
 package surge.kafka
 
+import com.typesafe.config.ConfigFactory
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.TopicPartition
@@ -15,6 +16,8 @@ class KafkaAdminClientSpec extends AnyWordSpec with Matchers with EmbeddedKafka 
   implicit override val patienceConfig: PatienceConfig =
     PatienceConfig(timeout = scaled(Span(10, Seconds)), interval = scaled(Span(10, Millis)))
 
+  private val defaultConfig = ConfigFactory.load()
+
   "KafkaAdminClient" should {
     "Correctly calculate consumer lag" in {
       withRunningKafkaOnFoundPort(EmbeddedKafkaConfig(kafkaPort = 0, zooKeeperPort = 0)) { implicit actualConfig =>
@@ -25,10 +28,10 @@ class KafkaAdminClientSpec extends AnyWordSpec with Matchers with EmbeddedKafka 
         val partition1 = new TopicPartition(topic.name, 1)
         val partition2 = new TopicPartition(topic.name, 2)
         val embeddedBroker = s"localhost:${actualConfig.kafkaPort}"
-        val client = KafkaAdminClient(Seq(embeddedBroker))
+        val client = KafkaAdminClient(defaultConfig, Seq(embeddedBroker))
 
         val consumerGroupName = "test-consumer-group"
-        val consumer = KafkaStringConsumer(Seq(embeddedBroker), UltiKafkaConsumerConfig(consumerGroupName), Map.empty).consumer
+        val consumer = KafkaStringConsumer(defaultConfig, Seq(embeddedBroker), UltiKafkaConsumerConfig(consumerGroupName), Map.empty).consumer
         consumer.subscribe(java.util.Arrays.asList(topic.name))
 
         publishToKafka(new ProducerRecord[String, String](topic.name, 0, "", "initial value"))

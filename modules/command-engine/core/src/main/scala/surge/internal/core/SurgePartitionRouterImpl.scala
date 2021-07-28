@@ -3,10 +3,10 @@
 package surge.internal.core
 
 import java.util.regex.Pattern
-
 import akka.actor._
 import akka.pattern.ask
 import akka.util.Timeout
+import com.typesafe.config.Config
 import org.slf4j.LoggerFactory
 import surge.core.{ Ack, Controllable, SurgePartitionRouter }
 import surge.health.HealthSignalBusTrait
@@ -23,6 +23,7 @@ import scala.languageFeature.postfixOps
 import scala.util.{ Failure, Success, Try }
 
 private[surge] final class SurgePartitionRouterImpl(
+    config: Config,
     system: ActorSystem,
     partitionTracker: KafkaConsumerPartitionAssignmentTracker,
     businessLogic: SurgeModel[_, _, _, _],
@@ -35,6 +36,7 @@ private[surge] final class SurgePartitionRouterImpl(
   private val log = LoggerFactory.getLogger(getClass)
 
   private val shardRouterProps = KafkaPartitionShardRouterActor.props(
+    config,
     partitionTracker,
     businessLogic.partitioner,
     businessLogic.kafka.stateTopic,

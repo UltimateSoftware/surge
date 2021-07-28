@@ -5,7 +5,7 @@ package surge.internal.kafka
 import akka.actor.{ ActorRef, NoSerializationVerificationNeeded, Stash, Status, Timers }
 import akka.pattern._
 import akka.util.Timeout
-import com.typesafe.config.{ Config, ConfigFactory }
+import com.typesafe.config.Config
 import io.opentelemetry.api.trace.Tracer
 import org.apache.kafka.clients.producer.{ ProducerConfig, ProducerRecord }
 import org.apache.kafka.common.TopicPartition
@@ -74,7 +74,7 @@ class KafkaProducerActorImpl(
     kStreams: AggregateStateStoreKafkaStreams[_],
     partitionTracker: KafkaConsumerPartitionAssignmentTracker,
     override val signalBus: HealthSignalBusTrait,
-    config: Config = ConfigFactory.load(),
+    config: Config,
     kafkaProducerOverride: Option[KafkaBytesProducer] = None)
     extends ActorWithTracing
     with ActorHostAwareness
@@ -142,7 +142,7 @@ class KafkaProducerActorImpl(
 
     // Set up the producer on the events topic so the partitioner can partition automatically on the events topic since we manually set the partition for the
     // aggregate state topic record and the events topic could have a different number of partitions
-    val producer = KafkaBytesProducer(brokers, eventsTopicOpt.getOrElse(PoisonTopic), partitioner, kafkaConfig)
+    val producer = KafkaBytesProducer(config, brokers, eventsTopicOpt.getOrElse(PoisonTopic), partitioner, kafkaConfig)
     if (enableMetrics) {
       metrics.registerKafkaMetrics(kafkaPublisherMetricsName, () => producer.producer.metrics)
     }
@@ -216,11 +216,17 @@ class KafkaProducerActorImpl(
   }
 
   private def checkKTableProgress(): Unit = {
-    kStreams.partitionLag(assignedPartition).foreach { lagOpt =>
-      lagOpt.foreach { lag =>
-        self ! KTableProgressUpdate(assignedPartition, lag)
+    kStreams
+      .partitionLag(assignedPartition)
+      .map {
+        case Some(lag) =>
+          self ! KTableProgressUpdate(assignedPartition, lag)
+        case None =>
+          log.debug(s"Could not find partition lag for partition $assignedPartition")
       }
-    }
+      .recover { case e =>
+        log.warn(s"Error fetching partition lag for $assignedPartition. Will retry in $ktableCheckInterval", e)
+      }
   }
 
   private def initializeTransactions(): Unit = {

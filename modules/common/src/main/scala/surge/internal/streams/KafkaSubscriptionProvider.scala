@@ -10,6 +10,7 @@ import akka.kafka.{ AutoSubscription, CommitterSettings, ConsumerSettings, Subsc
 import akka.stream.scaladsl.{ Flow, Source }
 import com.typesafe.config.ConfigFactory
 import io.opentelemetry.api.OpenTelemetry
+import com.typesafe.config.Config
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.slf4j.LoggerFactory
 import surge.internal.akka.cluster.ActorSystemHostAwareness
@@ -21,10 +22,11 @@ import java.util.UUID
 import scala.concurrent.duration.Duration
 
 trait KafkaSubscriptionProvider[Key, Value] {
-  private val config = ConfigFactory.load()
-  private val reuseConsumerId = config.getBoolean("surge.kafka-reuse-consumer-id")
+  protected val config: Config
+
+  private lazy val reuseConsumerId = config.getBoolean("surge.kafka-reuse-consumer-id")
   // Set this uniquely per manager actor so that restarts of the Kafka stream don't cause a rebalance of the consumer group
-  protected val clientId = s"surge-event-source-managed-consumer-${UUID.randomUUID()}"
+  val clientId = s"surge-event-source-managed-consumer-${UUID.randomUUID()}"
 
   private class HostAware(val actorSystem: ActorSystem) extends ActorSystemHostAwareness {
     def hostName: String = localHostname
@@ -33,7 +35,7 @@ trait KafkaSubscriptionProvider[Key, Value] {
   protected def createConsumerSettings[K, V](actorSystem: ActorSystem, baseConsumerSettings: ConsumerSettings[K, V]): ConsumerSettings[K, V] = {
     val hostAware = new HostAware(actorSystem)
     val consumerSettingsWithHost = baseConsumerSettings
-      .withProperty(ConsumerConfig.PARTITION_ASSIGNMENT_STRATEGY_CONFIG, PartitionAssignorConfig.assignorClassName)
+      .withProperty(ConsumerConfig.PARTITION_ASSIGNMENT_STRATEGY_CONFIG, PartitionAssignorConfig.assignorClassName(config))
       .withProperty(HostAwarenessConfig.HOST_CONFIG, hostAware.hostName)
       .withProperty(HostAwarenessConfig.PORT_CONFIG, hostAware.port.toString)
       .withStopTimeout(Duration.Zero)
@@ -50,6 +52,7 @@ trait KafkaSubscriptionProvider[Key, Value] {
 }
 
 class KafkaOffsetManagementSubscriptionProvider[Key, Value](
+    override val config: Config,
     topicName: String,
     subscription: Subscription,
     baseConsumerSettings: ConsumerSettings[Key, Value],
@@ -57,7 +60,6 @@ class KafkaOffsetManagementSubscriptionProvider[Key, Value](
     extends KafkaSubscriptionProvider[Key, Value] {
 
   private val log = LoggerFactory.getLogger(getClass)
-  private val config = ConfigFactory.load()
   private val committerMaxBatch = config.getLong("surge.kafka-event-source.committer.max-batch")
   private val committerMaxInterval = config.getDuration("surge.kafka-event-source.committer.max-interval")
   private val committerParallelism = config.getInt("surge.kafka-event-source.committer.parallelism")
@@ -73,6 +75,7 @@ class KafkaOffsetManagementSubscriptionProvider[Key, Value](
 }
 
 class ManualOffsetManagementSubscriptionProvider[Key, Value](
+    override val config: Config,
     topicName: String,
     subscription: AutoSubscription,
     baseConsumerSettings: ConsumerSettings[Key, Value],

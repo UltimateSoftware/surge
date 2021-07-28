@@ -8,6 +8,7 @@ import akka.stream.scaladsl.{ Flow, Sink }
 import akka.testkit.{ TestKit, TestProbe }
 import akka.{ Done, NotUsed }
 import io.opentelemetry.api.OpenTelemetry
+import com.typesafe.config.ConfigFactory
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.TopicPartition
@@ -45,6 +46,8 @@ class KafkaSubscriptionProviderSpec
 
   override implicit val patienceConfig: PatienceConfig = PatienceConfig(timeout = Span(10, Seconds), interval = Span(100, Millis))
 
+  private val defaultConfig = ConfigFactory.load()
+
   private class InMemoryOffsetManager() extends OffsetManager {
     private val offsetMappings: scala.collection.mutable.Map[TopicPartition, Long] = scala.collection.mutable.Map.empty
 
@@ -62,14 +65,14 @@ class KafkaSubscriptionProviderSpec
       groupId: String,
       businessLogic: (String, Array[Byte]) => Future[_],
       offsetManager: OffsetManager): ManualOffsetManagementSubscriptionProvider[String, Array[Byte]] = {
-    val consumerSettings = AkkaKafkaConsumer.consumerSettings[String, Array[Byte]](system, groupId).withBootstrapServers(kafkaBrokers)
+    val consumerSettings = new AkkaKafkaConsumer(defaultConfig).consumerSettings[String, Array[Byte]](system, groupId, kafkaBrokers, "earliest")
     val tupleFlow: (String, Array[Byte], Map[String, Array[Byte]]) => Future[_] = { (k, v, _) => businessLogic(k, v) }
     val partitionBy: (String, Array[Byte], Map[String, Array[Byte]]) => String = { (k, _, _) => k }
     val businessFlow = new DataHandler[String, Array[Byte]] {
       override def dataHandler[Meta]: Flow[EventPlusStreamMeta[String, Array[Byte], Meta], Meta, NotUsed] =
         FlowConverter.flowFor[String, Array[Byte], Meta]("test-sink", tupleFlow, partitionBy, new DefaultDataSinkExceptionHandler, 16)
     }
-    new ManualOffsetManagementSubscriptionProvider(topic.name, Subscriptions.topics(topic.name), consumerSettings, businessFlow, offsetManager)
+    new ManualOffsetManagementSubscriptionProvider(defaultConfig, topic.name, Subscriptions.topics(topic.name), consumerSettings, businessFlow, offsetManager)
   }
 
   private def sendToTestProbe(testProbe: TestProbe)(key: String, value: Array[Byte]): Future[Done] = {

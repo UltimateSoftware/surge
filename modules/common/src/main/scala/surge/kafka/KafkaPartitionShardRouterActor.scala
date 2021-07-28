@@ -4,7 +4,7 @@ package surge.kafka
 
 import akka.actor._
 import akka.pattern._
-import com.typesafe.config.{ Config, ConfigFactory }
+import com.typesafe.config.Config
 import io.opentelemetry.api.trace.Tracer
 import org.apache.kafka.common.TopicPartition
 import org.slf4j.{ Logger, LoggerFactory }
@@ -22,19 +22,18 @@ import scala.concurrent.duration._
 import scala.util.Try
 
 object KafkaPartitionShardRouterActor {
-  private val config: Config = ConfigFactory.load()
-  private val brokers = config.getString("kafka.brokers").split(",").toVector
-
   def props[Agg, Command, Event](
+      config: Config,
       partitionTracker: KafkaConsumerPartitionAssignmentTracker,
       partitioner: KafkaPartitioner[String],
       trackedTopic: KafkaTopic,
       regionCreator: PersistentActorRegionCreator[String],
       extractEntityId: PartialFunction[Any, String])(tracer: Tracer): Props = {
 
+    val brokers = config.getString("kafka.brokers").split(",").toVector
     // This producer is only used for determining partition assignments, not actually producing
-    val producer = KafkaBytesProducer(brokers, trackedTopic, partitioner)
-    Props(new KafkaPartitionShardRouterActor(partitionTracker, producer, regionCreator, extractEntityId)(tracer))
+    val producer = KafkaBytesProducer(config, brokers, trackedTopic, partitioner)
+    Props(new KafkaPartitionShardRouterActor(config, partitionTracker, producer, regionCreator, extractEntityId)(tracer))
   }
   case object GetPartitionRegionAssignments
 
@@ -65,6 +64,7 @@ object KafkaPartitionShardRouterActor {
  *   A partial function to extract an entity id from an incoming message. This actor can only handle routing
  */
 class KafkaPartitionShardRouterActor(
+    config: Config,
     partitionTracker: KafkaConsumerPartitionAssignmentTracker,
     kafkaStateProducer: KafkaProducerTrait[String, _],
     regionCreator: PersistentActorRegionCreator[String],
@@ -76,7 +76,6 @@ class KafkaPartitionShardRouterActor(
   import KafkaPartitionShardRouterActor._
   import context.dispatcher
 
-  private val config = ConfigFactory.load()
   private val trackedTopic = kafkaStateProducer.topic
   private val enableDRStandbyInitial = config.getBoolean("surge.dr-standby-enabled")
 

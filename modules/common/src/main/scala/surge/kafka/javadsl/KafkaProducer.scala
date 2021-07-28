@@ -2,9 +2,10 @@
 
 package surge.kafka.javadsl
 
+import com.typesafe.config.{ Config, ConfigFactory }
+
 import java.util.concurrent.CompletionStage
 import java.util.{ Optional, Properties }
-
 import org.apache.kafka.clients.producer.{ KafkaProducer, ProducerConfig, ProducerRecord, RecordMetadata }
 import org.apache.kafka.common.serialization.{ ByteArraySerializer, StringSerializer }
 import surge.kafka.{ KafkaPartitionerBase, KafkaProducerHelperCommon, KafkaSecurityConfiguration, KafkaTopic, PartitionStringUpToColon }
@@ -35,17 +36,19 @@ abstract class AbstractKafkaProducer[K, V] extends KafkaSecurityConfiguration wi
 }
 
 object KafkaBytesProducer {
+  private val config = ConfigFactory.load()
   def create(brokers: java.util.Collection[String], topic: KafkaTopic): KafkaBytesProducer = {
-    new KafkaBytesProducer(brokers, topic, PartitionStringUpToColon, Map.empty[String, String].asJava)
+    new KafkaBytesProducer(brokers, topic, PartitionStringUpToColon, config, Map.empty[String, String].asJava)
   }
   def create(brokers: java.util.Collection[String], topic: KafkaTopic, kafkaConfig: java.util.Map[String, String]): KafkaBytesProducer = {
-    new KafkaBytesProducer(brokers, topic, PartitionStringUpToColon, kafkaConfig)
+    new KafkaBytesProducer(brokers, topic, PartitionStringUpToColon, config, kafkaConfig)
   }
 }
 class KafkaBytesProducer(
     brokers: java.util.Collection[String],
     override val topic: KafkaTopic,
     override val partitioner: KafkaPartitionerBase[String],
+    override val config: Config,
     kafkaConfig: java.util.Map[String, String])
     extends AbstractKafkaProducer[String, Array[Byte]] {
   val props: Properties = {

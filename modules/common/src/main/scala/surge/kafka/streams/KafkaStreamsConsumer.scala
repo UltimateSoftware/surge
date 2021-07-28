@@ -2,10 +2,11 @@
 
 package surge.kafka.streams
 
+import com.typesafe.config.Config
+
 import java.time.Duration
 import java.time.temporal.ChronoUnit
 import java.util.Properties
-
 import org.apache.kafka.common.serialization.Serde
 import org.apache.kafka.streams.scala.ImplicitConversions._
 import org.apache.kafka.streams.scala._
@@ -54,6 +55,7 @@ abstract class KafkaStreamsConsumer[K, V](implicit keySerde: Serde[K], valueSerd
 }
 
 case class GenericKafkaStreamsConsumer[Value](
+    override val config: Config,
     brokers: Seq[String],
     applicationId: String,
     kafkaConfig: Map[String, String],
@@ -62,6 +64,7 @@ case class GenericKafkaStreamsConsumer[Value](
     extends KafkaStreamsConsumer[String, Value]
 
 case class KafkaStringStreamsConsumer(
+    override val config: Config,
     brokers: Seq[String],
     applicationId: String,
     kafkaConfig: Map[String, String],
@@ -70,6 +73,7 @@ case class KafkaStringStreamsConsumer(
     extends KafkaStreamsConsumer[String, String]
 
 case class KafkaByteStreamsConsumer(
+    override val config: Config,
     brokers: Seq[String],
     applicationId: String,
     kafkaConfig: Map[String, String],
