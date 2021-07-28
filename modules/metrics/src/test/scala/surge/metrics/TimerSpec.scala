@@ -2,12 +2,11 @@
 
 package surge.metrics
 
-import org.scalatest.concurrent.ScalaFutures
+import org.scalatest.concurrent.Eventually
 
-import java.util.concurrent.Executors
 import scala.concurrent.{ ExecutionContext, Future }
 
-class TimerSpec extends MetricsSpecLike with ScalaFutures {
+class TimerSpec extends MetricsSpecLike with Eventually {
   "Timer" should {
     "Properly track explicitly recorded time" in {
       val testTimerName = "record-time-test"
@@ -25,12 +24,14 @@ class TimerSpec extends MetricsSpecLike with ScalaFutures {
     "Properly time scala Future completion time" ignore {
       val testTimerName = "future-timer-test"
       val timer = metrics.timer(MetricInfo(testTimerName, "Test timer description"))
-      timer.time(Future { Thread.sleep(5L) }(ExecutionContext.global)).futureValue
+      timer.time(Future { Thread.sleep(5L) }(ExecutionContext.global))
 
-      metricValue(testTimerName) should be >= 5.0
-      // TODO This timer can be off by a lot, I've seen almost to 200ms. Setting to 500 for now, but may be
-      //  worth seeing if it's an issue with this test or the timer utility in general
-      metricValue(testTimerName) should be <= 500.0
+      eventually {
+        metricValue(testTimerName) should be >= 5.0
+        // TODO This timer can be off by a lot, I've seen almost to 200ms. Setting to 500 for now, but may be
+        //  worth seeing if it's an issue with this test or the timer utility in general
+        metricValue(testTimerName) should be <= 500.0
+      }
     }
 
     "Properly time method completion time" ignore {
