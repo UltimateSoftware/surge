@@ -22,7 +22,7 @@ class TimerSpec extends MetricsSpecLike with ScalaFutures {
       metricValue(testTimerName) shouldEqual 95.5
     }
 
-    "Properly time scala Future completion time" ignore  {
+    "Properly time scala Future completion time" ignore {
       val testTimerName = "future-timer-test"
       val timer = metrics.timer(MetricInfo(testTimerName, "Test timer description"))
       timer.time(Future { Thread.sleep(5L) }(ExecutionContext.global)).futureValue
@@ -33,7 +33,7 @@ class TimerSpec extends MetricsSpecLike with ScalaFutures {
       metricValue(testTimerName) should be <= 500.0
     }
 
-    "Properly time method completion time" ignore  {
+    "Properly time method completion time" ignore {
       val testTimerName = "method-timer-test"
       val timer = metrics.timer(MetricInfo(testTimerName, "Test timer description"))
       timer.time { Thread.sleep(10L) }
