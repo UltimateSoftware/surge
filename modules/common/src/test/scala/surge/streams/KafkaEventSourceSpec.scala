@@ -58,7 +58,6 @@ class KafkaEventSourceSpec
       override def actorSystem: ActorSystem = system
       override def tracer: Tracer = NoopTracerFactory.create()
 
-      override val openTelemetry: OpenTelemetry = OpenTelemetry.noop()
     }
   }
 
@@ -200,7 +199,6 @@ class KafkaEventSourceSpec
           override def tracer: Tracer = NoopTracerFactory.create()
           override def shouldParseMessage(key: String, headers: Map[String, Array[Byte]]): Boolean = !headers.contains(skipMessagesWithThisHeader)
 
-          override val openTelemetry: OpenTelemetry = OpenTelemetry.noop()
         }
         val probe = TestProbe()
         val testSink = testEventSink(probe)

@@ -37,8 +37,6 @@ trait RabbitDataSource[Key, Value] extends DataSource[Key, Value] {
 
   def bufferSize: Int
 
-  val openTelemetry: OpenTelemetry
-
   private val connectionProvider: AmqpConnectionProvider = AmqpUriConnectionProvider(rabbitMqUri)
 
   private def businessFlow(sink: DataHandler[Key, Value]): Flow[CommittableReadResult, CommittableReadResult, NotUsed] = {

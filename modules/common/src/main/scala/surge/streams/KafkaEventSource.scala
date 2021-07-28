@@ -23,7 +23,6 @@ trait EventSourceDeserialization[Event] {
   def formatting: SurgeEventReadFormatting[Event]
   def metrics: Metrics = Metrics.globalMetricRegistry
   def baseEventName: String = ""
-  val openTelemetry: OpenTelemetry
 
   protected lazy val eventDeserializationTimer: Timer = {
     val metricTags = if (baseEventName.nonEmpty) {
