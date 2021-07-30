@@ -66,7 +66,7 @@ class TimerSpec extends TestKit(ActorSystem("TimerSpec")) with MetricsSpecLike w
 
       implicit val ec = singleThreadedEc
 
-      Future { Thread.sleep(200) }
+      Future { Thread.sleep(200) } // cause 200ms "scheduling time" for the next future
 
       timer.timeFuture {
         Future { Thread.sleep(100) }
