@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+
+<head>
+<title>Repository Tour · Surge</title>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="description" content='surge-docs'/>
+<link href="https://fonts.googleapis.com/css?family=Roboto:100normal,100italic,300normal,300italic,400normal,400italic,500normal,500italic,700normal,700italic,900normal,900italicc" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="lib/jquery/jquery.min.js"></script>
+<script type="text/javascript" src="js/page.js"></script>
+<script type="text/javascript" src="js/warnOldVersion.js"></script>
+<script type="text/javascript" src="js/groups.js"></script>
+<link rel="stylesheet" type="text/css" href="lib/foundation/dist/foundation.min.css"/>
+<link rel="stylesheet" type="text/css" href="css/page.css"/>
+
+<!--
+<link rel="shortcut icon" href="images/favicon.ico" />
+-->
+</head>
+
+<body>
+<div class="off-canvas-wrapper">
+<div class="off-canvas-wrapper-inner" data-off-canvas-wrapper>
+
+<div class="off-canvas position-left" id="off-canvas-menu" data-off-canvas>
+<nav class="off-canvas-nav">
+<div class="nav-home">
+<a href="index.html" >
+<span class="home-icon">⌂</span>Surge
+</a>
+<div class="version-number">
+0.5.18*
+</div>
+</div>
+<div class="nav-toc">
+<ul>
+  <li><a href="overview.html" class="page">Overview</a></li>
+  <li><a href="command-usage.html" class="page">Command Side Usage</a></li>
+  <li><a href="tracing-usage.html" class="page">Open Telemetry Integration</a></li>
+  <li><a href="repository-tour.html" class="active page">Repository Tour</a></li>
+</ul>
+</div>
+
+</nav>
+</div>
+
+<div class="off-canvas-content" data-off-canvas-content>
+
+<header class="site-header expanded row">
+<div class="small-12 column">
+<a href="#" class="off-canvas-toggle hide-for-medium" data-toggle="off-canvas-menu"><svg class="svg-icon svg-icon-menu" version="1.1" id="Menu" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 20 20" enable-background="new 0 0 20 20" xml:space="preserve"> <path class="svg-icon-menu-path" fill="#53CDEC" d="M16.4,9H3.6C3.048,9,3,9.447,3,10c0,0.553,0.048,1,0.6,1H16.4c0.552,0,0.6-0.447,0.6-1C17,9.447,16.952,9,16.4,9z M16.4,13
+H3.6C3.048,13,3,13.447,3,14c0,0.553,0.048,1,0.6,1H16.4c0.552,0,0.6-0.447,0.6-1C17,13.447,16.952,13,16.4,13z M3.6,7H16.4
+C16.952,7,17,6.553,17,6c0-0.553-0.048-1-0.6-1H3.6C3.048,5,3,5.447,3,6C3,6.553,3.048,7,3.6,7z"/></svg>
+</a>
+<div class="title"><a href="index.html">Surge</a></div>
+
+<!--
+<a href="https://www.example.com" class="logo show-for-medium">logo</a>
+-->
+</div>
+</header>
+
+<div class="expanded row">
+
+<div class="medium-3 large-2 show-for-medium column">
+<nav class="site-nav">
+<div class="nav-home">
+<a href="index.html" >
+<span class="home-icon">⌂</span>Surge
+</a>
+<div class="version-number">
+0.5.18*
+</div>
+</div>
+<div class="nav-toc">
+<ul>
+  <li><a href="overview.html" class="page">Overview</a></li>
+  <li><a href="command-usage.html" class="page">Command Side Usage</a></li>
+  <li><a href="tracing-usage.html" class="page">Open Telemetry Integration</a></li>
+  <li><a href="repository-tour.html" class="active page">Repository Tour</a></li>
+</ul>
+</div>
+
+</nav>
+</div>
+
+<div class="small-12 medium-9 large-10 column">
+<section class="site-content">
+
+<span id="version-warning"></span>
+
+<div class="page-header row">
+<div class="medium-12 show-for-medium column">
+<div class="nav-breadcrumbs">
+<ul>
+  <li><a href="index.html">Surge</a></li>
+  <li>Repository Tour</li>
+</ul>
+</div>
+</div>
+</div>
+
+<div class="page-content row">
+<div class="small-12 large-9 column" id="docs">
+<h1><a href="#repository-tour" name="repository-tour" class="anchor"><span class="anchor-link"></span></a>Repository Tour</h1>
+<p><em>Note - this page is a work in progress</em></p>
+<h2><a href="#project-overview" name="project-overview" class="anchor"><span class="anchor-link"></span></a>Project Overview</h2>
+<p>The Surge Project Repo is broken down into multiple subprojects described below.</p>
+<h3><a href="#surge-subprojects-and-dependencies" name="surge-subprojects-and-dependencies" class="anchor"><span class="anchor-link"></span></a>Surge Subprojects and Dependencies</h3>
+<p><img src="images/component-diagram.png" alt="Surge Subprojects and Dependencies" /></p>
+<h2><a href="#subprojects" name="subprojects" class="anchor"><span class="anchor-link"></span></a>Subprojects</h2>
+<h3><a href="#common" name="common" class="anchor"><span class="anchor-link"></span></a>Common</h3>
+<ul>
+  <li>Base traits</li>
+  <li>Serializers and Deserializers</li>
+  <li>Kafka Consumer Group based Clustering for Akka</li>
+  <li>Akka Streams over Kafka Streams
+    <ul>
+      <li>Data Sinks, Sources and Pipelines</li>
+    </ul>
+  </li>
+  <li>Kafka Aggregate State Stores</li>
+  <li>Exceptions</li>
+  <li>Observability</li>
+  <li>Health Monitoring</li>
+  <li>Metrics</li>
+  <li>OpenTracing</li>
+</ul>
+<h3><a href="#command-engine-core" name="command-engine-core" class="anchor"><span class="anchor-link"></span></a>Command Engine Core</h3>
+<ul>
+  <li>Command Model Traits</li>
+  <li>Akka based Command Processing Engine</li>
+  <li>Exceptions</li>
+</ul>
+<h3><a href="#command-engine-scala-dsl" name="command-engine-scala-dsl" class="anchor"><span class="anchor-link"></span></a>Command Engine Scala DSL</h3>
+<ul>
+  <li>User Code facing Scala API&rsquo;s</li>
+</ul>
+<h3><a href="#command-engine-java-dsl" name="command-engine-java-dsl" class="anchor"><span class="anchor-link"></span></a>Command Engine Java DSL</h3>
+<ul>
+  <li>User Code facing Java API&rsquo;s</li>
+  <li>Provides for conversion of monad types (Option, Collections, Future)</li>
+</ul>
+<h3><a href="#rabbitmq-support" name="rabbitmq-support" class="anchor"><span class="anchor-link"></span></a>RabbitMQ Support</h3>
+<ul>
+  <li>Provides Data Sinks and Sources for RabbitMQ</li>
+</ul>
+<h3><a href="#metrics" name="metrics" class="anchor"><span class="anchor-link"></span></a>Metrics</h3>
+<ul>
+  <li>Provides Metrics Model used to instrument other Surge components</li>
+  <li>Provides a simple interface to retrieve messages for submission to monitoring platforms</li>
+</ul>
+<h3><a href="#docs" name="docs" class="anchor"><span class="anchor-link"></span></a>Docs</h3>
+<ul>
+  <li>These Docs</li>
+  <li>Doc Site generated using Paradox</li>
+  <li>Docs use tested examples as example snippets</li>
+</ul>
+<h2><a href="#dependencies" name="dependencies" class="anchor"><span class="anchor-link"></span></a>Dependencies</h2>
+<h3><a href="#akka" name="akka" class="anchor"><span class="anchor-link"></span></a>Akka</h3>
+<p><a href="https://akka.io/docs/">Akka Docs</a></p>
+<h3><a href="#alpakka-kafka-and-amqp" name="alpakka-kafka-and-amqp" class="anchor"><span class="anchor-link"></span></a>Alpakka Kafka and AMQP</h3>
+<p><a href="https://doc.akka.io/docs/alpakka/current/index.html">Alpakka Docs</a></p>
+<h3><a href="#kafka-streams-and-clients" name="kafka-streams-and-clients" class="anchor"><span class="anchor-link"></span></a>Kafka Streams and Clients</h3>
+<p><a href="https://kafka.apache.org/documentation/">Kafka Docs</a></p>
+<h3><a href="#play-json" name="play-json" class="anchor"><span class="anchor-link"></span></a>Play Json</h3>
+<p><a href="https://www.playframework.com/documentation/2.8.x/ScalaJson">Play Json Docs</a></p>
+<h3><a href="#paradox-plugin" name="paradox-plugin" class="anchor"><span class="anchor-link"></span></a>Paradox Plugin</h3>
+<p><a href="https://developer.lightbend.com/docs/paradox/current/index.html">Paradox Docs</a></p>
+<div class="source-github">
+The source code for this page can be found <a href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/main/paradox/repository-tour.md">here</a>.
+</div>
+
+</div>
+<div class="large-3 show-for-large column" data-sticky-container>
+<nav class="sidebar sticky" data-sticky data-anchor="docs" data-sticky-on="large">
+<div class="page-nav">
+<div class="nav-title">On this page:</div>
+<div class="nav-toc">
+<ul>
+  <li><a href="repository-tour.html#repository-tour" class="header">Repository Tour</a>
+  <ul>
+    <li><a href="repository-tour.html#project-overview" class="header">Project Overview</a></li>
+    <li><a href="repository-tour.html#subprojects" class="header">Subprojects</a></li>
+    <li><a href="repository-tour.html#dependencies" class="header">Dependencies</a></li>
+  </ul></li>
+</ul>
+</div>
+</div>
+</nav>
+</div>
+</div>
+
+</section>
+</div>
+
+</div>
+
+<footer class="site-footer">
+
+<section class="site-footer-nav">
+<div class="expanded row">
+<div class="small-12 large-offset-2 large-10 column">
+<div class="row site-footer-content">
+
+<div class="small-12 medium-4 large-3 text-center column">
+<div class="nav-links">
+<ul>
+<!-- <li><a href="https://www.example.com/products/">Products</a> -->
+</ul>
+</div>
+</div>
+
+</div>
+</div>
+</div>
+</section>
+
+<section class="site-footer-base">
+<div class="expanded row">
+<div class="small-12 large-offset-2 large-10 column">
+<div class="row site-footer-content">
+
+<div class="small-12 text-center large-9 column">
+
+<!--
+<div class="copyright">
+<span class="text">&copy; 2021</span>
+<a href="https://www.example.com" class="logo">logo</a>
+</div>
+-->
+</div>
+
+</div>
+</div>
+</div>
+</section>
+</footer>
+
+</div>
+</div>
+</div>
+</body>
+
+<script type="text/javascript" src="lib/foundation/dist/foundation.min.js"></script>
+<script type="text/javascript">jQuery(document).foundation();</script>
+<script type="text/javascript" src="js/magellan.js"></script>
+
+<style type="text/css">@import "lib/prettify/prettify.css";</style>
+<script type="text/javascript" src="lib/prettify/prettify.js"></script>
+<script type="text/javascript" src="lib/prettify/lang-scala.js"></script>
+<script type="text/javascript">jQuery(function(){window.prettyPrint && prettyPrint()});</script>
+<script type="text/javascript">jQuery(function(jq){initOldVersionWarnings(jq, '0.5.18-SNAPSHOT', '')});</script>
+
+
+</html>
