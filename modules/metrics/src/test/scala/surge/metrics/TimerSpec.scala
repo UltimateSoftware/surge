@@ -115,10 +115,8 @@ class TimerSpec extends TestKit(ActorSystem("TimerSpec")) with MetricsSpecLike w
     "properly time method completion time" in {
       val testTimerName = "method-timer-test"
       val timer = metrics.timer(MetricInfo(testTimerName, "Test timer description"))
-      timer.time { Instant.now() }
-      metricValue(testTimerName) should be >= 0.0
-      metricValue(testTimerName) should be <= 10.0
-
+      timer.time { Thread.sleep(10L) }
+      metricValue(testTimerName) shouldEqual 10.0 +- 4 // Give it a little wiggle room
     }
   }
 }

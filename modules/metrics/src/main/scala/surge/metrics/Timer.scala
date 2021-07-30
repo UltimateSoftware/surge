@@ -11,12 +11,13 @@ trait Timer {
 
   def timeFuture[T](body: => Future[T])(implicit ec: ExecutionContext): Future[T] = {
     val startTime = Instant.now()
-    body.transform { result: Try[T] =>
+    val result: Future[T] = body
+    body.onComplete { _ =>
       val endTime = Instant.now()
       val tookMillis = endTime.toEpochMilli - startTime.toEpochMilli
       recordTime(tookMillis)
-      result
     }
+    result
   }
 
   def time[T](block: => T): T = {
