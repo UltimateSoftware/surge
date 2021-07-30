@@ -45,6 +45,7 @@ class TimerSpec extends TestKit(ActorSystem("TimerSpec")) with MetricsSpecLike w
       val testTimerName = "future-timer-test"
       val timer = metrics.timer(MetricInfo(testTimerName, "Test timer description"))
 
+
       timer.timeFuture { akka.pattern.after(50.millis)(Future.successful(())) }
 
       val marginErr = 25.0
@@ -55,6 +56,7 @@ class TimerSpec extends TestKit(ActorSystem("TimerSpec")) with MetricsSpecLike w
         // This test has been as much as 109 ms off when run in pipeline. Increased upper bound to minimize flakiness
         metricValue(testTimerName) should be >= 50.0
         metricValue(testTimerName) should be <= 50.0 + marginErr
+
       }
     }
 

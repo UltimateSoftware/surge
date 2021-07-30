@@ -2,43 +2,42 @@
 
 package surge.kafka.streams
 
-import java.util.Properties
-
 import akka.actor.Props
 import akka.pattern.pipe
-import com.typesafe.config.ConfigFactory
+import com.typesafe.config.Config
 import org.apache.kafka.clients.admin.ListOffsetsOptions
 import org.apache.kafka.clients.consumer.ConsumerConfig
-import org.apache.kafka.common.{ IsolationLevel, TopicPartition }
 import org.apache.kafka.common.serialization.Serdes.ByteArraySerde
+import org.apache.kafka.common.{ IsolationLevel, TopicPartition }
 import org.apache.kafka.streams.errors.InvalidStateStoreException
 import org.apache.kafka.streams.kstream.Materialized
-import org.apache.kafka.streams.kstream.internals.{ KTableImpl, KTableImplExtensions }
 import org.apache.kafka.streams.state.QueryableStoreTypes
 import org.apache.kafka.streams.{ StoreQueryParameters, StreamsConfig }
-import surge.kafka.{ KafkaAdminClient, KafkaTopic, LagInfo }
 import surge.kafka.streams.AggregateStateStoreKafkaStreamsImpl._
 import surge.kafka.streams.HealthyActor.GetHealth
+import surge.kafka.{ KafkaAdminClient, KafkaTopic, LagInfo }
 import surge.metrics.Metrics
 
+import java.util.Properties
 import scala.concurrent.Future
 
 private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
     aggregateName: String,
     stateTopic: KafkaTopic,
     partitionTrackerProvider: KafkaStreamsPartitionTrackerProvider,
-    aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) => Boolean,
     applicationHostPort: Option[String],
     override val settings: AggregateStateStoreKafkaStreamsImplSettings,
-    override val metrics: Metrics)
+    override val metrics: Metrics,
+    config: Config)
     extends KafkaStreamLifeCycleManagement[String, Array[Byte], KafkaByteStreamsConsumer, Array[Byte]] {
 
   import DefaultSerdes._
   import ImplicitConversions._
-  import KTableImplExtensions._
   import context.dispatcher
 
-  private val persistencePlugin = SurgeKafkaStreamsPersistencePluginLoader.load()
+  override protected val enableMetrics: Boolean = settings.enableMetrics
+
+  private val persistencePlugin = SurgeKafkaStreamsPersistencePluginLoader.load(config)
 
   val aggregateStateStoreName: String = settings.storeName
 
@@ -57,9 +56,7 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
     StreamsConfig.STATE_DIR_CONFIG -> settings.stateDirectory,
     StreamsConfig.ROCKSDB_CONFIG_SETTER_CLASS_CONFIG -> classOf[AggregateStreamsRocksDBConfig].getName)
 
-  val validationProcessor = new ValidationProcessor[Array[Byte]](aggregateName, aggregateValidator)
-
-  private val adminClient = KafkaAdminClient(settings.brokers)
+  private val adminClient = KafkaAdminClient(config, settings.brokers)
 
   override def subscribeListeners(consumer: KafkaByteStreamsConsumer): Unit = {
     // In addition to the listener added by the KafkaStreamLifeCycleManagement we need to also subscribe this one
@@ -80,16 +77,7 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
       aggregateStoreMaterializedBase
     }
 
-    val aggKTable = consumer.builder.table(stateTopic.name, aggregateStoreMaterialized)
-
-    // Reach into the underlying implementation and tell it to send the old value for an aggregate
-    // along with the newly updated value. The old value is only used for validation
-    val aggKTableJavaImpl = aggKTable.inner.asInstanceOf[KTableImpl[String, Array[Byte], Array[Byte]]]
-    aggKTableJavaImpl.sendOldValues()
-
-    // Run business logic validation and transform values from an aggregate into metadata about
-    // the processed record including topic/partition, and offset of the message in Kafka
-    aggKTableJavaImpl.toStreamWithChanges.transformValues(validationProcessor.supplier)
+    consumer.builder.table(stateTopic.name, aggregateStoreMaterialized)
   }
 
   override def createQueryableStore(consumer: KafkaByteStreamsConsumer): KafkaStreamsKeyValueStore[String, Array[Byte]] = {
@@ -107,6 +95,7 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
     }
 
     KafkaByteStreamsConsumer(
+      config = config,
       brokers = settings.brokers,
       applicationId = settings.applicationId,
       kafkaConfig = streamsConfig,
@@ -190,12 +179,11 @@ private[streams] object AggregateStateStoreKafkaStreamsImpl {
       aggregateName: String,
       stateTopic: KafkaTopic,
       partitionTrackerProvider: KafkaStreamsPartitionTrackerProvider,
-      aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) => Boolean,
       applicationHostPort: Option[String],
       settings: AggregateStateStoreKafkaStreamsImplSettings,
-      metrics: Metrics): Props = {
-    Props(
-      new AggregateStateStoreKafkaStreamsImpl(aggregateName, stateTopic, partitionTrackerProvider, aggregateValidator, applicationHostPort, settings, metrics))
+      metrics: Metrics,
+      config: Config): Props = {
+    Props(new AggregateStateStoreKafkaStreamsImpl(aggregateName, stateTopic, partitionTrackerProvider, applicationHostPort, settings, metrics, config))
   }
 
   case class AggregateStateStoreKafkaStreamsImplSettings(
@@ -207,12 +195,12 @@ private[streams] object AggregateStateStoreKafkaStreamsImpl {
       standByReplicas: Int,
       commitInterval: Int,
       stateDirectory: String,
-      clearStateOnStartup: Boolean)
+      clearStateOnStartup: Boolean,
+      enableMetrics: Boolean)
       extends KafkaStreamSettings
 
   object AggregateStateStoreKafkaStreamsImplSettings {
-    def apply(applicationId: String, aggregateName: String, clientId: String): AggregateStateStoreKafkaStreamsImplSettings = {
-      val config = ConfigFactory.load()
+    def apply(config: Config, applicationId: String, aggregateName: String, clientId: String): AggregateStateStoreKafkaStreamsImplSettings = {
       val aggregateStateStoreName: String = s"${aggregateName}AggregateStateStore"
       val brokers = config.getString("kafka.brokers").split(",").toVector
       val cacheHeapPercentage = config.getDouble("kafka.streams.cache-heap-percentage")
@@ -222,6 +210,7 @@ private[streams] object AggregateStateStoreKafkaStreamsImpl {
       val commitInterval = config.getInt("kafka.streams.commit-interval-ms")
       val stateDirectory = config.getString("kafka.streams.state-dir")
       val clearStateOnStartup = config.getBoolean("kafka.streams.wipe-state-on-start")
+      val enableMetrics = config.getBoolean("surge.kafka-streams.enable-kafka-metrics")
 
       new AggregateStateStoreKafkaStreamsImplSettings(
         storeName = aggregateStateStoreName,
@@ -232,7 +221,8 @@ private[streams] object AggregateStateStoreKafkaStreamsImpl {
         standByReplicas = standbyReplicas,
         commitInterval = commitInterval,
         stateDirectory = stateDirectory,
-        clearStateOnStartup = clearStateOnStartup)
+        clearStateOnStartup = clearStateOnStartup,
+        enableMetrics = enableMetrics)
     }
   }
 }

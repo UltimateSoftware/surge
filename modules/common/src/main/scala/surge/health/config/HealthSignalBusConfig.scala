@@ -2,4 +2,4 @@
 
 package surge.health.config
 
-case class HealthSignalBusConfig(signalTopic: String, registrationTopic: String, allowedSubscriberCount: Int)
+case class HealthSignalBusConfig(streamingEnabled: Boolean, signalTopic: String, registrationTopic: String, allowedSubscriberCount: Int)

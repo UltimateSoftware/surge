@@ -2,7 +2,7 @@
 
 package surge.metrics
 
-import com.typesafe.config.ConfigFactory
+import com.typesafe.config.Config
 import org.slf4j.LoggerFactory
 
 trait MetricValueProvider {
@@ -41,9 +41,10 @@ case class Metric(info: MetricInfo, level: RecordingLevel, valueProvider: Metric
 }
 
 object MetricsConfig {
-  private val config = ConfigFactory.load()
-  private val configRecordingLevel = RecordingLevel.fromString(config.getString("metrics.recording-level"))
-  def fromConfig: MetricsConfig = MetricsConfig(recordingLevel = configRecordingLevel)
+  def fromConfig(config: Config): MetricsConfig = {
+    val configRecordingLevel = RecordingLevel.fromString(config.getString("metrics.recording-level"))
+    MetricsConfig(recordingLevel = configRecordingLevel)
+  }
 }
 case class MetricsConfig(recordingLevel: RecordingLevel)
 
