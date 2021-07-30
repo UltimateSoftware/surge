@@ -9,10 +9,9 @@ import org.scalatest.concurrent.Eventually
 import org.scalatest.concurrent.PatienceConfiguration.Timeout
 import org.scalatest.time.{ Millis, Span }
 
-import java.time.Instant
-import scala.concurrent.duration._
 import java.util.concurrent.Executors
 import scala.collection.mutable
+import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, ExecutionContextExecutor, Future }
 
 class TimerSpec extends TestKit(ActorSystem("TimerSpec")) with MetricsSpecLike with Eventually with BeforeAndAfterAll {
