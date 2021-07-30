@@ -59,7 +59,7 @@ trait KTableInitializationSupport[Model] {
   }
 
   private def fetchState(initializationAttempts: Int)(implicit ec: ExecutionContext): Unit = {
-    val fetchedStateFut = initializationMetrics.stateInitializationTimer.time(kafkaStreamsCommand.getAggregateBytes(aggregateId))
+    val fetchedStateFut = initializationMetrics.stateInitializationTimer.timeFuture { kafkaStreamsCommand.getAggregateBytes(aggregateId) }
 
     fetchedStateFut
       .map { state =>

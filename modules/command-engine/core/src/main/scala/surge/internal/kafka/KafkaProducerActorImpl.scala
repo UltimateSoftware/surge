@@ -333,7 +333,7 @@ class KafkaProducerActorImpl(
 
   private def doFlushRecords(state: KafkaProducerActorState, records: Seq[ProducerRecord[String, Array[Byte]]]): Unit = {
     val senders = state.pendingWrites.map(_.sender)
-    val futureMsg = kafkaPublisherTimer.time {
+    val futureMsg = kafkaPublisherTimer.timeFuture {
       Try(kafkaPublisher.beginTransaction()) match {
         case Failure(f: ProducerFencedException) =>
           producerFenced(state, f)

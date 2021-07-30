@@ -256,7 +256,7 @@ class PersistentActor[S, M, R, E](
   }
 
   private def processMessage(state: InternalActorState, ProcessMessage: ProcessMessage[M]): Future[Either[R, HandledMessageResult[S, E]]] = {
-    metrics.messageHandlingTimer.time(businessLogic.model.handle(surgeContext(), state.stateOpt, ProcessMessage.message))
+    metrics.messageHandlingTimer.timeFuture { businessLogic.model.handle(surgeContext(), state.stateOpt, ProcessMessage.message) }
   }
 
   private def handle(state: InternalActorState, applyEventEnvelope: ApplyEvent[E]): Unit = {
