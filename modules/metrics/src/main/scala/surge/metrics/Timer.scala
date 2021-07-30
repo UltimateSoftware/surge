@@ -3,28 +3,20 @@
 package surge.metrics
 
 import java.time.Instant
-import java.util.concurrent.Executors
-
-import com.typesafe.config.ConfigFactory
-
-import scala.concurrent.{ ExecutionContext, ExecutionContextExecutor, Future }
-
-private object TimerExecutionContext {
-  private val config = ConfigFactory.load()
-  private val timerThreadPoolSize: Int = config.getInt("metrics.timer-thread-pool-size")
-  val context: ExecutionContextExecutor = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(timerThreadPoolSize))
-}
+import scala.concurrent.{ ExecutionContext, Future }
+import scala.util.Try
 
 trait Timer {
   def recordTime(tookMillis: Long): Unit
 
-  def time[T](fut: Future[T]): Future[T] = {
+  def timeFuture[T](body: => Future[T])(implicit ec: ExecutionContext): Future[T] = {
     val startTime = Instant.now()
-    fut.onComplete { _ =>
+    val fut: Future[T] = body
+    fut.onComplete { _: Try[T] =>
       val endTime = Instant.now()
       val tookMillis = endTime.toEpochMilli - startTime.toEpochMilli
       recordTime(tookMillis)
-    }(TimerExecutionContext.context)
+    }
     fut
   }
 
