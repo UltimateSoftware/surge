@@ -200,7 +200,7 @@ class KafkaStreamManagerActor[Key, Value](
   override def receive: Receive = stopped
 
   private def stopped: Receive = {
-    case StartConsuming => startConsumer(tracer)
+    case StartConsuming => startConsumer
     case StopConsuming  => sender() ! SuccessfullyStopped(localAddress, self)
     case GetMetrics     => sender() ! MetricsWrapper.empty
     case RegisterSelf   => registerSelf()
@@ -221,7 +221,7 @@ class KafkaStreamManagerActor[Key, Value](
     case _            => stash()
   }
 
-  private def startConsumer(tracer: Tracer): Unit = {
+  private def startConsumer: Unit = {
     log.info("Starting consumer for topic {} with client id {}", Seq(topicName, clientId): _*)
     val control = new AtomicReference[Consumer.Control](Consumer.NoopControl)
 
