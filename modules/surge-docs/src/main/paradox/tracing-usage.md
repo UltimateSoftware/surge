@@ -21,7 +21,7 @@ Scala
 Java
 :    Java examples coming soon..
 
-#### Screenshot
+#### Screenshot (Honeycomb)
 
 ![Honeycomb Screenshot](images/tracing-with-honeycomb.png)
 
@@ -40,6 +40,6 @@ Scala
 Java
 :    Java examples coming soon..
 
-#### Screenshot
+#### Screenshot (Jaeger)
 
 ![Jaeger Screenshot](images/tracing-with-jaeger.png)

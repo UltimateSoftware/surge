@@ -4,8 +4,8 @@
 
 * [Overview](overview.md)
 * [Command Service](command-usage.md)
-* [Query Service](consumer-usage.md)  
 * [Open Tracing Integration](tracing-usage.md)
+* [Consumer Usage](consumer-usage.md)
 
 @@@
 
