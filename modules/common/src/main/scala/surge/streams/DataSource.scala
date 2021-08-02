@@ -40,7 +40,7 @@ trait KafkaDataSource[Key, Value] extends DataSource[Key, Value] {
 
   def metrics: Metrics = Metrics.globalMetricRegistry
 
-  def tracer: Tracer = NoopTracerFactory.create()
+  def tracer: Tracer
 
   def additionalKafkaProperties: Properties = new Properties()
 

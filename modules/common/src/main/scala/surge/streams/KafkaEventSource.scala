@@ -106,7 +106,7 @@ trait KafkaEventSource[Event] extends EventSource[Event] with KafkaDataSource[St
     super.to(dataHandler(sink), consumerGroup, autoStart)
   }
 
-  private[streams] def to(consumerSettings: ConsumerSettings[String, Array[Byte]])(sink: EventHandler[Event], autoStart: Boolean): DataPipeline = {
+  def to(consumerSettings: ConsumerSettings[String, Array[Byte]])(sink: EventHandler[Event], autoStart: Boolean): DataPipeline = {
     super.to(consumerSettings)(dataHandler(sink), autoStart)
   }
 }
