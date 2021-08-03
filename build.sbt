@@ -83,6 +83,8 @@ lazy val `surge-engine-command-javadsl` =
 
 lazy val `surge-metrics` = (project in file("modules/metrics")).settings(
   libraryDependencies ++= Seq(
+    Akka.actor,
+    Akka.testKit,
     Kafka.kafkaClients,
     PlayFramework.json,
     scalaCollectionCompat,
