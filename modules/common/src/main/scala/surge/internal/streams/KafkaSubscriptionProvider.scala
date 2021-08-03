@@ -9,6 +9,7 @@ import akka.kafka.scaladsl.{ Committer, Consumer }
 import akka.kafka.{ AutoSubscription, CommitterSettings, ConsumerSettings, Subscription }
 import akka.stream.scaladsl.{ Flow, Source }
 import com.typesafe.config.Config
+import io.opentelemetry.api.trace.Tracer
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.slf4j.LoggerFactory
 import surge.internal.akka.cluster.ActorSystemHostAwareness
@@ -20,6 +21,8 @@ import scala.concurrent.duration.Duration
 
 trait KafkaSubscriptionProvider[Key, Value] {
   protected val config: Config
+
+  val tracer: Tracer
 
   private lazy val reuseConsumerId = config.getBoolean("surge.kafka-reuse-consumer-id")
   // Set this uniquely per manager actor so that restarts of the Kafka stream don't cause a rebalance of the consumer group
@@ -53,7 +56,7 @@ class KafkaOffsetManagementSubscriptionProvider[Key, Value](
     topicName: String,
     subscription: Subscription,
     baseConsumerSettings: ConsumerSettings[Key, Value],
-    override val businessFlow: DataHandler[Key, Value])
+    override val businessFlow: DataHandler[Key, Value])(override val tracer: Tracer)
     extends KafkaSubscriptionProvider[Key, Value] {
 
   private val log = LoggerFactory.getLogger(getClass)
@@ -61,7 +64,7 @@ class KafkaOffsetManagementSubscriptionProvider[Key, Value](
   private val committerMaxInterval = config.getDuration("surge.kafka-event-source.committer.max-interval")
   private val committerParallelism = config.getInt("surge.kafka-event-source.committer.parallelism")
 
-  private val kafkaFlow = KafkaStreamManager.wrapBusinessFlow(businessFlow.dataHandler)
+  private val kafkaFlow = KafkaStreamManager.wrapBusinessFlow(businessFlow.dataHandler)(tracer)
   override def createSubscription(actorSystem: ActorSystem): Source[Done, Consumer.Control] = {
     val committerSettings =
       CommitterSettings(actorSystem).withMaxBatch(committerMaxBatch).withMaxInterval(committerMaxInterval).withParallelism(committerParallelism)
@@ -78,10 +81,10 @@ class ManualOffsetManagementSubscriptionProvider[Key, Value](
     baseConsumerSettings: ConsumerSettings[Key, Value],
     override val businessFlow: DataHandler[Key, Value],
     offsetManager: OffsetManager,
-    maxPartitions: Int = 10)
+    maxPartitions: Int = 10)(override val tracer: Tracer)
     extends KafkaSubscriptionProvider[Key, Value] {
   private val log = LoggerFactory.getLogger(getClass)
-  private val kafkaFlow = KafkaStreamManager.wrapBusinessFlow(businessFlow.dataHandler)
+  private val kafkaFlow = KafkaStreamManager.wrapBusinessFlow(businessFlow.dataHandler)(tracer)
   override def createSubscription(actorSystem: ActorSystem): Source[Done, Consumer.Control] = {
     val consumerSettings = createConsumerSettings(actorSystem, baseConsumerSettings)
     log.debug("Creating Kafka source for topic {} with client id {}", Seq(topicName, clientId): _*)
