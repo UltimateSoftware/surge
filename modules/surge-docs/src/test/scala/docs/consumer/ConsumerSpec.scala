@@ -10,6 +10,7 @@ import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator
 import io.opentelemetry.context.propagation.ContextPropagators
 import io.opentelemetry.exporter.jaeger.JaegerGrpcSpanExporter
 import io.opentelemetry.sdk.OpenTelemetrySdk
+import io.opentelemetry.sdk.resources.Resource
 import io.opentelemetry.sdk.trace.SdkTracerProvider
 import io.opentelemetry.sdk.trace.`export`.BatchSpanProcessor
 import org.apache.kafka.common.serialization.Deserializer
@@ -35,6 +36,7 @@ class ConsumerSpec {
 
     val sdkTracerProvider = SdkTracerProvider.builder()
       .addSpanProcessor(BatchSpanProcessor.builder(exporter).build())
+      .setResource(Resource.builder().put("service.name", "bank").build())
       .build()
 
     val openTelemetry: OpenTelemetrySdk = OpenTelemetrySdk.builder()
@@ -45,7 +47,7 @@ class ConsumerSpec {
     openTelemetry
   }
 
-  implicit val tracer = openTelemetry.getTracer("MyApp", "0.1")
+  implicit val myTracer = openTelemetry.getTracer("MyApp", "0.1")
 
   implicit val system = ActorSystem()
 
@@ -59,7 +61,7 @@ class ConsumerSpec {
 
     override def actorSystem: ActorSystem = system
 
-    override def tracer: Tracer = tracer
+    override def tracer: Tracer = myTracer
 
   }
 
@@ -75,9 +77,11 @@ class ConsumerSpec {
 
   val eventSink: EventSink[String] = new EventSink[String] {
     override def handleEvent(key: String, event: String, headers: Map[String, Array[Byte]]): Future[Any] = {
-      // do something with the event
+      // do something with the event (i.e. save to ElasticSearch)
       Future.successful(Done)
     }
+
+    override def sinkName: String = "ElasticSearch"
 
     override def partitionBy(key: String, event: String, headers: Map[String, Array[Byte]]): String =
       event

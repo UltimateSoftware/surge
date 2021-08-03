@@ -17,3 +17,7 @@ Scala
 
 Java
 :    Java examples coming soon...
+
+## Tracing with Jaeger
+
+![Jaeger Screenshot](images/consumer-tracing-with-jaeger.png)
