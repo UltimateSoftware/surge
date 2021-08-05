@@ -1,9 +1,11 @@
 package com.example.command;
 
-public  abstract class BankAccountCommand {
-    protected int accountNumber;
+import java.util.UUID;
 
-    public int getAccountNumber() {
+public  abstract class BankAccountCommand {
+    protected UUID accountNumber;
+
+    public UUID getAccountNumber() {
         return accountNumber;
     }
 }

@@ -1,11 +1,12 @@
 package com.example.event;
 
 
+import java.util.UUID;
 
 public abstract class BankAccountEvent {
-    protected int accountNumber;
+    protected UUID accountNumber;
 
-    public int getAccountNumber() {
+    public UUID getAccountNumber() {
         return accountNumber;
     }
 }
