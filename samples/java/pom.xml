@@ -33,13 +33,6 @@
             <artifactId>jackson-core</artifactId>
             <version>2.12.4</version>
         </dependency>
-        <dependency>
-            <groupId>org.apache.kafka</groupId>
-            <artifactId>kafka-streams</artifactId>
-            <version>2.7.0</version>
-        </dependency>
-
-
     </dependencies>
 
 </project>

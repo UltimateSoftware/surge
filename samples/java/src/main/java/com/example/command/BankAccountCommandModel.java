@@ -10,14 +10,16 @@ import com.example.account.DebitAccount;
 import surge.javadsl.command.AggregateCommandModel;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
 public class BankAccountCommandModel implements AggregateCommandModel<BankAccount, BankAccountCommand, BankAccountEvent> {
     @Override
     public List<BankAccountEvent> processCommand(Optional<BankAccount> aggregate, BankAccountCommand command) {
-        List<BankAccountEvent> list = new ArrayList<>();
+
         if (command instanceof CreateAccount) {
+            List<BankAccountEvent> list=null;
             if (aggregate.isPresent()) {
                 return new ArrayList<>();
             } else {
@@ -26,7 +28,7 @@ public class BankAccountCommandModel implements AggregateCommandModel<BankAccoun
                         createAccount.getAccountOwner()
                         , createAccount.getSecurityCode()
                         , createAccount.getInitialBalance());
-                list.add(bankAccountCreated);
+                return Collections.singletonList(bankAccountCreated);
 
             }
         }
@@ -36,7 +38,7 @@ public class BankAccountCommandModel implements AggregateCommandModel<BankAccoun
                 BankAccount bankAccount = aggregate.get();
                 BankAccountUpdated bankAccountUpdated = new BankAccountUpdated(bankAccount.getAccountId()
                         , bankAccount.getBalance() + creditAccount.getAmount());
-                list.add(bankAccountUpdated);
+                return Collections.singletonList(bankAccountUpdated);
 
             } else {
                 throw new RuntimeException("Account does not exist");
@@ -49,7 +51,7 @@ public class BankAccountCommandModel implements AggregateCommandModel<BankAccoun
                 if (bankAccount.getBalance() >= debitAccount.getDebitAmount()) {
                     BankAccountUpdated bankAccountUpdated = new BankAccountUpdated(bankAccount.getAccountId(),
                             bankAccount.getBalance() - debitAccount.getDebitAmount());
-                    list.add(bankAccountUpdated);
+                    return Collections.singletonList(bankAccountUpdated);
 
                 } else {
                     throw new RuntimeException("InsufficientFund");
@@ -58,7 +60,7 @@ public class BankAccountCommandModel implements AggregateCommandModel<BankAccoun
                 throw new RuntimeException("Account does not exist");
             }
         }
-        return list;
+        throw new RuntimeException("Invalid event command");
     }
 
     @Override

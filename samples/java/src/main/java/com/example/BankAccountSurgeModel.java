@@ -15,7 +15,7 @@ import surge.javadsl.command.SurgeCommandBusinessLogic;
 import surge.kafka.KafkaTopic;
 import java.util.UUID;
 
-public abstract class BankAccountSurgeModel extends SurgeCommandBusinessLogic<UUID, BankAccount, BankAccountCommand,
+public class BankAccountSurgeModel extends SurgeCommandBusinessLogic<UUID, BankAccount, BankAccountCommand,
         BankAccountEvent> {
     @Override
     public AggregateCommandModel<BankAccount, BankAccountCommand, BankAccountEvent> commandModel() {
@@ -34,7 +34,7 @@ public abstract class BankAccountSurgeModel extends SurgeCommandBusinessLogic<UU
 
     @Override
     public KafkaTopic eventsTopic() {
-        return new KafkaTopic("bank-account-events  ");
+        return new KafkaTopic("bank-account-events");
     }
 
     @Override
