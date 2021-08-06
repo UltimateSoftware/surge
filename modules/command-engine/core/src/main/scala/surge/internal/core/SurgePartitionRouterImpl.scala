@@ -3,10 +3,10 @@
 package surge.internal.core
 
 import java.util.regex.Pattern
-
 import akka.actor._
 import akka.pattern.ask
 import akka.util.Timeout
+import com.typesafe.config.Config
 import org.slf4j.LoggerFactory
 import surge.core.{ Ack, Controllable, SurgePartitionRouter }
 import surge.health.HealthSignalBusTrait
@@ -23,6 +23,7 @@ import scala.languageFeature.postfixOps
 import scala.util.{ Failure, Success, Try }
 
 private[surge] final class SurgePartitionRouterImpl(
+    config: Config,
     system: ActorSystem,
     partitionTracker: KafkaConsumerPartitionAssignmentTracker,
     businessLogic: SurgeModel[_, _, _, _],
@@ -35,6 +36,7 @@ private[surge] final class SurgePartitionRouterImpl(
   private val log = LoggerFactory.getLogger(getClass)
 
   private val shardRouterProps = KafkaPartitionShardRouterActor.props(
+    config,
     partitionTracker,
     businessLogic.partitioner,
     businessLogic.kafka.stateTopic,
@@ -47,26 +49,13 @@ private[surge] final class SurgePartitionRouterImpl(
   override def start(): Future[Ack] = {
     implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PartitionRouter.askTimeout)
 
-    actorRegion
-      .ask(ActorLifecycleManagerActor.Start)
-      .map {
-        case _: ActorLifecycleManagerActor.Ack =>
-          Ack()
-        case _ =>
-          throw new RuntimeException("Unexpected response from actor start request")
-      }
-      .andThen(registrationCallback())
+    actorRegion.ask(ActorLifecycleManagerActor.Start).mapTo[Ack].andThen(registrationCallback())
   }
 
   override def stop(): Future[Ack] = {
     implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PartitionRouter.askTimeout)
 
-    actorRegion.ask(ActorLifecycleManagerActor.Stop).map {
-      case ack: ActorLifecycleManagerActor.Ack =>
-        Ack()
-      case _ =>
-        throw new RuntimeException("Unexpected response from actor stop request")
-    }
+    actorRegion.ask(ActorLifecycleManagerActor.Stop).mapTo[Ack]
   }
 
   override def shutdown(): Future[Ack] = stop()
@@ -99,7 +88,7 @@ private[surge] final class SurgePartitionRouterImpl(
       registrationResult.onComplete {
         case Failure(exception) =>
           log.error(s"$getClass registration failed", exception)
-        case Success(done) =>
+        case Success(_) =>
           log.debug(s"$getClass registration succeeded")
       }
     case Failure(error) =>

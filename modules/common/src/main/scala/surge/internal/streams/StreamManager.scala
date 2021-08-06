@@ -10,8 +10,8 @@ import akka.pattern._
 import akka.stream.scaladsl.{ Flow, RestartSource, Sink }
 import akka.util.Timeout
 import akka.{ Done, NotUsed }
-import com.typesafe.config.ConfigFactory
-import io.opentelemetry.api.trace.Tracer
+import com.typesafe.config.Config
+import io.opentelemetry.api.trace.{ Span, Tracer }
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.serialization.Deserializer
 import org.apache.kafka.common.{ Metric, MetricName }
@@ -24,7 +24,6 @@ import surge.streams.DataPipeline._
 import surge.streams.replay.{ EventReplaySettings, EventReplayStrategy, ReplayControl, ReplayControlContext }
 import surge.streams.{ EventPlusStreamMeta, KafkaStreamMeta }
 
-import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
 import scala.concurrent.ExecutionContext.global
 import scala.concurrent.duration._
@@ -32,34 +31,50 @@ import scala.concurrent.{ Await, ExecutionContext, Future }
 import scala.util.Try
 
 object PartitionAssignorConfig {
-  private val config = ConfigFactory.load()
   private val log = LoggerFactory.getLogger(getClass)
-  val assignorClassName: String = config.getString("surge.kafka-event-source.consumer.partition-assignor").toLowerCase() match {
-    case "range"              => classOf[HostAwareRangeAssignor].getName
-    case "cooperative-sticky" => classOf[HostAwareCooperativeStickyAssignor].getName
-    case other =>
-      log.warn("Attempted to use an unknown range assignor named [{}], accepted values are [range, cooperative-sticky].  Defaulting to range.", other)
-      classOf[HostAwareRangeAssignor].getName
+  def assignorClassName(config: Config): String = {
+    config.getString("surge.kafka-event-source.consumer.partition-assignor").toLowerCase() match {
+      case "range"              => classOf[HostAwareRangeAssignor].getName
+      case "cooperative-sticky" => classOf[HostAwareCooperativeStickyAssignor].getName
+      case other =>
+        log.warn("Attempted to use an unknown range assignor named [{}], accepted values are [range, cooperative-sticky].  Defaulting to range.", other)
+        classOf[HostAwareRangeAssignor].getName
+    }
   }
 }
 
 object KafkaStreamManager {
   val serviceIdentifier = "StreamManager"
 
-  def wrapBusinessFlow[Key, Value](business: Flow[EventPlusStreamMeta[Key, Value, KafkaStreamMeta], KafkaStreamMeta, NotUsed])
-      : Flow[ConsumerMessage.CommittableMessage[Key, Value], KafkaStreamMeta, NotUsed] = {
+  def setSpanAttributes(span: Span, kafkaMeta: KafkaStreamMeta): Unit = {
+    span.setAttribute("kafka.topic", kafkaMeta.topic)
+    span.setAttribute("kafka.partition", kafkaMeta.partition.toString)
+    span.setAttribute("kafka.offset", kafkaMeta.offset.toString)
+  }
+
+  def setMDCValues(kafkaStreamMeta: KafkaStreamMeta): Unit = {
+    MDC.put("kafka.topic", kafkaStreamMeta.topic)
+    MDC.put("kafka.partition", kafkaStreamMeta.partition.toString)
+    MDC.put("kafka.offset", kafkaStreamMeta.offset.toString)
+  }
+
+  def wrapBusinessFlow[Key, Value](business: Flow[EventPlusStreamMeta[Key, Value, KafkaStreamMeta], KafkaStreamMeta, NotUsed])(
+      tracer: Tracer): Flow[ConsumerMessage.CommittableMessage[Key, Value], KafkaStreamMeta, NotUsed] = {
     val contextToPropagate = MDC.getCopyOfContextMap
 
     Flow[ConsumerMessage.CommittableMessage[Key, Value]]
-      .map { msg =>
+      .map { msg: ConsumerMessage.CommittableMessage[Key, Value] =>
         Option(contextToPropagate).foreach(contextToPropagate => MDC.setContextMap(contextToPropagate))
+
+        val span = tracer.spanBuilder(s"Consume from ${msg.record.topic()}").setNoParent().startSpan()
 
         val kafkaMeta = KafkaStreamMeta(msg.record.topic(), msg.record.partition(), msg.record.offset(), msg.committableOffset)
 
-        MDC.put("kafka.topic", kafkaMeta.topic)
-        MDC.put("kafka.partition", kafkaMeta.partition.toString)
-        MDC.put("kafka.offset", kafkaMeta.offset.toString)
-        EventPlusStreamMeta(msg.record.key, msg.record.value, kafkaMeta, HeadersHelper.unapplyHeaders(msg.record.headers()))
+        setMDCValues(kafkaMeta)
+
+        setSpanAttributes(span, kafkaMeta)
+
+        EventPlusStreamMeta(msg.record.key, msg.record.value, kafkaMeta, HeadersHelper.unapplyHeaders(msg.record.headers()), span)
       }
       .via(business)
       .map { meta =>
@@ -83,15 +98,14 @@ class KafkaStreamManager[Key, Value](
     valueDeserializer: Deserializer[Value],
     replayStrategy: EventReplayStrategy,
     replaySettings: EventReplaySettings,
-    val tracer: Tracer)(implicit val actorSystem: ActorSystem)
+    config: Config)(tracer: Tracer)(implicit val actorSystem: ActorSystem)
     extends ActorSystemHostAwareness
     with Logging {
 
-  private val config = ConfigFactory.load()
   private val metricFetchTimeout = config.getDuration("surge.kafka-event-source.kafka-metric-fetch-timeout").toMillis.milliseconds
   private val consumerGroup = consumerSettings.getProperty(ConsumerConfig.GROUP_ID_CONFIG)
   private val actorRegistry = new ActorRegistry(actorSystem)
-  private val managerActor = actorSystem.actorOf(Props(new KafkaStreamManagerActor(topicName, subscriptionProvider, tracer, actorRegistry)))
+  private val managerActor = actorSystem.actorOf(Props(new KafkaStreamManagerActor(config, topicName, subscriptionProvider, tracer, actorRegistry)))
 
   private val deserializeKey: Array[Byte] => Key = { bytes => keyDeserializer.deserialize(topicName, bytes) }
   private val deserializeValue: Array[Byte] => Value = { bytes => valueDeserializer.deserialize(topicName, bytes) }
@@ -158,6 +172,7 @@ object KafkaStreamManagerActor {
 }
 
 class KafkaStreamManagerActor[Key, Value](
+    config: Config,
     topicName: String,
     subscriptionProvider: KafkaSubscriptionProvider[Key, Value],
     val tracer: Tracer,
@@ -170,10 +185,8 @@ class KafkaStreamManagerActor[Key, Value](
   import KafkaStreamManagerActor._
   import context.{ dispatcher, system }
 
-  private val config = ConfigFactory.load()
-  private val reuseConsumerId = config.getBoolean("surge.kafka-reuse-consumer-id")
   // Set this uniquely per manager actor so that restarts of the Kafka stream don't cause a rebalance of the consumer group
-  private val clientId = s"surge-event-source-managed-consumer-${UUID.randomUUID()}"
+  private val clientId = subscriptionProvider.clientId
 
   private val backoffMin = config.getDuration("surge.kafka-event-source.backoff.min").toMillis.millis
   private val backoffMax = config.getDuration("surge.kafka-event-source.backoff.max").toMillis.millis
@@ -187,7 +200,7 @@ class KafkaStreamManagerActor[Key, Value](
   override def receive: Receive = stopped
 
   private def stopped: Receive = {
-    case StartConsuming => startConsumer()
+    case StartConsuming => startConsumer
     case StopConsuming  => sender() ! SuccessfullyStopped(localAddress, self)
     case GetMetrics     => sender() ! MetricsWrapper.empty
     case RegisterSelf   => registerSelf()
@@ -208,7 +221,7 @@ class KafkaStreamManagerActor[Key, Value](
     case _            => stash()
   }
 
-  private def startConsumer(): Unit = {
+  private def startConsumer: Unit = {
     log.info("Starting consumer for topic {} with client id {}", Seq(topicName, clientId): _*)
     val control = new AtomicReference[Consumer.Control](Consumer.NoopControl)
 

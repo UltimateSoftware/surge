@@ -4,6 +4,7 @@ package surge.internal.health
 
 import akka.actor.ActorSystem
 import akka.testkit.{ TestKit, TestProbe }
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import surge.health.config.{ ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig }
@@ -15,7 +16,12 @@ import surge.internal.health.matchers.{ RepeatingSignalMatcher, SignalNameEquals
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
 
 import scala.concurrent.duration._
-class HealthSignalStreamProviderSpec extends TestKit(ActorSystem("HealthSignalStreamProviderSpec")) with AnyWordSpecLike with Matchers {
+class HealthSignalStreamProviderSpec extends TestKit(ActorSystem("HealthSignalStreamProviderSpec")) with AnyWordSpecLike with Matchers with BeforeAndAfterAll {
+
+  override def afterAll(): Unit = {
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
+  }
+
   import surge.internal.health.context.TestContext._
 
   "HealthSignalStreamProvider" should {

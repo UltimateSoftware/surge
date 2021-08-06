@@ -17,11 +17,11 @@ group3="io.grpc" artifact3="grpc-netty-shaded" version3="1.39.0"
 
 Scala
 :    @@snip [SurgeModel.scala](/modules/surge-docs/src/test/scala/docs/command/BankAccountSurgeModelWithHoneycomb.scala) { #surge_model_class }
-
+``
 Java
 :    Java examples coming soon..
 
-#### Screenshot
+#### Screenshot (Honeycomb)
 
 ![Honeycomb Screenshot](images/tracing-with-honeycomb.png)
 
@@ -40,6 +40,6 @@ Scala
 Java
 :    Java examples coming soon..
 
-#### Screenshot
+#### Screenshot (Jaeger)
 
 ![Jaeger Screenshot](images/tracing-with-jaeger.png)

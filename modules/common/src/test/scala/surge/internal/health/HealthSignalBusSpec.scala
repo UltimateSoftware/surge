@@ -8,9 +8,12 @@ import akka.testkit.{ TestKit, TestProbe }
 import org.mockito.Mockito._
 import org.mockito.stubbing.Stubber
 import org.mockito.{ ArgumentMatchers, Mockito }
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
+import surge.health.config.HealthSignalBusConfig
+
 import surge.health.domain._
 import surge.health.{ HealthSignalListener, SignalHandler }
 import surge.internal.health.context.TestHealthSignalStream
@@ -42,7 +45,12 @@ trait MockitoHelper extends MockitoSugar {
   }
 }
 
-class HealthSignalBusSpec extends TestKit(ActorSystem("healthSignalBus")) with AnyWordSpecLike with Matchers with MockitoHelper {
+class HealthSignalBusSpec extends TestKit(ActorSystem("healthSignalBus")) with AnyWordSpecLike with Matchers with MockitoHelper with BeforeAndAfterAll {
+
+  override def afterAll(): Unit = {
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
+  }
+
   import surge.internal.health.context.TestContext._
   val signalStreamProvider: HealthSignalStreamProvider = testHealthSignalStreamProvider(Seq.empty)
 
@@ -59,6 +67,20 @@ class HealthSignalBusSpec extends TestKit(ActorSystem("healthSignalBus")) with A
 
     "have a window stream" in {
       signalStreamProvider.bus().signalStream() shouldBe a[TestHealthSignalStream]
+    }
+
+    "have a null health signal stream when streaming disabled" in {
+      val bus =
+        HealthSignalBus(
+          HealthSignalBusConfig(
+            streamingEnabled = false,
+            signalTopic = "health.signal",
+            registrationTopic = "health.registration",
+            allowedSubscriberCount = 123),
+          signalStreamProvider,
+          startOnInit = false)
+
+      bus.signalStream() shouldBe a[NullHealthSignalStream]
     }
 
     "not fail on repeated supervise calls" in {

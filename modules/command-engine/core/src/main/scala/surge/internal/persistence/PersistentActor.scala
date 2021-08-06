@@ -137,7 +137,7 @@ class PersistentActor[S, M, R, E](
     val businessLogic: SurgeModel[S, M, R, E],
     val regionSharedResources: PersistentEntitySharedResources,
     val signalBus: HealthSignalBusTrait,
-    implicit val config: Config)
+    config: Config)
     extends ActorWithTracing
     with Stash
     with KTablePersistenceSupport[S, E]
@@ -179,11 +179,15 @@ class PersistentActor[S, M, R, E](
 
   override def deserializeState(bytes: Array[Byte]): Option[S] = businessLogic.aggregateReadFormatting.readState(bytes)
 
+  override def retryConfig: RetryConfig = new RetryConfig(config)
+
   override val tracer: Tracer = businessLogic.tracer
 
   override val aggregateName: String = businessLogic.aggregateName
 
   protected val receiveTimeout: FiniteDuration = TimeoutConfig.AggregateActor.idleTimeout
+
+  override protected val maxProducerFailureRetries: Int = config.getInt("surge.aggregate-actor.publish-failure-max-retries")
 
   protected val log: Logger = LoggerFactory.getLogger(getClass)
 
@@ -256,7 +260,7 @@ class PersistentActor[S, M, R, E](
   }
 
   private def processMessage(state: InternalActorState, ProcessMessage: ProcessMessage[M]): Future[Either[R, HandledMessageResult[S, E]]] = {
-    metrics.messageHandlingTimer.time(businessLogic.model.handle(surgeContext(), state.stateOpt, ProcessMessage.message))
+    metrics.messageHandlingTimer.timeFuture { businessLogic.model.handle(surgeContext(), state.stateOpt, ProcessMessage.message) }
   }
 
   private def handle(state: InternalActorState, applyEventEnvelope: ApplyEvent[E]): Unit = {
@@ -333,7 +337,7 @@ class PersistentActor[S, M, R, E](
   }
 
   def onInitializationFailed(cause: Throwable): Unit = {
-    log.error(s"Could not initialize actor for $aggregateId after ${RetryConfig.AggregateActor.maxInitializationAttempts} attempts.  Stopping actor")
+    log.error(s"Could not initialize actor for $aggregateId after ${retryConfig.AggregateActor.maxInitializationAttempts} attempts.  Stopping actor")
     context.become(initializationFailed(ACKError(cause)))
     unstashAll() // Handle any pending messages before stopping so we can reply with an explicit error instead of timing out
     self ! Stop

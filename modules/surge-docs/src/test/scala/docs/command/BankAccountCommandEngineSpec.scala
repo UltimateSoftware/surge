@@ -7,14 +7,14 @@ import java.util.UUID
 import com.typesafe.config.ConfigFactory
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.common.config.TopicConfig
-import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach }
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
+import org.scalatest.time.{ Milliseconds, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpec
 import surge.scaladsl.common.{ CommandFailure, CommandSuccess }
 
-import scala.concurrent.{ Await, ExecutionContext, Future }
-import scala.concurrent.duration._
+import scala.concurrent.{ ExecutionContext, Future }
 
 class BankAccountCommandEngineSpec extends AnyWordSpec with BeforeAndAfterAll with Matchers with ScalaFutures with EmbeddedKafka {
   implicit val ec: ExecutionContext = ExecutionContext.global
@@ -27,6 +27,8 @@ class BankAccountCommandEngineSpec extends AnyWordSpec with BeforeAndAfterAll wi
   override def afterAll(): Unit = {
     BankAccountEngine.surgeEngine.stop()
   }
+
+  override implicit val patienceConfig: PatienceConfig = PatienceConfig(timeout = Span(15, Seconds), interval = Span(50, Milliseconds))
 
   "BankAccountCommandEngine" should {
     "Properly handle commands" in {
@@ -47,7 +49,7 @@ class BankAccountCommandEngineSpec extends AnyWordSpec with BeforeAndAfterAll wi
         }
         // #sending_command_to_engine
 
-        Await.result(createdAccount, 30.seconds) shouldEqual Some(BankAccount(accountNumber, "Jane Doe", "1234", 1000.0))
+        createdAccount.futureValue shouldEqual Some(BankAccount(accountNumber, "Jane Doe", "1234", 1000.0))
 
         // #sending_command_to_engine
         val creditAccount = CreditAccount(accountNumber, 100.0)
@@ -57,13 +59,13 @@ class BankAccountCommandEngineSpec extends AnyWordSpec with BeforeAndAfterAll wi
           case CommandFailure(reason)         => throw reason
         }
         // #sending_command_to_engine
-        Await.result(creditedAccount, 10.seconds).map(_.balance) shouldEqual Some(1100.0)
+        creditedAccount.futureValue.map(_.balance) shouldEqual Some(1100.0)
 
         // #getting_state_from_engine
         val currentState: Future[Option[BankAccount]] = BankAccountEngine.surgeEngine.aggregateFor(accountNumber).getState
         // #getting_state_from_engine
 
-        Await.result(currentState, 10.seconds) shouldEqual Some(BankAccount(accountNumber, "Jane Doe", "1234", 1100.0))
+        currentState.futureValue shouldEqual Some(BankAccount(accountNumber, "Jane Doe", "1234", 1100.0))
 
         // #rebalance_listener
         val rebalanceListener = new BankAccountRebalanceListener

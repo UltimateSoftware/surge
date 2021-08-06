@@ -11,7 +11,6 @@ import surge.health.{ HealthSignalBusAware, HealthSignalBusTrait }
 import surge.internal.SurgeModel
 import surge.internal.akka.cluster.ActorSystemHostAwareness
 import surge.internal.akka.kafka.{ CustomConsumerGroupRebalanceListener, KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor }
-import surge.internal.core.SurgePartitionRouterImpl
 import surge.internal.health.HealthSignalStreamProvider
 import surge.internal.persistence.PersistentActorRegionCreator
 import surge.kafka.PartitionAssignments
@@ -52,22 +51,20 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     aggregateName = businessLogic.aggregateName,
     stateTopic = businessLogic.kafka.stateTopic,
     partitionTrackerProvider = new KafkaStreamsPartitionTrackerActorProvider(stateChangeActor),
-    aggregateValidator = businessLogic.aggregateValidator,
     applicationHostPort = applicationHostPort,
     applicationId = businessLogic.kafka.streamsApplicationId,
     clientId = businessLogic.kafka.clientId,
     system = system,
     metrics = businessLogic.metrics,
-    signalBus = signalBus)
+    signalBus = signalBus,
+    config = config)
 
   protected val cqrsRegionCreator: PersistentActorRegionCreator[M] =
     new PersistentActorRegionCreator[M](actorSystem, businessLogic, kafkaStreamsImpl, partitionTracker, businessLogic.metrics, signalBus, config = config)
 
-  protected val actorRouter: SurgePartitionRouter = SurgePartitionRouter(actorSystem, partitionTracker, businessLogic, cqrsRegionCreator, signalBus)
+  protected val actorRouter: SurgePartitionRouter = SurgePartitionRouter(config, actorSystem, partitionTracker, businessLogic, cqrsRegionCreator, signalBus)
 
   protected val surgeHealthCheck: SurgeHealthCheck = new SurgeHealthCheck(businessLogic.aggregateName, kafkaStreamsImpl, actorRouter)(ExecutionContext.global)
-  protected def createPartitionRouter(): SurgePartitionRouter =
-    new SurgePartitionRouterImpl(actorSystem, partitionTracker, businessLogic, cqrsRegionCreator, signalBus)
 
   override def healthCheck(): Future[HealthCheck] = {
     surgeHealthCheck.healthCheck()
@@ -89,7 +86,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
       allStarted
     }
 
-    result.onComplete(registrationCallback())
+    result.andThen(registrationCallback())
     result
   }
 
@@ -136,9 +133,8 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     Future.successful[Ack](Ack())
   }
 
-  private def stopKafkaStreams(): Future[Ack] = kafkaStreamsImpl.stop()
+  private def registrationCallback(): PartialFunction[Try[Ack], Unit] = {
 
-  private def registrationCallback(): Try[Any] => Unit = {
     case Success(_) =>
       val registrationResult = signalBus.register(
         control = this,

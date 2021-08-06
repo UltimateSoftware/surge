@@ -7,6 +7,7 @@ import akka.kafka.Subscriptions
 import akka.stream.scaladsl.Flow
 import akka.testkit.{ TestKit, TestProbe }
 import akka.{ Done, NotUsed }
+import com.typesafe.config.ConfigFactory
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.serialization.{ Deserializer, Serializer }
@@ -44,9 +45,12 @@ class StreamManagerSpec
   private implicit val stringDeserializer: Deserializer[String] = DefaultSerdes.stringSerde.deserializer()
   private implicit val byteArrayDeserializer: Deserializer[Array[Byte]] = DefaultSerdes.byteArraySerde.deserializer()
 
+  private val defaultConfig = ConfigFactory.load()
+
+  private val tracer = NoopTracerFactory.create()
+
   override def afterAll(): Unit = {
-    system.terminate()
-    super.afterAll()
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
   }
 
   private def sendToTestProbe(testProbe: TestProbe)(key: String, value: Array[Byte]): Future[Done] = {
@@ -62,16 +66,17 @@ class StreamManagerSpec
       businessLogic: (String, Array[Byte]) => Future[_],
       replayStrategy: EventReplayStrategy = new NoOpEventReplayStrategy,
       replaySettings: EventReplaySettings = DefaultEventReplaySettings): KafkaStreamManager[String, Array[Byte]] = {
-    val consumerSettings = AkkaKafkaConsumer.consumerSettings[String, Array[Byte]](system, groupId).withBootstrapServers(kafkaBrokers)
+    val consumerSettings = new AkkaKafkaConsumer(defaultConfig).consumerSettings[String, Array[Byte]](system, groupId, kafkaBrokers, "earliest")
 
     val parallelism = 16
     val tupleFlow: (String, Array[Byte], Map[String, Array[Byte]]) => Future[_] = { (k, v, _) => businessLogic(k, v) }
     val partitionBy: (String, Array[Byte], Map[String, Array[Byte]]) => String = { (k, _, _) => k }
     val businessFlow = new DataHandler[String, Array[Byte]] {
       override def dataHandler[Meta]: Flow[EventPlusStreamMeta[String, Array[Byte], Meta], Meta, NotUsed] =
-        FlowConverter.flowFor[String, Array[Byte], Meta](tupleFlow, partitionBy, new DefaultDataSinkExceptionHandler, parallelism)
+        FlowConverter.flowFor[String, Array[Byte], Meta]("test-sink", tupleFlow, partitionBy, new DefaultDataSinkExceptionHandler, parallelism)
     }
-    val subscriptionProvider = new KafkaOffsetManagementSubscriptionProvider(topic.name, Subscriptions.topics(topic.name), consumerSettings, businessFlow)
+    val subscriptionProvider =
+      new KafkaOffsetManagementSubscriptionProvider(defaultConfig, topic.name, Subscriptions.topics(topic.name), consumerSettings, businessFlow)(tracer)
     new KafkaStreamManager(
       topic.name,
       consumerSettings,
@@ -80,7 +85,7 @@ class StreamManagerSpec
       byteArrayDeserializer,
       replayStrategy,
       replaySettings,
-      NoopTracerFactory.create())
+      defaultConfig)(tracer)
   }
 
   "StreamManager" should {
@@ -227,7 +232,7 @@ class StreamManagerSpec
         publishToKafka(new ProducerRecord[String, String](topic.name, 1, record2, record2))
         publishToKafka(new ProducerRecord[String, String](topic.name, 2, record3, record3))
 
-        val settings = KafkaForeverReplaySettings(topic.name).copy(brokers = List(embeddedBroker))
+        val settings = KafkaForeverReplaySettings(defaultConfig, topic.name).copy(brokers = List(embeddedBroker))
         val kafkaForeverReplayStrategy = KafkaForeverReplayStrategy.create[String, Array[Byte]](system, settings)
         val consumer =
           testStreamManager(topic, kafkaBrokers = embeddedBroker, groupId = "replay-test", sendToTestProbe(probe), kafkaForeverReplayStrategy, settings)

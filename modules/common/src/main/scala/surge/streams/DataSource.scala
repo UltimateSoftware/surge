@@ -7,6 +7,7 @@ import akka.actor.ActorSystem
 import akka.kafka.{ AutoSubscription, ConsumerSettings, Subscriptions }
 import com.typesafe.config.{ Config, ConfigFactory }
 import io.opentelemetry.api.trace.Tracer
+import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.serialization.Deserializer
 import surge.internal.akka.kafka.AkkaKafkaConsumer
 import surge.internal.streams.{ KafkaOffsetManagementSubscriptionProvider, KafkaStreamManager, ManagedDataPipeline, ManualOffsetManagementSubscriptionProvider }
@@ -25,8 +26,8 @@ trait DataSource[Key, Value] {
 }
 
 trait KafkaDataSource[Key, Value] extends DataSource[Key, Value] {
-  private val config: Config = ConfigFactory.load()
-  private val defaultBrokers = config.getString("kafka.brokers")
+  protected val config: Config = ConfigFactory.load()
+  private lazy val defaultBrokers = config.getString("kafka.brokers")
 
   def kafkaBrokers: String = defaultBrokers
   def kafkaTopic: KafkaTopic
@@ -39,7 +40,7 @@ trait KafkaDataSource[Key, Value] extends DataSource[Key, Value] {
 
   def metrics: Metrics = Metrics.globalMetricRegistry
 
-  def tracer: Tracer = NoopTracerFactory.create()
+  def tracer: Tracer
 
   def additionalKafkaProperties: Properties = new Properties()
 
@@ -50,8 +51,14 @@ trait KafkaDataSource[Key, Value] extends DataSource[Key, Value] {
   }
 
   def to(sink: DataHandler[Key, Value], consumerGroup: String, autoStart: Boolean): DataPipeline = {
-    val consumerSettings = AkkaKafkaConsumer
-      .consumerSettings[Key, Value](actorSystem, groupId = consumerGroup, brokers = kafkaBrokers)(keyDeserializer, valueDeserializer)
+    val consumerSessionTimeout = config.getDuration("surge.kafka-event-source.consumer.session-timeout")
+    val autoOffsetReset = config.getString("surge.kafka-event-source.consumer.auto-offset-reset")
+
+    val consumerSettings = new AkkaKafkaConsumer(config)
+      .consumerSettings[Key, Value](actorSystem, groupId = consumerGroup, brokers = kafkaBrokers, autoOffsetReset = autoOffsetReset)(
+        keyDeserializer,
+        valueDeserializer)
+      .withProperty(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, consumerSessionTimeout.toMillis.toString)
       .withProperties(additionalKafkaProperties.asScala.toMap)
     to(consumerSettings)(sink, autoStart)
   }
@@ -61,9 +68,9 @@ trait KafkaDataSource[Key, Value] extends DataSource[Key, Value] {
     val topicName = kafkaTopic.name
     val subscriptionProvider = offsetManager match {
       case _: DefaultKafkaOffsetManager =>
-        new KafkaOffsetManagementSubscriptionProvider[Key, Value](topicName, subscription, consumerSettings, sink)
+        new KafkaOffsetManagementSubscriptionProvider[Key, Value](config, topicName, subscription, consumerSettings, sink)(tracer)
       case _ =>
-        new ManualOffsetManagementSubscriptionProvider[Key, Value](topicName, subscription, consumerSettings, sink, offsetManager)
+        new ManualOffsetManagementSubscriptionProvider[Key, Value](config, topicName, subscription, consumerSettings, sink, offsetManager)(tracer)
     }
     new KafkaStreamManager[Key, Value](
       topicName = topicName,
@@ -73,13 +80,14 @@ trait KafkaDataSource[Key, Value] extends DataSource[Key, Value] {
       valueDeserializer = valueDeserializer,
       replayStrategy = replayStrategy,
       replaySettings = replaySettings,
-      tracer = tracer)
+      config = config)(tracer)
   }
 
   private[streams] def to(consumerSettings: ConsumerSettings[Key, Value])(sink: DataHandler[Key, Value], autoStart: Boolean): DataPipeline = {
     implicit val system: ActorSystem = actorSystem
     implicit val executionContext: ExecutionContext = ExecutionContext.global
-    val pipeline = new ManagedDataPipeline(getStreamManager(consumerSettings, sink), metrics)
+    val enableMetrics = config.getBoolean("surge.kafka-event-source.enable-kafka-metrics")
+    val pipeline = new ManagedDataPipeline(getStreamManager(consumerSettings, sink), metrics, enableMetrics)
     if (autoStart) {
       pipeline.start()
     }

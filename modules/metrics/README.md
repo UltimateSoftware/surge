@@ -85,7 +85,7 @@ class SomeClass(metrics: Metrics) {
   val timer = metrics.timer(MetricInfo(name = "some-custom-timer", description = "Just an example timer"))
 
   timer.time(doSomeLengthyOperation())
-  timer.time(doSomethingInAFuture())
+  timer.timeFuture { doSomethingInAFuture() }
   timer.recordTime(15L) // Record time directly if needed
 
   def doSomeLengthyOperation(): Unit = {

@@ -29,11 +29,13 @@ trait KTableInitializationSupport[Model] {
   def kafkaStreamsCommand: AggregateStateStoreKafkaStreams[_]
   def deserializeState(bytes: Array[Byte]): Option[Model]
 
+  def retryConfig: RetryConfig
+
   def onInitializationFailed(cause: Throwable): Unit
   def onInitializationSuccess(model: Option[Model]): Unit
 
   protected def initializeState(initializationAttempts: Int, retryCause: Option[Throwable])(implicit ec: ExecutionContext): Unit = {
-    if (initializationAttempts > RetryConfig.AggregateActor.maxInitializationAttempts) {
+    if (initializationAttempts > retryConfig.AggregateActor.maxInitializationAttempts) {
       val reasonForFailure = retryCause.getOrElse(new RuntimeException(s"Aggregate $aggregateId could not be initialized"))
       onInitializationFailed(reasonForFailure)
     } else {
@@ -43,14 +45,14 @@ trait KTableInitializationSupport[Model] {
           if (isStateCurrent) {
             fetchState(initializationAttempts)
           } else {
-            val retryIn = RetryConfig.AggregateActor.initializeStateInterval
+            val retryIn = retryConfig.AggregateActor.initializeStateInterval
             log.warn("State for {} is not up to date in Kafka streams, retrying initialization in {}", Seq(aggregateId, retryIn): _*)
             val failureReason = AggregateStateNotCurrentInKTableException(aggregateId, kafkaProducerActor.assignedPartition)
             context.system.scheduler.scheduleOnce(retryIn)(initializeState(initializationAttempts + 1, Some(failureReason)))
           }
         }
         .recover { case exception =>
-          val retryIn = RetryConfig.AggregateActor.fetchStateRetryInterval
+          val retryIn = retryConfig.AggregateActor.fetchStateRetryInterval
           log.error(s"Failed to check if $aggregateName aggregate was up to date for id $aggregateId, retrying in $retryIn", exception)
           val failureReason = AggregateStateNotCurrentInKTableException(aggregateId, kafkaProducerActor.assignedPartition)
           context.system.scheduler.scheduleOnce(retryIn)(initializeState(initializationAttempts + 1, Some(failureReason)))
@@ -59,7 +61,7 @@ trait KTableInitializationSupport[Model] {
   }
 
   private def fetchState(initializationAttempts: Int)(implicit ec: ExecutionContext): Unit = {
-    val fetchedStateFut = initializationMetrics.stateInitializationTimer.time(kafkaStreamsCommand.getAggregateBytes(aggregateId))
+    val fetchedStateFut = initializationMetrics.stateInitializationTimer.timeFuture { kafkaStreamsCommand.getAggregateBytes(aggregateId) }
 
     fetchedStateFut
       .map { state =>
@@ -71,7 +73,7 @@ trait KTableInitializationSupport[Model] {
         onInitializationSuccess(stateOpt)
       }
       .recover { case exception =>
-        val retryIn = RetryConfig.AggregateActor.fetchStateRetryInterval
+        val retryIn = retryConfig.AggregateActor.fetchStateRetryInterval
         log.error(s"Failed to initialize $aggregateName actor for aggregate $aggregateId, retrying in $retryIn", exception)
         val failureReason = AggregateInitializationException(aggregateId, exception)
         context.system.scheduler.scheduleOnce(retryIn)(initializeState(initializationAttempts + 1, Some(failureReason)))

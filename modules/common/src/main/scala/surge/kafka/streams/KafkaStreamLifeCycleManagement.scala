@@ -3,10 +3,7 @@
 package surge.kafka.streams
 
 import akka.actor.{ Actor, Stash }
-import com.typesafe.config.ConfigFactory
-import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.streams.{ KafkaStreams, StreamsConfig }
-import surge.internal.config.TimeoutConfig
 import surge.internal.utils.{ InlineReceive, Logging }
 import surge.kafka.streams.HealthyActor.GetHealth
 import surge.kafka.streams.KafkaStreamLifeCycleManagement._
@@ -25,10 +22,9 @@ trait KafkaStreamLifeCycleManagement[K, V, T <: KafkaStreamsConsumer[K, V], SV] 
 
   protected val streamsConfig: Map[String, String]
   protected val metrics: Metrics
+  protected val enableMetrics: Boolean
 
   private val streamsMetricName = s"kafka-streams-${settings.applicationId}-${settings.storeName}"
-  private val config = ConfigFactory.load()
-  private val enableMetrics = config.getBoolean("surge.kafka-streams.enable-kafka-metrics")
 
   /**
    * Base configuration for all streams, extend as needed Ex: override val streamsConfig = baseStreamsConfig ++ Map[String, String](... stream specific config
