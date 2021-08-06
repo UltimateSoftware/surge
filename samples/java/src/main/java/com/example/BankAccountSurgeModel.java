@@ -19,7 +19,7 @@ public class BankAccountSurgeModel extends SurgeCommandBusinessLogic<UUID, BankA
         BankAccountEvent> {
     @Override
     public AggregateCommandModel<BankAccount, BankAccountCommand, BankAccountEvent> commandModel() {
-             return new BankAccountCommandModel();
+        return new BankAccountCommandModel();
     }
 
     @Override

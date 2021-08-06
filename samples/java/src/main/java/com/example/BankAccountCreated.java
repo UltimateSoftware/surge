@@ -14,7 +14,6 @@ public class BankAccountCreated extends BankAccountEvent {
     private double balance;
 
     public BankAccountCreated(UUID accountNumber, String accountOwner, String securityCode, double balance) {
-
         this.accountNumber = accountNumber;
         this.accountOwner = accountOwner;
         this.securityCode = securityCode;
