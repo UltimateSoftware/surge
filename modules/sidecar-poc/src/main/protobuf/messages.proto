@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "com.ukg.surge.poc";
+
+message State {
+  bytes payload = 1;
+}
+
+message Command {
+  string aggregateId = 1;
+  bytes payload = 2;
+}
+
+message Event {
+  bytes payload = 1;
+}
+
+message ProcessCommandRequest {
+  State state = 1;
+  Command command = 2;
+}
+
+message ProcessCommandReply {
+  repeated Event events = 1;
+  string rejection = 2;
+}
+
+message HandleEventRequest {
+  State state = 1;
+  Event event = 2;
+}
+
+message HandleEventResponse {
+  State state = 1;
+}
+
+service Service {
+  rpc ProcessCommand (ProcessCommandRequest) returns (ProcessCommandReply) {}
+  rpc HandleEvent (HandleEventRequest) returns (HandleEventResponse) {}
+}

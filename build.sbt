@@ -81,6 +81,14 @@ lazy val `surge-engine-command-javadsl` =
     .dependsOn(`surge-engine-command-core`)
     .settings(libraryDependencies ++= Seq(scalatest, scalatestPlusMockito, mockitoCore))
 
+
+lazy val `surge-engine-sidecar-poc` =
+  (project in file("modules/sidecar-poc"))
+    .dependsOn(`surge-engine-command-scaladsl`)
+    .enablePlugins(AkkaGrpcPlugin)
+
+
+
 lazy val `surge-metrics` = (project in file("modules/metrics")).settings(
   libraryDependencies ++= Seq(
     Kafka.kafkaClients,
@@ -121,7 +129,9 @@ lazy val `surge` = project
     `surge-engine-command-scaladsl`,
     `surge-metrics`,
     `surge-rabbitmq-support`,
-    `surge-docs`)
+    `surge-docs`,
+    `surge-engine-sidecar-poc`
+  )
   .settings(skip in publish := true, ReleaseSettings.settings)
   .disablePlugins(MimaPlugin)
 
