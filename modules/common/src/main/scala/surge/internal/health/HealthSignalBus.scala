@@ -3,7 +3,6 @@
 package surge.internal.health
 
 import java.util.regex.Pattern
-
 import akka.actor.{ Actor, ActorSystem, BootstrapSetup, Props, ProviderSelection }
 import akka.event.LookupClassification
 import akka.pattern._
@@ -12,7 +11,7 @@ import org.slf4j.{ Logger, LoggerFactory }
 import surge.core.{ Ack, Controllable }
 import surge.health._
 import surge.health.config.HealthSignalBusConfig
-import surge.health.domain.{ EmittableHealthSignal, Error, HealthSignal, Trace, Warning }
+import surge.health.domain.{ EmittableHealthSignal, Error, HealthSignal, HealthSignalSource, SnapshotHealthSignalSource, Trace, Warning }
 import surge.internal.health.HealthSignalBus.log
 import surge.internal.health.supervisor._
 
@@ -149,6 +148,8 @@ private[surge] class HealthSignalBusImpl(config: HealthSignalBusConfig, signalSt
     new DisabledHealthSignalStreamProvider(config, bus = this, actorSystem).provide(bus = this).subscribe()
   }
 
+  private val buffer: CircularBuffer[Event] = new CircularBuffer[Event](25)
+
   private var supervisorRef: Option[HealthSupervisorActorRef] = None
   private var monitoringRef: Option[HealthSignalStreamMonitoringRefWithSupervisionSupport] = None
 
@@ -159,7 +160,15 @@ private[surge] class HealthSignalBusImpl(config: HealthSignalBusConfig, signalSt
   override protected def classify(event: Event): Classifier = event.topic()
 
   override protected def publish(event: Event, subscriber: Subscriber): Unit = {
+    buffer.push(event)
     subscriber.handleMessage(event)
+  }
+
+  override def signals(): Seq[HealthSignal] =
+    buffer.getAll.toSeq.filter(e => e.isInstanceOf[HealthSignal]).map(s => s.asInstanceOf[HealthSignal])
+
+  override def flush(): Unit = {
+    buffer.clear()
   }
 
   //Note: Bug Fix for EventBus - for NullPointerException when no subscribers exist that match the classification.
@@ -215,7 +224,7 @@ private[surge] class HealthSignalBusImpl(config: HealthSignalBusConfig, signalSt
         }
         this
       case None =>
-        val ref = HealthSupervisorActor(this, signalStreamSupplier.filters(), actorSystem)
+        val ref = HealthSupervisorActor(this, signalStreamSupplier.patternMatchers().map(definition => definition.toMatcher), actorSystem)
         supervisorRef = Some(ref)
         ref.start(monitoringRef.map(ref => ref.actor))
         this
@@ -279,7 +288,6 @@ private[surge] class HealthSignalBusImpl(config: HealthSignalBusConfig, signalSt
             restartSignalPatterns = restartSignalPatterns,
             shutdownSignalPatterns = shutdownSignalPatterns))
     }
-
   }
 
   override def registrations(): Future[Seq[SupervisedComponentRegistration]] = {
@@ -297,17 +305,25 @@ private[surge] class HealthSignalBusImpl(config: HealthSignalBusConfig, signalSt
   }
 
   override def signalWithError(name: String, error: Error, metadata: Map[String, String] = Map.empty): EmittableHealthSignal = {
-    val signal = HealthSignal(topic = config.signalTopic, name = name, data = error, metadata = metadata, signalType = SignalType.ERROR)
+    val signal =
+      HealthSignal(topic = config.signalTopic, name = name, data = error, metadata = metadata, signalType = SignalType.ERROR, source = Some(busSignalSource()))
     new EmittableHealthSignalImpl(signal, signalBus = this)
   }
 
   override def signalWithWarning(name: String, warning: Warning, metadata: Map[String, String] = Map.empty): EmittableHealthSignal = {
-    val signal = HealthSignal(topic = config.signalTopic, name = name, data = warning, metadata = metadata, signalType = SignalType.WARNING)
+    val signal = HealthSignal(
+      topic = config.signalTopic,
+      name = name,
+      data = warning,
+      metadata = metadata,
+      signalType = SignalType.WARNING,
+      source = Some(busSignalSource()))
     new EmittableHealthSignalImpl(signal, signalBus = this)
   }
 
   override def signalWithTrace(name: String, trace: Trace, metadata: Map[String, String] = Map.empty): EmittableHealthSignal = {
-    val signal = HealthSignal(topic = config.signalTopic, name = name, data = trace, metadata = metadata, signalType = SignalType.TRACE)
+    val signal =
+      HealthSignal(topic = config.signalTopic, name = name, data = trace, metadata = metadata, signalType = SignalType.TRACE, source = Some(busSignalSource()))
     new EmittableHealthSignalImpl(signal, signalBus = this)
   }
 
@@ -315,4 +331,6 @@ private[surge] class HealthSignalBusImpl(config: HealthSignalBusConfig, signalSt
     subscribers.values.map(s => SubscriberInfo(s.getClass.getName, s.hashCode().toString))
 
   override def signalStream(): HealthSignalStream = stream
+
+  private def busSignalSource(): HealthSignalSource = new SnapshotHealthSignalSource(Seq.empty)
 }

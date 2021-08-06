@@ -5,7 +5,6 @@ package surge.health
 import java.time.Instant
 import java.util.UUID
 import java.util.regex.Pattern
-
 import akka.actor.{ ActorRef, ActorSystem }
 import akka.event.EventBus
 import akka.stream.scaladsl.{ Source, SourceQueueWithComplete }
@@ -14,8 +13,8 @@ import akka.{ Done, NotUsed }
 import org.slf4j.LoggerFactory
 import surge.core.{ Ack, Controllable }
 import surge.health.config.ThrottleConfig
-import surge.health.domain.{ EmittableHealthSignal, Error, HealthSignal, Timed, Trace, Warning }
-import surge.health.matchers.SignalPatternMatcher
+import surge.health.domain.{ EmittableHealthSignal, Error, HealthSignal, HealthSignalSource, Timed, Trace, Warning }
+import surge.health.matchers.SignalPatternMatcherDefinition
 import surge.internal.health.RegistrationHandler
 import surge.internal.health.supervisor.{ RegisterSupervisedComponentRequest, RestartComponent, ShutdownComponent, SupervisedComponentRegistration }
 
@@ -150,7 +149,7 @@ trait SignalProducer {
   def signalWithTrace(name: String, trace: Trace, metadata: Map[String, String] = Map.empty): EmittableHealthSignal
 }
 
-trait HealthSignalBusTrait extends EventBus with BusSupervisionTrait with SignalProducer {
+trait HealthSignalBusTrait extends EventBus with BusSupervisionTrait with SignalProducer with HealthSignalSource {
   type Event = HealthMessage
   type Classifier = String
   type Subscriber = HealthListener
@@ -253,7 +252,7 @@ trait HealthSignalStream extends HealthSignalListener {
   def signalTopic: String
   def signalHandler: SignalHandler
 
-  def filters(): Seq[SignalPatternMatcher]
+  def patternMatchers(): Seq[SignalPatternMatcherDefinition]
 
   /**
    * Provide HealthSignal(s) in a Source for stream operations

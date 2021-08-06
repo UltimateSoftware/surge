@@ -14,13 +14,11 @@ import scala.concurrent.duration._
 import scala.languageFeature.postfixOps
 
 class WindowSpec extends AnyWordSpec with Matchers with Eventually {
-  implicit val postOp: postfixOps = postfixOps
-
   implicit override val patienceConfig: PatienceConfig =
     PatienceConfig(timeout = scaled(Span(2, Seconds)), interval = scaled(Span(1, Seconds)))
   "Window" should {
     "expire" in {
-      val window = Window.windowFor(Instant.now(), duration = 1 second)
+      val window = Window.windowFor(Instant.now(), duration = 1.second, control = None)
       eventually {
         window.expired() shouldEqual true
       }

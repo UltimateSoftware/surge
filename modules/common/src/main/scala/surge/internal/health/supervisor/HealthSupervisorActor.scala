@@ -324,6 +324,7 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, filters:
             state.replyTo.foreach(r => r ! event)
           case Success(events) =>
             state.replyTo.foreach(r => events.foreach(e => r ! e))
+          //signal.source.foreach(s => s.flush())
         }
       }
     })
@@ -342,6 +343,7 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, filters:
                 log.debug("replying with event {}", e)
                 r ! e
               }))
+            signal.source.foreach(s => s.flush())
         }
       }
     })

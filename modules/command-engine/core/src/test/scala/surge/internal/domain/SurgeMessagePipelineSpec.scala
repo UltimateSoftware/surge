@@ -3,27 +3,27 @@
 package surge.internal.domain
 
 import akka.actor.ActorSystem
-import akka.testkit.{ TestKit, TestProbe }
+import akka.testkit.{TestKit, TestProbe}
 import com.typesafe.config.ConfigFactory
-import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
+import net.manub.embeddedkafka.{EmbeddedKafka, EmbeddedKafkaConfig}
 import org.apache.kafka.streams.KafkaStreams
-import org.scalatest.concurrent.{ Eventually, ScalaFutures }
+import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.matchers.should.Matchers
-import org.scalatest.time.{ Milliseconds, Seconds, Span }
+import org.scalatest.time.{Milliseconds, Seconds, Span}
 import org.scalatest.wordspec.AnyWordSpecLike
-import org.scalatest.{ BeforeAndAfterAll, PrivateMethodTester }
+import org.scalatest.{BeforeAndAfterAll, PrivateMethodTester}
 import play.api.libs.json.JsValue
-import surge.core.{ Ack, TestBoundedContext }
-import surge.health.config.{ ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig }
-import surge.health.domain.{ Error, HealthSignal }
-import surge.health.matchers.{ SideEffectBuilder, SignalPatternMatcherDefinition }
-import surge.health.{ ComponentRestarted, HealthListener, HealthMessage, SignalType }
+import surge.core.{Ack, TestBoundedContext}
+import surge.health.config.{ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig}
+import surge.health.domain.{Error, HealthSignal}
+import surge.health.matchers.{SideEffectBuilder, SignalPatternMatcherDefinition}
+import surge.health.{ComponentRestarted, HealthListener, HealthMessage, SignalType}
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.core.SurgePartitionRouterImpl
 import surge.internal.health.StreamMonitoringRef
 import surge.internal.health.supervisor.ShutdownComponent
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
-import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, MockPartitionTracker }
+import surge.kafka.streams.{AggregateStateStoreKafkaStreams, MockPartitionTracker}
 import surge.metrics.Metrics
 
 import java.util.regex.Pattern
@@ -60,19 +60,19 @@ class SurgeMessagePipelineSpec
       WindowingStreamConfig(
         advancerConfig = WindowingStreamSliderConfig(buffer = 10, advanceAmount = 1),
         throttleConfig = ThrottleConfig(elements = 100, duration = 5.seconds),
-        windowingDelay = 10.milliseconds,
-        maxWindowSize = 500,
-        frequencies = Seq(100.milliseconds)),
+        windowingInitDelay = 10.milliseconds,
+        windowingResumeDelay = 10.milliseconds,
+        maxWindowSize = 500),
       system,
       Some(new StreamMonitoringRef(probe.ref)),
-      filters = Seq(
+      patternMatchers = Seq(
         SignalPatternMatcherDefinition
-          .repeating(times = 1, Pattern.compile("baz"))
+          .repeating(times = 1, pattern = Pattern.compile("baz"), frequency = 100.milliseconds)
           .withSideEffect(
             SideEffectBuilder()
-              .addSideEffectSignal(HealthSignal(topic = "health.signal", name = "it.failed", data = Error("it.failed", None), signalType = SignalType.ERROR))
-              .buildSideEffect())
-          .toMatcher))
+              .addSideEffectSignal(
+                HealthSignal(topic = "health.signal", name = "it.failed", data = Error("it.failed", None), signalType = SignalType.ERROR, source = None))
+              .buildSideEffect())))
 
     // Create SurgeMessagePipeline
     val pipeline = createPipeline(signalStreamProvider)
@@ -261,7 +261,6 @@ class SurgeMessagePipelineSpec
           createCustomTopic(businessLogic.kafka.eventsTopic.name, Map.empty)
           createCustomTopic(businessLogic.kafka.stateTopic.name, Map.empty)
 
-          pipeline.signalBus.signalWithError(name = "baz", Error("baz happened", None)).emit()
 
           var captured: Option[HealthSignal] = None
           pipeline.signalBus.subscribe(
@@ -279,6 +278,8 @@ class SurgeMessagePipelineSpec
               }
             },
             to = pipeline.signalBus.signalTopic())
+
+          pipeline.signalBus.signalWithError(name = "baz", Error("baz happened", None)).emit().emit()
 
           eventually {
             captured.nonEmpty shouldEqual true

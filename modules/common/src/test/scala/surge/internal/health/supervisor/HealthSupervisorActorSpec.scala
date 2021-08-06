@@ -12,10 +12,9 @@ import org.scalatest.wordspec.AnyWordSpecLike
 import surge.core.{ Ack, ControllableAdapter }
 import surge.health.config.{ ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig }
 import surge.health.domain.{ HealthSignal, Trace }
-import surge.health.matchers.SideEffect
+import surge.health.matchers.{ SideEffect, SignalPatternMatcherDefinition }
 import surge.health._
 import surge.internal.health._
-import surge.internal.health.matchers.SignalNameEqualsMatcher
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
 
 import java.util.regex.Pattern
@@ -32,7 +31,7 @@ class HealthSupervisorActorSpec
   implicit override val patienceConfig: PatienceConfig =
     PatienceConfig(timeout = scaled(Span(10, Seconds)), interval = scaled(Span(10, Milliseconds)))
 
-  private val testHealthSignal = HealthSignal(topic = "health.signal", name = "boom", signalType = SignalType.TRACE, data = Trace("test"))
+  private val testHealthSignal = HealthSignal(topic = "health.signal", name = "boom", signalType = SignalType.TRACE, data = Trace("test"), source = None)
 
   case class TestContext(probe: TestProbe, bus: HealthSignalBusTrait)
 
@@ -42,12 +41,14 @@ class HealthSupervisorActorSpec
       WindowingStreamConfig(
         advancerConfig = WindowingStreamSliderConfig(buffer = 10, advanceAmount = 1),
         throttleConfig = ThrottleConfig(elements = 100, duration = 5.seconds),
-        windowingDelay = 10.milliseconds,
-        maxWindowSize = 500,
-        frequencies = Seq(100.milliseconds)),
+        windowingInitDelay = 10.milliseconds,
+        windowingResumeDelay = 10.milliseconds,
+        maxWindowSize = 500),
       system,
       streamMonitoring = Some(new StreamMonitoringRef(probe.ref)),
-      Seq(SignalNameEqualsMatcher(name = "test.trace", Some(SideEffect(Seq(testHealthSignal)))))).bus()
+      Seq(
+        SignalPatternMatcherDefinition
+          .nameEquals(signalName = "test.trace", frequency = 100.milliseconds, sideEffect = Some(SideEffect(Seq(testHealthSignal)))))).bus()
     try {
       testFun(TestContext(probe, bus))
     } finally {

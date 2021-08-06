@@ -21,6 +21,7 @@ import scala.util.Try
  *                 definitionType = "repeating"
  *                 times = 5
  *                 pattern = "foo$"
+ *                 windowFrequency = 10.seconds
  *                 side-effect = {
  *                     signals = [
  *                         {
@@ -34,6 +35,7 @@ import scala.util.Try
  *             {
  *                 definitionType = "nameEquals"
  *                 signalName = "foo"
+ *                 windowFrequency = 10.seconds
  *                 side-effect = {
  *                     signals = [
  *                         {
@@ -47,6 +49,7 @@ import scala.util.Try
  *             {
  *                 definitionType = "pattern"
  *                 pattern = "foo$"
+ *                 windowFrequency = 10.seconds
  *                 side-effect = {
  *                     signals = [
  *                         {
@@ -88,15 +91,15 @@ object SignalPatternMatcherRegistry {
 }
 
 class SignalPatternMatcherRegistry {
-  private val registry: mutable.Set[SignalPatternMatcher] = mutable.Set[SignalPatternMatcher]()
+  private val registry: mutable.Set[SignalPatternMatcherDefinition] = mutable.Set[SignalPatternMatcherDefinition]()
 
-  def toSeq: Seq[SignalPatternMatcher] = registry.toSeq
+  def toSeq: Seq[SignalPatternMatcherDefinition] = registry.toSeq
 
   def definitionFactory: SignalPatternMatcherDefinitionFactory =
     SignalPatternMatcherDefinition
 
   def load(config: SignalPatternMatcherConfig): SignalPatternMatcherRegistry = {
-    config.signalMatcherDefs.foreach(d => registry += d.toMatcher)
+    config.signalMatcherDefs.foreach(d => registry += d)
     this
   }
 }

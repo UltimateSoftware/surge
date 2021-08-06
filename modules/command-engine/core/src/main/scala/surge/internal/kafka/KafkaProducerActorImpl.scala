@@ -12,6 +12,7 @@ import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.{ AuthorizationException, ProducerFencedException }
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.core.KafkaProducerActor
+import surge.health.domain.Warning
 import surge.health.{ HealthSignalBusTrait, HealthyPublisher }
 import surge.internal.akka.ActorWithTracing
 import surge.internal.akka.cluster.ActorHostAwareness
@@ -225,7 +226,9 @@ class KafkaProducerActorImpl(
           log.debug(s"Could not find partition lag for partition $assignedPartition")
       }
       .recover { case e =>
-        log.warn(s"Error fetching partition lag for $assignedPartition. Will retry in $ktableCheckInterval", e)
+        val warningMessage = s"Error fetching partition lag for $assignedPartition. Will retry in $ktableCheckInterval"
+        signalBus.signalWithWarning(name = "kafka.producer.actor.partition.lag.error", Warning(warningMessage, Some(e), None), signalMetadata()).emit()
+        log.warn(warningMessage, e)
       }
   }
 

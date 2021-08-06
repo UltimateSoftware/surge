@@ -5,14 +5,17 @@ package surge.internal.health.windows.actor
 import akka.actor.ActorSystem
 import akka.testkit.{ TestActorRef, TestKit, TestProbe }
 import com.typesafe.config.ConfigFactory
+import org.mockito.Mockito
 import org.mockito.Mockito._
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.Eventually
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Milliseconds, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
+import surge.health.HealthSignalBusTrait
 import surge.health.domain.HealthSignal
-import surge.health.windows.{ AddedToWindow, WindowAdvanced, WindowClosed, WindowOpened }
+import surge.health.matchers.SignalPatternMatcherDefinition.SignalNameEqualsMatcherDefinition
+import surge.health.windows.{ AddedToWindow, WindowAdvanced, WindowClosed, WindowOpened, WindowPaused, WindowResumed }
 import surge.internal.health.windows.WindowSlider
 import surge.internal.health.{ HealthSignalBus, HealthSignalBusInternal }
 
@@ -39,11 +42,17 @@ class HealthSignalWindowActorSpec
     "tick" in {
       var tickCount: Int = 0
       // override handleTick to track times tick was received
-      val actorRef = TestActorRef(new HealthSignalWindowActor(frequency = 5.seconds, WindowSlider(1, 0)) {
-        override def handleTick(state: WindowState): Unit = {
-          tickCount += 1
-        }
-      })
+      val actorRef = TestActorRef(
+        new HealthSignalWindowActor(
+          frequency = 5.seconds,
+          resumeWindowProcessingDelay = 10.milliseconds,
+          signalBus = Mockito.mock(classOf[HealthSignalBusTrait]),
+          signalPatternMatcherDefinition = SignalNameEqualsMatcherDefinition("place-holder-matcher-for-test", 10.seconds, None),
+          windowAdvanceStrategy = WindowSlider(1, 0)) {
+          override def handleTick(state: WindowState): Unit = {
+            tickCount += 1
+          }
+        })
 
       val probe = TestProbe()
       probe.watch(actorRef)
@@ -69,13 +78,57 @@ class HealthSignalWindowActorSpec
       }
     }
 
+    "pause and resume after flush" in {
+      val actorRef: HealthSignalWindowActorRef =
+        HealthSignalWindowActor(
+          actorSystem = system,
+          windowFrequency = 100.milliseconds,
+          initialWindowProcessingDelay = 10.milliseconds,
+          resumeWindowProcessingDelay = 10.milliseconds,
+          advancer = WindowSlider(1, 0),
+          signalBus = Mockito.mock(classOf[HealthSignalBusTrait]),
+          signalPatternMatcherDefinition = SignalNameEqualsMatcherDefinition("place-holder-matcher-for-test", 10.seconds, None),
+          windowCheckInterval = 10.milliseconds)
+      val probe = TestProbe()
+      probe.watch(actorRef.actor)
+
+      actorRef.start(Some(probe.ref))
+
+      actorRef.flush()
+
+      eventually {
+        val paused = probe.fishForMessage(max = 1.second) { case _: WindowPaused =>
+          true
+        }
+
+        paused shouldBe a[WindowPaused]
+      }
+
+      eventually {
+        val resumed = probe.fishForMessage(max = 1.second) { case _: WindowResumed =>
+          true
+        }
+
+        resumed shouldBe a[WindowResumed]
+      }
+
+      actorRef.stop()
+
+      eventually {
+        probe.expectTerminated(actorRef.actor)
+      }
+    }
+
     "when sliding configured; advance on Window Expired" in {
       val actorRef: HealthSignalWindowActorRef =
         HealthSignalWindowActor(
           actorSystem = system,
           windowFrequency = 100.milliseconds,
           initialWindowProcessingDelay = 10.milliseconds,
+          resumeWindowProcessingDelay = 10.milliseconds,
           advancer = WindowSlider(1, 0),
+          signalPatternMatcherDefinition = SignalNameEqualsMatcherDefinition("place-holder-matcher-for-test", 10.seconds, None),
+          signalBus = Mockito.mock(classOf[HealthSignalBusTrait]),
           windowCheckInterval = 10.milliseconds)
       val probe = TestProbe()
       probe.watch(actorRef.actor)
@@ -114,8 +167,11 @@ class HealthSignalWindowActorSpec
         HealthSignalWindowActor(
           actorSystem = system,
           initialWindowProcessingDelay = 10.milliseconds,
+          resumeWindowProcessingDelay = 10.milliseconds,
           windowFrequency = 100.milliseconds,
           advancer = WindowSlider(1, 0),
+          signalPatternMatcherDefinition = SignalNameEqualsMatcherDefinition("place-holder-matcher-for-test", 10.seconds, None),
+          signalBus = Mockito.mock(classOf[HealthSignalBusTrait]),
           windowCheckInterval = 10.milliseconds)
       val probe = TestProbe()
       probe.watch(actorRef.actor)
@@ -148,8 +204,11 @@ class HealthSignalWindowActorSpec
         HealthSignalWindowActor(
           actorSystem = system,
           initialWindowProcessingDelay = 10.milliseconds,
+          resumeWindowProcessingDelay = 10.milliseconds,
           windowFrequency = 100.milliseconds,
           advancer = WindowSlider(1, 10),
+          signalPatternMatcherDefinition = SignalNameEqualsMatcherDefinition("place-holder-matcher-for-test", 10.seconds, None),
+          signalBus = Mockito.mock(classOf[HealthSignalBusTrait]),
           windowCheckInterval = 10.milliseconds)
 
       val probe = TestProbe()
