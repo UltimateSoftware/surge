@@ -2,44 +2,67 @@
 
 package surge.streams.replay
 
-import java.util
-import java.util.concurrent.TimeUnit
-
 import akka.Done
 import akka.actor.{ Actor, ActorRef, ActorSystem, Props, Stash }
 import akka.pattern.ask
 import akka.util.Timeout
-import com.typesafe.config.ConfigFactory
+import com.typesafe.config.{ Config, ConfigFactory }
 import org.apache.kafka.clients.consumer.{ ConsumerConfig, ConsumerRebalanceListener, KafkaConsumer, OffsetAndMetadata }
 import org.apache.kafka.common.TopicPartition
 import surge.internal.streams.PartitionAssignorConfig
 import surge.internal.utils.Logging
 import surge.kafka.{ KafkaBytesConsumer, UltiKafkaConsumerConfig }
-import surge.streams.DataHandler
 import surge.streams.replay.TopicResetActor._
 
+import java.util
+import java.util.concurrent.TimeUnit
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.jdk.CollectionConverters._
 
-class KafkaForeverReplayStrategy(
+trait KafkaForeverReplayStrategy extends EventReplayStrategy
+
+object KafkaForeverReplayStrategy {
+  def apply(
+      config: Config,
+      actorSystem: ActorSystem,
+      settings: KafkaForeverReplaySettings,
+      preReplay: () => Future[Any] = { () => Future.successful(true) },
+      postReplay: () => Unit = { () => () })(implicit executionContext: ExecutionContext): KafkaForeverReplayStrategy = {
+    new KafkaForeverReplayStrategyImpl(config, actorSystem, settings, preReplay, postReplay)
+  }
+
+  @deprecated("Use KafkaForeverReplayStrategy.apply instead", "0.5.17")
+  def create[Key, Value](
+      actorSystem: ActorSystem,
+      settings: KafkaForeverReplaySettings,
+      preReplay: () => Future[Any] = { () => Future.successful(true) },
+      postReplay: () => Unit = { () => () }): KafkaForeverReplayStrategy = {
+    val config = ConfigFactory.load()
+    KafkaForeverReplayStrategy(config, actorSystem, settings, preReplay, postReplay)(ExecutionContext.global)
+  }
+}
+
+class KafkaForeverReplayStrategyImpl(
+    config: Config,
     actorSystem: ActorSystem,
     settings: KafkaForeverReplaySettings,
     override val preReplay: () => Future[Any] = { () => Future.successful(true) },
     override val postReplay: () => Unit = { () => () })(implicit executionContext: ExecutionContext)
-    extends EventReplayStrategy {
+    extends KafkaForeverReplayStrategy {
 
   override def createReplayController[Key, Value](context: ReplayControlContext[Key, Value]): KafkaForeverReplayControl =
-    new KafkaForeverReplayControl(actorSystem, settings, preReplay, postReplay)
+    new KafkaForeverReplayControl(actorSystem, settings, config, preReplay, postReplay)
 }
 
 class KafkaForeverReplayControl(
     actorSystem: ActorSystem,
     settings: KafkaForeverReplaySettings,
+    config: Config,
     override val preReplay: () => Future[Any] = { () => Future.successful(true) },
     override val postReplay: () => Unit = { () => () })(implicit executionContext: ExecutionContext)
     extends ReplayControl {
-  private val underlyingActor = actorSystem.actorOf(Props(new TopicResetActor(settings.brokers, settings.topic)))
+  private val underlyingActor = actorSystem.actorOf(Props(new TopicResetActor(settings.brokers, settings.topic, config)))
 
   implicit val timeout: Timeout = Timeout(settings.resetTopicTimeout)
   override def fullReplay(consumerGroup: String, partitions: Iterable[Int]): Future[Done] = {
@@ -58,29 +81,20 @@ case class KafkaForeverReplaySettings(brokers: List[String], resetTopicTimeout: 
     extends EventReplaySettings
 
 object KafkaForeverReplaySettings {
-  private val config = ConfigFactory.load()
-  private val brokers = config.getString("kafka.brokers").split(",").toList
-  private val resetTopicTimeout: FiniteDuration = config.getDuration("kafka.streams.replay.reset-topic-timeout", TimeUnit.MILLISECONDS).milliseconds
-  private val entireProcessTimeout: FiniteDuration = config.getDuration("kafka.streams.replay.entire-process-timeout", TimeUnit.MILLISECONDS).milliseconds
-
-  def apply(topic: String): KafkaForeverReplaySettings = {
+  def apply(config: Config, topic: String): KafkaForeverReplaySettings = {
+    val brokers = config.getString("kafka.brokers").split(",").toList
+    val resetTopicTimeout: FiniteDuration = config.getDuration("kafka.streams.replay.reset-topic-timeout", TimeUnit.MILLISECONDS).milliseconds
+    val entireProcessTimeout: FiniteDuration = config.getDuration("kafka.streams.replay.entire-process-timeout", TimeUnit.MILLISECONDS).milliseconds
     new KafkaForeverReplaySettings(brokers, resetTopicTimeout, entireProcessTimeout, topic)
   }
 
-  def create(topic: String): KafkaForeverReplaySettings = apply(topic)
+  @deprecated("Use create(config, topic) instead", "0.5.17")
+  def create(topic: String): KafkaForeverReplaySettings = create(ConfigFactory.load(), topic)
+
+  def create(config: Config, topic: String): KafkaForeverReplaySettings = apply(config, topic)
 }
 
-object KafkaForeverReplayStrategy {
-  def create[Key, Value](
-      actorSystem: ActorSystem,
-      settings: KafkaForeverReplaySettings,
-      preReplay: () => Future[Any] = { () => Future.successful(true) },
-      postReplay: () => Unit = { () => () }): KafkaForeverReplayStrategy = {
-    new KafkaForeverReplayStrategy(actorSystem, settings, preReplay, postReplay)(ExecutionContext.global)
-  }
-}
-
-class TopicResetActor(brokers: List[String], kafkaTopic: String) extends Actor with Stash with Logging {
+class TopicResetActor(brokers: List[String], kafkaTopic: String, config: Config) extends Actor with Stash with Logging {
 
   def ready: Receive = { case ResetTopic(consumerGroup, partitions) =>
     try {
@@ -121,11 +135,12 @@ class TopicResetActor(brokers: List[String], kafkaTopic: String) extends Actor w
     log.debug(s"Replay started for $kafkaTopic")
     val topicPartitions = partitions.map { partition => new TopicPartition(kafkaTopic, partition) }
     val consumer = KafkaBytesConsumer(
+      config,
       brokers,
       UltiKafkaConsumerConfig(consumerGroup),
       Map(
         ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG -> "60000",
-        ConsumerConfig.PARTITION_ASSIGNMENT_STRATEGY_CONFIG -> PartitionAssignorConfig.assignorClassName)).consumer
+        ConsumerConfig.PARTITION_ASSIGNMENT_STRATEGY_CONFIG -> PartitionAssignorConfig.assignorClassName(config))).consumer
     consumer.subscribe(
       List(kafkaTopic).asJava,
       new ConsumerRebalanceListener() {

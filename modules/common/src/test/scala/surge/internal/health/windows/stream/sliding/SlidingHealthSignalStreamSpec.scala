@@ -80,7 +80,7 @@ class SlidingHealthSignalStreamSpec
   }
 
   override def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system)
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
   }
 
   "SlidingHealthSignalStream" should {
@@ -164,7 +164,7 @@ class SlidingHealthSignalStreamSpec
       bus.signalWithError(name = "test.error", Error("error to test open-window", None)).emit()
 
       eventually {
-        val windowOpened = probe.fishForMessage(max = 1.second) { case msg =>
+        val windowOpened = probe.fishForMessage(max = 2.second) { case msg =>
           msg.isInstanceOf[WindowOpened]
         }
 

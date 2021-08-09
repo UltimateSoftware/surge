@@ -2,8 +2,9 @@
 
 package surge.metrics
 
-import java.util.function.Supplier
+import com.typesafe.config.ConfigFactory
 
+import java.util.function.Supplier
 import org.apache.kafka.common.MetricName
 import org.slf4j.LoggerFactory
 import surge.metrics.statistics.{ Count, ExponentiallyWeightedMovingAverage, MostRecentValue, RateHistogram }
@@ -12,7 +13,7 @@ import scala.collection.mutable
 import scala.concurrent.duration._
 
 object Metrics {
-  lazy val globalMetricRegistry: Metrics = Metrics(config = MetricsConfig.fromConfig)
+  lazy val globalMetricRegistry: Metrics = Metrics(config = MetricsConfig.fromConfig(ConfigFactory.load()))
 }
 
 object KafkaMetricListener {

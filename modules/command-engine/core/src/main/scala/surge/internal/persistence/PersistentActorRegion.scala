@@ -54,7 +54,8 @@ class PersistentActorRegion[M](
     businessLogic = businessLogic,
     partitionTracker = partitionTracker,
     kStreams = aggregateKafkaStreamsImpl,
-    signalBus = signalBus)
+    signalBus = signalBus,
+    config = config)
 
   override def onShardTerminated(): Unit = {
     log.debug("Shard for partition {} terminated, killing partition kafkaProducerActor", assignedPartition)
