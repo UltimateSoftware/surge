@@ -61,7 +61,7 @@ object SideCarMain extends App {
       override def writeState(agg: State): SerializedAggregate = new SerializedAggregate(State.toByteArray(agg), Map.empty)
     }
 
-    override def aggregateName: String = "shopping-cart"
+    override def aggregateName: String = "photo"
 
     override def stateTopic: KafkaTopic = KafkaTopic("state")
   }
