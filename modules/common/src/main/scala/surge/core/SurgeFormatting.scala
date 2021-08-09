@@ -2,20 +2,26 @@
 
 package surge.core
 
-import scala.jdk.CollectionConverters.MapHasAsScala
+import scala.collection.JavaConverters.mapAsScalaMapConverter
 
-case class SerializedMessage(key: String, value: Array[Byte], headers: Map[String, String])
+case class SerializedMessage(key: String, value: Array[Byte], headers: Map[String, String] = Map.empty)
 case class SerializedAggregate(value: Array[Byte], headers: Map[String, String] = Map.empty)
 
 object SerializedAggregate {
   def create(value: Array[Byte], headers: java.util.Map[String, String]): SerializedAggregate = {
     SerializedAggregate(value, headers.asScala.toMap)
   }
+  def create(value: Array[Byte]): SerializedAggregate = {
+    SerializedAggregate(value)
+  }
 }
 
 object SerializedMessage {
   def create(key: String, value: Array[Byte], headers: java.util.Map[String, String]): SerializedMessage = {
     SerializedMessage(key, value, headers.asScala.toMap)
+  }
+  def create(key: String, value: Array[Byte]): SerializedMessage = {
+    SerializedMessage(key, value)
   }
 }
 
