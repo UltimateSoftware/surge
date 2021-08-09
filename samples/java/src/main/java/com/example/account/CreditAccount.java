@@ -12,3 +12,4 @@ public record CreditAccount(UUID accountNumber, double amount) implements BankAc
         return accountNumber;
     }
 }
+

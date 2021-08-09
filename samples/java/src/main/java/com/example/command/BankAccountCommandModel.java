@@ -8,7 +8,6 @@ import com.example.account.CreateAccount;
 import com.example.account.CreditAccount;
 import com.example.account.DebitAccount;
 import surge.javadsl.command.AggregateCommandModel;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -50,7 +49,7 @@ public class BankAccountCommandModel implements AggregateCommandModel<BankAccoun
                     return Collections.singletonList(bankAccountUpdated);
 
                 } else {
-                    throw new RuntimeException("InsufficientFund");
+                    throw new RuntimeException("Insufficient funds");
                 }
             } else {
                 throw new RuntimeException("Account does not exist");
@@ -62,15 +61,15 @@ public class BankAccountCommandModel implements AggregateCommandModel<BankAccoun
     @Override
     public Optional<BankAccount> handleEvent(Optional<BankAccount> aggregate, BankAccountEvent event) {
 
-        if(event instanceof BankAccountCreated bankAccountCreated){
+        if (event instanceof BankAccountCreated bankAccountCreated) {
             Optional<BankAccount> bankAccount;
-             bankAccount = Optional.of(new BankAccount(event.getAccountNumber(), bankAccountCreated.accountOwner(),
-                     bankAccountCreated.securityCode(), bankAccountCreated.balance()));
-            return  bankAccount;
+            bankAccount = Optional.of(new BankAccount(event.getAccountNumber(), bankAccountCreated.accountOwner(),
+                    bankAccountCreated.securityCode(), bankAccountCreated.balance()));
+            return bankAccount;
         }
-        if(event instanceof BankAccountUpdated bankAccountUpdated){
-            return aggregate.map((item)-> new BankAccount(item.accountNumber(),item.accountOwner()
-                    ,item.securityCode(),bankAccountUpdated.amount()));
+        if (event instanceof BankAccountUpdated bankAccountUpdated) {
+            return aggregate.map((item) -> new BankAccount(item.accountNumber(), item.accountOwner()
+                    , item.securityCode(), bankAccountUpdated.amount()));
         }
         throw new RuntimeException("Unhandled event");
     }

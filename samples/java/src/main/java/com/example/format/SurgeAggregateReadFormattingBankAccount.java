@@ -14,8 +14,8 @@ public class SurgeAggregateReadFormattingBankAccount implements SurgeAggregateRe
         ObjectMapper objectMapper = new ObjectMapper();
         BankAccount bankAccount;
         try {
-               bankAccount = objectMapper.readValue(bytes, BankAccount.class);
-               return scala.Option.apply(bankAccount);
+            bankAccount = objectMapper.readValue(bytes, BankAccount.class);
+            return scala.Option.apply(bankAccount);
         } catch (IOException e) {
             return scala.Option.empty();
         }
