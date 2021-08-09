@@ -2,6 +2,7 @@ package com.example.command;
 
 import java.util.UUID;
 
-public interface BankAccountCommand {
+public  interface BankAccountCommand {
+
     UUID getAccountNumber();
 }

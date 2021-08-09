@@ -15,6 +15,6 @@ public record BankAccountCreated(UUID accountNumber, String accountOwner, String
 
     @Override
     public UUID getAccountNumber() {
-        return this.accountNumber;
+        return accountNumber;
     }
 }

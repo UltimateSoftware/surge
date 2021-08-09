@@ -9,16 +9,15 @@ import java.io.IOException;
 
 
 public class SurgeAggregateReadFormattingBankAccount implements SurgeAggregateReadFormatting<BankAccount> {
-    private final ObjectMapper objectMapper = new ObjectMapper();
-
     @Override
     public Option<BankAccount> readState(byte[] bytes) {
+        ObjectMapper objectMapper = new ObjectMapper();
         BankAccount bankAccount;
         try {
-            bankAccount = objectMapper.readValue(bytes, BankAccount.class);
-            return scala.Option.apply(bankAccount);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+               bankAccount = objectMapper.readValue(bytes, BankAccount.class);
+               return scala.Option.apply(bankAccount);
+        } catch (IOException e) {
+            return scala.Option.empty();
         }
     }
 

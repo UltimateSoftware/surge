@@ -2,6 +2,7 @@ package com.example;
 
 import com.example.account.BankAccount;
 import com.example.command.BankAccountCommand;
+import com.example.command.BankAccountCommandModel;
 import com.example.event.BankAccountEvent;
 import com.example.format.SurgeAggregateReadFormattingBankAccount;
 import com.example.format.SurgeAggregateWriteFormattingBankAccount;
@@ -12,7 +13,6 @@ import surge.core.SurgeEventWriteFormatting;
 import surge.javadsl.command.AggregateCommandModel;
 import surge.javadsl.command.SurgeCommandBusinessLogic;
 import surge.kafka.KafkaTopic;
-
 import java.util.UUID;
 
 public class BankAccountSurgeModel extends SurgeCommandBusinessLogic<UUID, BankAccount, BankAccountCommand,

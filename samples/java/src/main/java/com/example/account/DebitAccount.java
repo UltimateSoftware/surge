@@ -1,13 +1,14 @@
 package com.example.account;
 
 import com.example.command.BankAccountCommand;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
 
-@Data
-@EqualsAndHashCode
-@AllArgsConstructor
-public class DebitAccount extends BankAccountCommand {
-    private double debitAmount;
+import java.util.UUID;
+
+
+public record DebitAccount(UUID accountNumber, double amount) implements BankAccountCommand {
+
+    @Override
+    public UUID getAccountNumber() {
+        return accountNumber;
+    }
 }

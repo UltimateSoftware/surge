@@ -1,7 +1,7 @@
 package com.example.command;
 
 import com.example.account.BankAccount;
-import com.example.BankAccountCreated;
+import com.example.event.BankAccountCreated;
 import com.example.event.BankAccountEvent;
 import com.example.event.BankAccountUpdated;
 import com.example.account.CreateAccount;
@@ -23,9 +23,9 @@ public class BankAccountCommandModel implements AggregateCommandModel<BankAccoun
                 return new ArrayList<>();
             } else {
                 BankAccountCreated bankAccountCreated = new BankAccountCreated(createAccount.getAccountNumber(),
-                        createAccount.getAccountOwner()
-                        , createAccount.getSecurityCode()
-                        , createAccount.getInitialBalance());
+                        createAccount.accountOwner()
+                        , createAccount.securityCode()
+                        , createAccount.initialBalance());
                 return Collections.singletonList(bankAccountCreated);
 
             }
@@ -33,8 +33,8 @@ public class BankAccountCommandModel implements AggregateCommandModel<BankAccoun
         if (command instanceof CreditAccount creditAccount) {
             if (aggregate.isPresent()) {
                 BankAccount bankAccount = aggregate.get();
-                BankAccountUpdated bankAccountUpdated = new BankAccountUpdated(bankAccount.accountId()
-                        , bankAccount.balance() + creditAccount.getAmount());
+                BankAccountUpdated bankAccountUpdated = new BankAccountUpdated(creditAccount.accountNumber()
+                        , bankAccount.balance() + creditAccount.amount());
                 return Collections.singletonList(bankAccountUpdated);
 
             } else {
@@ -44,9 +44,9 @@ public class BankAccountCommandModel implements AggregateCommandModel<BankAccoun
         if (command instanceof DebitAccount debitAccount) {
             if (aggregate.isPresent()) {
                 BankAccount bankAccount = aggregate.get();
-                if (bankAccount.balance() >= debitAccount.getDebitAmount()) {
-                    BankAccountUpdated bankAccountUpdated = new BankAccountUpdated(bankAccount.accountId(),
-                            bankAccount.balance() - debitAccount.getDebitAmount());
+                if (bankAccount.balance() >= debitAccount.amount()) {
+                    BankAccountUpdated bankAccountUpdated = new BankAccountUpdated(bankAccount.accountNumber(),
+                            bankAccount.balance() - debitAccount.amount());
                     return Collections.singletonList(bankAccountUpdated);
 
                 } else {
@@ -64,13 +64,13 @@ public class BankAccountCommandModel implements AggregateCommandModel<BankAccoun
 
         if(event instanceof BankAccountCreated bankAccountCreated){
             Optional<BankAccount> bankAccount;
-             bankAccount = Optional.of(new BankAccount(event.getAccountNumber(), bankAccountCreated.getAccountOwner(),
-                     bankAccountCreated.getSecurityCode(), bankAccountCreated.getBalance()));
+             bankAccount = Optional.of(new BankAccount(event.getAccountNumber(), bankAccountCreated.accountOwner(),
+                     bankAccountCreated.securityCode(), bankAccountCreated.balance()));
             return  bankAccount;
         }
         if(event instanceof BankAccountUpdated bankAccountUpdated){
-            return aggregate.map((item)-> new BankAccount(item.accountId(),item.accountOwner()
-                    ,item.securityCode(),bankAccountUpdated.getBalance()));
+            return aggregate.map((item)-> new BankAccount(item.accountNumber(),item.accountOwner()
+                    ,item.securityCode(),bankAccountUpdated.amount()));
         }
         throw new RuntimeException("Unhandled event");
     }
