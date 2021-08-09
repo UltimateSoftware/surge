@@ -4,31 +4,12 @@ package com.example
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
+import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
 import akka.stream.Materializer
 import com.typesafe.config.ConfigFactory
-import com.ukg.surge.poc.{
-  BusinessLogicService,
-  BusinessLogicServiceHandler,
-  Command,
-  Event,
-  HandleEventRequest,
-  HandleEventResponse,
-  PersonTagged,
-  Photo,
-  ProcessCommandReply,
-  ProcessCommandRequest,
-  State,
-  TagPerson
-}
+import com.ukg.surge.poc._
 
-import scala.concurrent.{ ExecutionContext, Future }
-import akka.http.scaladsl.model.{ HttpRequest, HttpResponse }
-import akka.stream.Materializer
-import akka.stream.scaladsl.Sink
-import akka.stream.scaladsl.Source
-import com.google.protobuf.timestamp.Timestamp
-
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 
 class BusinessServiceImpl(implicit mat: Materializer) extends BusinessLogicService {
 
