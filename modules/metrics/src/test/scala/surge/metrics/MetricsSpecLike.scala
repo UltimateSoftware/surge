@@ -11,7 +11,7 @@ object MetricsSpecLike {
   }
 }
 trait MetricsSpecLike extends AnyWordSpecLike with Matchers {
-  protected val metrics = new Metrics(MetricsConfig.fromConfig)
+  protected val metrics = new Metrics(MetricsConfig(RecordingLevel.Info))
 
   protected def metricValue(metricName: String): Double = {
     MetricsSpecLike.metricValue(metrics, metricName)

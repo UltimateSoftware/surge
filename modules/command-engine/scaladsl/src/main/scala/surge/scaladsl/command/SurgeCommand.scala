@@ -3,7 +3,7 @@
 package surge.scaladsl.command
 
 import akka.actor.ActorSystem
-import com.typesafe.config.{ Config, ConfigFactory }
+import com.typesafe.config.Config
 import surge.core
 import surge.core.command.SurgeCommandModel
 import surge.core.commondsl.{ SurgeCommandBusinessLogicTrait, SurgeRejectableCommandBusinessLogicTrait }
@@ -25,17 +25,16 @@ object SurgeCommand {
   def apply[AggId, Agg, Command, Event](
       businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Event]): SurgeCommand[AggId, Agg, Command, Nothing, Event] = {
     val actorSystem = ActorSystem(s"${businessLogic.aggregateName}ActorSystem")
-    val config = ConfigFactory.load()
-    apply(actorSystem, businessLogic, config)
+    apply(actorSystem, businessLogic, businessLogic.config)
   }
   def apply[AggId, Agg, Command, Event](
       actorSystem: ActorSystem,
       businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Event],
-      config: Config = ConfigFactory.load()): SurgeCommand[AggId, Agg, Command, Nothing, Event] = {
+      config: Config): SurgeCommand[AggId, Agg, Command, Nothing, Event] = {
     new SurgeCommandImpl(
       actorSystem,
       SurgeCommandModel(businessLogic),
-      new SlidingHealthSignalStreamProvider(WindowingStreamConfigLoader.load(), actorSystem, filters = SignalPatternMatcherRegistry.load().toSeq),
+      new SlidingHealthSignalStreamProvider(WindowingStreamConfigLoader.load(config), actorSystem, filters = SignalPatternMatcherRegistry.load().toSeq),
       businessLogic.aggregateIdToString,
       config)
   }
@@ -47,7 +46,7 @@ object SurgeCommand {
     new SurgeCommandImpl(
       actorSystem,
       SurgeCommandModel(businessLogic),
-      new SlidingHealthSignalStreamProvider(WindowingStreamConfigLoader.load(), actorSystem, filters = SignalPatternMatcherRegistry.load().toSeq),
+      new SlidingHealthSignalStreamProvider(WindowingStreamConfigLoader.load(config), actorSystem, filters = SignalPatternMatcherRegistry.load().toSeq),
       businessLogic.aggregateIdToString,
       config)
   }

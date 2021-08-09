@@ -2,8 +2,9 @@
 
 package surge.kafka
 
-import java.util.Properties
+import com.typesafe.config.Config
 
+import java.util.Properties
 import org.apache.kafka.clients.admin.{ Admin, ListOffsetsOptions, OffsetSpec }
 import org.apache.kafka.clients.admin.ListOffsetsResult.ListOffsetsResultInfo
 import org.apache.kafka.clients.consumer.{ ConsumerConfig, OffsetAndMetadata }
@@ -15,11 +16,11 @@ case class LagInfo(currentOffsetPosition: Long, endOffsetPosition: Long) {
   val offsetLag: Long = Math.max(0, endOffsetPosition - currentOffsetPosition)
 }
 
-object KafkaAdminClient extends KafkaSecurityConfiguration {
-  def apply(brokers: Seq[String]): KafkaAdminClient = {
+object KafkaAdminClient {
+  def apply(config: Config, brokers: Seq[String]): KafkaAdminClient = {
     val p = new Properties()
     p.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, brokers.mkString(","))
-    configureSecurityProperties(p)
+    new KafkaSecurityConfigurationImpl(config).configureSecurityProperties(p)
     apply(p)
   }
 
@@ -28,7 +29,7 @@ object KafkaAdminClient extends KafkaSecurityConfiguration {
   }
 }
 
-class KafkaAdminClient(props: Properties) extends KafkaSecurityConfiguration {
+class KafkaAdminClient(props: Properties) {
   private val client = Admin.create(props)
 
   def consumerGroupOffsets(groupName: String): Map[TopicPartition, OffsetAndMetadata] = {

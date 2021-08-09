@@ -4,6 +4,7 @@ package surge.kafka
 
 import akka.actor.{ Actor, ActorContext, ActorSystem, DeadLetter, Props }
 import akka.testkit.{ TestKit, TestProbe }
+import com.typesafe.config.ConfigFactory
 import org.apache.kafka.common.TopicPartition
 import org.mockito.ArgumentMatchers.anyString
 import org.mockito.Mockito.when
@@ -60,6 +61,8 @@ trait KafkaPartitionShardRouterActorSpecLike extends MockitoSugar {
 
   implicit val system: ActorSystem
 
+  private val defaultConfig = ConfigFactory.load()
+
   val partitionAssignments: Map[HostPort, List[TopicPartition]]
   private val tracer = NoopTracerFactory.create()
   private val trackedTopic = KafkaTopic("test")
@@ -71,7 +74,6 @@ trait KafkaPartitionShardRouterActorSpecLike extends MockitoSugar {
 
   case class TestContext(partitionProbe: TestProbe, regionProbe: TestProbe, shardRouterProps: Props)
 
-  case object ThrowExceptionInExtractEntityId
   def setupTestContext(): TestContext = {
     val partitionProbe = TestProbe()
     val regionProbe = TestProbe()
@@ -83,12 +85,12 @@ trait KafkaPartitionShardRouterActorSpecLike extends MockitoSugar {
       partitionMappings.get(key)
     })
 
-    val extractEntityId: PartialFunction[Any, String] = {
-      case cmd: Command                    => cmd.id
-      case ThrowExceptionInExtractEntityId => throw new RuntimeException("Received ThrowExceptionInExtractEntityId in extractEntityId function")
+    val extractEntityId: PartialFunction[Any, String] = { case cmd: Command =>
+      cmd.id
     }
     val shardRouterProps = Props(
       new KafkaPartitionShardRouterActor(
+        config = defaultConfig,
         partitionTracker = new KafkaConsumerPartitionAssignmentTracker(partitionProbe.ref),
         kafkaStateProducer = producer,
         regionCreator = new ProbeInterceptorRegionCreator(regionProbe),
@@ -201,40 +203,5 @@ class KafkaPartitionShardRouterActorSpec
       probe.expectMsg(command0)
     }
 
-    "Send traced messages that can't be routed to dead letters" in {
-      val testContext = setupTestContext()
-      import testContext._
-
-      val deadLetterProbe = TestProbe()
-      system.eventStream.subscribe(deadLetterProbe.ref, classOf[DeadLetter])
-      val routerActor = system.actorOf(shardRouterProps)
-
-      initializePartitionAssignments(partitionProbe)
-
-      routerActor ! TracedMessage(ThrowExceptionInExtractEntityId)
-
-      val dead = deadLetterProbe.expectMsgType[DeadLetter]
-      dead.message shouldEqual ThrowExceptionInExtractEntityId
-      dead.sender shouldEqual routerActor
-      dead.recipient shouldEqual system.deadLetters
-    }
-
-    "Send messages that can't be routed to dead letters" in {
-      val testContext = setupTestContext()
-      import testContext._
-
-      val deadLetterProbe = TestProbe()
-      system.eventStream.subscribe(deadLetterProbe.ref, classOf[DeadLetter])
-      val routerActor = system.actorOf(shardRouterProps)
-
-      initializePartitionAssignments(partitionProbe)
-
-      routerActor ! ThrowExceptionInExtractEntityId
-
-      val dead = deadLetterProbe.expectMsgType[DeadLetter]
-      dead.message shouldEqual ThrowExceptionInExtractEntityId
-      dead.sender shouldEqual routerActor
-      dead.recipient shouldEqual system.deadLetters
-    }
   }
 }

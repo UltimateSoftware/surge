@@ -2,10 +2,8 @@
 
 package surge.javadsl.event
 
-import java.util.concurrent.CompletionStage
-
 import akka.actor.ActorSystem
-import com.typesafe.config.{ Config, ConfigFactory }
+import com.typesafe.config.Config
 import surge.core
 import surge.core.event.SurgeEventServiceModel
 import surge.health.config.WindowingStreamConfigLoader
@@ -16,6 +14,7 @@ import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamPro
 import surge.javadsl.common.{ HealthCheck, HealthCheckTrait }
 import surge.metrics.Metric
 
+import java.util.concurrent.CompletionStage
 import scala.compat.java8.FutureConverters
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.jdk.CollectionConverters._
@@ -29,13 +28,15 @@ trait SurgeEvent[AggId, Agg, Evt] extends core.SurgeProcessingTrait[Agg, Nothing
 object SurgeEvent {
   def create[AggId, Agg, Evt](businessLogic: SurgeEventBusinessLogic[AggId, Agg, Evt]): SurgeEvent[AggId, Agg, Evt] = {
     val actorSystem = ActorSystem(s"${businessLogic.aggregateName}ActorSystem")
-    val config = ConfigFactory.load()
     new SurgeEventImpl(
       actorSystem,
       SurgeEventServiceModel.apply(businessLogic),
-      new SlidingHealthSignalStreamProvider(WindowingStreamConfigLoader.load(), actorSystem, filters = SignalPatternMatcherRegistry.load().toSeq),
+      new SlidingHealthSignalStreamProvider(
+        WindowingStreamConfigLoader.load(businessLogic.config),
+        actorSystem,
+        filters = SignalPatternMatcherRegistry.load().toSeq),
       businessLogic.aggregateIdToString,
-      config)
+      businessLogic.config)
   }
 
 }

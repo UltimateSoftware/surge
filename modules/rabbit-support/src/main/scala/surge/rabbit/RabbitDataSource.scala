@@ -2,17 +2,17 @@
 
 package surge.rabbit
 
-import java.util.Collections
-
 import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.stream.alpakka.amqp._
 import akka.stream.alpakka.amqp.scaladsl.{ AmqpSource, CommittableReadResult }
 import akka.stream.scaladsl.{ Flow, Keep }
 import akka.util.ByteString
+import io.opentelemetry.api.trace.Tracer
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.streams.{ DataHandler, DataPipeline, DataSource, EventPlusStreamMeta }
 
+import java.util.Collections
 import scala.jdk.CollectionConverters._
 
 object RabbitDataSource {
@@ -37,6 +37,8 @@ trait RabbitDataSource[Key, Value] extends DataSource[Key, Value] {
 
   def bufferSize: Int
 
+  val tracer: Tracer
+
   private val connectionProvider: AmqpConnectionProvider = AmqpUriConnectionProvider(rabbitMqUri)
 
   private def businessFlow(sink: DataHandler[Key, Value]): Flow[CommittableReadResult, CommittableReadResult, NotUsed] = {
@@ -45,7 +47,8 @@ trait RabbitDataSource[Key, Value] extends DataSource[Key, Value] {
         val key = readResultToKey(interceptReadResult(crr))
         val value = readResultToValue(crr.message.bytes)
         val headers = Option(crr.message.properties.getHeaders).getOrElse(Collections.emptyMap()).asScala.map(tup => tup._1 -> tup._2.toString.getBytes()).toMap
-        val eventPlusMeta = EventPlusStreamMeta(key, value, streamMeta = None, headers)
+        val span = tracer.spanBuilder(s"Consume from $queueName (RabbitMQ)").setNoParent().startSpan()
+        val eventPlusMeta = EventPlusStreamMeta(key, value, streamMeta = None, headers, span)
         eventPlusMeta
       }
       .via(sink.dataHandler)

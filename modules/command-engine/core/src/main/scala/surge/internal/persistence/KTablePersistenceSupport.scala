@@ -33,8 +33,7 @@ trait KTablePersistenceSupport[Agg, Event] {
   protected def onPersistenceFailure(state: ActorState, cause: Throwable): Unit
 
   private val log = LoggerFactory.getLogger(getClass)
-  private val config = ConfigFactory.load()
-  private val maxProducerFailureRetries: Int = config.getInt("surge.aggregate-actor.publish-failure-max-retries")
+  protected val maxProducerFailureRetries: Int
 
   private sealed trait Internal extends NoSerializationVerificationNeeded
   private case class PersistenceSuccess(newState: ActorState, startTime: Instant) extends Internal
