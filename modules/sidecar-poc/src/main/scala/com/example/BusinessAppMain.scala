@@ -2,8 +2,13 @@
 
 package com.example
 
+import akka.actor.ActorSystem
+import akka.http.scaladsl.Http
+import akka.stream.Materializer
+import com.typesafe.config.ConfigFactory
 import com.ukg.surge.poc.{
   BusinessLogicService,
+  BusinessLogicServiceHandler,
   Command,
   Event,
   HandleEventRequest,
@@ -16,9 +21,16 @@ import com.ukg.surge.poc.{
   TagPerson
 }
 
+import scala.concurrent.{ ExecutionContext, Future }
+import akka.http.scaladsl.model.{ HttpRequest, HttpResponse }
+import akka.stream.Materializer
+import akka.stream.scaladsl.Sink
+import akka.stream.scaladsl.Source
+import com.google.protobuf.timestamp.Timestamp
+
 import scala.concurrent.Future
 
-class BusinessServiceImpl extends BusinessLogicService {
+class BusinessServiceImpl(implicit mat: Materializer) extends BusinessLogicService {
 
   override def processCommand(in: ProcessCommandRequest): Future[ProcessCommandReply] = {
     in.command match {
@@ -60,4 +72,26 @@ class BusinessServiceImpl extends BusinessLogicService {
 
 }
 
-object BusinessAppMain extends App {}
+object BusinessLogicServer {
+  def main(args: Array[String]): Unit = {
+    val conf = ConfigFactory.parseString("akka.http.server.preview.enable-http2 = on").withFallback(ConfigFactory.defaultApplication())
+    val system = ActorSystem("net", conf)
+    new BusinessLogicServer(system).run()
+  }
+}
+
+class BusinessLogicServer(system: ActorSystem) {
+  def run(): Future[Http.ServerBinding] = {
+    implicit val sys: ActorSystem = system
+    implicit val ec: ExecutionContext = sys.dispatcher
+
+    val service: HttpRequest => Future[HttpResponse] =
+      BusinessLogicServiceHandler(new BusinessServiceImpl())
+
+    val binding = Http().newServerAt("127.0.0.1", 8080).bind(service)
+
+    binding.foreach { binding => println(s"gRPC server bound to: ${binding.localAddress}") }
+
+    binding
+  }
+}
