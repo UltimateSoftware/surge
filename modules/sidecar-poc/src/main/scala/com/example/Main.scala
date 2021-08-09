@@ -4,7 +4,8 @@ package com.example
 
 import akka.actor.ActorSystem
 import akka.grpc.GrpcClientSettings
-import com.ukg.surge.poc.{Command, Event, HandleEventRequest, ProcessCommandRequest, State}
+import com.ukg.surge.poc
+import com.ukg.surge.poc.{BusinessLogicService, Command, Event, HandleEventRequest, ProcessCommandRequest, State}
 import surge.core.{SerializedAggregate, SerializedMessage, SurgeAggregateReadFormatting, SurgeAggregateWriteFormatting, SurgeEventWriteFormatting}
 import surge.core.command.AggregateCommandModelCoreTrait
 import surge.kafka.KafkaTopic
@@ -15,13 +16,6 @@ import scala.concurrent.Await
 import scala.util.{Failure, Success, Try}
 import scala.concurrent.duration._
 
-object GenericCommandModel extends AggregateCommandModel[State, Command, Event] {
-
-  override def processCommand(aggregate: Option[State], command: Command): Try[Seq[Event]] = ???
-  override def handleEvent(aggregate: Option[State], event: Event): Option[State] = ???
-
-}
-
 object Main extends App {
 
   implicit val sys = ActorSystem()
@@ -29,12 +23,12 @@ object Main extends App {
 
   val clientSettings = GrpcClientSettings.connectToServiceAt("127.0.0.1", 8080).withTls(false)
 
-  val service: com.ukg.surge.poc.Service = com.ukg.surge.poc.ServiceClient(clientSettings)
+  val businessLogicService: BusinessLogicService = poc.BusinessLogicServiceClient(clientSettings)
 
   val genericCommandModel = new AggregateCommandModel[State, Command, Event] {
 
     override def processCommand(aggregate: Option[State], command: Command): Try[Seq[Event]] = {
-      val reply = Await.result(service.processCommand(ProcessCommandRequest(aggregate, Some(command))), atMost = 7.seconds)
+      val reply = Await.result(businessLogicService.processCommand(ProcessCommandRequest(aggregate, Some(command))), atMost = 7.seconds)
       if (reply.rejection == null) {
         Success(reply.events)
       } else {
@@ -43,7 +37,7 @@ object Main extends App {
     }
 
     override def handleEvent(aggregate: Option[State], event: Event): Option[State] = {
-      val reply = Await.result(service.handleEvent(HandleEventRequest(aggregate, Some(event))), atMost = 7.seconds)
+      val reply = Await.result(businessLogicService.handleEvent(HandleEventRequest(aggregate, Some(event))), atMost = 7.seconds)
       reply.state
     }
   }
@@ -56,7 +50,7 @@ object Main extends App {
 
     override def aggregateReadFormatting: SurgeAggregateReadFormatting[State] = new SurgeAggregateReadFormatting[State] {
       override def readState(bytes: Array[Byte]): Option[State] =
-        Some(com.ukg.surge.poc.State.parseFrom(bytes))
+        Some(poc.State.parseFrom(bytes))
     }
 
     override def eventWriteFormatting: SurgeEventWriteFormatting[Event] = new SurgeEventWriteFormatting[Event] {
@@ -79,7 +73,8 @@ object Main extends App {
   }
 
   lazy val surgeEngine: SurgeCommand[UUID, State, Command, Nothing, Event] = {
-    val engine = SurgeCommand(sys, genericSurgeModel)
+    val engine = SurgeCommand(sys, genericSurgeModel, sys.settings.config)
+    engine.start()
     engine
   }
 
