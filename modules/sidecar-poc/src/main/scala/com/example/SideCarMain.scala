@@ -16,7 +16,7 @@ import scala.concurrent.Await
 import scala.util.{Failure, Success, Try}
 import scala.concurrent.duration._
 
-object Main extends App {
+object SideCarMain extends App {
 
   implicit val sys = ActorSystem()
   implicit val ec = sys.dispatcher
@@ -55,7 +55,7 @@ object Main extends App {
 
     override def eventWriteFormatting: SurgeEventWriteFormatting[Event] = new SurgeEventWriteFormatting[Event] {
       override def writeEvent(evt: Event): SerializedMessage = SerializedMessage(
-       key = ???,
+        key = evt.aggregateId,
         value = Event.toByteArray(evt),
         headers = Map.empty
       )
