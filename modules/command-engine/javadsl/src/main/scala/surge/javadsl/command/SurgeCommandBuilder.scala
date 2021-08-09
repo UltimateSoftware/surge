@@ -11,8 +11,10 @@ class Buildable[AggId, Agg, Command, Evt](businessLogic: SurgeCommandBusinessLog
 }
 
 class SurgeCommandBuilder {
+
   def withBusinessLogic[AggId, Agg, Command, Evt](
       businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Evt]): Buildable[AggId, Agg, Command, Evt] = {
     new Buildable[AggId, Agg, Command, Evt](businessLogic)
   }
+
 }
