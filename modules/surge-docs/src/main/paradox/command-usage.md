@@ -32,7 +32,7 @@ Scala
 :    @@snip [Aggregate.scala](/modules/surge-docs/src/test/scala/docs/command/BankAccountCommandModel.scala) { #aggregate_class }
 
 Java
-:    Java examples coming soon...
+:    @@snip [Aggregate.java](/modules/surge-docs/src/test/java/docs/example/account/BankAccount.java) { #aggregate_class }
 
 ### Commands
 
