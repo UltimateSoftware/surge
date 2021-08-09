@@ -83,5 +83,17 @@ public class Main {
             }
         });
         // #sending_command_to_engine
+
+        //#getting_state_from_engine
+        CompletionStage<Optional<BankAccount>> currentState = surgeCommand.aggregateFor(accountNumber).getState();
+        currentState.whenComplete((bankAccount, throwable) ->
+        {
+            if (throwable != null) {
+                throwable.printStackTrace();
+            } else {
+                logger.info("current state of account is: {}", bankAccount);
+            }
+        });
+        // #getting_state_from_engine
     }
 }

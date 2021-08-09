@@ -111,6 +111,6 @@ Scala
 :    @@snip [Service.scala](/modules/surge-docs/src/test/scala/docs/command/BankAccountCommandEngineSpec.scala) { #getting_state_from_engine }
 
 Java
-:    Java examples coming soon...
+:    @@snip [Service.java](/modules/surge-docs/src/test/java/docs/example/Main.java) { #getting_state_from_engine }
 
 The `getState` method will return the current state of the given aggregate if it exists.
