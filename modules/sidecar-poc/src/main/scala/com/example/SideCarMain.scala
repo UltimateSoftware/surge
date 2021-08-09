@@ -5,15 +5,15 @@ package com.example
 import akka.actor.ActorSystem
 import akka.grpc.GrpcClientSettings
 import com.ukg.surge.poc
-import com.ukg.surge.poc.{BusinessLogicService, Command, Event, HandleEventRequest, ProcessCommandRequest, State}
-import surge.core.{SerializedAggregate, SerializedMessage, SurgeAggregateReadFormatting, SurgeAggregateWriteFormatting, SurgeEventWriteFormatting}
+import com.ukg.surge.poc.{ BusinessLogicService, Command, Event, HandleEventRequest, ProcessCommandRequest, State }
+import surge.core.{ SerializedAggregate, SerializedMessage, SurgeAggregateReadFormatting, SurgeAggregateWriteFormatting, SurgeEventWriteFormatting }
 import surge.core.command.AggregateCommandModelCoreTrait
 import surge.kafka.KafkaTopic
-import surge.scaladsl.command.{AggregateCommandModel, SurgeCommand, SurgeCommandBusinessLogic}
+import surge.scaladsl.command.{ AggregateCommandModel, SurgeCommand, SurgeCommandBusinessLogic }
 
 import java.util.UUID
 import scala.concurrent.Await
-import scala.util.{Failure, Success, Try}
+import scala.util.{ Failure, Success, Try }
 import scala.concurrent.duration._
 
 object SideCarMain extends App {
@@ -54,17 +54,11 @@ object SideCarMain extends App {
     }
 
     override def eventWriteFormatting: SurgeEventWriteFormatting[Event] = new SurgeEventWriteFormatting[Event] {
-      override def writeEvent(evt: Event): SerializedMessage = SerializedMessage(
-        key = evt.aggregateId,
-        value = Event.toByteArray(evt),
-        headers = Map.empty
-      )
+      override def writeEvent(evt: Event): SerializedMessage = SerializedMessage(key = evt.aggregateId, value = Event.toByteArray(evt), headers = Map.empty)
     }
 
     override def aggregateWriteFormatting: SurgeAggregateWriteFormatting[State] = new SurgeAggregateWriteFormatting[State] {
-      override def writeState(agg: State): SerializedAggregate = new SerializedAggregate(
-        State.toByteArray(agg), Map.empty
-      )
+      override def writeState(agg: State): SerializedAggregate = new SerializedAggregate(State.toByteArray(agg), Map.empty)
     }
 
     override def aggregateName: String = "shopping-cart"
@@ -77,6 +71,5 @@ object SideCarMain extends App {
     engine.start()
     engine
   }
-
 
 }

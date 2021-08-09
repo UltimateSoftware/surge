@@ -2,7 +2,19 @@
 
 package com.example
 
-import com.ukg.surge.poc.{BusinessLogicService, Command, Event, HandleEventRequest, HandleEventResponse, PersonTagged, Photo, ProcessCommandReply, ProcessCommandRequest, State, TagPerson}
+import com.ukg.surge.poc.{
+  BusinessLogicService,
+  Command,
+  Event,
+  HandleEventRequest,
+  HandleEventResponse,
+  PersonTagged,
+  Photo,
+  ProcessCommandReply,
+  ProcessCommandRequest,
+  State,
+  TagPerson
+}
 
 import scala.concurrent.Future
 
