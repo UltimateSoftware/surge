@@ -13,6 +13,8 @@ import surge.javadsl.command.SurgeCommand;
 import surge.javadsl.common.CommandFailure;
 import surge.javadsl.common.CommandResult;
 import surge.javadsl.common.CommandSuccess;
+
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletionStage;
 
@@ -77,6 +79,16 @@ public class Main {
                 } else if (result instanceof CommandFailure<BankAccount> commandFailure) {
                     commandFailure.reason().printStackTrace();
                 }
+            }
+        });
+
+        CompletionStage<Optional<BankAccount>> currentState = surgeCommand.aggregateFor(accountNumber).getState();
+        currentState.whenComplete((bankAccount, throwable) ->
+        {
+            if (throwable != null) {
+                throwable.printStackTrace();
+            } else {
+                logger.info("current state of account is: {}", bankAccount);
             }
         });
     }

@@ -2,7 +2,7 @@ package docs.example.command;
 
 import com.example.account.BankAccount;
 import com.example.event.BankAccountCreated;
-import com.example.event.BankAccountEvent;
+import docs.example.event.BankAccountEvent;
 import com.example.event.BankAccountUpdated;
 import com.example.account.CreateAccount;
 import com.example.account.CreditAccount;
@@ -13,6 +13,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
+// #command_model_class
 public class BankAccountCommandModel implements AggregateCommandModel<BankAccount, BankAccountCommand, BankAccountEvent> {
     @Override
     public List<BankAccountEvent> processCommand(Optional<BankAccount> aggregate, BankAccountCommand command) {
@@ -75,3 +76,4 @@ public class BankAccountCommandModel implements AggregateCommandModel<BankAccoun
     }
 
 }
+// #command_model_class

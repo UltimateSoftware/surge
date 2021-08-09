@@ -3,11 +3,10 @@ package docs.example.event;
 
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
-import docs.command.BankAccountCreated;
-import docs.command.BankAccountUpdated;
 
 import java.util.UUID;
 
+// #event_class
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME,
         property = "name")
 @JsonSubTypes({
@@ -18,3 +17,5 @@ public interface BankAccountEvent {
 
     UUID getAccountNumber();
 }
+
+//#event_class

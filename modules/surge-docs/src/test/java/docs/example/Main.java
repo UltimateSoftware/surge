@@ -4,8 +4,8 @@ import com.example.account.BankAccount;
 import com.example.account.CreateAccount;
 import com.example.account.CreditAccount;
 import com.example.account.DebitAccount;
-import com.example.command.BankAccountCommand;
-import com.example.event.BankAccountEvent;
+import docs.example.command.BankAccountCommand;
+import docs.example.event.BankAccountEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import surge.javadsl.command.SurgeCommand$;
@@ -24,11 +24,14 @@ public class Main {
     private static final String AGGREGATE_STATE = "aggregate state is: {} ";
 
     public static void main(String[] args) {
+        // #bank_account_engine_class
         BankAccountSurgeModel bankAccountSurgeModel = new BankAccountSurgeModel();
         SurgeCommand<UUID, BankAccount, BankAccountCommand, ?, BankAccountEvent> surgeCommand =
                 SurgeCommand$.MODULE$.create(bankAccountSurgeModel);
         surgeCommand.start();
+        // #bank_account_engine_class
 
+        // #sending_command_to_engine
         UUID accountNumber = UUID.randomUUID();
         logger.info("Account number is: {}", accountNumber);
         CreateAccount createAccount = new CreateAccount(accountNumber, "Jane Doe",
@@ -79,5 +82,6 @@ public class Main {
                 }
             }
         });
+        // #sending_command_to_engine
     }
 }

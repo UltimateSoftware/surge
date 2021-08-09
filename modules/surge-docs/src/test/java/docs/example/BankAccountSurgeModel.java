@@ -1,12 +1,12 @@
 package docs.example;
 
 import com.example.account.BankAccount;
-import com.example.command.BankAccountCommand;
-import com.example.command.BankAccountCommandModel;
-import com.example.event.BankAccountEvent;
-import com.example.format.SurgeAggregateReadFormattingBankAccount;
-import com.example.format.SurgeAggregateWriteFormattingBankAccount;
-import com.example.format.SurgeEventWriteFormattingBankEvent;
+import docs.example.command.BankAccountCommand;
+import docs.example.command.BankAccountCommandModel;
+import docs.example.event.BankAccountEvent;
+import docs.example.format.SurgeAggregateReadFormattingBankAccount;
+import docs.example.format.SurgeAggregateWriteFormattingBankAccount;
+import docs.example.format.SurgeEventWriteFormattingBankEvent;
 import surge.core.SurgeAggregateReadFormatting;
 import surge.core.SurgeAggregateWriteFormatting;
 import surge.core.SurgeEventWriteFormatting;
@@ -15,6 +15,7 @@ import surge.javadsl.command.SurgeCommandBusinessLogic;
 import surge.kafka.KafkaTopic;
 import java.util.UUID;
 
+// #surge_model_class
 public class BankAccountSurgeModel extends SurgeCommandBusinessLogic<UUID, BankAccount, BankAccountCommand,
         BankAccountEvent> {
     @Override
@@ -52,3 +53,4 @@ public class BankAccountSurgeModel extends SurgeCommandBusinessLogic<UUID, BankA
         return new SurgeAggregateWriteFormattingBankAccount();
     }
 }
+// #surge_model_class

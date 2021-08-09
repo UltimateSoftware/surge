@@ -1,9 +1,9 @@
 package docs.example.account;
 
-import com.example.command.BankAccountCommand;
+
 
 import java.util.UUID;
-
+// #command_class
 public record CreateAccount(UUID accountNumber, String accountOwner, String securityCode,
                             double initialBalance) implements BankAccountCommand {
 
@@ -12,5 +12,6 @@ public record CreateAccount(UUID accountNumber, String accountOwner, String secu
         return accountNumber;
     }
 }
+// #command_class
 
 

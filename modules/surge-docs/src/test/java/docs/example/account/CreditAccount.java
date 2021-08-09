@@ -1,9 +1,6 @@
 package docs.example.account;
 
-import com.example.command.BankAccountCommand;
-
-import java.util.UUID;
-
+// #command_class
 public record CreditAccount(UUID accountNumber, double amount) implements BankAccountCommand {
 
 
@@ -12,4 +9,6 @@ public record CreditAccount(UUID accountNumber, double amount) implements BankAc
         return accountNumber;
     }
 }
+// #command_class
+
 

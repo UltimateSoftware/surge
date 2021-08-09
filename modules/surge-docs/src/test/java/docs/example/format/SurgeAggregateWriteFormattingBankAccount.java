@@ -6,6 +6,7 @@ import scala.collection.immutable.HashMap$;
 import surge.core.SerializedAggregate;
 import surge.core.SurgeAggregateWriteFormatting;
 
+// #surge_model_class
 public class SurgeAggregateWriteFormattingBankAccount implements SurgeAggregateWriteFormatting<BankAccount> {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -20,3 +21,4 @@ public class SurgeAggregateWriteFormattingBankAccount implements SurgeAggregateW
         }
     }
 }
+// #surge_model_class

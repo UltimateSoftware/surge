@@ -1,12 +1,12 @@
 package docs.example.format;
 
-import com.example.event.BankAccountEvent;
-import com.fasterxml.jackson.core.JsonProcessingException;
+import docs.example.event.BankAccountEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import scala.collection.immutable.HashMap$;
 import surge.core.SerializedMessage;
 import surge.core.SurgeEventWriteFormatting;
 
+// #surge_model_class
 public class SurgeEventWriteFormattingBankEvent implements SurgeEventWriteFormatting<BankAccountEvent> {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -23,3 +23,4 @@ public class SurgeEventWriteFormattingBankEvent implements SurgeEventWriteFormat
         }
     }
 }
+// #surge_model_class

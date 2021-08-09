@@ -1,10 +1,6 @@
 package docs.example.account;
 
-import com.example.command.BankAccountCommand;
-
-import java.util.UUID;
-
-
+// #command_class
 public record DebitAccount(UUID accountNumber, double amount) implements BankAccountCommand {
 
     @Override
@@ -12,3 +8,4 @@ public record DebitAccount(UUID accountNumber, double amount) implements BankAcc
         return accountNumber;
     }
 }
+// #command_class

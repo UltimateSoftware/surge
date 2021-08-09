@@ -55,7 +55,7 @@ public class BankAccountCommandModel implements AggregateCommandModel<BankAccoun
                 throw new RuntimeException("Account does not exist");
             }
         }
-        throw new RuntimeException("Invalid event command");
+        throw new RuntimeException("Unhandled command");
     }
 
     @Override

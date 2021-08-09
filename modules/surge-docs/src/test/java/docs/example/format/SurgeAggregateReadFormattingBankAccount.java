@@ -7,7 +7,7 @@ import surge.core.SurgeAggregateReadFormatting;
 
 import java.io.IOException;
 
-
+// #surge_model_class
 public class SurgeAggregateReadFormattingBankAccount implements SurgeAggregateReadFormatting<BankAccount> {
     @Override
     public Option<BankAccount> readState(byte[] bytes) {
@@ -22,3 +22,4 @@ public class SurgeAggregateReadFormattingBankAccount implements SurgeAggregateRe
     }
 
 }
+// #surge_model_class
