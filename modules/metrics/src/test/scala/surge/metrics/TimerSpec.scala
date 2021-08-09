@@ -48,7 +48,7 @@ class TimerSpec extends TestKit(ActorSystem("TimerSpec")) with MetricsSpecLike w
 
       val marginErr = 50.0
 
-      eventually {
+      eventually(timeout = Timeout(Span(500, Millis))) {
         // The timing for the future is a little flaky and can sometimes be 10+ ms off in these tests.
         // Just assert that we're at least timing the amount of time we've slept for to prevent this test from being really flaky.
         // This test has been as much as 109 ms off when run in pipeline. Increased upper bound to minimize flakiness
