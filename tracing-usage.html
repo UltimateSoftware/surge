@@ -37,6 +37,7 @@
 <ul>
   <li><a href="overview.html" class="page">Overview</a></li>
   <li><a href="command-usage.html" class="page">Command Side Usage</a></li>
+  <li><a href="consumer-usage.html" class="page">Consumer Usage</a></li>
   <li><a href="tracing-usage.html" class="active page">Open Telemetry Integration</a></li>
   <li><a href="repository-tour.html" class="page">Repository Tour</a></li>
 </ul>
@@ -77,6 +78,7 @@ C16.952,7,17,6.553,17,6c0-0.553-0.048-1-0.6-1H3.6C3.048,5,3,5.447,3,6C3,6.553,3.
 <ul>
   <li><a href="overview.html" class="page">Overview</a></li>
   <li><a href="command-usage.html" class="page">Command Side Usage</a></li>
+  <li><a href="consumer-usage.html" class="page">Consumer Usage</a></li>
   <li><a href="tracing-usage.html" class="active page">Open Telemetry Integration</a></li>
   <li><a href="repository-tour.html" class="page">Repository Tour</a></li>
 </ul>
@@ -181,11 +183,10 @@ object BankAccountSurgeModelWithHoneycomb
 
   override def eventWriteFormatting: SurgeEventWriteFormatting[BankAccountEvent] = ???
 
-}</code></pre></dd>
-  <dt>Java</dt>
+}</code></pre>`` Java</dd>
   <dd>Java examples coming soon..</dd>
 </dl>
-<h4><a href="#screenshot" name="screenshot" class="anchor"><span class="anchor-link"></span></a>Screenshot</h4>
+<h4><a href="#screenshot-honeycomb-" name="screenshot-honeycomb-" class="anchor"><span class="anchor-link"></span></a>Screenshot (Honeycomb)</h4>
 <p><img src="images/tracing-with-honeycomb.png" alt="Honeycomb Screenshot" /></p>
 <h3><a href="#using-jaeger" name="using-jaeger" class="anchor"><span class="anchor-link"></span></a>Using Jaeger</h3><dl class="dependency"><dt>sbt</dt><dd><pre class="prettyprint"><code class="language-scala">libraryDependencies ++= Seq(
   "io.opentelemetry" % "opentelemetry-sdk" % "1.4.1",
@@ -266,7 +267,7 @@ object BankAccountSurgeModelWithJaeger
   <dt>Java</dt>
   <dd>Java examples coming soon..</dd>
 </dl>
-<h4><a href="#screenshot" name="screenshot" class="anchor"><span class="anchor-link"></span></a>Screenshot</h4>
+<h4><a href="#screenshot-jaeger-" name="screenshot-jaeger-" class="anchor"><span class="anchor-link"></span></a>Screenshot (Jaeger)</h4>
 <p><img src="images/tracing-with-jaeger.png" alt="Jaeger Screenshot" /></p>
 <div class="source-github">
 The source code for this page can be found <a href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/main/paradox/tracing-usage.md">here</a>.

@@ -2,7 +2,7 @@
 <html class="no-js" lang="en">
 
 <head>
-<title>Repository Tour · Surge</title>
+<title>Consumer Usage · Surge</title>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <meta name="description" content='surge-docs'/>
@@ -37,9 +37,9 @@
 <ul>
   <li><a href="overview.html" class="page">Overview</a></li>
   <li><a href="command-usage.html" class="page">Command Side Usage</a></li>
-  <li><a href="consumer-usage.html" class="page">Consumer Usage</a></li>
+  <li><a href="consumer-usage.html" class="active page">Consumer Usage</a></li>
   <li><a href="tracing-usage.html" class="page">Open Telemetry Integration</a></li>
-  <li><a href="repository-tour.html" class="active page">Repository Tour</a></li>
+  <li><a href="repository-tour.html" class="page">Repository Tour</a></li>
 </ul>
 </div>
 
@@ -78,9 +78,9 @@ C16.952,7,17,6.553,17,6c0-0.553-0.048-1-0.6-1H3.6C3.048,5,3,5.447,3,6C3,6.553,3.
 <ul>
   <li><a href="overview.html" class="page">Overview</a></li>
   <li><a href="command-usage.html" class="page">Command Side Usage</a></li>
-  <li><a href="consumer-usage.html" class="page">Consumer Usage</a></li>
+  <li><a href="consumer-usage.html" class="active page">Consumer Usage</a></li>
   <li><a href="tracing-usage.html" class="page">Open Telemetry Integration</a></li>
-  <li><a href="repository-tour.html" class="active page">Repository Tour</a></li>
+  <li><a href="repository-tour.html" class="page">Repository Tour</a></li>
 </ul>
 </div>
 
@@ -97,7 +97,7 @@ C16.952,7,17,6.553,17,6c0-0.553-0.048-1-0.6-1H3.6C3.048,5,3,5.447,3,6C3,6.553,3.
 <div class="nav-breadcrumbs">
 <ul>
   <li><a href="index.html">Surge</a></li>
-  <li>Repository Tour</li>
+  <li>Consumer Usage</li>
 </ul>
 </div>
 </div>
@@ -105,75 +105,103 @@ C16.952,7,17,6.553,17,6c0-0.553-0.048-1-0.6-1H3.6C3.048,5,3,5.447,3,6C3,6.553,3.
 
 <div class="page-content row">
 <div class="small-12 large-9 column" id="docs">
-<h1><a href="#repository-tour" name="repository-tour" class="anchor"><span class="anchor-link"></span></a>Repository Tour</h1>
-<p><em>Note - this page is a work in progress</em></p>
-<h2><a href="#project-overview" name="project-overview" class="anchor"><span class="anchor-link"></span></a>Project Overview</h2>
-<p>The Surge Project Repo is broken down into multiple subprojects described below.</p>
-<h3><a href="#surge-subprojects-and-dependencies" name="surge-subprojects-and-dependencies" class="anchor"><span class="anchor-link"></span></a>Surge Subprojects and Dependencies</h3>
-<p><img src="images/component-diagram.png" alt="Surge Subprojects and Dependencies" /></p>
-<h2><a href="#subprojects" name="subprojects" class="anchor"><span class="anchor-link"></span></a>Subprojects</h2>
-<h3><a href="#common" name="common" class="anchor"><span class="anchor-link"></span></a>Common</h3>
-<ul>
-  <li>Base traits</li>
-  <li>Serializers and Deserializers</li>
-  <li>Kafka Consumer Group based Clustering for Akka</li>
-  <li>Akka Streams over Kafka Streams
-    <ul>
-      <li>Data Sinks, Sources and Pipelines</li>
-    </ul>
-  </li>
-  <li>Kafka Aggregate State Stores</li>
-  <li>Exceptions</li>
-  <li>Observability</li>
-  <li>Health Monitoring</li>
-  <li>Metrics</li>
-  <li>OpenTracing</li>
-</ul>
-<h3><a href="#command-engine-core" name="command-engine-core" class="anchor"><span class="anchor-link"></span></a>Command Engine Core</h3>
-<ul>
-  <li>Command Model Traits</li>
-  <li>Akka based Command Processing Engine</li>
-  <li>Exceptions</li>
-</ul>
-<h3><a href="#command-engine-scala-dsl" name="command-engine-scala-dsl" class="anchor"><span class="anchor-link"></span></a>Command Engine Scala DSL</h3>
-<ul>
-  <li>User Code facing Scala API&rsquo;s</li>
-</ul>
-<h3><a href="#command-engine-java-dsl" name="command-engine-java-dsl" class="anchor"><span class="anchor-link"></span></a>Command Engine Java DSL</h3>
-<ul>
-  <li>User Code facing Java API&rsquo;s</li>
-  <li>Provides for conversion of monad types (Option, Collections, Future)</li>
-</ul>
-<h3><a href="#rabbitmq-support" name="rabbitmq-support" class="anchor"><span class="anchor-link"></span></a>RabbitMQ Support</h3>
-<ul>
-  <li>Provides Data Sinks and Sources for RabbitMQ</li>
-</ul>
-<h3><a href="#metrics" name="metrics" class="anchor"><span class="anchor-link"></span></a>Metrics</h3>
-<ul>
-  <li>Provides Metrics Model used to instrument other Surge components</li>
-  <li>Provides a simple interface to retrieve messages for submission to monitoring platforms</li>
-</ul>
-<h3><a href="#docs" name="docs" class="anchor"><span class="anchor-link"></span></a>Docs</h3>
-<ul>
-  <li>These Docs</li>
-  <li>Doc Site generated using Paradox</li>
-  <li>Docs use tested examples as example snippets</li>
-</ul>
-<h2><a href="#dependencies" name="dependencies" class="anchor"><span class="anchor-link"></span></a>Dependencies</h2>
-<h3><a href="#akka" name="akka" class="anchor"><span class="anchor-link"></span></a>Akka</h3>
-<p><a href="https://akka.io/docs/">Akka Docs</a></p>
-<h3><a href="#alpakka-kafka-and-amqp" name="alpakka-kafka-and-amqp" class="anchor"><span class="anchor-link"></span></a>Alpakka Kafka and AMQP</h3>
-<p><a href="https://doc.akka.io/docs/alpakka/current/index.html">Alpakka Docs</a></p>
-<h3><a href="#kafka-streams-and-clients" name="kafka-streams-and-clients" class="anchor"><span class="anchor-link"></span></a>Kafka Streams and Clients</h3>
-<p><a href="https://kafka.apache.org/documentation/">Kafka Docs</a></p>
-<h3><a href="#play-json" name="play-json" class="anchor"><span class="anchor-link"></span></a>Play Json</h3>
-<p><a href="https://www.playframework.com/documentation/2.8.x/ScalaJson">Play Json Docs</a></p>
-<h3><a href="#paradox-plugin" name="paradox-plugin" class="anchor"><span class="anchor-link"></span></a>Paradox Plugin</h3>
-<p><a href="https://developer.lightbend.com/docs/paradox/current/index.html">Paradox Docs</a></p>
+<h1><a href="#consumer-usage" name="consumer-usage" class="anchor"><span class="anchor-link"></span></a>Consumer Usage</h1>
+<h2><a href="#module-info" name="module-info" class="anchor"><span class="anchor-link"></span></a>Module Info</h2><dl class="dependency"><dt>sbt</dt><dd><pre class="prettyprint"><code class="language-scala">val SurgeVersion = "0.5.18-SNAPSHOT"
+libraryDependencies += "com.ukg" %% "surge-engine-command-scaladsl" % SurgeVersion</code></pre></dd><dt>Maven</dt><dd><pre class="prettyprint"><code class="language-xml">&lt;properties&gt;
+  &lt;surge.version&gt;0.5.18-SNAPSHOT&lt;/surge.version&gt;
+  &lt;scala.binary.version&gt;2.13&lt;/scala.binary.version&gt;
+&lt;/properties&gt;
+&lt;dependencies&gt
+  &lt;dependency&gt;
+    &lt;groupId&gt;com.ukg&lt;/groupId&gt;
+    &lt;artifactId&gt;surge-engine-command-scaladsl_${scala.binary.version}&lt;/artifactId&gt;
+    &lt;version&gt;${surge.version}&lt;/version&gt;
+  &lt;/dependency&gt
+&lt;/dependencies&gt;</code></pre></dd><dt>Gradle</dt><dd><pre class="prettyprint"><code class="language-gradle">def versions = [
+  SurgeVersion: "0.5.18-SNAPSHOT",
+  ScalaBinary: "2.13"
+]
+dependencies {
+  implementation "com.ukg:surge-engine-command-scaladsl_${versions.ScalaBinary}:${versions.SurgeVersion}"
+}</code></pre></dd></dl>
+<h2><a href="#example" name="example" class="anchor"><span class="anchor-link"></span></a>Example</h2>
+<dl>
+  <dt>Scala</dt>
+  <dd>
+  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/scala/docs/consumer/ConsumerSpec.scala#L29-L91" target="_blank" title="Go to snippet source"></a><code class="language-scala"><br/>val openTelemetry: OpenTelemetrySdk = {
+
+  val exporter =
+    JaegerGrpcSpanExporter.builder()
+      .setEndpoint(&quot;http://localhost:14250&quot;)
+      .build()
+
+  val sdkTracerProvider = SdkTracerProvider.builder()
+    .addSpanProcessor(BatchSpanProcessor.builder(exporter).build())
+    .setResource(Resource.builder().put(&quot;service.name&quot;, &quot;bank&quot;).build())
+    .build()
+
+  val openTelemetry: OpenTelemetrySdk = OpenTelemetrySdk.builder()
+    .setTracerProvider(sdkTracerProvider)
+    .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
+    .buildAndRegisterGlobal()
+
+  openTelemetry
+}
+
+implicit val myTracer = openTelemetry.getTracer(&quot;MyApp&quot;, &quot;0.1&quot;)
+
+implicit val system = ActorSystem()
+
+val kafkaEventSource: KafkaEventSource[String] = new KafkaEventSource[String] {
+
+  override def baseEventName: String = ???
+
+  override def kafkaTopic: KafkaTopic = KafkaTopic(name = ???)
+
+  override def formatting: SurgeEventReadFormatting[String] = bytes =&gt; new String(bytes)
+
+  override def actorSystem: ActorSystem = system
+
+  override def tracer: Tracer = myTracer
+
+}
+
+private implicit val stringDeserializer: Deserializer[String] = DefaultSerdes.stringSerde.deserializer()
+private implicit val byteArrayDeserializer: Deserializer[Array[Byte]] = DefaultSerdes.byteArraySerde.deserializer()
+
+val consumerSettings =
+  new AkkaKafkaConsumer(ConfigFactory.load())
+    .consumerSettings[String, Array[Byte]](system,
+      groupId = &quot;group-id-1&quot;,
+      brokers = &quot;127.0.0.1:9092&quot;,
+      autoOffsetReset = &quot;earliest&quot;)
+
+val eventSink: EventSink[String] = new EventSink[String] {
+  override def handleEvent(key: String, event: String, headers: Map[String, Array[Byte]]): Future[Any] = {
+    // do something with the event (i.e. save to ElasticSearch)
+    Future.successful(Done)
+  }
+
+  override def sinkName: String = &quot;ElasticSearch&quot;
+
+  override def partitionBy(key: String, event: String, headers: Map[String, Array[Byte]]): String =
+    event
+}
+
+kafkaEventSource.to(consumerSettings)(eventSink, autoStart = true)
+</code></pre></dd>
+  <dt>Java</dt>
+  <dd>Java examples coming soon&hellip;</dd>
+</dl>
+<h2><a href="#tracing-with-jaeger" name="tracing-with-jaeger" class="anchor"><span class="anchor-link"></span></a>Tracing with Jaeger</h2>
+<p><img src="images/consumer-tracing-with-jaeger.png" alt="Jaeger Screenshot" /></p>
 <div class="source-github">
-The source code for this page can be found <a href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/main/paradox/repository-tour.md">here</a>.
+The source code for this page can be found <a href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/main/paradox/consumer-usage.md">here</a>.
 </div>
 
+<div class="nav-next">
+<p><strong>Next:</strong> <a href="tracing-usage.html">Open Telemetry Integration</a></p>
+</div>
 </div>
 <div class="large-3 show-for-large column" data-sticky-container>
 <nav class="sidebar sticky" data-sticky data-anchor="docs" data-sticky-on="large">
@@ -181,11 +209,11 @@ The source code for this page can be found <a href="https://github.com/UltimateS
 <div class="nav-title">On this page:</div>
 <div class="nav-toc">
 <ul>
-  <li><a href="repository-tour.html#repository-tour" class="header">Repository Tour</a>
+  <li><a href="consumer-usage.html#consumer-usage" class="header">Consumer Usage</a>
   <ul>
-    <li><a href="repository-tour.html#project-overview" class="header">Project Overview</a></li>
-    <li><a href="repository-tour.html#subprojects" class="header">Subprojects</a></li>
-    <li><a href="repository-tour.html#dependencies" class="header">Dependencies</a></li>
+    <li><a href="consumer-usage.html#module-info" class="header">Module Info</a></li>
+    <li><a href="consumer-usage.html#example" class="header">Example</a></li>
+    <li><a href="consumer-usage.html#tracing-with-jaeger" class="header">Tracing with Jaeger</a></li>
   </ul></li>
 </ul>
 </div>
