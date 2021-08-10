@@ -1,7 +1,7 @@
 syntax = "proto3";
 
 option java_multiple_files = true;
-option java_package = "com.ukg.surge.poc";
+option java_package = "com.ukg.surge.sidecarpoc";
 
 message State {
   bytes payload = 1;

@@ -4,26 +4,27 @@ package com.example
 
 import akka.actor.ActorSystem
 import akka.grpc.GrpcClientSettings
-import com.ukg.surge.poc
-import com.ukg.surge.poc.{ BusinessLogicService, Command, Event, HandleEventRequest, ProcessCommandRequest, State }
+import com.ukg.surge.sidecarpoc._
+import com.ukg.surge.sidecarpoc.app._
 import surge.core.{ SerializedAggregate, SerializedMessage, SurgeAggregateReadFormatting, SurgeAggregateWriteFormatting, SurgeEventWriteFormatting }
 import surge.core.command.AggregateCommandModelCoreTrait
 import surge.kafka.KafkaTopic
 import surge.scaladsl.command.{ AggregateCommandModel, SurgeCommand, SurgeCommandBusinessLogic }
+import surge.scaladsl.common.{ CommandFailure, CommandResult, CommandSuccess }
 
 import java.util.UUID
-import scala.concurrent.Await
+import scala.concurrent.{ Await, Future }
 import scala.util.{ Failure, Success, Try }
 import scala.concurrent.duration._
 
 object SideCarMain extends App {
 
-  implicit val sys = ActorSystem()
+  implicit val sys = ActorSystem("hello")
   implicit val ec = sys.dispatcher
 
   val clientSettings = GrpcClientSettings.connectToServiceAt("127.0.0.1", 8080).withTls(false)
 
-  val businessLogicService: BusinessLogicService = poc.BusinessLogicServiceClient(clientSettings)
+  val businessLogicService: BusinessLogicService = BusinessLogicServiceClient(clientSettings)
 
   val genericCommandModel = new AggregateCommandModel[State, Command, Event] {
 
@@ -50,7 +51,7 @@ object SideCarMain extends App {
 
     override def aggregateReadFormatting: SurgeAggregateReadFormatting[State] = new SurgeAggregateReadFormatting[State] {
       override def readState(bytes: Array[Byte]): Option[State] =
-        Some(poc.State.parseFrom(bytes))
+        Some(State.parseFrom(bytes))
     }
 
     override def eventWriteFormatting: SurgeEventWriteFormatting[Event] = new SurgeEventWriteFormatting[Event] {
@@ -70,6 +71,31 @@ object SideCarMain extends App {
     val engine = SurgeCommand(sys, genericSurgeModel, sys.settings.config)
     engine.start()
     engine
+  }
+
+  val randomAgId = UUID.randomUUID()
+
+  val future: Future[CommandResult[State]] =
+    surgeEngine.aggregateFor(randomAgId).sendCommand(Command(aggregateId = randomAgId.toString, payload = TagPerson(personName = "John").toByteString))
+
+  future.onComplete { case result: Try[CommandResult[State]] =>
+    result match {
+      case Failure(exception) =>
+        println(exception.getMessage)
+        exception.printStackTrace()
+      case Success(value) =>
+        value match {
+          case CommandSuccess(aggregateState) =>
+            aggregateState match {
+              case Some(value) =>
+                println("Got state:" + value)
+              case None =>
+                println("Empty state")
+            }
+          case CommandFailure(reason) =>
+            println(reason)
+        }
+    }
   }
 
 }

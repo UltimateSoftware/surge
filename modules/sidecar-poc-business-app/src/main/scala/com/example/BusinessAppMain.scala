@@ -4,21 +4,22 @@ package com.example
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.{ HttpRequest, HttpResponse }
+import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
 import akka.stream.Materializer
 import com.typesafe.config.ConfigFactory
-import com.ukg.surge.poc._
+import com.ukg.surge.sidecarpoc._
+import com.ukg.surge.sidecarpoc.business._
 
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.{ExecutionContext, Future}
 
 class BusinessServiceImpl(implicit mat: Materializer) extends BusinessLogicService {
 
   override def processCommand(in: ProcessCommandRequest): Future[ProcessCommandReply] = {
     in.command match {
       case Some(command: Command) =>
-        val tagPerson: TagPerson = com.ukg.surge.poc.TagPerson.parseFrom(command.payload.toByteArray)
+        val tagPerson: TagPerson = com.ukg.surge.sidecarpoc.business.TagPerson.parseFrom(command.payload.toByteArray)
         val personTagged: PersonTagged = PersonTagged(personName = tagPerson.personName)
-        val events = com.ukg.surge.poc.Event(command.aggregateId, personTagged.toByteString)
+        val events = com.ukg.surge.sidecarpoc.Event(command.aggregateId, personTagged.toByteString)
         Future.successful(ProcessCommandReply(List(events)))
       case None =>
         Future.failed(new UnsupportedOperationException)
@@ -56,7 +57,7 @@ class BusinessServiceImpl(implicit mat: Materializer) extends BusinessLogicServi
 object BusinessLogicServer {
   def main(args: Array[String]): Unit = {
     val conf = ConfigFactory.parseString("akka.http.server.preview.enable-http2 = on").withFallback(ConfigFactory.defaultApplication())
-    val system = ActorSystem("net", conf)
+    val system = ActorSystem("app", conf)
     new BusinessLogicServer(system).run()
   }
 }

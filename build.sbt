@@ -82,7 +82,14 @@ lazy val `surge-engine-command-javadsl` =
     .settings(libraryDependencies ++= Seq(scalatest, scalatestPlusMockito, mockitoCore))
 
 lazy val `surge-engine-sidecar-poc` =
-  (project in file("modules/sidecar-poc")).dependsOn(`surge-engine-command-scaladsl`).enablePlugins(AkkaGrpcPlugin)
+  (project in file("modules/sidecar-poc"))
+    .dependsOn(`surge-engine-command-scaladsl`)
+    .enablePlugins(AkkaGrpcPlugin)
+
+lazy val `surge-engine-sidecar-poc-business-app` =
+  (project in file("modules/sidecar-poc-business-app"))
+    .dependsOn(`surge-engine-sidecar-poc`)
+    .enablePlugins(AkkaGrpcPlugin)
 
 lazy val `surge-metrics` = (project in file("modules/metrics")).settings(
   libraryDependencies ++= Seq(
