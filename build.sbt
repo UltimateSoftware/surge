@@ -98,7 +98,7 @@ lazy val `surge-docs` = (project in file("modules/surge-docs"))
   .dependsOn(`surge-common`, `surge-engine-command-core`, `surge-engine-command-javadsl`, `surge-engine-command-scaladsl`, `surge-metrics`)
   .enablePlugins(ParadoxPlugin, ParadoxSitePlugin, GhpagesPlugin)
   .settings(
-    javacOptions ++= Seq("-source", "16"),
+    javacOptions ++= Seq("-source", "15", "--enable-preview"),
     compileOrder := CompileOrder.JavaThenScala,
     skip in publish := true,
     paradoxTheme := Some(builtinParadoxTheme("generic")),
