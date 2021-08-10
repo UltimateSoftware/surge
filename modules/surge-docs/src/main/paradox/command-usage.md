@@ -34,6 +34,7 @@ Scala
 Java
 :    @@snip [Aggregate.java](/modules/surge-docs/src/test/java/javadocs/commandapp/account/BankAccount.java) { #aggregate_class }
 
+
 ### Commands
 
 Commands are data classes intended to handled by an instance of an aggregate to emit events or reject the command and return an error to the end user.
@@ -97,6 +98,7 @@ Java
 :    @@snip [Engine.java](/modules/surge-docs/src/test/java/javadocs/commandapp/Main.java) { #bank_account_engine_class }
 
 
+
 You can interact with the running engine via two main methods, `sendCommand` for sending commands and `getState` for fetching state:
 
 Scala
@@ -112,5 +114,6 @@ Scala
 
 Java
 :    @@snip [Service.java](/modules/surge-docs/src/test/java/javadocs/commandapp/Main.java) { #getting_state_from_engine }
+
 
 The `getState` method will return the current state of the given aggregate if it exists.
