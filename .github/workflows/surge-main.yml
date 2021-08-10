@@ -10,9 +10,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: olafurpg/setup-scala@v10
         with:
-          java-version: '15'
-          distribution: 'adopt'
-          architecture: x64
+          java-version: openjdk@1.15.0
       - name: lint
         run: 'sbt scalastyle && sbt scalafmtCheckAll'
       #- name: check-binary-compatibility
