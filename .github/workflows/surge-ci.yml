@@ -12,7 +12,7 @@ jobs:
         with:
           java-version: openjdk@1.16.0
       - name: lint
-        run: 'sbt -jvmArgsAppend "-XX:+UseJVMCINativeLibrary" scalastyle && sbt -jvmArgsAppend "-XX:+UseJVMCINativeLibrary" "scalafmtCheckAll;scalafmtSbtCheck"'
+        run: 'sbt scalastyle && sbt "scalafmtCheckAll;scalafmtSbtCheck"'
       #- name: check-binary-compatibility
       #  run: 'sbt mimaReportBinaryIssues'
       - name: test
