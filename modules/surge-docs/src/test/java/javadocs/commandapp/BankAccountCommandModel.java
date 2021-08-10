@@ -67,6 +67,7 @@ public class BankAccountCommandModel implements AggregateCommandModel<BankAccoun
     @Override
     public Optional<BankAccount> handleEvent(Optional<BankAccount> aggregate, BankAccountEvent event) {
 
+        // users can feel free to use vavr pattern matching as an alternative.
         if (event instanceof BankAccountCreated bankAccountCreated) {
             Optional<BankAccount> bankAccount;
             bankAccount = Optional.of(new BankAccount(event.getAccountNumber(), bankAccountCreated.accountOwner(),
