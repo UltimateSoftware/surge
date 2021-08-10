@@ -23,6 +23,8 @@
     <properties>
         <surge.version>0.5.18-SNAPSHOT</surge.version>
         <scala.binary.version>2.13</scala.binary.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     </properties>
     <dependencies>
         <dependency>
