@@ -32,7 +32,7 @@ Scala
 :    @@snip [Aggregate.scala](/modules/surge-docs/src/test/scala/docs/command/BankAccountCommandModel.scala) { #aggregate_class }
 
 Java
-:    Java examples coming soon...
+:    @@snip [Aggregate.java](/modules/surge-docs/src/test/java/javadocs/commandapp/account/BankAccount.java) { #aggregate_class }
 
 ### Commands
 
@@ -43,7 +43,10 @@ Scala
 :    @@snip [Command.scala](/modules/surge-docs/src/test/scala/docs/command/BankAccountCommandModel.scala) { #command_class }
 
 Java
-:    Java examples coming soon...
+:    @@snip [Command.java](/modules/surge-docs/src/test/java/javadocs/commandapp/command/BankAccountCommand.java) { #command_class }
+@@snip [Command.java](/modules/surge-docs/src/test/java/javadocs/commandapp/command/CreateAccount.java) { #command_class }
+@@snip [Command.java](/modules/surge-docs/src/test/java/javadocs/commandapp/command/CreditAccount.java) { #command_class }
+@@snip [Command.java](/modules/surge-docs/src/test/java/javadocs/commandapp/command/DebitAccount.java) { #command_class }
 
 ### Events
 
@@ -53,7 +56,10 @@ Scala
 :    @@snip [Event.scala](/modules/surge-docs/src/test/scala/docs/command/BankAccountCommandModel.scala) { #event_class }
 
 Java
-:    Java examples coming soon...
+:    @@snip [Event.java](/modules/surge-docs/src/test/java/javadocs/commandapp/event/BankAccountEvent.java) { #event_class}
+@@snip [Event.java](/modules/surge-docs/src/test/java/javadocs/commandapp/event/BankAccountCreated.java) { #event_class}
+@@snip [Event.java](/modules/surge-docs/src/test/java/javadocs/commandapp/event/BankAccountUpdated.java) { #event_class}
+
 
 ## Surge Configuration
 
@@ -66,7 +72,7 @@ Scala
 :    @@snip [CommandModel.scala](/modules/surge-docs/src/test/scala/docs/command/BankAccountCommandModel.scala) { #command_model_class }
 
 Java
-:    Java examples coming soon...
+:    @@snip [CommandModel.java](/modules/surge-docs/src/test/java/javadocs/commandapp/BankAccountCommandModel.java) { #command_model_class}
 
 The command model gets wired into Surge through a Surge model, which additionally includes the topics to publish to.
 
@@ -74,7 +80,10 @@ Scala
 :    @@snip [SurgeModel.scala](/modules/surge-docs/src/test/scala/docs/command/BankAccountSurgeModel.scala) { #surge_model_class }
 
 Java
-:    Java examples coming soon...
+:     @@snip [SurgeModel.java](/modules/surge-docs/src/test/java/javadocs/commandapp/BankAccountSurgeModel.java) { #surge_model_class }
+@@snip [SurgeModel.java](/modules/surge-docs/src/test/java/javadocs/commandapp/format/SurgeAggregateReadFormattingBankAccount.java) { #surge_format }
+@@snip [SurgeModel.java](/modules/surge-docs/src/test/java/javadocs/commandapp/format/SurgeAggregateWriteFormattingBankAccount.java) { #surge_format }
+@@snip [SurgeModel.java](/modules/surge-docs/src/test/java/javadocs/commandapp/format/SurgeEventWriteFormattingBankEvent.java) { #surge_format }
 
 
 ## Creating and interacting with the engine
@@ -85,7 +94,7 @@ Scala
 :    @@snip [Engine.scala](/modules/surge-docs/src/test/scala/docs/command/BankAccountEngine.scala) { #bank_account_engine_class }
 
 Java
-:    Java examples coming soon...
+:    @@snip [Engine.java](/modules/surge-docs/src/test/java/javadocs/commandapp/Main.java) { #bank_account_engine_class }
 
 
 You can interact with the running engine via two main methods, `sendCommand` for sending commands and `getState` for fetching state:
@@ -94,7 +103,7 @@ Scala
 :    @@snip [Service.scala](/modules/surge-docs/src/test/scala/docs/command/BankAccountCommandEngineSpec.scala) { #sending_command_to_engine }
 
 Java
-:    Java examples coming soon...
+:    @@snip [Service.java](/modules/surge-docs/src/test/java/javadocs/commandapp/Main.java) { #sending_command_to_engine }
 
 The `sendCommand` method will return a `CommandSuccess` if the command was processed successfully, even if no events are emitted or a `CommandFailure` wrapping any exception thrown as part of the command processing logic if one is thrown.
 
@@ -102,6 +111,6 @@ Scala
 :    @@snip [Service.scala](/modules/surge-docs/src/test/scala/docs/command/BankAccountCommandEngineSpec.scala) { #getting_state_from_engine }
 
 Java
-:    Java examples coming soon...
+:    @@snip [Service.java](/modules/surge-docs/src/test/java/javadocs/commandapp/Main.java) { #getting_state_from_engine }
 
 The `getState` method will return the current state of the given aggregate if it exists.
