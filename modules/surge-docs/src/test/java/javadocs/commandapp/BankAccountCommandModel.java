@@ -18,11 +18,11 @@ import java.util.Optional;
 
 // #command_model_class
 public class BankAccountCommandModel implements AggregateCommandModel<BankAccount, BankAccountCommand, BankAccountEvent> {
-    // users can feel free to use vavr pattern matching as an alternative.
 
     @Override
     public List<BankAccountEvent> processCommand(Optional<BankAccount> aggregate, BankAccountCommand command) {
 
+        // users can feel free to use vavr pattern matching as an alternative to instanceOf.
         if (command instanceof CreateAccount createAccount) {
             if (aggregate.isPresent()) {
                 return new ArrayList<>();
@@ -67,7 +67,7 @@ public class BankAccountCommandModel implements AggregateCommandModel<BankAccoun
     @Override
     public Optional<BankAccount> handleEvent(Optional<BankAccount> aggregate, BankAccountEvent event) {
 
-        // users can feel free to use vavr pattern matching as an alternative.
+        // users can feel free to use vavr pattern matching as an alternative to instanceOf.
         if (event instanceof BankAccountCreated bankAccountCreated) {
             Optional<BankAccount> bankAccount;
             bankAccount = Optional.of(new BankAccount(event.getAccountNumber(), bankAccountCreated.accountOwner(),
