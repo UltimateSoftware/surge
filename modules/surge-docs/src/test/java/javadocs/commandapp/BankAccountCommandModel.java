@@ -18,6 +18,8 @@ import java.util.Optional;
 
 // #command_model_class
 public class BankAccountCommandModel implements AggregateCommandModel<BankAccount, BankAccountCommand, BankAccountEvent> {
+    // users can feel free to use vavr pattern matching as an alternative.
+
     @Override
     public List<BankAccountEvent> processCommand(Optional<BankAccount> aggregate, BankAccountCommand command) {
 
@@ -59,7 +61,7 @@ public class BankAccountCommandModel implements AggregateCommandModel<BankAccoun
                 throw new RuntimeException("Account does not exist");
             }
         }
-        throw new RuntimeException("Invalid event command");
+        throw new RuntimeException("Unhandled command");
     }
 
     @Override
