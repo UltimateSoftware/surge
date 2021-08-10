@@ -32,7 +32,8 @@ Scala
 :    @@snip [Aggregate.scala](/modules/surge-docs/src/test/scala/docs/command/BankAccountCommandModel.scala) { #aggregate_class }
 
 Java
-:    @@snip [Aggregate.java](/modules/surge-docs/src/test/java/docs/example/account/BankAccount.java) { #aggregate_class }
+:    @@snip [Aggregate.java](/modules/surge-docs/src/test/java/javadocs/commandapp/account/BankAccount.java) { #aggregate_class }
+
 
 ### Commands
 
@@ -43,10 +44,10 @@ Scala
 :    @@snip [Command.scala](/modules/surge-docs/src/test/scala/docs/command/BankAccountCommandModel.scala) { #command_class }
 
 Java
-:    @@snip [command.java](/modules/surge-docs/src/test/java/docs/example/command/BankAccountCommand.java) { #command_class }
-@@snip [command.java](/modules/surge-docs/src/test/java/docs/example/account/CreateAccount.java) { #command_class }
-@@snip [command.java](/modules/surge-docs/src/test/java/docs/example/account/CreditAccount.java) { #command_class }
-@@snip [command.java](/modules/surge-docs/src/test/java/docs/example/account/DebitAccount.java) { #command_class }
+:    @@snip [Command.java](/modules/surge-docs/src/test/java/javadocs/commandapp/command/BankAccountCommand.java) { #command_class }
+@@snip [Command.java](/modules/surge-docs/src/test/java/javadocs/commandapp/command/CreateAccount.java) { #command_class }
+@@snip [Command.java](/modules/surge-docs/src/test/java/javadocs/commandapp/command/CreditAccount.java) { #command_class }
+@@snip [Command.java](/modules/surge-docs/src/test/java/javadocs/commandapp/command/DebitAccount.java) { #command_class }
 
 ### Events
 
@@ -56,9 +57,9 @@ Scala
 :    @@snip [Event.scala](/modules/surge-docs/src/test/scala/docs/command/BankAccountCommandModel.scala) { #event_class }
 
 Java
-:    @@snip [Event.java](/modules/surge-docs/src/test/java/docs/example/event/BankAccountEvent.java) { #event_class}
-@@snip [Event.java](/modules/surge-docs/src/test/java/docs/example/event/BankAccountCreated.java) { #event_class}
-@@snip [Event.java](/modules/surge-docs/src/test/java/docs/example/event/BankAccountUpdated.java) { #event_class}
+:    @@snip [Event.java](/modules/surge-docs/src/test/java/javadocs/commandapp/event/BankAccountEvent.java) { #event_class}
+@@snip [Event.java](/modules/surge-docs/src/test/java/javadocs/commandapp/event/BankAccountCreated.java) { #event_class}
+@@snip [Event.java](/modules/surge-docs/src/test/java/javadocs/commandapp/event/BankAccountUpdated.java) { #event_class}
 
 
 ## Surge Configuration
@@ -72,7 +73,7 @@ Scala
 :    @@snip [CommandModel.scala](/modules/surge-docs/src/test/scala/docs/command/BankAccountCommandModel.scala) { #command_model_class }
 
 Java
-:    @@snip [CommandModel.java](/modules/surge-docs/src/test/java/docs/example/command/BankAccountCommandModel.java) { #command_model_class}
+:    @@snip [CommandModel.java](/modules/surge-docs/src/test/java/javadocs/commandapp/BankAccountCommandModel.java) { #command_model_class}
 
 The command model gets wired into Surge through a Surge model, which additionally includes the topics to publish to.
 
@@ -80,10 +81,10 @@ Scala
 :    @@snip [SurgeModel.scala](/modules/surge-docs/src/test/scala/docs/command/BankAccountSurgeModel.scala) { #surge_model_class }
 
 Java
-:     @@snip [SurgeModel.java](/modules/surge-docs/src/test/java/docs/example/BankAccountSurgeModel.java) { #surge_model_class }
-@@snip [SurgeModel.java](/modules/surge-docs/src/test/java/docs/example/format/SurgeAggregateReadFormattingBankAccount.java) { #surge_model_class }
-@@snip [SurgeModel.java](/modules/surge-docs/src/test/java/docs/example/format/SurgeAggregateWriteFormattingBankAccount.java) { #surge_model_class }
-@@snip [SurgeModel.java](/modules/surge-docs/src/test/java/docs/example/format/SurgeEventWriteFormattingBankEvent.java) { #surge_model_class }
+:     @@snip [SurgeModel.java](/modules/surge-docs/src/test/java/javadocs/commandapp/BankAccountSurgeModel.java) { #surge_model_class }
+@@snip [SurgeModel.java](/modules/surge-docs/src/test/java/javadocs/commandapp/format/SurgeAggregateReadFormattingBankAccount.java) { #surge_format }
+@@snip [SurgeModel.java](/modules/surge-docs/src/test/java/javadocs/commandapp/format/SurgeAggregateWriteFormattingBankAccount.java) { #surge_format }
+@@snip [SurgeModel.java](/modules/surge-docs/src/test/java/javadocs/commandapp/format/SurgeEventWriteFormattingBankEvent.java) { #surge_format }
 
 
 ## Creating and interacting with the engine
@@ -94,7 +95,8 @@ Scala
 :    @@snip [Engine.scala](/modules/surge-docs/src/test/scala/docs/command/BankAccountEngine.scala) { #bank_account_engine_class }
 
 Java
-:    @@snip [Engine.java](/modules/surge-docs/src/test/java/docs/example/Main.java) { #bank_account_engine_class }
+:    @@snip [Engine.java](/modules/surge-docs/src/test/java/javadocs/commandapp/Main.java) { #bank_account_engine_class }
+
 
 
 You can interact with the running engine via two main methods, `sendCommand` for sending commands and `getState` for fetching state:
@@ -103,7 +105,7 @@ Scala
 :    @@snip [Service.scala](/modules/surge-docs/src/test/scala/docs/command/BankAccountCommandEngineSpec.scala) { #sending_command_to_engine }
 
 Java
-:    @@snip [Service.java](/modules/surge-docs/src/test/java/docs/example/Main.java) { #sending_command_to_engine }
+:    @@snip [Service.java](/modules/surge-docs/src/test/java/javadocs/commandapp/Main.java) { #sending_command_to_engine }
 
 The `sendCommand` method will return a `CommandSuccess` if the command was processed successfully, even if no events are emitted or a `CommandFailure` wrapping any exception thrown as part of the command processing logic if one is thrown.
 
@@ -111,6 +113,7 @@ Scala
 :    @@snip [Service.scala](/modules/surge-docs/src/test/scala/docs/command/BankAccountCommandEngineSpec.scala) { #getting_state_from_engine }
 
 Java
-:    @@snip [Service.java](/modules/surge-docs/src/test/java/docs/example/Main.java) { #getting_state_from_engine }
+:    @@snip [Service.java](/modules/surge-docs/src/test/java/javadocs/commandapp/Main.java) { #getting_state_from_engine }
+
 
 The `getState` method will return the current state of the given aggregate if it exists.

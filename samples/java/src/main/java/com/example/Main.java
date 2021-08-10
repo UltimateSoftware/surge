@@ -1,10 +1,11 @@
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
+
 package com.example;
 
 import com.example.account.BankAccount;
-import com.example.account.CreateAccount;
-import com.example.account.CreditAccount;
-import com.example.account.DebitAccount;
-import com.example.command.BankAccountCommand;
+import com.example.command.CreateAccount;
+import com.example.command.CreditAccount;
+import com.example.command.DebitAccount;
 import com.example.event.BankAccountEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
