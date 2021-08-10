@@ -137,7 +137,11 @@ dependencies {
 }
 case class BankAccount(accountNumber: UUID, accountOwner: String, securityCode: String, balance: Double)</code></pre></dd>
   <dt>Java</dt>
-  <dd>Java examples coming soon&hellip;</dd>
+  <dd>
+  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/account/BankAccount.java#L11-L14" target="_blank" title="Go to snippet source"></a><code class="language-java">@JsonSerialize
+@JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
+public record BankAccount(UUID accountNumber, String accountOwner, String securityCode, double balance) {
+}</code></pre></dd>
 </dl>
 <h3><a href="#commands" name="commands" class="anchor"><span class="anchor-link"></span></a>Commands</h3>
 <p>Commands are data classes intended to handled by an instance of an aggregate to emit events or reject the command and return an error to the end user. Surge strongly types a command engine on an aggregate type, command type, and event type, so any commands you intend to send to an aggregate must inherit from the same base class/interface.</p>
@@ -152,7 +156,29 @@ case class CreditAccount(accountNumber: UUID, amount: Double) extends BankAccoun
 case class DebitAccount(accountNumber: UUID, amount: Double)
     extends BankAccountCommand</code></pre></dd>
   <dt>Java</dt>
-  <dd>Java examples coming soon&hellip;</dd>
+  <dd>
+  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/command/BankAccountCommand.java#L8-L10" target="_blank" title="Go to snippet source"></a><code class="language-java">public interface BankAccountCommand {
+    UUID getAccountNumber();
+}</code></pre>
+  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/command/CreateAccount.java#L7-L13" target="_blank" title="Go to snippet source"></a><code class="language-java">public record CreateAccount(UUID accountNumber, String accountOwner, String securityCode,
+                            double initialBalance) implements BankAccountCommand {
+    @Override
+    public UUID getAccountNumber() {
+        return accountNumber;
+    }
+}</code></pre>
+  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/command/CreditAccount.java#L8-L13" target="_blank" title="Go to snippet source"></a><code class="language-java">public record CreditAccount(UUID accountNumber, double amount) implements BankAccountCommand {
+    @Override
+    public UUID getAccountNumber() {
+        return accountNumber;
+    }
+}</code></pre>
+  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/command/DebitAccount.java#L8-L13" target="_blank" title="Go to snippet source"></a><code class="language-java">public record DebitAccount(UUID accountNumber, double amount) implements BankAccountCommand {
+    @Override
+    public UUID getAccountNumber() {
+        return accountNumber;
+    }
+}</code></pre></dd>
 </dl>
 <h3><a href="#events" name="events" class="anchor"><span class="anchor-link"></span></a>Events</h3>
 <p>Events are the result of successfully applied commands.</p>
@@ -177,7 +203,38 @@ case class BankAccountUpdated(accountNumber: UUID, newBalance: Double) extends B
   override def toJson: JsValue = Json.toJson(this)
 }</code></pre></dd>
   <dt>Java</dt>
-  <dd>Java examples coming soon&hellip;</dd>
+  <dd>
+  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/event/BankAccountEvent.java#L10-L19" target="_blank" title="Go to snippet source"></a><code class="language-java">@JsonTypeInfo(use = JsonTypeInfo.Id.NAME,
+        property = &quot;name&quot;)
+@JsonSubTypes({
+        @JsonSubTypes.Type(value = BankAccountCreated.class, name = &quot;BankAccountCreated&quot;),
+        @JsonSubTypes.Type(value = BankAccountUpdated.class, name = &quot;BankAccountUpdated&quot;),
+})
+public interface BankAccountEvent {
+
+    UUID getAccountNumber();
+}</code></pre>
+  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/event/BankAccountCreated.java#L12-L22" target="_blank" title="Go to snippet source"></a><code class="language-java">@JsonSerialize
+@JsonTypeName(&quot;BankAccountCreated&quot;)
+@JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
+public record BankAccountCreated(UUID accountNumber, String accountOwner, String securityCode,
+                                 double balance) implements BankAccountEvent {
+
+    @Override
+    public UUID getAccountNumber() {
+        return accountNumber;
+    }
+}</code></pre>
+  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/event/BankAccountUpdated.java#L11-L20" target="_blank" title="Go to snippet source"></a><code class="language-java">@JsonSerialize
+@JsonTypeName(&quot;BankAccountUpdated&quot;)
+@JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
+public record BankAccountUpdated(UUID accountNumber, double amount) implements BankAccountEvent {
+    @Override
+    public UUID getAccountNumber() {
+        return accountNumber;
+    }
+}
+</code></pre></dd>
 </dl>
 <h2><a href="#surge-configuration" name="surge-configuration" class="anchor"><span class="anchor-link"></span></a>Surge Configuration</h2>
 <p>The configuration of a Surge engine is done by implementing a command model interface with your particular domain logic and a Surge model interface with Kafka topic configuration.</p>
@@ -222,7 +279,72 @@ case class BankAccountUpdated(accountNumber: UUID, newBalance: Double) extends B
   }
 }</code></pre></dd>
   <dt>Java</dt>
-  <dd>Java examples coming soon&hellip;</dd>
+  <dd>
+  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/BankAccountCommandModel.java#L20-L84" target="_blank" title="Go to snippet source"></a><code class="language-java">public class BankAccountCommandModel implements AggregateCommandModel&lt;BankAccount, BankAccountCommand, BankAccountEvent&gt; {
+
+    @Override
+    public List&lt;BankAccountEvent&gt; processCommand(Optional&lt;BankAccount&gt; aggregate, BankAccountCommand command) {
+
+        // users can feel free to use vavr pattern matching as an alternative to instanceOf.
+        if (command instanceof CreateAccount createAccount) {
+            if (aggregate.isPresent()) {
+                return new ArrayList&lt;&gt;();
+            } else {
+                BankAccountCreated bankAccountCreated = new BankAccountCreated(createAccount.getAccountNumber(),
+                        createAccount.accountOwner()
+                        , createAccount.securityCode()
+                        , createAccount.initialBalance());
+                return Collections.singletonList(bankAccountCreated);
+
+            }
+        }
+        if (command instanceof CreditAccount creditAccount) {
+            if (aggregate.isPresent()) {
+                BankAccount bankAccount = aggregate.get();
+                BankAccountUpdated bankAccountUpdated = new BankAccountUpdated(creditAccount.accountNumber()
+                        , bankAccount.balance() + creditAccount.amount());
+                return Collections.singletonList(bankAccountUpdated);
+
+            } else {
+                throw new RuntimeException(&quot;Account does not exist&quot;);
+            }
+        }
+        if (command instanceof DebitAccount debitAccount) {
+            if (aggregate.isPresent()) {
+                BankAccount bankAccount = aggregate.get();
+                if (bankAccount.balance() &gt;= debitAccount.amount()) {
+                    BankAccountUpdated bankAccountUpdated = new BankAccountUpdated(bankAccount.accountNumber(),
+                            bankAccount.balance() - debitAccount.amount());
+                    return Collections.singletonList(bankAccountUpdated);
+
+                } else {
+                    throw new RuntimeException(&quot;Insufficient funds&quot;);
+                }
+            } else {
+                throw new RuntimeException(&quot;Account does not exist&quot;);
+            }
+        }
+        throw new RuntimeException(&quot;Unhandled command&quot;);
+    }
+
+    @Override
+    public Optional&lt;BankAccount&gt; handleEvent(Optional&lt;BankAccount&gt; aggregate, BankAccountEvent event) {
+
+        // users can feel free to use vavr pattern matching as an alternative to instanceOf.
+        if (event instanceof BankAccountCreated bankAccountCreated) {
+            Optional&lt;BankAccount&gt; bankAccount;
+            bankAccount = Optional.of(new BankAccount(event.getAccountNumber(), bankAccountCreated.accountOwner(),
+                    bankAccountCreated.securityCode(), bankAccountCreated.balance()));
+            return bankAccount;
+        }
+        if (event instanceof BankAccountUpdated bankAccountUpdated) {
+            return aggregate.map((item) -&gt; new BankAccount(item.accountNumber(), item.accountOwner()
+                    , item.securityCode(), bankAccountUpdated.amount()));
+        }
+        throw new RuntimeException(&quot;Unhandled event&quot;);
+    }
+
+}</code></pre></dd>
 </dl>
 <p>The command model gets wired into Surge through a Surge model, which additionally includes the topics to publish to.</p>
 <dl>
@@ -258,7 +380,88 @@ case class BankAccountUpdated(accountNumber: UUID, newBalance: Double) extends B
   }
 }</code></pre></dd>
   <dt>Java</dt>
-  <dd>Java examples coming soon&hellip;</dd>
+  <dd>
+  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/BankAccountSurgeModel.java#L20-L56" target="_blank" title="Go to snippet source"></a><code class="language-java">public class BankAccountSurgeModel extends SurgeCommandBusinessLogic&lt;UUID, BankAccount, BankAccountCommand,
+        BankAccountEvent&gt; {
+    @Override
+    public AggregateCommandModel&lt;BankAccount, BankAccountCommand, BankAccountEvent&gt; commandModel() {
+        return new BankAccountCommandModel();
+    }
+
+    @Override
+    public String aggregateName() {
+        return &quot;bank-account&quot;;
+    }
+
+    @Override
+    public KafkaTopic stateTopic() {
+        return new KafkaTopic(&quot;bank-account-state&quot;);
+    }
+
+    @Override
+    public KafkaTopic eventsTopic() {
+        return new KafkaTopic(&quot;bank-account-events&quot;);
+    }
+
+    @Override
+    public SurgeAggregateReadFormatting&lt;BankAccount&gt; aggregateReadFormatting() {
+        return new SurgeAggregateReadFormattingBankAccount();
+    }
+
+    @Override
+    public SurgeEventWriteFormatting&lt;BankAccountEvent&gt; eventWriteFormatting() {
+        return new SurgeEventWriteFormattingBankEvent();
+    }
+
+    @Override
+    public SurgeAggregateWriteFormatting&lt;BankAccount&gt; aggregateWriteFormatting() {
+        return new SurgeAggregateWriteFormattingBankAccount();
+    }
+}</code></pre>
+  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/format/SurgeAggregateReadFormattingBankAccount.java#L13-L26" target="_blank" title="Go to snippet source"></a><code class="language-java">public class SurgeAggregateReadFormattingBankAccount implements SurgeAggregateReadFormatting&lt;BankAccount&gt; {
+    @Override
+    public Option&lt;BankAccount&gt; readState(byte[] bytes) {
+        ObjectMapper objectMapper = new ObjectMapper();
+        BankAccount bankAccount;
+        try {
+            bankAccount = objectMapper.readValue(bytes, BankAccount.class);
+            return Option.apply(bankAccount);
+        } catch (IOException e) {
+            return Option.empty();
+        }
+    }
+
+}</code></pre>
+  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/format/SurgeAggregateWriteFormattingBankAccount.java#L12-L25" target="_blank" title="Go to snippet source"></a><code class="language-java">public class SurgeAggregateWriteFormattingBankAccount implements SurgeAggregateWriteFormatting&lt;BankAccount&gt; {
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Override
+    public SerializedAggregate writeState(BankAccount bankAccount) {
+        try {
+            byte[] bankAccountBytes = objectMapper.writeValueAsBytes(bankAccount);
+            scala.collection.immutable.Map&lt;String, String&gt; map = HashMap$.MODULE$.empty();
+            return SerializedAggregate.apply(bankAccountBytes, map);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+}</code></pre>
+  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/format/SurgeEventWriteFormattingBankEvent.java#L12-L27" target="_blank" title="Go to snippet source"></a><code class="language-java">public class SurgeEventWriteFormattingBankEvent implements SurgeEventWriteFormatting&lt;BankAccountEvent&gt; {
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Override
+    public SerializedMessage writeEvent(BankAccountEvent evt) {
+        try {
+            String key = evt.getAccountNumber().toString();
+            byte[] evtByte = objectMapper.writeValueAsBytes(evt);
+            scala.collection.immutable.Map&lt;String, String&gt; map = HashMap$.MODULE$.empty();
+            return SerializedMessage.apply(key, evtByte, map);
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+    }
+}</code></pre></dd>
 </dl>
 <h2><a href="#creating-and-interacting-with-the-engine" name="creating-and-interacting-with-the-engine" class="anchor"><span class="anchor-link"></span></a>Creating and interacting with the engine</h2>
 <p>Once the configuration is defined you can inject it into a Surge engine:</p>
@@ -272,7 +475,11 @@ case class BankAccountUpdated(accountNumber: UUID, newBalance: Double) extends B
   }
 }</code></pre></dd>
   <dt>Java</dt>
-  <dd>Java examples coming soon&hellip;</dd>
+  <dd>
+  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/Main.java#L27-L30" target="_blank" title="Go to snippet source"></a><code class="language-java">BankAccountSurgeModel bankAccountSurgeModel = new BankAccountSurgeModel();
+SurgeCommand&lt;UUID, BankAccount, BankAccountCommand, ?, BankAccountEvent&gt; surgeCommand =
+        SurgeCommand$.MODULE$.create(bankAccountSurgeModel);
+surgeCommand.start();</code></pre></dd>
 </dl>
 <p>You can interact with the running engine via two main methods, <code>sendCommand</code> for sending commands and <code>getState</code> for fetching state:</p>
 <dl>
@@ -292,7 +499,26 @@ val creditedAccount: Future[Option[BankAccount]] = BankAccountEngine.surgeEngine
   case CommandFailure(reason)         =&gt; throw reason
 }</code></pre></dd>
   <dt>Java</dt>
-  <dd>Java examples coming soon&hellip;</dd>
+  <dd>
+  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/Main.java#L34-L52" target="_blank" title="Go to snippet source"></a><code class="language-java">UUID accountNumber = UUID.randomUUID();
+logger.info(&quot;Account number is: {}&quot;, accountNumber);
+CreateAccount createAccount = new CreateAccount(accountNumber, &quot;Jane Doe&quot;,
+        &quot;1234&quot;, 1000.0);
+
+CompletionStage&lt;CommandResult&lt;BankAccount&gt;&gt; completionStageCreateAccount =
+        surgeCommand.aggregateFor(accountNumber).sendCommand(createAccount);
+
+completionStageCreateAccount.whenComplete((CommandResult&lt;BankAccount&gt; result, Throwable ex) -&gt; {
+    if (ex != null) {
+        ex.printStackTrace();
+    } else {
+        if (result instanceof CommandSuccess&lt;BankAccount&gt; commandSuccess) {
+            logger.info(&quot;Aggregate state is: {} &quot;, commandSuccess.aggregateState());
+        } else if (result instanceof CommandFailure&lt;BankAccount&gt; commandFailure) {
+            commandFailure.reason().printStackTrace();
+        }
+    }
+});</code></pre></dd>
 </dl>
 <p>The <code>sendCommand</code> method will return a <code>CommandSuccess</code> if the command was processed successfully, even if no events are emitted or a <code>CommandFailure</code> wrapping any exception thrown as part of the command processing logic if one is thrown.</p>
 <dl>
@@ -300,7 +526,16 @@ val creditedAccount: Future[Option[BankAccount]] = BankAccountEngine.surgeEngine
   <dd>
   <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/scala/docs/command/BankAccountCommandEngineSpec.scala#L65" target="_blank" title="Go to snippet source"></a><code class="language-scala">val currentState: Future[Option[BankAccount]] = BankAccountEngine.surgeEngine.aggregateFor(accountNumber).getState</code></pre></dd>
   <dt>Java</dt>
-  <dd>Java examples coming soon&hellip;</dd>
+  <dd>
+  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/Main.java#L56-L64" target="_blank" title="Go to snippet source"></a><code class="language-java">CompletionStage&lt;Optional&lt;BankAccount&gt;&gt; currentState = surgeCommand.aggregateFor(accountNumber).getState();
+currentState.whenComplete((bankAccount, throwable) -&gt;
+{
+    if (throwable != null) {
+        throwable.printStackTrace();
+    } else {
+        logger.info(&quot;Current state is: {}&quot;, bankAccount);
+    }
+});</code></pre></dd>
 </dl>
 <p>The <code>getState</code> method will return the current state of the given aggregate if it exists.</p>
 <div class="source-github">
