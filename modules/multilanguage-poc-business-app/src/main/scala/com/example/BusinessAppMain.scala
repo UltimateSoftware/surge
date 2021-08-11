@@ -5,15 +5,15 @@ package com.example
 import akka.actor.ActorSystem
 import akka.grpc.GrpcClientSettings
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
+import akka.http.scaladsl.model.{ HttpRequest, HttpResponse }
 import akka.stream.Materializer
 import com.typesafe.config.ConfigFactory
 import com.ukg.surge.multilanguage.protobuf._
-import com.ukg.surge.poc.business.{PersonTagged, Photo, TagPerson}
+import com.ukg.surge.poc.business.{ PersonTagged, Photo, TagPerson }
 
 import scala.concurrent.duration.DurationInt
-import scala.concurrent.{ExecutionContext, Future}
-import scala.util.{Failure, Success}
+import scala.concurrent.{ ExecutionContext, Future }
+import scala.util.{ Failure, Success }
 
 class BusinessServiceImpl(implicit mat: Materializer) extends BusinessLogicService {
 
@@ -62,7 +62,12 @@ object BusinessLogicServer {
     val conf = ConfigFactory.parseString("akka.http.server.preview.enable-http2 = on").withFallback(ConfigFactory.defaultApplication())
     implicit val system = ActorSystem("app", conf)
     import system.dispatcher
-    new BusinessLogicServer(system).run()
+    val binding = new BusinessLogicServer(system).run()
+    Runtime.getRuntime.addShutdownHook(new Thread() {
+      override def run(): Unit = {
+        binding.map(_.terminate(hardDeadline = 7.seconds))
+      }
+    })
 
     println("Business logic server has been started")
 
@@ -70,19 +75,19 @@ object BusinessLogicServer {
 
     lazy val surge: MultilanguageGatewayService = MultilanguageGatewayServiceClient(clientSettings)
 
-    val command = com.ukg.surge.multilanguage.protobuf.Command(
-      aggregateId = java.util.UUID.randomUUID().toString,
-      payload = TagPerson(personName = "Bob").toByteString
-    )
+    val command =
+      com.ukg.surge.multilanguage.protobuf.Command(aggregateId = java.util.UUID.randomUUID().toString, payload = TagPerson(personName = "Bob").toByteString)
 
-    akka.pattern.after(duration = 15.seconds, system.scheduler) {
-      surge.sendCommand(SendCommandRequest(Some(command)))
-    }.onComplete {
+    akka.pattern
+      .after(duration = 15.seconds, system.scheduler) {
+        surge.sendCommand(SendCommandRequest(Some(command)))
+      }
+      .onComplete {
         case Failure(exception: Throwable) =>
           exception.printStackTrace()
         case Success(value: SendCommandReply) =>
           println(value.toString)
-    }
+      }
 
   }
 }
@@ -100,12 +105,6 @@ class BusinessLogicServer(system: ActorSystem) {
     binding.foreach { binding => println(s"gRPC server bound to: ${binding.localAddress}") }
 
     binding
-
-    Runtime.getRuntime.addShutdownHook(new Thread() {
-      override def run(): Unit = {
-        binding.map(_.terminate(hardDeadline = 7.seconds))
-      }
-    })
 
   }
 }

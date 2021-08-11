@@ -184,16 +184,16 @@ class MultilanguageGatewayServer(system: ActorSystem) {
 
     binding
 
-    Runtime.getRuntime.addShutdownHook(new Thread() {
-      override def run(): Unit = {
-        binding.map(_.terminate(hardDeadline = 7.seconds))
-      }
-    })
-
   }
 }
 
 object MultilanguageSidecarMain extends App {
   implicit val system = ActorSystem("multilanguage")
-  new MultilanguageGatewayServer(system).run()
+  import system.dispatcher
+  val binding = new MultilanguageGatewayServer(system).run()
+  Runtime.getRuntime.addShutdownHook(new Thread() {
+    override def run(): Unit = {
+      binding.map(_.terminate(hardDeadline = 7.seconds))
+    }
+  })
 }

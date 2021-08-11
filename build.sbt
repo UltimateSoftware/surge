@@ -86,7 +86,7 @@ lazy val `surge-engine-multilanguage` =
     .dependsOn(`surge-engine-command-scaladsl`)
     .enablePlugins(AkkaGrpcPlugin)
 
-lazy val `surge-engine-sidecar-poc-business-app` =
+lazy val `surge-engine-multilanguage-poc-business-app` =
   (project in file("modules/multilanguage-poc-business-app"))
     .dependsOn(`surge-engine-multilanguage`)
     .enablePlugins(AkkaGrpcPlugin)
@@ -134,7 +134,9 @@ lazy val `surge` = project
     `surge-metrics`,
     `surge-rabbitmq-support`,
     `surge-docs`,
-    `surge-engine-multilanguage`)
+    `surge-engine-multilanguage`,
+    `surge-engine-multilanguage-poc-business-app`
+  )
   .settings(skip in publish := true, ReleaseSettings.settings)
   .disablePlugins(MimaPlugin)
 
