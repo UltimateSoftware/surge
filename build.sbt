@@ -81,14 +81,14 @@ lazy val `surge-engine-command-javadsl` =
     .dependsOn(`surge-engine-command-core`)
     .settings(libraryDependencies ++= Seq(scalatest, scalatestPlusMockito, mockitoCore))
 
-lazy val `surge-engine-sidecar-poc` =
-  (project in file("modules/sidecar-poc"))
+lazy val `surge-engine-multilanguage` =
+  (project in file("modules/multilanguage"))
     .dependsOn(`surge-engine-command-scaladsl`)
     .enablePlugins(AkkaGrpcPlugin)
 
 lazy val `surge-engine-sidecar-poc-business-app` =
-  (project in file("modules/sidecar-poc-business-app"))
-    .dependsOn(`surge-engine-sidecar-poc`)
+  (project in file("modules/multilanguage-poc-business-app"))
+    .dependsOn(`surge-engine-multilanguage`)
     .enablePlugins(AkkaGrpcPlugin)
 
 lazy val `surge-metrics` = (project in file("modules/metrics")).settings(
@@ -134,7 +134,7 @@ lazy val `surge` = project
     `surge-metrics`,
     `surge-rabbitmq-support`,
     `surge-docs`,
-    `surge-engine-sidecar-poc`)
+    `surge-engine-multilanguage`)
   .settings(skip in publish := true, ReleaseSettings.settings)
   .disablePlugins(MimaPlugin)
 

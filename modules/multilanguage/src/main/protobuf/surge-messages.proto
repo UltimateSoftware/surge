@@ -1,7 +1,7 @@
 syntax = "proto3";
 
 option java_multiple_files = true;
-option java_package = "com.ukg.surge.sidecarpoc";
+option java_package = "com.ukg.surge.multilanguage.protobuf";
 
 message State {
   bytes payload = 1;
@@ -34,6 +34,19 @@ message HandleEventRequest {
 
 message HandleEventResponse {
   State state = 1;
+}
+
+message SendCommandRequest {
+  Command command = 1; // TODO: decide what else we need here
+}
+
+message SendCommandReply {
+  string successMessage = 1;  // TODO: decide what else we need here
+  string rejectionMessage = 2;
+}
+
+service MultilanguageGatewayService {
+  rpc SendCommand (SendCommandRequest) returns (SendCommandReply) {}
 }
 
 service BusinessLogicService {
