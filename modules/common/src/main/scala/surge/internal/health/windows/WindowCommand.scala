@@ -15,3 +15,4 @@ case class AddToWindow(sig: HealthSignal, w: Window) extends WindowCommand
 case class AdvanceWindow(w: Window, to: Window) extends WindowCommand
 
 case class CloseCurrentWindow()
+case class GetWindowSnapShot()

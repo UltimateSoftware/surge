@@ -8,18 +8,19 @@ import com.typesafe.config.Config
 import io.opentelemetry.api.trace.Tracer
 import org.apache.kafka.common.TopicPartition
 import org.slf4j.{ Logger, LoggerFactory }
+import surge.health.RegistrationProducer
 import surge.internal.akka.ActorWithTracing
+import surge.internal.akka.actor.ActorLifecycleManagerActor
 import surge.internal.akka.cluster.{ ActorHostAwareness, Shard }
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.config.TimeoutConfig
 import surge.internal.tracing.TracedMessage
 import surge.kafka.streams.HealthyActor.GetHealth
-import surge.kafka.streams.{ HealthCheck, HealthCheckStatus, HealthyActor }
+import surge.kafka.streams.{ HealthCheck, HealthCheckStatus, HealthyActor, HealthyComponent }
 
 import java.time.Instant
 import scala.concurrent.Future
 import scala.concurrent.duration._
-import scala.util.Try
 
 object KafkaPartitionShardRouterActor {
   def props[Agg, Command, Event](
@@ -36,7 +37,7 @@ object KafkaPartitionShardRouterActor {
     Props(new KafkaPartitionShardRouterActor(config, partitionTracker, producer, regionCreator, extractEntityId)(tracer))
   }
   case object GetPartitionRegionAssignments
-
+  case object Shutdown
 }
 
 /**
@@ -154,6 +155,8 @@ class KafkaPartitionShardRouterActor(
 
   private def uninitialized: Receive = {
     case msg: PartitionAssignments => handle(msg)
+    case Shutdown =>
+      context.stop(self)
     case _ =>
       activeSpan.log("stashed")
       stash()
@@ -165,6 +168,9 @@ class KafkaPartitionShardRouterActor(
     case GetPartitionRegionAssignments => sender() ! state.partitionRegions
     case GetHealth =>
       sender() ! HealthCheck(name = "shard-router-actor", id = s"router-actor-$hashCode", status = HealthCheckStatus.UP)
+    case Shutdown =>
+      state.partitionRegions.values.foreach(region => region.regionManager ! ActorLifecycleManagerActor.Stop)
+      context.stop(self)
     case msg if extractEntityId.isDefinedAt(msg) =>
       becomeActiveAndDeliverMessage(state, msg)
   }
@@ -173,6 +179,9 @@ class KafkaPartitionShardRouterActor(
     case msg: PartitionAssignments     => handle(state, msg)
     case msg: Terminated               => handle(state, msg)
     case GetPartitionRegionAssignments => sender() ! state.partitionRegions
+    case Shutdown =>
+      state.partitionRegions.values.foreach(region => region.regionManager ! ActorLifecycleManagerActor.Stop)
+      context.stop(self)
     case msg if extractEntityId.isDefinedAt(msg) =>
       val entityId: String = extractEntityId(msg)
       activeSpan.log("extractEntityId", Map("entityId" -> entityId))

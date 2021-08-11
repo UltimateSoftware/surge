@@ -147,7 +147,20 @@ class HealthSupervisorActorRef(val actor: ActorRef, askTimeout: FiniteDuration, 
 
   override def registrar(): ActorRef = actor
 
-  override def register(registration: HealthRegistration): Future[Any] = {
+  override def unregister(componentName: String): Future[Ack] = {
+    actor
+      .ask(UnregisterSupervisedComponentRequest(componentName))(askTimeout)
+      .andThen {
+        case Success(_) =>
+          controlled.remove(componentName)
+        case Failure(exception) =>
+          log.error(s"Failed to register ${componentName}", exception)
+
+      }
+      .mapTo[Ack]
+  }
+
+  override def register(registration: HealthRegistration): Future[Ack] = {
     val result = actor
       .ask(
         RegisterSupervisedComponentRequest(
@@ -162,7 +175,7 @@ class HealthSupervisorActorRef(val actor: ActorRef, askTimeout: FiniteDuration, 
           log.error(s"Failed to register ${registration.componentName}", exception)
       }
 
-    result
+    result.mapTo[Ack]
   }
 }
 

@@ -89,14 +89,19 @@ class PersistentActorRegion[M](
 
   override def start(): Future[Ack] = kafkaProducerActor.start().andThen(registrationCallback())(ExecutionContext.global)
 
-  override def stop(): Future[Ack] = kafkaProducerActor.stop()
+  override def stop(): Future[Ack] = {
+    kafkaProducerActor.stop()
+  }
 
   override def shutdown(): Future[Ack] = stop()
 
   private def registrationCallback(): PartialFunction[Try[Ack], Unit] = {
     case Success(_) =>
       val registrationResult =
-        signalBus.register(control = this, componentName = "persistent-actor-region", restartSignalPatterns = restartSignalPatterns())
+        signalBus.register(
+          control = this,
+          componentName = s"persistent-actor-region-${assignedPartition.topic()}-${assignedPartition.partition()}",
+          restartSignalPatterns = restartSignalPatterns())
 
       registrationResult.onComplete {
         case Failure(exception) =>

@@ -16,6 +16,7 @@ import surge.internal.persistence.PersistentActorRegionCreator
 import surge.kafka.PartitionAssignments
 import surge.kafka.streams._
 
+import java.util.regex.Pattern
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.{ Failure, Success, Try }
 
@@ -70,6 +71,9 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     surgeHealthCheck.healthCheck()
   }
 
+  override def shutdownSignalPatterns(): Seq[Pattern] =
+    Seq[Pattern](Pattern.compile("surge.pipeline.fatal.error"))
+
   protected def registerRebalanceCallback(callback: PartitionAssignments => Unit): Unit = {
     system.actorOf(CustomConsumerGroupRebalanceListener.props(stateChangeActor, callback))
   }
@@ -114,7 +118,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
       allStopped
     }
 
-    result
+    result.andThen(unRegistrationCallback())
   }
 
   override def shutdown(): Future[Ack] = stop()
@@ -133,6 +137,20 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     Future.successful[Ack](Ack())
   }
 
+  private def unRegistrationCallback(): PartialFunction[Try[Ack], Unit] = {
+    case Success(_) =>
+      val unRegistrationResult = signalBus.unregister(control = this, componentName = "surge-message-pipeline")
+
+      unRegistrationResult.onComplete {
+        case Failure(exception) =>
+          log.error(s"$getClass registeration failed", exception)
+        case Success(_) =>
+          log.debug(s"$getClass registeration succeeded")
+      }(system.dispatcher)
+    case Failure(exception) =>
+      log.error("Failed to stop so unable to unregister from supervision", exception)
+  }
+
   private def registrationCallback(): PartialFunction[Try[Ack], Unit] = {
 
     case Success(_) =>
@@ -144,11 +162,11 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
 
       registrationResult.onComplete {
         case Failure(exception) =>
-          log.error("AggregateStateStore registeration failed", exception)
+          log.error(s"$getClass registeration failed", exception)
         case Success(_) =>
-          log.debug(s"AggregateStateStore registeration succeeded")
+          log.debug(s"$getClass registeration succeeded")
       }(system.dispatcher)
     case Failure(exception) =>
-      log.error("Failed to register start so unable to register for supervision", exception)
+      log.error("Failed to start so unable to register for supervision", exception)
   }
 }

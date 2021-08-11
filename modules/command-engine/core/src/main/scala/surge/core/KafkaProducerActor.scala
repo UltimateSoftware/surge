@@ -15,6 +15,7 @@ import surge.internal.akka.actor.ActorLifecycleManagerActor
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.config.TimeoutConfig
 import surge.internal.kafka.KafkaProducerActorImpl
+import surge.internal.kafka.KafkaProducerActorImpl.ShutdownProducer
 import surge.kafka.KafkaBytesProducer
 import surge.kafka.streams._
 import surge.metrics.{ MetricInfo, Metrics, Timer }
@@ -48,7 +49,7 @@ object KafkaProducerActor {
         kafkaProducerOverride = kafkaProducerOverride)).withDispatcher(dispatcherName)
 
     new KafkaProducerActor(
-      actorSystem.actorOf(Props(new ActorLifecycleManagerActor(kafkaProducerProps))),
+      actorSystem.actorOf(Props(new ActorLifecycleManagerActor(kafkaProducerProps, finalizeMessage = Some(() => ShutdownProducer)))),
       metrics,
       businessLogic.aggregateName,
       assignedPartition,
@@ -158,7 +159,10 @@ class KafkaProducerActor(
   private def registrationCallback(): PartialFunction[Try[Ack], Unit] = {
     case Success(_) =>
       val registrationResult =
-        signalBus.register(control = this, componentName = "kafka-producer-actor", restartSignalPatterns = restartSignalPatterns())
+        signalBus.register(
+          control = this,
+          componentName = s"kafka-producer-actor-${assignedPartition.topic()}-${assignedPartition.partition()}",
+          restartSignalPatterns = restartSignalPatterns())
 
       registrationResult.onComplete {
         case Failure(exception) =>

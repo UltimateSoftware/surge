@@ -9,6 +9,7 @@ import org.mockito.Mockito
 import org.mockito.Mockito._
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.Eventually
+import org.scalatest.concurrent.ScalaFutures.convertScalaFuture
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Milliseconds, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
@@ -75,6 +76,43 @@ class HealthSignalWindowActorSpec
 
       eventually {
         probe.expectTerminated(actorRef)
+      }
+    }
+
+    "ignore signals when paused" in {
+      val actorRef: HealthSignalWindowActorRef =
+        HealthSignalWindowActor(
+          actorSystem = system,
+          windowFrequency = 100.milliseconds,
+          initialWindowProcessingDelay = 10.milliseconds,
+          resumeWindowProcessingDelay = 10.milliseconds,
+          advancer = WindowSlider(1, 0),
+          signalBus = Mockito.mock(classOf[HealthSignalBusTrait]),
+          signalPatternMatcherDefinition = SignalNameEqualsMatcherDefinition("place-holder-matcher-for-test", 10.seconds, None),
+          windowCheckInterval = 10.milliseconds)
+      val probe = TestProbe()
+      probe.watch(actorRef.actor)
+
+      actorRef.start(Some(probe.ref))
+
+      eventually {
+        val opened = probe.fishForMessage(100.milliseconds) { msg =>
+          msg.isInstanceOf[WindowOpened]
+        }
+
+        opened.isInstanceOf[WindowOpened]
+      }
+
+      actorRef.pause(10.seconds)
+      actorRef.processSignal(mock(classOf[HealthSignal]))
+
+      actorRef.windowSnapshot().futureValue.isDefined shouldEqual true
+      actorRef.windowSnapshot().futureValue.get.data.size shouldEqual 0
+
+      actorRef.stop()
+
+      eventually {
+        probe.expectTerminated(actorRef.actor)
       }
     }
 

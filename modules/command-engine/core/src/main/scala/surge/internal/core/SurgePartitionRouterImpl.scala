@@ -43,7 +43,13 @@ private[surge] final class SurgePartitionRouterImpl(
     regionCreator,
     RoutableMessage.extractEntityId)(businessLogic.tracer)
 
-  private val lifecycleManager = system.actorOf(Props(new ActorLifecycleManagerActor(shardRouterProps, Some(s"${businessLogic.aggregateName}RouterActor"))))
+  private val lifecycleManager = system.actorOf(
+    Props(
+      new ActorLifecycleManagerActor(
+        shardRouterProps,
+        Some(s"${businessLogic.aggregateName}RouterActor"),
+        finalizeMessage = Some(() => KafkaPartitionShardRouterActor.Shutdown))))
+
   override val actorRegion: ActorRef = lifecycleManager
 
   override def start(): Future[Ack] = {
@@ -55,7 +61,7 @@ private[surge] final class SurgePartitionRouterImpl(
   override def stop(): Future[Ack] = {
     implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PartitionRouter.askTimeout)
 
-    actorRegion.ask(ActorLifecycleManagerActor.Stop).mapTo[Ack]
+    actorRegion.ask(ActorLifecycleManagerActor.Stop).mapTo[Ack].andThen(unRegistrationCallback())
   }
 
   override def shutdown(): Future[Ack] = stop()
@@ -94,4 +100,19 @@ private[surge] final class SurgePartitionRouterImpl(
     case Failure(error) =>
       log.error(s"Unable to register $getClass for supervision", error)
   }
+
+  private def unRegistrationCallback(): PartialFunction[Try[Ack], Unit] = {
+    case Success(_) =>
+      val unRegistrationResult = signalBus.unregister(control = this, componentName = "router-actor")
+
+      unRegistrationResult.onComplete {
+        case Failure(exception) =>
+          log.error(s"$getClass registeration failed", exception)
+        case Success(_) =>
+          log.debug(s"$getClass registeration succeeded")
+      }(system.dispatcher)
+    case Failure(exception) =>
+      log.error("Failed to stop so unable to unregister from supervision", exception)
+  }
+
 }

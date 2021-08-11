@@ -53,6 +53,7 @@ final case class HealthRegistration(
 
 trait RegistrationProducer {
   def register(control: Controllable, componentName: String, restartSignalPatterns: Seq[Pattern], shutdownSignalPatterns: Seq[Pattern] = Seq.empty): Future[Ack]
+  def unregister(control: Controllable, componentName: String): Future[Ack]
   def registration(
       controllable: Controllable,
       componentName: String,
@@ -136,7 +137,7 @@ trait HealthSupervisorTrait {
   def start(replyTo: Option[ActorRef] = None): HealthSupervisorTrait
 
   def register(registration: HealthRegistration): Future[Any]
-
+  def unregister(componentName: String): Future[Ack]
   def registrar(): ActorRef
 
   def registrationLinks(): Seq[HealthRegistrationLink]

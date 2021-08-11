@@ -3,27 +3,27 @@
 package surge.internal.domain
 
 import akka.actor.ActorSystem
-import akka.testkit.{TestKit, TestProbe}
+import akka.testkit.{ TestKit, TestProbe }
 import com.typesafe.config.ConfigFactory
-import net.manub.embeddedkafka.{EmbeddedKafka, EmbeddedKafkaConfig}
+import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.streams.KafkaStreams
-import org.scalatest.concurrent.{Eventually, ScalaFutures}
+import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
-import org.scalatest.time.{Milliseconds, Seconds, Span}
+import org.scalatest.time.{ Milliseconds, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
-import org.scalatest.{BeforeAndAfterAll, PrivateMethodTester}
+import org.scalatest.{ BeforeAndAfterAll, PrivateMethodTester }
 import play.api.libs.json.JsValue
-import surge.core.{Ack, TestBoundedContext}
-import surge.health.config.{ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig}
-import surge.health.domain.{Error, HealthSignal}
-import surge.health.matchers.{SideEffectBuilder, SignalPatternMatcherDefinition}
-import surge.health.{ComponentRestarted, HealthListener, HealthMessage, SignalType}
+import surge.core.{ Ack, TestBoundedContext }
+import surge.health.config.{ ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig }
+import surge.health.domain.{ Error, HealthSignal }
+import surge.health.matchers.{ SideEffectBuilder, SignalPatternMatcherDefinition }
+import surge.health.{ ComponentRestarted, HealthListener, HealthMessage, SignalType }
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.core.SurgePartitionRouterImpl
 import surge.internal.health.StreamMonitoringRef
 import surge.internal.health.supervisor.ShutdownComponent
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
-import surge.kafka.streams.{AggregateStateStoreKafkaStreams, MockPartitionTracker}
+import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, MockPartitionTracker }
 import surge.metrics.Metrics
 
 import java.util.regex.Pattern
@@ -253,7 +253,7 @@ class SurgeMessagePipelineSpec
       }
     }
 
-    "inject signal named `it.failed` into signal stream" in {
+    "unregister all child components after stopping" in {
       withRunningKafkaOnFoundPort(config) { _ =>
         withTestContext { ctx =>
           import ctx._
@@ -261,6 +261,36 @@ class SurgeMessagePipelineSpec
           createCustomTopic(businessLogic.kafka.eventsTopic.name, Map.empty)
           createCustomTopic(businessLogic.kafka.stateTopic.name, Map.empty)
 
+          Thread.sleep(10.seconds.toMillis)
+          // wait for router-actor to be registered
+          val beforeStopRegistrations = eventually {
+            val reg = pipeline.signalBus.registrations().futureValue
+            reg.nonEmpty shouldEqual true
+            reg
+          }
+
+          val acknowledgedStop: Ack = pipeline.stop().futureValue
+
+          Option(acknowledgedStop) shouldBe defined
+
+          val afterStopRegistrations = eventually {
+            val reg = pipeline.signalBus.registrations().futureValue
+            reg.isEmpty shouldEqual true
+            reg
+          }
+
+          afterStopRegistrations.isEmpty shouldEqual true
+        }
+      }
+    }
+
+    "inject signal named `it.failed` into signal stream" in {
+      withRunningKafkaOnFoundPort(config) { _ =>
+        withTestContext { ctx =>
+          import ctx._
+
+          createCustomTopic(businessLogic.kafka.eventsTopic.name, Map.empty)
+          createCustomTopic(businessLogic.kafka.stateTopic.name, Map.empty)
 
           var captured: Option[HealthSignal] = None
           pipeline.signalBus.subscribe(
@@ -279,7 +309,7 @@ class SurgeMessagePipelineSpec
             },
             to = pipeline.signalBus.signalTopic())
 
-          pipeline.signalBus.signalWithError(name = "baz", Error("baz happened", None)).emit().emit()
+          pipeline.signalBus.signalWithError(name = "baz", Error("baz happened", None)).emit()
 
           eventually {
             captured.nonEmpty shouldEqual true

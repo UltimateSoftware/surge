@@ -262,6 +262,15 @@ private[surge] class HealthSignalBusImpl(config: HealthSignalBusConfig, signalSt
     registration(control, componentName, restartSignalPatterns, shutdownSignalPatterns).invoke()
   }
 
+  override def unregister(control: Controllable, componentName: String): Future[Ack] = {
+    supervisor() match {
+      case Some(exists) =>
+        exists.unregister(componentName)
+      case None =>
+        Future.successful(Ack())
+    }
+  }
+
   override def registration(
       control: Controllable,
       componentName: String,

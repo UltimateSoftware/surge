@@ -4,7 +4,7 @@ package surge.internal.health.windows.actor
 
 import java.time.Instant
 import akka.actor.{ Actor, ActorRef, ActorSystem, Cancellable, PoisonPill, Props, Stash }
-import akka.pattern.{ BackoffOpts, BackoffSupervisor }
+import akka.pattern.{ ask, BackoffOpts, BackoffSupervisor }
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.health.HealthSignalBusTrait
 import surge.health.domain.{ HealthSignal, HealthSignalSource }
@@ -24,7 +24,7 @@ import surge.health.windows.{
 import surge.internal.config.BackoffConfig
 import surge.internal.health.windows._
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration._
 import scala.languageFeature.postfixOps
 
@@ -123,6 +123,10 @@ class HealthSignalWindowActorRef(
     actor ! signal
     this
   }
+
+  def windowSnapshot(): Future[Option[Window]] = {
+    actor.ask(GetWindowSnapShot())(10.seconds).map(a => a.asInstanceOf[Option[Window]])(ExecutionContext.global)
+  }
 }
 
 /**
@@ -184,8 +188,10 @@ class HealthSignalWindowActor(
       stash()
     case OpenWindow(w, maybeSignal) =>
       val openedWindowState = handleOpenWindow(w, maybeSignal, state)
-      context.become(windowing(openedWindowState))
       unstashAll()
+      context.become(windowing(openedWindowState))
+    case GetWindowSnapShot() =>
+      sender ! state.window
     case Stop() => handleStop(state)
     case _      => stash()
   }
@@ -199,7 +205,8 @@ class HealthSignalWindowActor(
    */
   def windowing(state: WindowState): Receive = {
     case signal: HealthSignal =>
-      handleSignal(signal, state)
+      val nextState = handleSignal(signal, state)
+      context.become(windowing(nextState))
     case AdvanceWindow(w, n) =>
       val nextState = handleAdvanceWindow(w, n, state)
       context.become(windowing(nextState))
@@ -217,12 +224,20 @@ class HealthSignalWindowActor(
       context.become(pausing(nextState))
     case CloseCurrentWindow =>
       state.window.foreach(w => context.self ! CloseWindow(w, advance = true))
+      context.become(windowing(state))
+    case GetWindowSnapShot() =>
+      sender ! state.window
     case Stop() => handleStop(state)
     case Tick() => handleTick(state)
   }
 
   def pausing(state: WindowState): Receive = {
-    case Resume() => {
+    case GetWindowSnapShot() =>
+      sender ! state.window
+    case _: HealthSignal =>
+      stash()
+    case Stop() => handleStop(state)
+    case Resume() =>
       state.window.foreach { w =>
         state.replyTo.foreach(a => {
           HealthSignalWindowActor.log.trace("Notifying {} that window resumed", a)
@@ -230,7 +245,6 @@ class HealthSignalWindowActor(
         })
       }
       context.become(windowing(state))
-    }
   }
 
   private def handleFlush(state: WindowState): WindowState = {

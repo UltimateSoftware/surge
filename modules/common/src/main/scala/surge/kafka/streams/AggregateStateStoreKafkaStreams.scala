@@ -94,7 +94,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
 
   override def stop(): Future[Ack] = {
     implicit val ec: ExecutionContext = system.dispatcher
-    underlyingActor.ask(ActorLifecycleManagerActor.Stop).mapTo[Ack]
+    underlyingActor.ask(ActorLifecycleManagerActor.Stop).mapTo[Ack].andThen(unregistrationCallback())
   }
 
   override def restart(): Future[Ack] = {
@@ -170,5 +170,18 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
       }(system.dispatcher)
     case Failure(error) =>
       log.error(s"Unable to register $getClass for supervision", error)
+  }
+  private def unregistrationCallback(): PartialFunction[Try[Ack], Unit] = {
+    case Success(_) =>
+      val unRegistrationResult = signalBus.unregister(control = this, componentName = "state-store-kafka-streams")
+
+      unRegistrationResult.onComplete {
+        case Failure(exception) =>
+          log.error(s"$getClass registeration failed", exception)
+        case Success(_) =>
+          log.debug(s"$getClass registeration succeeded")
+      }(system.dispatcher)
+    case Failure(exception) =>
+      log.error("Failed to stop so unable to unregister from supervision", exception)
   }
 }
