@@ -18,13 +18,17 @@ import scala.util.{ Failure, Success }
 class BusinessServiceImpl(implicit mat: Materializer) extends BusinessLogicService {
 
   override def processCommand(in: ProcessCommandRequest): Future[ProcessCommandReply] = {
+    println("Surge sidecar called processCommand")
     in.command match {
       case Some(command: Command) =>
+        println("Received command:" + command)
         val tagPerson: TagPerson = TagPerson.parseFrom(command.payload.toByteArray)
         val personTagged: PersonTagged = PersonTagged(personName = tagPerson.personName)
-        val events = com.ukg.surge.multilanguage.protobuf.Event(command.aggregateId, personTagged.toByteString)
-        Future.successful(ProcessCommandReply(List(events)))
+        val event = com.ukg.surge.multilanguage.protobuf.Event(command.aggregateId, personTagged.toByteString)
+        println(s"Responding with event with payload of size ${event.payload.size()}")
+        Future.successful(ProcessCommandReply(List(event)))
       case None =>
+        println("No command! Returning failed future..")
         Future.failed(new UnsupportedOperationException)
     }
   }

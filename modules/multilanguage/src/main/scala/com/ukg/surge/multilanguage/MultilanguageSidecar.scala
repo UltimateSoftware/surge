@@ -10,6 +10,7 @@ import akka.stream.Materializer
 import com.google.protobuf.ByteString
 import com.ukg.surge._
 import com.ukg.surge.multilanguage.protobuf._
+import org.slf4j.LoggerFactory
 import surge.core._
 import surge.core.command.AggregateCommandModelCoreTrait
 import surge.kafka.KafkaTopic
@@ -73,6 +74,8 @@ object Implicits {
 
 class MultilanguageGatewayServiceImpl()(implicit sys: ActorSystem, mat: Materializer) extends MultilanguageGatewayService {
 
+  val logger = LoggerFactory.getLogger(classOf[MultilanguageGatewayServiceImpl])
+
   implicit val ec = sys.dispatcher
 
   val clientSettings = GrpcClientSettings.connectToServiceAt("127.0.0.1", 7776).withTls(false)
@@ -83,23 +86,36 @@ class MultilanguageGatewayServiceImpl()(implicit sys: ActorSystem, mat: Material
 
     import Implicits._
     override def processCommand(aggregate: Option[SurgeState], surgeCommand: SurgeCmd): Try[Seq[SurgeEvent]] = {
+      println("Processing command")
+      println("Aggregate.isDefined:" + aggregate.isDefined)
       val maybePbState: Option[protobuf.State] = aggregate.map(surgeState => surgeState: protobuf.State)
       val pbCommand: protobuf.Command = surgeCommand: multilanguage.protobuf.Command
       val processCommandRequest = ProcessCommandRequest(maybePbState, Some(pbCommand))
-      val call = bridgeToBusinessApp.processCommand(processCommandRequest)
-      val reply = Await.result(call, atMost = 7.seconds)
-      if (reply.rejection == null) {
-        Success(reply.events.map(pbEvent => pbEvent: SurgeEvent))
-      } else {
-        Failure(new Exception(reply.rejection))
+      println("ProcessCommandRequest: " + processCommandRequest)
+      try {
+        val call = bridgeToBusinessApp.processCommand(processCommandRequest)
+        println("Called business app via gRPC!")
+        val reply = Await.result(call, atMost = 7.seconds)
+        if (reply.rejection == "") {
+          Success(reply.events.map(pbEvent => pbEvent: SurgeEvent))
+        } else {
+          Failure(new Exception(reply.rejection))
+        }
+      } catch {
+        case e: Exception =>
+          println("Error making gRPC call to business app from processCommand")
+          e.printStackTrace()
+          throw e
       }
     }
 
     override def handleEvent(aggregate: Option[SurgeState], surgeEvent: SurgeEvent): Option[SurgeState] = {
+      println("Handling event")
       val maybePbState: Option[protobuf.State] = aggregate.map(surgeState => surgeState: protobuf.State)
       val pbEvent = surgeEvent
       val handleEventRequest = HandleEventRequest(maybePbState, Some(pbEvent))
       val call = bridgeToBusinessApp.handleEvent(handleEventRequest)
+      println("Called business app via gRPC!")
       val reply: HandleEventResponse = Await.result(call, atMost = 7.seconds)
       reply.state.map(pbState => pbState: SurgeState)
     }
@@ -149,13 +165,16 @@ class MultilanguageGatewayServiceImpl()(implicit sys: ActorSystem, mat: Material
   override def sendCommand(in: SendCommandRequest): Future[SendCommandReply] = {
     in.command match {
       case Some(cmd: protobuf.Command) =>
+        println("Received:" + cmd)
         val aggIdStr = cmd.aggregateId
         val aggIdUUID: UUID = UUID.fromString(aggIdStr)
         val surgeCmd: SurgeCmd = cmd
+        println("Forwarding:" + surgeCmd)
         surgeEngine.aggregateFor(aggIdUUID).sendCommand(surgeCmd).map {
           case CommandSuccess(aggregateState) =>
             SendCommandReply(successMessage = "Success!") // TODO: decide what else to include here
           case CommandFailure(reason) =>
+            reason.printStackTrace()
             SendCommandReply(rejectionMessage = reason.getMessage)
         }
 
