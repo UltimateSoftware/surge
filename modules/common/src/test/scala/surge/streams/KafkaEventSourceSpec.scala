@@ -2,7 +2,6 @@
 
 package surge.streams
 
-import java.time.Instant
 import akka.Done
 import akka.actor.ActorSystem
 import akka.kafka.ConsumerSettings
@@ -26,6 +25,7 @@ import surge.internal.tracing.NoopTracerFactory
 import surge.kafka.KafkaTopic
 import surge.kafka.streams.DefaultSerdes
 
+import java.time.Instant
 import scala.concurrent.Future
 import scala.concurrent.duration._
 

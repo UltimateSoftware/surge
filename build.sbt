@@ -83,6 +83,8 @@ lazy val `surge-engine-command-javadsl` =
 
 lazy val `surge-metrics` = (project in file("modules/metrics")).settings(
   libraryDependencies ++= Seq(
+    Akka.actor,
+    Akka.testKit,
     Kafka.kafkaClients,
     PlayFramework.json,
     scalaCollectionCompat,
@@ -96,6 +98,8 @@ lazy val `surge-docs` = (project in file("modules/surge-docs"))
   .dependsOn(`surge-common`, `surge-engine-command-core`, `surge-engine-command-javadsl`, `surge-engine-command-scaladsl`, `surge-metrics`)
   .enablePlugins(ParadoxPlugin, ParadoxSitePlugin, GhpagesPlugin)
   .settings(
+    javacOptions ++= Seq("-source", "15", "--enable-preview"),
+    compileOrder := CompileOrder.JavaThenScala,
     skip in publish := true,
     paradoxTheme := Some(builtinParadoxTheme("generic")),
     libraryDependencies ++= Seq(

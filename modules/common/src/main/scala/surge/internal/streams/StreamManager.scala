@@ -11,7 +11,7 @@ import akka.stream.scaladsl.{ Flow, RestartSource, Sink }
 import akka.util.Timeout
 import akka.{ Done, NotUsed }
 import com.typesafe.config.Config
-import io.opentelemetry.api.trace.Tracer
+import io.opentelemetry.api.trace.{ Span, Tracer }
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.serialization.Deserializer
 import org.apache.kafka.common.{ Metric, MetricName }
@@ -46,20 +46,35 @@ object PartitionAssignorConfig {
 object KafkaStreamManager {
   val serviceIdentifier = "StreamManager"
 
-  def wrapBusinessFlow[Key, Value](business: Flow[EventPlusStreamMeta[Key, Value, KafkaStreamMeta], KafkaStreamMeta, NotUsed])
-      : Flow[ConsumerMessage.CommittableMessage[Key, Value], KafkaStreamMeta, NotUsed] = {
+  def setSpanAttributes(span: Span, kafkaMeta: KafkaStreamMeta): Unit = {
+    span.setAttribute("kafka.topic", kafkaMeta.topic)
+    span.setAttribute("kafka.partition", kafkaMeta.partition.toString)
+    span.setAttribute("kafka.offset", kafkaMeta.offset.toString)
+  }
+
+  def setMDCValues(kafkaStreamMeta: KafkaStreamMeta): Unit = {
+    MDC.put("kafka.topic", kafkaStreamMeta.topic)
+    MDC.put("kafka.partition", kafkaStreamMeta.partition.toString)
+    MDC.put("kafka.offset", kafkaStreamMeta.offset.toString)
+  }
+
+  def wrapBusinessFlow[Key, Value](business: Flow[EventPlusStreamMeta[Key, Value, KafkaStreamMeta], KafkaStreamMeta, NotUsed])(
+      tracer: Tracer): Flow[ConsumerMessage.CommittableMessage[Key, Value], KafkaStreamMeta, NotUsed] = {
     val contextToPropagate = MDC.getCopyOfContextMap
 
     Flow[ConsumerMessage.CommittableMessage[Key, Value]]
-      .map { msg =>
+      .map { msg: ConsumerMessage.CommittableMessage[Key, Value] =>
         Option(contextToPropagate).foreach(contextToPropagate => MDC.setContextMap(contextToPropagate))
+
+        val span = tracer.spanBuilder(s"Consume from ${msg.record.topic()}").setNoParent().startSpan()
 
         val kafkaMeta = KafkaStreamMeta(msg.record.topic(), msg.record.partition(), msg.record.offset(), msg.committableOffset)
 
-        MDC.put("kafka.topic", kafkaMeta.topic)
-        MDC.put("kafka.partition", kafkaMeta.partition.toString)
-        MDC.put("kafka.offset", kafkaMeta.offset.toString)
-        EventPlusStreamMeta(msg.record.key, msg.record.value, kafkaMeta, HeadersHelper.unapplyHeaders(msg.record.headers()))
+        setMDCValues(kafkaMeta)
+
+        setSpanAttributes(span, kafkaMeta)
+
+        EventPlusStreamMeta(msg.record.key, msg.record.value, kafkaMeta, HeadersHelper.unapplyHeaders(msg.record.headers()), span)
       }
       .via(business)
       .map { meta =>
@@ -83,8 +98,7 @@ class KafkaStreamManager[Key, Value](
     valueDeserializer: Deserializer[Value],
     replayStrategy: EventReplayStrategy,
     replaySettings: EventReplaySettings,
-    val tracer: Tracer,
-    config: Config)(implicit val actorSystem: ActorSystem)
+    config: Config)(tracer: Tracer)(implicit val actorSystem: ActorSystem)
     extends ActorSystemHostAwareness
     with Logging {
 
@@ -186,7 +200,7 @@ class KafkaStreamManagerActor[Key, Value](
   override def receive: Receive = stopped
 
   private def stopped: Receive = {
-    case StartConsuming => startConsumer()
+    case StartConsuming => startConsumer
     case StopConsuming  => sender() ! SuccessfullyStopped(localAddress, self)
     case GetMetrics     => sender() ! MetricsWrapper.empty
     case RegisterSelf   => registerSelf()
@@ -207,7 +221,7 @@ class KafkaStreamManagerActor[Key, Value](
     case _            => stash()
   }
 
-  private def startConsumer(): Unit = {
+  private def startConsumer: Unit = {
     log.info("Starting consumer for topic {} with client id {}", Seq(topicName, clientId): _*)
     val control = new AtomicReference[Consumer.Control](Consumer.NoopControl)
 

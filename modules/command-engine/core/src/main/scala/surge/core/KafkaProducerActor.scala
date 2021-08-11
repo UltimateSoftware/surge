@@ -118,7 +118,7 @@ class KafkaProducerActor(
       tags = Map("aggregate" -> aggregateName)))
   def isAggregateStateCurrent(aggregateId: String): Future[Boolean] = {
     implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PublisherActor.aggregateStateCurrentTimeout)
-    isAggregateStateCurrentTimer.time {
+    isAggregateStateCurrentTimer.timeFuture {
       (publisherActor ? KafkaProducerActorImpl.IsAggregateStateCurrent(aggregateId)).mapTo[Boolean]
     }
   }

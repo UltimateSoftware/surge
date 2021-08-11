@@ -38,7 +38,7 @@ object SurgeKafkaStreamsPersistencePluginLoader {
             s"Falling back to the default setting of $defaultPersistencePluginName")
         defaultPersistencePlugin
       case Success(pluginClass) =>
-        Try(Class.forName(pluginClass).newInstance()) match {
+        Try(Class.forName(pluginClass).getDeclaredConstructor().newInstance()) match {
           case Success(value: SurgeKafkaStreamsPersistencePlugin) =>
             log.debug("Successfully loaded persistence plugin named [{}]", persistencePluginName)
             value

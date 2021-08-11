@@ -13,10 +13,10 @@ import io.opentelemetry.api.trace.Tracer
 import net.manub.embeddedkafka._
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.serialization._
+import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
-import org.scalatest._
 import surge.internal.akka.kafka.AkkaKafkaConsumer
 import surge.internal.tracing.NoopTracerFactory
 import surge.kafka.KafkaTopic
@@ -25,6 +25,7 @@ import surge.streams.replay._
 import surge.streams.{ DataHandler, EventPlusStreamMeta }
 
 import scala.concurrent.duration._
+import scala.language.implicitConversions
 
 trait StreamManagerMultiNodeSpec extends MultiNodeSpecCallbacks with AnyWordSpecLike with Matchers with BeforeAndAfterAll {
   self: MultiNodeSpec =>
@@ -99,7 +100,7 @@ class StreamManagerSpecBase
 
           val probe = TestProbe()
           val subscriptionProvider =
-            new KafkaOffsetManagementSubscriptionProvider(defaultConfig, topic.name, Subscriptions.topics(topic.name), consumerSettings, sendToTestProbe(probe))
+            new KafkaOffsetManagementSubscriptionProvider(defaultConfig, topic.name, Subscriptions.topics(topic.name), consumerSettings, sendToTestProbe(probe))(tracer)
           val consumer = new KafkaStreamManager(
             topicName = topic.name,
             consumerSettings = consumerSettings,
@@ -108,8 +109,7 @@ class StreamManagerSpecBase
             valueDeserializer = new ByteArrayDeserializer,
             replayStrategy = kafkaForeverReplayStrategy,
             replaySettings = replaySettings,
-            tracer = tracer,
-            config = ConfigFactory.load())
+            config = ConfigFactory.load())(tracer)
 
           consumer.start()
           probe.expectMsgAnyOf(20.seconds, record1, record2)
@@ -121,7 +121,7 @@ class StreamManagerSpecBase
       runOn(node1) {
         val probe = TestProbe()
         val subscriptionProvider =
-          new KafkaOffsetManagementSubscriptionProvider(defaultConfig, topic.name, Subscriptions.topics(topic.name), consumerSettings, sendToTestProbe(probe))
+          new KafkaOffsetManagementSubscriptionProvider(defaultConfig, topic.name, Subscriptions.topics(topic.name), consumerSettings, sendToTestProbe(probe))(tracer)
         val consumer = new KafkaStreamManager(
           topicName = topic.name,
           consumerSettings = consumerSettings,
@@ -130,8 +130,7 @@ class StreamManagerSpecBase
           valueDeserializer = new ByteArrayDeserializer,
           replayStrategy = new NoOpEventReplayStrategy,
           replaySettings = DefaultEventReplaySettings,
-          tracer = tracer,
-          config = ConfigFactory.load())
+          config = ConfigFactory.load())(tracer)
 
         consumer.start()
         probe.expectMsgAnyOf(20.seconds, record1, record2)
