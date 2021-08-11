@@ -17,8 +17,7 @@ public class SurgeEventWriteFormattingBankEvent implements SurgeEventWriteFormat
         try {
             String key = evt.getAccountNumber().toString();
             byte[] evtByte = objectMapper.writeValueAsBytes(evt);
-            scala.collection.immutable.Map<String, String> map = HashMap$.MODULE$.empty();
-            return SerializedMessage.apply(key, evtByte, map);
+            return SerializedMessage.create(key, evtByte);
         } catch (Exception e) {
             e.printStackTrace();
             throw new RuntimeException(e);

@@ -16,8 +16,7 @@ public class SurgeAggregateWriteFormattingBankAccount implements SurgeAggregateW
     public SerializedAggregate writeState(BankAccount bankAccount) {
         try {
             byte[] bankAccountBytes = objectMapper.writeValueAsBytes(bankAccount);
-            scala.collection.immutable.Map<String, String> map = HashMap$.MODULE$.empty();
-            return SerializedAggregate.apply(bankAccountBytes, map);
+            return SerializedAggregate.create(bankAccountBytes);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
