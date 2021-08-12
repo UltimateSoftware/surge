@@ -6,10 +6,14 @@ import akka.NotUsed
 import akka.kafka.ConsumerMessage.CommittableOffset
 import akka.kafka.ConsumerSettings
 import akka.stream.scaladsl.Flow
+import io.opentelemetry.api.OpenTelemetry
+import io.opentelemetry.api.trace.Tracer
+import io.opentelemetry.context.Context
 import org.apache.kafka.common.serialization.{ ByteArrayDeserializer, Deserializer, StringDeserializer }
 import org.slf4j.LoggerFactory
 import surge.internal.akka.streams.graph.EitherFlow
 import surge.core.SurgeEventReadFormatting
+import surge.internal.tracing.OpenTelemetryInstrumentation
 import surge.metrics.{ MetricInfo, Metrics, Timer }
 
 import scala.util.{ Failure, Success, Try }
@@ -39,30 +43,44 @@ trait EventSourceDeserialization[Event] {
     log.error("Unable to read event from byte array", exception)
   }
 
+  private def deserializeMessage[Meta](
+      eventPlusOffset: EventPlusStreamMeta[String, Array[Byte], Meta]): Either[Meta, EventPlusStreamMeta[String, Event, Meta]] = {
+    import surge.internal.tracing.TracingHelper._
+    val span = eventPlusOffset.span
+    span.log("deserializing", Map("message size (bytes)" -> eventPlusOffset.messageBody.size.toString))
+    val payloadByteArray: Array[Byte] = eventPlusOffset.messageBody
+    val key = eventPlusOffset.messageKey
+    Try(eventDeserializationTimer.time(formatting.readEvent(payloadByteArray))) match {
+      case Failure(exception) =>
+        onDeserializationFailure(key, payloadByteArray, exception)
+        span.log("failed to deserialize")
+        span.error(exception)
+        span.end()
+        Left(eventPlusOffset.streamMeta)
+      case Success(event) =>
+        span.log("deserialized", Map("event" -> event.getClass.getSimpleName))
+        Right(EventPlusStreamMeta(key, event, eventPlusOffset.streamMeta, eventPlusOffset.headers, span))
+    }
+  }
+
   protected def dataHandler(eventHandler: EventHandler[Event]): DataHandler[String, Array[Byte]] = {
     new DataHandler[String, Array[Byte]] {
       override def dataHandler[Meta]: Flow[EventPlusStreamMeta[String, Array[Byte], Meta], Meta, NotUsed] = {
         Flow[EventPlusStreamMeta[String, Array[Byte], Meta]]
-          .map { eventPlusOffset =>
+          .map { eventPlusOffset: EventPlusStreamMeta[String, Array[Byte], Meta] =>
             val key = eventPlusOffset.messageKey
             Option(eventPlusOffset.messageBody) match {
-              case Some(value) =>
+              case Some(_: Array[Byte]) =>
                 if (shouldParseMessage(key, eventPlusOffset.headers)) {
-                  Try(eventDeserializationTimer.time(formatting.readEvent(value))) match {
-                    case Failure(exception) =>
-                      onDeserializationFailure(key, value, exception)
-                      Left(eventPlusOffset.streamMeta)
-                    case Success(event) =>
-                      Right(EventPlusStreamMeta(key, event, eventPlusOffset.streamMeta, eventPlusOffset.headers))
-                  }
+                  deserializeMessage(eventPlusOffset)
                 } else {
                   Left(eventPlusOffset.streamMeta)
                 }
               case _ =>
                 eventHandler
                   .nullEventFactory(key, eventPlusOffset.headers)
-                  .map { event =>
-                    Right(EventPlusStreamMeta(key, event, eventPlusOffset.streamMeta, eventPlusOffset.headers))
+                  .map { event: Event =>
+                    Right(EventPlusStreamMeta(key, event, eventPlusOffset.streamMeta, eventPlusOffset.headers, eventPlusOffset.span))
                   }
                   .getOrElse(Left(eventPlusOffset.streamMeta))
             }
@@ -92,7 +110,7 @@ trait KafkaEventSource[Event] extends EventSource[Event] with KafkaDataSource[St
     super.to(dataHandler(sink), consumerGroup, autoStart)
   }
 
-  private[streams] def to(consumerSettings: ConsumerSettings[String, Array[Byte]])(sink: EventHandler[Event], autoStart: Boolean): DataPipeline = {
+  def to(consumerSettings: ConsumerSettings[String, Array[Byte]])(sink: EventHandler[Event], autoStart: Boolean): DataPipeline = {
     super.to(consumerSettings)(dataHandler(sink), autoStart)
   }
 }

@@ -19,6 +19,7 @@ import org.scalatest.time.{ Millis, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
 import surge.internal.akka.kafka.AkkaKafkaConsumer
 import surge.internal.akka.streams.FlowConverter
+import surge.internal.tracing.NoopTracerFactory
 import surge.kafka.KafkaTopic
 import surge.kafka.streams.DefaultSerdes
 import surge.streams.{ DataHandler, EventPlusStreamMeta, OffsetManager }
@@ -47,6 +48,8 @@ class KafkaSubscriptionProviderSpec
 
   private val defaultConfig = ConfigFactory.load()
 
+  private val tracer = NoopTracerFactory.create()
+
   private class InMemoryOffsetManager() extends OffsetManager {
     private val offsetMappings: scala.collection.mutable.Map[TopicPartition, Long] = scala.collection.mutable.Map.empty
 
@@ -69,9 +72,10 @@ class KafkaSubscriptionProviderSpec
     val partitionBy: (String, Array[Byte], Map[String, Array[Byte]]) => String = { (k, _, _) => k }
     val businessFlow = new DataHandler[String, Array[Byte]] {
       override def dataHandler[Meta]: Flow[EventPlusStreamMeta[String, Array[Byte], Meta], Meta, NotUsed] =
-        FlowConverter.flowFor[String, Array[Byte], Meta](tupleFlow, partitionBy, new DefaultDataSinkExceptionHandler, 16)
+        FlowConverter.flowFor[String, Array[Byte], Meta]("test-sink", tupleFlow, partitionBy, new DefaultDataSinkExceptionHandler, 16)
     }
-    new ManualOffsetManagementSubscriptionProvider(defaultConfig, topic.name, Subscriptions.topics(topic.name), consumerSettings, businessFlow, offsetManager)
+    new ManualOffsetManagementSubscriptionProvider(defaultConfig, topic.name, Subscriptions.topics(topic.name), consumerSettings, businessFlow, offsetManager)(
+      tracer)
   }
 
   private def sendToTestProbe(testProbe: TestProbe)(key: String, value: Array[Byte]): Future[Done] = {
