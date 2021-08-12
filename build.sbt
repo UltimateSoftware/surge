@@ -3,11 +3,11 @@
 import Dependencies.autoImport.OpenTelemetry.{ HoneycombSample, JaegerSample }
 import sbt.Keys._
 
-scalaVersion in ThisBuild := "2.13.5"
+ThisBuild / scalaVersion := "2.13.5"
 
 ThisBuild / crossScalaVersions := Seq("2.13.5", "2.12.12")
 
-skip in publish := true
+publish / skip := true
 
 lazy val unitTest = taskKey[Unit]("Runs only the unit tests")
 
@@ -15,13 +15,13 @@ val multiJvmTestSettings = Seq(
   unitTest := {
     implicit val display: Show[Def.ScopedKey[_]] = Project.showContextKey(state.value)
     val testResultLogger = TestResultLogger.Default.copy(printNoTests = TestResultLogger.const(_.info("No tests to run for test:unitTest scope")))
-    testResultLogger.run(streams.value.log, executeTests.in(Test).value, "test:unitTest")
+    testResultLogger.run(streams.value.log, (Test / executeTests).value, "test:unitTest")
   },
   // Override default definition of test so that sbt test runs both unit and multi-jvm tests
-  test in Test := {
-    unitTest.in(Test).value
+  Test / test := {
+    (Test / unitTest).value
     // FIXME fix multi-jvm tests running on GH Actions
-    // test.in(MultiJvm).value
+    // (MultiJvm / test).value
   })
 
 lazy val `surge-common` = (project in file("modules/common"))
@@ -100,7 +100,7 @@ lazy val `surge-docs` = (project in file("modules/surge-docs"))
   .settings(
     javacOptions ++= Seq("-source", "15", "--enable-preview"),
     compileOrder := CompileOrder.JavaThenScala,
-    skip in publish := true,
+    publish / skip := true,
     paradoxTheme := Some(builtinParadoxTheme("generic")),
     libraryDependencies ++= Seq(
       typesafeConfig,
@@ -126,7 +126,7 @@ lazy val `surge` = project
     `surge-metrics`,
     `surge-rabbitmq-support`,
     `surge-docs`)
-  .settings(skip in publish := true, ReleaseSettings.settings)
+  .settings(publish / skip := true, ReleaseSettings.settings)
   .disablePlugins(MimaPlugin)
 
 addCommandAlias("codeFormat", ";headerCreate;test:headerCreate;scalafmtAll;scalafmtSbt")
