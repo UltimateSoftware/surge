@@ -30,7 +30,7 @@
 <span class="home-icon">⌂</span>Surge
 </a>
 <div class="version-number">
-0.5.18
+0.5.19*
 </div>
 </div>
 <div class="nav-toc">
@@ -71,7 +71,7 @@ C16.952,7,17,6.553,17,6c0-0.553-0.048-1-0.6-1H3.6C3.048,5,3,5.447,3,6C3,6.553,3.
 <span class="home-icon">⌂</span>Surge
 </a>
 <div class="version-number">
-0.5.18
+0.5.19*
 </div>
 </div>
 <div class="nav-toc">
@@ -106,9 +106,9 @@ C16.952,7,17,6.553,17,6c0-0.553-0.048-1-0.6-1H3.6C3.048,5,3,5.447,3,6C3,6.553,3.
 <div class="page-content row">
 <div class="small-12 large-9 column" id="docs">
 <h1><a href="#consumer-usage" name="consumer-usage" class="anchor"><span class="anchor-link"></span></a>Consumer Usage</h1>
-<h2><a href="#module-info" name="module-info" class="anchor"><span class="anchor-link"></span></a>Module Info</h2><dl class="dependency"><dt>sbt</dt><dd><pre class="prettyprint"><code class="language-scala">val SurgeVersion = "0.5.18"
+<h2><a href="#module-info" name="module-info" class="anchor"><span class="anchor-link"></span></a>Module Info</h2><dl class="dependency"><dt>sbt</dt><dd><pre class="prettyprint"><code class="language-scala">val SurgeVersion = "0.5.19-SNAPSHOT"
 libraryDependencies += "com.ukg" %% "surge-engine-command-scaladsl" % SurgeVersion</code></pre></dd><dt>Maven</dt><dd><pre class="prettyprint"><code class="language-xml">&lt;properties&gt;
-  &lt;surge.version&gt;0.5.18&lt;/surge.version&gt;
+  &lt;surge.version&gt;0.5.19-SNAPSHOT&lt;/surge.version&gt;
   &lt;scala.binary.version&gt;2.13&lt;/scala.binary.version&gt;
 &lt;/properties&gt;
 &lt;dependencies&gt
@@ -118,7 +118,7 @@ libraryDependencies += "com.ukg" %% "surge-engine-command-scaladsl" % SurgeVersi
     &lt;version&gt;${surge.version}&lt;/version&gt;
   &lt;/dependency&gt
 &lt;/dependencies&gt;</code></pre></dd><dt>Gradle</dt><dd><pre class="prettyprint"><code class="language-gradle">def versions = [
-  SurgeVersion: "0.5.18",
+  SurgeVersion: "0.5.19-SNAPSHOT",
   ScalaBinary: "2.13"
 ]
 dependencies {
@@ -128,7 +128,7 @@ dependencies {
 <dl>
   <dt>Scala</dt>
   <dd>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/v0.5.18/modules/surge-docs/src/test/scala/docs/consumer/ConsumerSpec.scala#L29-L91" target="_blank" title="Go to snippet source"></a><code class="language-scala"><br/>val openTelemetry: OpenTelemetrySdk = {
+  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/scala/docs/consumer/ConsumerSpec.scala#L29-L91" target="_blank" title="Go to snippet source"></a><code class="language-scala"><br/>val openTelemetry: OpenTelemetrySdk = {
 
   val exporter =
     JaegerGrpcSpanExporter.builder()
@@ -196,7 +196,7 @@ kafkaEventSource.to(consumerSettings)(eventSink, autoStart = true)
 <h2><a href="#tracing-with-jaeger" name="tracing-with-jaeger" class="anchor"><span class="anchor-link"></span></a>Tracing with Jaeger</h2>
 <p><img src="images/consumer-tracing-with-jaeger.png" alt="Jaeger Screenshot" /></p>
 <div class="source-github">
-The source code for this page can be found <a href="https://github.com/UltimateSoftware/surge/tree/v0.5.18/modules/surge-docs/src/main/paradox/consumer-usage.md">here</a>.
+The source code for this page can be found <a href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/main/paradox/consumer-usage.md">here</a>.
 </div>
 
 <div class="nav-next">
@@ -281,7 +281,7 @@ The source code for this page can be found <a href="https://github.com/UltimateS
 <script type="text/javascript" src="lib/prettify/prettify.js"></script>
 <script type="text/javascript" src="lib/prettify/lang-scala.js"></script>
 <script type="text/javascript">jQuery(function(){window.prettyPrint && prettyPrint()});</script>
-<script type="text/javascript">jQuery(function(jq){initOldVersionWarnings(jq, '0.5.18', '')});</script>
+<script type="text/javascript">jQuery(function(jq){initOldVersionWarnings(jq, '0.5.19-SNAPSHOT', '')});</script>
 
 
 </html>
