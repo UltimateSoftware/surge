@@ -39,6 +39,10 @@ trait EventSourceDeserialization[Event] {
 
   def shouldParseMessage(key: String, headers: Map[String, Array[Byte]]): Boolean = true
 
+  protected def onDeserializationFailure(key: String, value: Array[Byte], exception: Throwable): Unit = {
+    log.error("Unable to read event from byte array", exception)
+  }
+
   private def deserializeMessage[Meta](
       eventPlusOffset: EventPlusStreamMeta[String, Array[Byte], Meta]): Either[Meta, EventPlusStreamMeta[String, Event, Meta]] = {
     import surge.internal.tracing.TracingHelper._
@@ -48,7 +52,7 @@ trait EventSourceDeserialization[Event] {
     val key = eventPlusOffset.messageKey
     Try(eventDeserializationTimer.time(formatting.readEvent(payloadByteArray))) match {
       case Failure(exception) =>
-        log.error("Unable to read event from byte array", exception)
+        onDeserializationFailure(key, payloadByteArray, exception)
         span.log("failed to deserialize")
         span.error(exception)
         span.end()
