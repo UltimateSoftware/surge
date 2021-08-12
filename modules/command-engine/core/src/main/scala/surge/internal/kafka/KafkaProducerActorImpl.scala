@@ -92,6 +92,7 @@ class KafkaProducerActorImpl(
   private val assignedTopicPartitionKey = s"${assignedPartition.topic}:${assignedPartition.partition}"
   private val flushInterval = config.getDuration("kafka.publisher.flush-interval", TimeUnit.MILLISECONDS).milliseconds
   private val publisherBatchSize = config.getInt("kafka.publisher.batch-size")
+  private val publisherMaxRequestSize = config.getInt("kafka.publisher.max-request-size")
   private val publisherLingerMs = config.getInt("kafka.publisher.linger-ms")
   private val publisherCompression = config.getString("kafka.publisher.compression-type")
   private val publisherTransactionTimeoutMs = config.getString("kafka.publisher.transaction-timeout-ms")
@@ -135,6 +136,7 @@ class KafkaProducerActorImpl(
     val kafkaConfig = Map[String, String](
       ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG -> true.toString,
       ProducerConfig.BATCH_SIZE_CONFIG -> publisherBatchSize.toString,
+      ProducerConfig.MAX_REQUEST_SIZE_CONFIG -> publisherMaxRequestSize.toString,
       ProducerConfig.LINGER_MS_CONFIG -> publisherLingerMs.toString,
       ProducerConfig.COMPRESSION_TYPE_CONFIG -> publisherCompression,
       ProducerConfig.TRANSACTION_TIMEOUT_CONFIG -> publisherTransactionTimeoutMs,
