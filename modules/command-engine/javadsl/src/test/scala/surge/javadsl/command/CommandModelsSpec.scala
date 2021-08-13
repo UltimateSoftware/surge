@@ -16,9 +16,10 @@ class CommandModelsSpec extends AsyncWordSpec with Matchers with MockitoSugar wi
   "AggregateCommandModel" should {
     "Return a failed future when the business logic throws an exception processing commands" in {
       val expectedException = new RuntimeException("This is expected") with NoStackTrace
-      val exceptionThrowingModel = new AggregateCommandModel[String, String, String] {
+      val exceptionThrowingModel = new AggregateCommandModel[String, String, String, String] {
         override def processCommand(aggregate: Optional[String], command: String): util.List[String] = throw expectedException
         override def handleEvent(aggregate: Optional[String], event: String): Optional[String] = Optional.empty()
+        override def extractResponse(aggregate: Optional[String]): Optional[String] = aggregate
       }
       recoverToSucceededIf[RuntimeException] {
         exceptionThrowingModel.toCore.processCommand(mock[Context], None, "Test")

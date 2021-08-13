@@ -26,12 +26,12 @@ object SurgeMessagePipeline {
 /**
  * Surge message processing pipeline
  */
-private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
+private[surge] abstract class SurgeMessagePipeline[State, Message, +Rejection, Event, Response](
     actorSystem: ActorSystem,
-    override val businessLogic: SurgeModel[S, M, R, E],
+    override val businessLogic: SurgeModel[State, Message, Rejection, Event, Response],
     val signalStreamProvider: HealthSignalStreamProvider,
     override val config: Config)
-    extends SurgeProcessingTrait[S, M, R, E]
+    extends SurgeProcessingTrait[State, Message, Rejection, Event, Response]
     with HealthyComponent
     with HealthSignalBusAware
     with ActorSystemHostAwareness {
@@ -59,8 +59,8 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     signalBus = signalBus,
     config = config)
 
-  protected val cqrsRegionCreator: PersistentActorRegionCreator[M] =
-    new PersistentActorRegionCreator[M](actorSystem, businessLogic, kafkaStreamsImpl, partitionTracker, businessLogic.metrics, signalBus, config = config)
+  protected val cqrsRegionCreator: PersistentActorRegionCreator[Message] =
+    new PersistentActorRegionCreator[Message](actorSystem, businessLogic, kafkaStreamsImpl, partitionTracker, businessLogic.metrics, signalBus, config = config)
 
   protected val actorRouter: SurgePartitionRouter = SurgePartitionRouter(config, actorSystem, partitionTracker, businessLogic, cqrsRegionCreator, signalBus)
 

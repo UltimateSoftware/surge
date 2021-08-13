@@ -50,7 +50,7 @@ object PersistentActor {
   sealed trait ACK extends ActorMessage with JacksonSerializable
 
   case class ACKSuccess[S](
-      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "aggregateType", visible = true) aggregateState: Option[S])
+      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "responseType", visible = true) response: Option[S])
       extends ACK
 
   case class ACKError(exception: Throwable) extends ACK with NoSerializationVerificationNeeded
@@ -118,9 +118,9 @@ object PersistentActor {
 
   }
 
-  def props[S, M, R, E](
+  def props[State, Message, Rejection, Event, Response](
       aggregateId: String,
-      businessLogic: SurgeModel[S, M, R, E],
+      businessLogic: SurgeModel[State, Message, Rejection, Event, Response],
       signalBus: HealthSignalBusTrait,
       regionSharedResources: PersistentEntitySharedResources,
       config: Config): Props = {
@@ -132,23 +132,23 @@ object PersistentActor {
 
 }
 
-class PersistentActor[S, M, R, E](
+class PersistentActor[State, Message, Rejection, Event, Response](
     val aggregateId: String,
-    val businessLogic: SurgeModel[S, M, R, E],
+    val businessLogic: SurgeModel[State, Message, Rejection, Event, Response],
     val regionSharedResources: PersistentEntitySharedResources,
     val signalBus: HealthSignalBusTrait,
     config: Config)
     extends ActorWithTracing
     with Stash
-    with KTablePersistenceSupport[S, E]
-    with KTableInitializationSupport[S] {
+    with KTablePersistenceSupport[State, Event]
+    with KTableInitializationSupport[State] {
 
   import PersistentActor._
   import context.dispatcher
 
   private sealed trait Internal extends NoSerializationVerificationNeeded
 
-  private case class InitializeWithState(stateOpt: Option[S]) extends Internal
+  private case class InitializeWithState(stateOpt: Option[State]) extends Internal
 
   private case class PersistenceSuccess(newState: InternalActorState, startTime: Instant) extends Internal
 
@@ -163,7 +163,7 @@ class PersistentActor[S, M, R, E](
 
   private case class EventPublishTimedOut(reason: Throwable, startTime: Instant) extends Internal
 
-  protected case class InternalActorState(stateOpt: Option[S])
+  protected case class InternalActorState(stateOpt: Option[State])
 
   override type ActorState = InternalActorState
 
@@ -177,7 +177,7 @@ class PersistentActor[S, M, R, E](
 
   override val kafkaStreamsCommand: AggregateStateStoreKafkaStreams[_] = regionSharedResources.stateStore
 
-  override def deserializeState(bytes: Array[Byte]): Option[S] = businessLogic.aggregateReadFormatting.readState(bytes)
+  override def deserializeState(bytes: Array[Byte]): Option[State] = businessLogic.aggregateReadFormatting.readState(bytes)
 
   override def retryConfig: RetryConfig = new RetryConfig(config)
 
@@ -209,12 +209,12 @@ class PersistentActor[S, M, R, E](
   override def receive: Receive = uninitialized
 
   private def freeToProcess(state: InternalActorState): Receive = {
-    case pm: ProcessMessage[M] =>
+    case pm: ProcessMessage[Message] =>
       handle(state, pm)
-    case ae: ApplyEvent[E] => handle(state, ae)
-    case GetState(_)       => sender() ! StateResponse(state.stateOpt)
-    case ReceiveTimeout    => handlePassivate()
-    case Stop              => handleStop()
+    case ae: ApplyEvent[Event] => handle(state, ae)
+    case GetState(_)           => sender() ! StateResponse(state.stateOpt)
+    case ReceiveTimeout        => handlePassivate()
+    case Stop                  => handleStop()
   }
 
   private def handle(initializeWithState: InitializeWithState): Unit = {
@@ -227,7 +227,7 @@ class PersistentActor[S, M, R, E](
     context.become(freeToProcess(internalActorState))
   }
 
-  private def handle(state: InternalActorState, msg: ProcessMessage[M]): Unit = {
+  private def handle(state: InternalActorState, msg: ProcessMessage[Message]): Unit = {
     context.setReceiveTimeout(Duration.Inf)
     context.become(persistingEvents(state))
 
@@ -259,11 +259,13 @@ class PersistentActor[S, M, R, E](
       .pipeTo(self)(sender())
   }
 
-  private def processMessage(state: InternalActorState, ProcessMessage: ProcessMessage[M]): Future[Either[R, HandledMessageResult[S, E]]] = {
+  private def processMessage(
+      state: InternalActorState,
+      ProcessMessage: ProcessMessage[Message]): Future[Either[Rejection, HandledMessageResult[State, Event]]] = {
     metrics.messageHandlingTimer.timeFuture { businessLogic.model.handle(surgeContext(), state.stateOpt, ProcessMessage.message) }
   }
 
-  private def handle(state: InternalActorState, applyEventEnvelope: ApplyEvent[E]): Unit = {
+  private def handle(state: InternalActorState, applyEventEnvelope: ApplyEvent[Event]): Unit = {
     handleEvents(state, Seq(applyEventEnvelope.event)) match {
       case Success(newState) =>
         context.setReceiveTimeout(Duration.Inf)
@@ -282,7 +284,7 @@ class PersistentActor[S, M, R, E](
     }
   }
 
-  private def handleEvents(state: InternalActorState, events: Seq[E]): Try[Option[S]] = Try {
+  private def handleEvents(state: InternalActorState, events: Seq[Event]): Try[Option[State]] = Try {
     events.foldLeft(state.stateOpt) { (state, evt) =>
       metrics.eventHandlingTimer.time(businessLogic.model.apply(surgeContext(), state, evt))
     }
@@ -331,9 +333,9 @@ class PersistentActor[S, M, R, E](
   }
 
   private def initializationFailed(error: ACKError): Receive = {
-    case _: ProcessMessage[M] => sender() ! error
-    case _: ApplyEvent[E]     => sender() ! error
-    case Stop                 => handleStop()
+    case _: ProcessMessage[Message] => sender() ! error
+    case _: ApplyEvent[Event]       => sender() ! error
+    case Stop                       => handleStop()
   }
 
   def onInitializationFailed(cause: Throwable): Unit = {
@@ -343,7 +345,7 @@ class PersistentActor[S, M, R, E](
     self ! Stop
   }
 
-  override def onInitializationSuccess(model: Option[S]): Unit = {
+  override def onInitializationSuccess(model: Option[State]): Unit = {
     self ! InitializeWithState(model)
   }
 
@@ -351,7 +353,7 @@ class PersistentActor[S, M, R, E](
     context.setReceiveTimeout(receiveTimeout)
     context.become(freeToProcess(newState))
 
-    val cmdSuccess = ACKSuccess(newState.stateOpt)
+    val cmdSuccess = ACKSuccess(businessLogic.model.extractResponse(newState.stateOpt))
     sender() ! cmdSuccess
     unstashAll()
   }
@@ -362,7 +364,7 @@ class PersistentActor[S, M, R, E](
     context.stop(self)
   }
 
-  private def serializeEvents(events: Seq[E]): Future[Seq[KafkaProducerActor.MessageToPublish]] = Future {
+  private def serializeEvents(events: Seq[Event]): Future[Seq[KafkaProducerActor.MessageToPublish]] = Future {
     val eventWriteFormatting = businessLogic.eventWriteFormattingOpt.getOrElse {
       throw new IllegalStateException("businessLogic.eventWriteFormattingOpt must not be None")
     }
@@ -376,7 +378,7 @@ class PersistentActor[S, M, R, E](
     }
   }(serializationExecutionContext)
 
-  private def serializeState(stateValueOpt: Option[S]): Future[KafkaProducerActor.MessageToPublish] = Future {
+  private def serializeState(stateValueOpt: Option[State]): Future[KafkaProducerActor.MessageToPublish] = Future {
     val serializedStateOpt = stateValueOpt.map { value =>
       metrics.serializeStateTimer.time(businessLogic.aggregateWriteFormatting.writeState(value))
     }

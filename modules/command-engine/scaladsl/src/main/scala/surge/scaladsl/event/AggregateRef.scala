@@ -8,11 +8,11 @@ import surge.scaladsl.common._
 
 import scala.concurrent.Future
 
-trait AggregateRef[Agg, Event] {
+trait AggregateRef[Agg, Event, Response] {
   def getState: Future[Option[Agg]]
-  def applyEvent(event: Event): Future[ApplyEventResult[Agg]]
+  def applyEvent(event: Event): Future[ApplyEventResult[Response]]
 }
 
-class AggregateRefImpl[AggId, Agg, Event](val aggregateId: AggId, protected val region: ActorRef, protected val tracer: Tracer)
-    extends AggregateRef[Agg, Event]
-    with AggregateRefBaseTrait[AggId, Agg, Nothing, Event]
+class AggregateRefImpl[AggId, Agg, Event, Response](val aggregateId: AggId, protected val region: ActorRef, protected val tracer: Tracer)
+    extends AggregateRef[Agg, Event, Response]
+    with AggregateRefBaseTrait[AggId, Agg, Nothing, Event, Response]

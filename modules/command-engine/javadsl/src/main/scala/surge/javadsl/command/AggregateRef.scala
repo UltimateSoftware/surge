@@ -13,26 +13,26 @@ import scala.compat.java8.FutureConverters
 import scala.compat.java8.OptionConverters._
 import scala.concurrent.ExecutionContext
 
-trait AggregateRef[Agg, Cmd, Event] {
+trait AggregateRef[Agg, Cmd, Event, Response] {
   def getState: CompletionStage[Optional[Agg]]
-  def sendCommand(command: Cmd): CompletionStage[CommandResult[Agg]]
-  def applyEvent(event: Event): CompletionStage[ApplyEventResult[Agg]]
+  def sendCommand(command: Cmd): CompletionStage[CommandResult[Response]]
+  def applyEvent(event: Event): CompletionStage[ApplyEventResult[Response]]
 }
 
-final class AggregateRefImpl[AggId, Agg, Cmd, Event](val aggregateId: AggId, protected val region: ActorRef, protected val tracer: Tracer)
-    extends AggregateRef[Agg, Cmd, Event]
-    with AggregateRefBaseTrait[AggId, Agg, Cmd, Event]
-    with AggregateRefTrait[AggId, Agg, Cmd, Event] {
+final class AggregateRefImpl[AggId, Agg, Cmd, Event, Response](val aggregateId: AggId, protected val region: ActorRef, protected val tracer: Tracer)
+    extends AggregateRef[Agg, Cmd, Event, Response]
+    with AggregateRefBaseTrait[AggId, Agg, Cmd, Event, Response]
+    with AggregateRefTrait[AggId, Agg, Cmd, Event, Response] {
 
   private implicit val ec: ExecutionContext = ExecutionContext.global
 
-  def sendCommand(command: Cmd): CompletionStage[CommandResult[Agg]] = {
+  def sendCommand(command: Cmd): CompletionStage[CommandResult[Response]] = {
     val envelope = PersistentActor.ProcessMessage[Cmd](aggregateId.toString, command)
     val result = sendCommandWithRetries(envelope).map {
       case Left(error) =>
-        CommandFailure[Agg](error)
+        CommandFailure[Response](error)
       case Right(aggOpt) =>
-        CommandSuccess[Agg](aggOpt.asJava)
+        CommandSuccess[Response](aggOpt.asJava)
     }
     FutureConverters.toJava(result)
   }

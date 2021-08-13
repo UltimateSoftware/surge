@@ -18,17 +18,19 @@ case class HandledMessageResult[S, +E](resultingState: Option[S], eventsToLog: S
 /**
  * AggregateProcessingModel defines a structure for a domain's types and algebra for an CommandService or EventService
  *
- * @tparam S
+ * @tparam State
  *   State type
- * @tparam M
+ * @tparam Message
  *   Message type
- * @tparam R
+ * @tparam Rejection
  *   Rejection type
- * @tparam E
+ * @tparam Event
  *   Event type
+ * @tparam Response
+ *   Response type
  */
 
-trait AggregateProcessingModel[S, M, +R, E] {
+trait AggregateProcessingModel[State, Message, +Rejection, Event, Response] {
 
   /**
    * Process a message. Apply msg to state. Return either a rejection or a HandledMessageResult which is a resulting state and a sequence of events to be
@@ -44,7 +46,7 @@ trait AggregateProcessingModel[S, M, +R, E] {
    * @return
    *   the future result of processing the message
    */
-  def handle(ctx: Context, state: Option[S], msg: M)(implicit ec: ExecutionContext): Future[Either[R, HandledMessageResult[S, E]]]
+  def handle(ctx: Context, state: Option[State], msg: Message)(implicit ec: ExecutionContext): Future[Either[Rejection, HandledMessageResult[State, Event]]]
 
   /**
    * Apply an event. Apply event to state and return a future of the resulting state.
@@ -57,29 +59,39 @@ trait AggregateProcessingModel[S, M, +R, E] {
    * @return
    *   the future resulting state
    */
-  def apply(ctx: Context, state: Option[S], event: E): Option[S]
+  def apply(ctx: Context, state: Option[State], event: Event): Option[State]
+
+  /**
+   * Extracts a response from the resulting state.
+   * @param state
+   *   The state of the aggregate after a comannd is successfully handled and any generated events are applied to the previous state
+   * @return
+   *   A response to send back to the original sender of the command
+   */
+  def extractResponse(state: Option[State]): Option[Response]
 
 }
 
-trait CommandHandler[S, M, R, E] extends AggregateProcessingModel[S, M, R, E] {
-  type CommandResult = Either[R, Seq[E]]
+trait CommandHandler[State, Message, Rejection, Event, Response] extends AggregateProcessingModel[State, Message, Rejection, Event, Response] {
+  type CommandResult = Either[Rejection, Seq[Event]]
 
-  def processCommand(ctx: Context, state: Option[S], cmd: M): Future[CommandResult]
+  def processCommand(ctx: Context, state: Option[State], cmd: Message): Future[CommandResult]
 
-  override final def handle(ctx: Context, state: Option[S], cmd: M)(implicit ec: ExecutionContext): Future[Either[R, HandledMessageResult[S, E]]] =
+  override final def handle(ctx: Context, state: Option[State], cmd: Message)(
+      implicit ec: ExecutionContext): Future[Either[Rejection, HandledMessageResult[State, Event]]] =
     processCommand(ctx, state, cmd).map {
       case Left(rejected) => Left(rejected)
       case Right(events) =>
-        Right(HandledMessageResult(events.foldLeft(state)((s: Option[S], e: E) => apply(ctx, s, e)), events))
+        Right(HandledMessageResult(events.foldLeft(state)((s: Option[State], e: Event) => apply(ctx, s, e)), events))
     }
 }
 
-trait EventHandler[S, E] extends AggregateProcessingModel[S, Nothing, Nothing, E] {
-  def handleEvent(ctx: Context, state: Option[S], event: E): Option[S]
+trait EventHandler[State, Event, Response] extends AggregateProcessingModel[State, Nothing, Nothing, Event, Response] {
+  def handleEvent(ctx: Context, state: Option[State], event: Event): Option[State]
 
-  override final def handle(ctx: Context, state: Option[S], msg: Nothing)(
-      implicit ec: ExecutionContext): Future[Either[Nothing, HandledMessageResult[S, Nothing]]] =
+  override final def handle(ctx: Context, state: Option[State], msg: Nothing)(
+      implicit ec: ExecutionContext): Future[Either[Nothing, HandledMessageResult[State, Nothing]]] =
     throw new RuntimeException("Impossible")
 
-  override final def apply(ctx: Context, state: Option[S], event: E): Option[S] = handleEvent(ctx, state, event)
+  override final def apply(ctx: Context, state: Option[State], event: Event): Option[State] = handleEvent(ctx, state, event)
 }

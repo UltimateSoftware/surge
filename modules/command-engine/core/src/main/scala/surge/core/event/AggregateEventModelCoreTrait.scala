@@ -4,6 +4,6 @@ package surge.core.event
 
 import surge.internal.domain.EventHandler
 
-trait AggregateEventModelCoreTrait[S, E] {
-  def toCore: EventHandler[S, E]
+trait AggregateEventModelCoreTrait[State, Event, Response] {
+  def toCore: EventHandler[State, Event, Response]
 }

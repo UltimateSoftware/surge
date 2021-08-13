@@ -4,6 +4,6 @@ package surge.core.command
 
 import surge.internal.domain.CommandHandler
 
-trait AggregateCommandModelCoreTrait[S, M, R, E] {
-  def toCore: CommandHandler[S, M, R, E]
+trait AggregateCommandModelCoreTrait[State, Message, Rejection, Event, Response] {
+  def toCore: CommandHandler[State, Message, Rejection, Event, Response]
 }

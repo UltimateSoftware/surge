@@ -14,7 +14,7 @@ trait SurgeGenericCommandBusinessLogicTrait[AggId, Agg, Command, Rej, Event] ext
   def eventWriteFormatting: SurgeEventWriteFormatting[Event]
   def aggregateWriteFormatting: SurgeAggregateWriteFormatting[Agg]
 
-  def kafkaConfig: SurgeCommandKafkaConfig = new SurgeCommandKafkaConfig(
+  def kafkaConfig: SurgeCommandKafkaConfig = SurgeCommandKafkaConfig(
     stateTopic = stateTopic,
     eventsTopic = eventsTopic,
     streamsApplicationId = streamsApplicationId,
@@ -23,10 +23,11 @@ trait SurgeGenericCommandBusinessLogicTrait[AggId, Agg, Command, Rej, Event] ext
     publishStateOnly = publishStateOnly)
 }
 
-trait SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Event] extends SurgeGenericCommandBusinessLogicTrait[AggId, Agg, Command, Nothing, Event] {
-  def commandModel: AggregateCommandModelCoreTrait[Agg, Command, Nothing, Event]
+trait SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Event, Response] extends SurgeGenericCommandBusinessLogicTrait[AggId, Agg, Command, Nothing, Event] {
+  def commandModel: AggregateCommandModelCoreTrait[Agg, Command, Nothing, Event, Response]
 }
 
-trait SurgeRejectableCommandBusinessLogicTrait[AggId, Agg, Command, Rej, Event] extends SurgeGenericCommandBusinessLogicTrait[AggId, Agg, Command, Rej, Event] {
-  def commandModel: AggregateCommandModelCoreTrait[Agg, Command, Rej, Event]
+trait SurgeRejectableCommandBusinessLogicTrait[AggId, Agg, Command, Rej, Event, Response]
+    extends SurgeGenericCommandBusinessLogicTrait[AggId, Agg, Command, Rej, Event] {
+  def commandModel: AggregateCommandModelCoreTrait[Agg, Command, Rej, Event, Response]
 }

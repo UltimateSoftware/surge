@@ -18,8 +18,9 @@ private[surge] case class SurgeEventKafkaConfig(stateTopic: KafkaTopic, streamsA
 }
 
 object SurgeEventServiceModel {
-  def apply[AggId, Agg, Event](businessLogic: SurgeEventBusinessLogicTrait[AggId, Agg, Event]): SurgeEventServiceModel[Agg, Event] = {
-    new SurgeEventServiceModel[Agg, Event](
+  def apply[AggId, Agg, Event, Response](
+      businessLogic: SurgeEventBusinessLogicTrait[AggId, Agg, Event, Response]): SurgeEventServiceModel[Agg, Event, Response] = {
+    new SurgeEventServiceModel[Agg, Event, Response](
       aggregateName = businessLogic.aggregateName,
       kafka = businessLogic.kafkaConfig,
       model = businessLogic.eventModel.toCore,
@@ -30,15 +31,15 @@ object SurgeEventServiceModel {
       tracer = businessLogic.tracer)
   }
 }
-private[surge] case class SurgeEventServiceModel[Agg, Event](
+private[surge] case class SurgeEventServiceModel[Agg, Event, Response](
     override val aggregateName: String,
     override val kafka: SurgeEventKafkaConfig,
-    override val model: AggregateProcessingModel[Agg, Nothing, Nothing, Event],
+    override val model: AggregateProcessingModel[Agg, Nothing, Nothing, Event, Response],
     override val aggregateReadFormatting: SurgeAggregateReadFormatting[Agg],
     override val aggregateWriteFormatting: SurgeAggregateWriteFormatting[Agg],
     override val metrics: Metrics,
     override val openTelemetry: OpenTelemetry,
     override val tracer: Tracer)
-    extends SurgeModel[Agg, Nothing, Nothing, Event] {
+    extends SurgeModel[Agg, Nothing, Nothing, Event, Response] {
   override def eventWriteFormattingOpt: Option[SurgeEventWriteFormatting[Event]] = None
 }

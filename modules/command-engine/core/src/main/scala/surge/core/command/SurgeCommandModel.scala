@@ -24,9 +24,9 @@ private[surge] case class SurgeCommandKafkaConfig(
 }
 
 private[surge] object SurgeCommandModel {
-  def apply[AggId, Agg, Command, Event](
-      businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Event]): SurgeCommandModel[Agg, Command, Nothing, Event] = {
-    new SurgeCommandModel[Agg, Command, Nothing, Event](
+  def apply[AggId, Agg, Command, Event, Response](
+      businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Event, Response]): SurgeCommandModel[Agg, Command, Nothing, Event, Response] = {
+    new SurgeCommandModel[Agg, Command, Nothing, Event, Response](
       aggregateName = businessLogic.aggregateName,
       kafka = businessLogic.kafkaConfig,
       model = businessLogic.commandModel.toCore,
@@ -37,9 +37,9 @@ private[surge] object SurgeCommandModel {
       openTelemetry = businessLogic.openTelemetry,
       tracer = businessLogic.tracer)
   }
-  def apply[AggId, Agg, Command, Rej, Event](
-      businessLogic: SurgeRejectableCommandBusinessLogicTrait[AggId, Agg, Command, Rej, Event]): SurgeCommandModel[Agg, Command, Rej, Event] = {
-    new SurgeCommandModel[Agg, Command, Rej, Event](
+  def apply[AggId, Agg, Command, Rej, Event, Response](businessLogic: SurgeRejectableCommandBusinessLogicTrait[AggId, Agg, Command, Rej, Event, Response])
+      : SurgeCommandModel[Agg, Command, Rej, Event, Response] = {
+    new SurgeCommandModel[Agg, Command, Rej, Event, Response](
       aggregateName = businessLogic.aggregateName,
       kafka = businessLogic.kafkaConfig,
       model = businessLogic.commandModel.toCore,
@@ -52,16 +52,16 @@ private[surge] object SurgeCommandModel {
   }
 
 }
-private[surge] case class SurgeCommandModel[Agg, Command, +Rej, Event](
+private[surge] case class SurgeCommandModel[Agg, Command, +Rej, Event, Response](
     override val aggregateName: String,
     override val kafka: SurgeCommandKafkaConfig,
-    override val model: AggregateProcessingModel[Agg, Command, Rej, Event],
+    override val model: AggregateProcessingModel[Agg, Command, Rej, Event, Response],
     override val aggregateWriteFormatting: SurgeAggregateWriteFormatting[Agg],
     override val metrics: Metrics,
     override val openTelemetry: OpenTelemetry,
     override val tracer: Tracer,
     override val aggregateReadFormatting: SurgeAggregateReadFormatting[Agg],
     eventWriteFormatting: SurgeEventWriteFormatting[Event])
-    extends SurgeModel[Agg, Command, Rej, Event] {
+    extends SurgeModel[Agg, Command, Rej, Event, Response] {
   override val eventWriteFormattingOpt: Option[SurgeEventWriteFormatting[Event]] = Some(eventWriteFormatting)
 }

@@ -28,7 +28,7 @@ import scala.concurrent.{ ExecutionContext, Future }
  * @tparam Event
  *   The event type that the business logic aggregate generates and can handle to update state
  */
-private[surge] trait AggregateRefTrait[AggId, Agg, Cmd, Event] extends SpanSupport {
+private[surge] trait AggregateRefTrait[AggId, Agg, Cmd, Event, Response] extends SpanSupport {
 
   val aggregateId: AggId
   protected val region: ActorRef
@@ -39,10 +39,10 @@ private[surge] trait AggregateRefTrait[AggId, Agg, Cmd, Event] extends SpanSuppo
 
   private val log: Logger = LoggerFactory.getLogger(getClass)
 
-  private def interpretActorResponse(span: Span): Any => Either[Throwable, Option[Agg]] = {
-    case success: PersistentActor.ACKSuccess[Agg] =>
+  private def interpretActorResponse(span: Span): Any => Either[Throwable, Option[Response]] = {
+    case success: PersistentActor.ACKSuccess[Response] =>
       span.finish()
-      Right(success.aggregateState)
+      Right(success.response)
     case error: PersistentActor.ACKError =>
       span.error(error.exception)
       span.finish()
@@ -78,7 +78,7 @@ private[surge] trait AggregateRefTrait[AggId, Agg, Cmd, Event] extends SpanSuppo
    *   and applying any events that resulted from the command.
    */
   protected def sendCommandWithRetries(envelope: PersistentActor.ProcessMessage[Cmd], retriesRemaining: Int = 0)(
-      implicit ec: ExecutionContext): Future[Either[Throwable, Option[Agg]]] = {
+      implicit ec: ExecutionContext): Future[Either[Throwable, Option[Response]]] = {
     val askSpan = createSpan(envelope.message.getClass.getSimpleName).setTag("aggregateId", aggregateId.toString)
     askSpan.log("actor ask", Map("timeout" -> timeout.duration.toString()))
     (region ? TracedMessage(envelope, askSpan)(tracer)).map(interpretActorResponse(askSpan)).recoverWith {
@@ -91,16 +91,17 @@ private[surge] trait AggregateRefTrait[AggId, Agg, Cmd, Event] extends SpanSuppo
           s"hitting exceptions"
         askSpan.error(a)
         askSpan.finish()
-        Future.successful[Either[Throwable, Option[Agg]]](Left(SurgeTimeoutException(msg)))
+        Future.successful[Either[Throwable, Option[Response]]](Left(SurgeTimeoutException(msg)))
       case e: Throwable =>
         askSpan.error(e)
         askSpan.finish()
-        Future.successful[Either[Throwable, Option[Agg]]](Left(SurgeUnexpectedException(e)))
+        Future.successful[Either[Throwable, Option[Response]]](Left(SurgeUnexpectedException(e)))
     }
   }
 
+  // FIXME Remove retries from these 2 functions as they're not used and just make things more complicated
   protected def applyEventsWithRetries(envelope: PersistentActor.ApplyEvent[Event], retriesRemaining: Int = 0)(
-      implicit ec: ExecutionContext): Future[Option[Agg]] = {
+      implicit ec: ExecutionContext): Future[Option[Response]] = {
     val askSpan = createSpan("send_events_to_aggregate").setTag("aggregateId", aggregateId.toString)
     (region ? TracedMessage(envelope, askSpan)(tracer)).map(interpretActorResponse(askSpan)).flatMap {
       case Left(exception) => Future.failed(exception)

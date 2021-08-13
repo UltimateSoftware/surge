@@ -72,7 +72,7 @@ object TestBoundedContext {
 trait TestBoundedContext {
   import TestBoundedContext._
 
-  trait BusinessLogicTrait extends AggregateCommandModel[State, BaseTestCommand, BaseTestEvent] {
+  trait BusinessLogicTrait extends AggregateCommandModel[State, BaseTestCommand, BaseTestEvent, State] {
 
     override def handleEvent(agg: Option[State], evt: BaseTestEvent): Option[State] = {
       val current = agg.getOrElse(State(evt.aggregateId, 0, 0))
@@ -104,6 +104,8 @@ trait TestBoundedContext {
           throw new RuntimeException("Received unexpected message in command handler! This should not happen and indicates a bad test")
       }
     }
+
+    override def responseFromState(state: Option[State]): Option[State] = state
   }
 
   object BusinessLogic extends BusinessLogicTrait
@@ -138,8 +140,8 @@ trait TestBoundedContext {
 
     override def writeState(agg: State): SerializedAggregate = SerializedAggregate(Json.toJson(agg).toString().getBytes(), Map.empty)
   }
-  val businessLogic: SurgeCommandBusinessLogic[String, State, BaseTestCommand, BaseTestEvent] =
-    new SurgeCommandBusinessLogic[String, State, BaseTestCommand, BaseTestEvent]() {
+  val businessLogic: SurgeCommandBusinessLogic[String, State, BaseTestCommand, BaseTestEvent, State] =
+    new SurgeCommandBusinessLogic[String, State, BaseTestCommand, BaseTestEvent, State]() {
       val businessLogicTrait: BusinessLogicTrait = new BusinessLogicTrait {}
 
       override def aggregateName: String = "CounterAggregate"
@@ -148,7 +150,7 @@ trait TestBoundedContext {
 
       override def eventsTopic: KafkaTopic = kafkaConfig.eventsTopic
 
-      override def commandModel: AggregateCommandModel[State, BaseTestCommand, BaseTestEvent] = businessLogicTrait
+      override def commandModel: AggregateCommandModel[State, BaseTestCommand, BaseTestEvent, State] = businessLogicTrait
 
       override def aggregateReadFormatting: SurgeAggregateReadFormatting[State] = aggregateFormat
 

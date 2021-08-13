@@ -9,26 +9,26 @@ import surge.scaladsl.common.{ AggregateRefBaseTrait, _ }
 
 import scala.concurrent.{ ExecutionContext, Future }
 
-trait AggregateRef[Agg, Cmd, Event] {
+trait AggregateRef[Agg, Cmd, Event, Response] {
   def getState: Future[Option[Agg]]
-  def sendCommand(command: Cmd): Future[CommandResult[Agg]]
-  def applyEvent(event: Event): Future[ApplyEventResult[Agg]]
+  def sendCommand(command: Cmd): Future[CommandResult[Response]]
+  def applyEvent(event: Event): Future[ApplyEventResult[Response]]
 }
 
-final class AggregateRefImpl[AggId, Agg, Cmd, Event](val aggregateId: AggId, protected val region: ActorRef, protected val tracer: Tracer)
-    extends AggregateRef[Agg, Cmd, Event]
-    with AggregateRefBaseTrait[AggId, Agg, Cmd, Event]
-    with AggregateRefTrait[AggId, Agg, Cmd, Event] {
+final class AggregateRefImpl[AggId, Agg, Cmd, Event, Response](val aggregateId: AggId, protected val region: ActorRef, protected val tracer: Tracer)
+    extends AggregateRef[Agg, Cmd, Event, Response]
+    with AggregateRefBaseTrait[AggId, Agg, Cmd, Event, Response]
+    with AggregateRefTrait[AggId, Agg, Cmd, Event, Response] {
 
   private implicit val ec: ExecutionContext = ExecutionContext.global
 
-  def sendCommand(command: Cmd): Future[CommandResult[Agg]] = {
+  def sendCommand(command: Cmd): Future[CommandResult[Response]] = {
     val envelope = PersistentActor.ProcessMessage[Cmd](aggregateId.toString, command)
     sendCommandWithRetries(envelope).map {
       case Left(error) =>
-        CommandFailure[Agg](error)
+        CommandFailure[Response](error)
       case Right(aggOpt) =>
-        CommandSuccess[Agg](aggOpt)
+        CommandSuccess[Response](aggOpt)
     }
   }
 }

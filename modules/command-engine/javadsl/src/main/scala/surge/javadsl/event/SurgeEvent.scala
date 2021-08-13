@@ -19,14 +19,14 @@ import scala.compat.java8.FutureConverters
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.jdk.CollectionConverters._
 
-trait SurgeEvent[AggId, Agg, Evt] extends core.SurgeProcessingTrait[Agg, Nothing, Nothing, Evt] with HealthCheckTrait {
-  def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Evt]
+trait SurgeEvent[AggId, Agg, Evt, Response] extends core.SurgeProcessingTrait[Agg, Nothing, Nothing, Evt, Response] with HealthCheckTrait {
+  def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Evt, Response]
   def getMetrics: java.util.List[Metric]
-  def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Evt]): Unit
+  def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Evt, Response]): Unit
 }
 
 object SurgeEvent {
-  def create[AggId, Agg, Evt](businessLogic: SurgeEventBusinessLogic[AggId, Agg, Evt]): SurgeEvent[AggId, Agg, Evt] = {
+  def create[AggId, Agg, Evt, Response](businessLogic: SurgeEventBusinessLogic[AggId, Agg, Evt, Response]): SurgeEvent[AggId, Agg, Evt, Response] = {
     val actorSystem = ActorSystem(s"${businessLogic.aggregateName}ActorSystem")
     new SurgeEventImpl(
       actorSystem,
@@ -41,27 +41,27 @@ object SurgeEvent {
 
 }
 
-private[javadsl] class SurgeEventImpl[AggId, Agg, Evt](
+private[javadsl] class SurgeEventImpl[AggId, Agg, Evt, Response](
     val actorSystem: ActorSystem,
-    override val businessLogic: SurgeEventServiceModel[Agg, Evt],
+    override val businessLogic: SurgeEventServiceModel[Agg, Evt, Response],
     signalStreamProvider: HealthSignalStreamProvider,
     aggIdToString: AggId => String,
     config: Config)
-    extends SurgeEventServiceImpl[Agg, Evt](actorSystem, businessLogic, signalStreamProvider, config)
-    with SurgeEvent[AggId, Agg, Evt] {
+    extends SurgeEventServiceImpl[Agg, Evt, Response](actorSystem, businessLogic, signalStreamProvider, config)
+    with SurgeEvent[AggId, Agg, Evt, Response] {
 
   import surge.javadsl.common.HealthCheck._
   def getHealthCheck: CompletionStage[HealthCheck] = {
     FutureConverters.toJava(healthCheck().map(_.asJava))
   }
 
-  def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Evt] = {
+  def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Evt, Response] = {
     new AggregateRefImpl(aggIdToString(aggregateId), actorRouter.actorRegion, businessLogic.tracer)
   }
 
   def getMetrics: java.util.List[Metric] = businessLogic.metrics.getMetrics.asJava
 
-  def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Evt]): Unit = {
+  def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Evt, Response]): Unit = {
     registerRebalanceCallback { assignments =>
       val javaAssignments = assignments.partitionAssignments.map(kv => kv._1 -> kv._2.asJava).asJava
       listener.onRebalance(engine = this, javaAssignments)

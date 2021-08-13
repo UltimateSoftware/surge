@@ -18,9 +18,9 @@ import java.util.UUID;
 
 // #surge_model_class
 public class BankAccountSurgeModel extends SurgeCommandBusinessLogic<UUID, BankAccount, BankAccountCommand,
-        BankAccountEvent> {
+        BankAccountEvent, BankAccount> {
     @Override
-    public AggregateCommandModel<BankAccount, BankAccountCommand, BankAccountEvent> commandModel() {
+    public AggregateCommandModel<BankAccount, BankAccountCommand, BankAccountEvent, BankAccount> commandModel() {
         return new BankAccountCommandModel();
     }
 

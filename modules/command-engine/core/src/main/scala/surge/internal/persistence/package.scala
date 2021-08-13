@@ -3,5 +3,5 @@
 package surge.internal
 
 package object persistence {
-  type BusinessLogic = SurgeModel[_, _, _, _]
+  type BusinessLogic = SurgeModel[_, _, _, _, _]
 }

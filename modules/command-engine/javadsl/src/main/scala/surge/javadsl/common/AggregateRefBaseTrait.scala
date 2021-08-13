@@ -12,7 +12,7 @@ import scala.compat.java8.FutureConverters
 import scala.compat.java8.OptionConverters._
 import scala.concurrent.ExecutionContext
 
-trait AggregateRefBaseTrait[AggId, Agg, Cmd, Event] extends AggregateRefTrait[AggId, Agg, Cmd, Event] {
+trait AggregateRefBaseTrait[AggId, Agg, Cmd, Event, Response] extends AggregateRefTrait[AggId, Agg, Cmd, Event, Response] {
 
   val aggregateId: AggId
   protected val region: ActorRef
@@ -24,10 +24,10 @@ trait AggregateRefBaseTrait[AggId, Agg, Cmd, Event] extends AggregateRefTrait[Ag
     FutureConverters.toJava(queryState.map(_.asJava))
   }
 
-  def applyEvent(event: Event): CompletionStage[ApplyEventResult[Agg]] = {
+  def applyEvent(event: Event): CompletionStage[ApplyEventResult[Response]] = {
     val envelope = PersistentActor.ApplyEvent[Event](aggregateId.toString, event)
-    val result = applyEventsWithRetries(envelope).map(aggOpt => ApplyEventSuccess[Agg](aggOpt.asJava)).recover { case e =>
-      ApplyEventFailure[Agg](e)
+    val result = applyEventsWithRetries(envelope).map(aggOpt => ApplyEventSuccess[Response](aggOpt.asJava)).recover { case e =>
+      ApplyEventFailure[Response](e)
     }
     FutureConverters.toJava(result)
   }

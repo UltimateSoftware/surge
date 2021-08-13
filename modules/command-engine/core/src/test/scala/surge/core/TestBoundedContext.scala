@@ -83,7 +83,7 @@ trait TestBoundedContext {
   implicit val countIncrementedFormat: Format[CountIncremented] = Json.format
   implicit val countDecrementedFormat: Format[CountDecremented] = Json.format
 
-  trait BusinessLogicTrait extends CommandHandler[State, BaseTestCommand, Nothing, BaseTestEvent] {
+  trait BusinessLogicTrait extends CommandHandler[State, BaseTestCommand, Nothing, BaseTestEvent, State] {
 
     override def apply(ctx: Context, agg: Option[State], evt: BaseTestEvent): Option[State] = handleEvent(agg, evt)
     def handleEvent(agg: Option[State], evt: BaseTestEvent): Option[State] = {
@@ -120,6 +120,8 @@ trait TestBoundedContext {
           throw new RuntimeException("Received unexpected message in command handler! This should not happen and indicates a bad test")
       }
     }
+
+    override def extractResponse(state: Option[State]): Option[State] = state
   }
 
   object BusinessLogic extends BusinessLogicTrait
@@ -143,7 +145,7 @@ trait TestBoundedContext {
     SerializedMessage(key, body, Map.empty)
   }
 
-  val businessLogic: SurgeCommandModel[State, BaseTestCommand, Nothing, BaseTestEvent] =
+  val businessLogic: SurgeCommandModel[State, BaseTestCommand, Nothing, BaseTestEvent, State] =
     command.SurgeCommandModel(
       aggregateName = "CountAggregate",
       kafka = kafkaConfig,

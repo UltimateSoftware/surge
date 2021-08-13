@@ -51,7 +51,7 @@ class SurgeMessagePipelineSpec
   case class TestContext(
       probe: TestProbe,
       signalStreamProvider: SlidingHealthSignalStreamProvider,
-      pipeline: SurgeMessagePipeline[State, BaseTestCommand, Nothing, BaseTestEvent])
+      pipeline: SurgeMessagePipeline[State, BaseTestCommand, Nothing, BaseTestEvent, State])
 
   def withTestContext[T](testFun: TestContext => T): T = {
     val probe = TestProbe()
@@ -289,8 +289,9 @@ class SurgeMessagePipelineSpec
     }
   }
 
-  private def createPipeline(signalStreamProvider: SlidingHealthSignalStreamProvider): SurgeMessagePipeline[State, BaseTestCommand, Nothing, BaseTestEvent] = {
-    new SurgeMessagePipeline[State, BaseTestCommand, Nothing, BaseTestEvent](system, businessLogic, signalStreamProvider, defaultConfig) {
+  private def createPipeline(
+      signalStreamProvider: SlidingHealthSignalStreamProvider): SurgeMessagePipeline[State, BaseTestCommand, Nothing, BaseTestEvent, State] = {
+    new SurgeMessagePipeline[State, BaseTestCommand, Nothing, BaseTestEvent, State](system, businessLogic, signalStreamProvider, defaultConfig) {
 
       override def actorSystem: ActorSystem = system
 
