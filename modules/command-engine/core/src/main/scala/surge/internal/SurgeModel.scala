@@ -21,6 +21,6 @@ trait SurgeModel[S, M, +R, E] extends ProducerActorContext {
   override def metrics: Metrics
   override def tracer: Tracer
   override val kafka: SurgeKafkaConfig
-  override val partitioner: KafkaPartitioner[String] = PartitionStringUpToColon
+  override val partitioner: KafkaPartitioner[String] = PartitionStringUpToColon.instance
   val executionContext: ExecutionContext = global
 }

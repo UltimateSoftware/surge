@@ -38,10 +38,10 @@ abstract class AbstractKafkaProducer[K, V] extends KafkaSecurityConfiguration wi
 object KafkaBytesProducer {
   private val config = ConfigFactory.load()
   def create(brokers: java.util.Collection[String], topic: KafkaTopic): KafkaBytesProducer = {
-    new KafkaBytesProducer(brokers, topic, PartitionStringUpToColon, config, Map.empty[String, String].asJava)
+    new KafkaBytesProducer(brokers, topic, PartitionStringUpToColon.instance, config, Map.empty[String, String].asJava)
   }
   def create(brokers: java.util.Collection[String], topic: KafkaTopic, kafkaConfig: java.util.Map[String, String]): KafkaBytesProducer = {
-    new KafkaBytesProducer(brokers, topic, PartitionStringUpToColon, config, kafkaConfig)
+    new KafkaBytesProducer(brokers, topic, PartitionStringUpToColon.instance, config, kafkaConfig)
   }
 }
 class KafkaBytesProducer(
