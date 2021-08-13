@@ -127,6 +127,14 @@ trait KafkaProducerTrait[K, V] extends KafkaSecurityConfiguration with KafkaProd
   def initTransactions()(implicit ec: ExecutionContext): Future[Unit] = Future {
     producer.initTransactions()
   }
+
+  protected def configureCommonProperties(config: Config, props: Properties): Unit = {
+    props.put(ProducerConfig.ACKS_CONFIG, config.getString("kafka.publisher.acks"))
+    props.put(ProducerConfig.BATCH_SIZE_CONFIG, config.getInt("kafka.publisher.batch-size"))
+    props.put(ProducerConfig.MAX_REQUEST_SIZE_CONFIG, config.getInt("kafka.publisher.max-request-size"))
+    props.put(ProducerConfig.LINGER_MS_CONFIG, config.getInt("kafka.publisher.linger-ms"))
+    props.put(ProducerConfig.COMPRESSION_TYPE_CONFIG, config.getString("kafka.publisher.compression-type"))
+  }
 }
 
 object KafkaStringProducer {
@@ -144,7 +152,6 @@ case class KafkaStringProducer(
   val props: Properties = {
     val p = new Properties()
     p.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, brokers.mkString(","))
-    p.put(ProducerConfig.ACKS_CONFIG, "all")
     p.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, classOf[StringSerializer].getName)
     p.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, classOf[StringSerializer].getName)
     kafkaConfig.foreach(propPair => p.put(propPair._1, propPair._2))
@@ -165,9 +172,9 @@ case class KafkaBytesProducer(
   val props: Properties = {
     val p = new Properties()
     p.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, brokers.mkString(","))
-    p.put(ProducerConfig.ACKS_CONFIG, "all")
     p.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, classOf[StringSerializer].getName)
     p.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, classOf[ByteArraySerializer].getName)
+    configureCommonProperties(config, p)
     kafkaConfig.foreach(propPair => p.put(propPair._1, propPair._2))
     configureSecurityProperties(p)
     p

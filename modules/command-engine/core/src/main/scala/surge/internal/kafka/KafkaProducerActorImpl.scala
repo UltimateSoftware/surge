@@ -91,10 +91,6 @@ class KafkaProducerActorImpl(
 
   private val assignedTopicPartitionKey = s"${assignedPartition.topic}:${assignedPartition.partition}"
   private val flushInterval = config.getDuration("kafka.publisher.flush-interval", TimeUnit.MILLISECONDS).milliseconds
-  private val publisherBatchSize = config.getInt("kafka.publisher.batch-size")
-  private val publisherMaxRequestSize = config.getInt("kafka.publisher.max-request-size")
-  private val publisherLingerMs = config.getInt("kafka.publisher.linger-ms")
-  private val publisherCompression = config.getString("kafka.publisher.compression-type")
   private val publisherTransactionTimeoutMs = config.getString("kafka.publisher.transaction-timeout-ms")
   private val ktableCheckInterval = config.getDuration("kafka.publisher.ktable-check-interval").toMillis.milliseconds
   private val brokers = config.getString("kafka.brokers").split(",").toVector
@@ -133,12 +129,10 @@ class KafkaProducerActorImpl(
       def name = throw new IllegalStateException("there is no topic")
     }
 
+    // Because we use transactions, we must force enable idempotence to true and acks=all
     val kafkaConfig = Map[String, String](
       ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG -> true.toString,
-      ProducerConfig.BATCH_SIZE_CONFIG -> publisherBatchSize.toString,
-      ProducerConfig.MAX_REQUEST_SIZE_CONFIG -> publisherMaxRequestSize.toString,
-      ProducerConfig.LINGER_MS_CONFIG -> publisherLingerMs.toString,
-      ProducerConfig.COMPRESSION_TYPE_CONFIG -> publisherCompression,
+      ProducerConfig.ACKS_CONFIG -> "all",
       ProducerConfig.TRANSACTION_TIMEOUT_CONFIG -> publisherTransactionTimeoutMs,
       ProducerConfig.TRANSACTIONAL_ID_CONFIG -> transactionalId)
 
