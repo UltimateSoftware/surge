@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import surge.javadsl.command.SurgeCommand;
 import surge.javadsl.command.SurgeCommand$;
+import surge.javadsl.command.SurgeCommandBuilder;
 import surge.javadsl.common.CommandFailure;
 import surge.javadsl.common.CommandResult;
 import surge.javadsl.common.CommandSuccess;
@@ -26,7 +27,7 @@ public class Main {
         // #bank_account_engine_class
         BankAccountSurgeModel bankAccountSurgeModel = new BankAccountSurgeModel();
         SurgeCommand<UUID, BankAccount, BankAccountCommand, ?, BankAccountEvent> surgeCommand =
-                SurgeCommand$.MODULE$.create(bankAccountSurgeModel);
+                new SurgeCommandBuilder().withBusinessLogic(bankAccountSurgeModel).build();
         surgeCommand.start();
         // #bank_account_engine_class
 
