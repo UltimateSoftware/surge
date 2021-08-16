@@ -11,7 +11,7 @@ import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Milliseconds, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
-import org.scalatest.{ BeforeAndAfterAll, Ignore, PrivateMethodTester }
+import org.scalatest.{ BeforeAndAfterAll, PrivateMethodTester }
 import play.api.libs.json.JsValue
 import surge.core.{ Ack, TestBoundedContext }
 import surge.health.config.{ ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig }
@@ -29,7 +29,7 @@ import surge.metrics.Metrics
 import java.util.regex.Pattern
 import scala.concurrent.duration._
 
-@Ignore
+//@Ignore
 class SurgeMessagePipelineSpec
     extends TestKit(ActorSystem("SurgeMessagePipelineSpec", ConfigFactory.load("artery-test-config")))
     with AnyWordSpecLike
@@ -262,11 +262,10 @@ class SurgeMessagePipelineSpec
           createCustomTopic(businessLogic.kafka.eventsTopic.name, Map.empty)
           createCustomTopic(businessLogic.kafka.stateTopic.name, Map.empty)
 
-          Thread.sleep(10.seconds.toMillis)
           // wait for router-actor to be registered
           val beforeStopRegistrations = eventually {
             val reg = pipeline.signalBus.registrations().futureValue
-            reg.nonEmpty shouldEqual true
+            reg.exists(p => p.componentName == "router-actor") shouldEqual true
             reg
           }
 
