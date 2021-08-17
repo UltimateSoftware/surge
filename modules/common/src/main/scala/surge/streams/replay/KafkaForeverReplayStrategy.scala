@@ -2,31 +2,30 @@
 
 package surge.streams.replay
 
-import java.util
-import java.util.concurrent.TimeUnit
-
 import akka.Done
-import akka.actor.{ Actor, ActorRef, ActorSystem, Props, Stash }
+import akka.actor.{Actor, ActorRef, ActorSystem, Props, Stash}
 import akka.pattern.ask
 import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
-import org.apache.kafka.clients.consumer.{ ConsumerConfig, ConsumerRebalanceListener, KafkaConsumer, OffsetAndMetadata }
+import org.apache.kafka.clients.consumer.{ConsumerConfig, ConsumerRebalanceListener, KafkaConsumer, OffsetAndMetadata}
 import org.apache.kafka.common.TopicPartition
 import surge.internal.streams.PartitionAssignorConfig
 import surge.internal.utils.Logging
-import surge.kafka.{ KafkaBytesConsumer, UltiKafkaConsumerConfig }
-import surge.streams.DataHandler
+import surge.kafka.{KafkaBytesConsumer, UltiKafkaConsumerConfig}
 import surge.streams.replay.TopicResetActor._
 
+import java.util
+import java.util.concurrent.TimeUnit
 import scala.concurrent.duration._
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.{ExecutionContext, Future}
 import scala.jdk.CollectionConverters._
 
 class KafkaForeverReplayStrategy(
     actorSystem: ActorSystem,
     settings: KafkaForeverReplaySettings,
     override val preReplay: () => Future[Any] = { () => Future.successful(true) },
-    override val postReplay: () => Unit = { () => () })(implicit executionContext: ExecutionContext)
+    override val postReplay: () => Unit = { () => () },
+    override val replayProgress: Double => Unit = { _ => ()})(implicit executionContext: ExecutionContext)
     extends EventReplayStrategy {
 
   override def createReplayController[Key, Value](context: ReplayControlContext[Key, Value]): KafkaForeverReplayControl =
@@ -37,7 +36,8 @@ class KafkaForeverReplayControl(
     actorSystem: ActorSystem,
     settings: KafkaForeverReplaySettings,
     override val preReplay: () => Future[Any] = { () => Future.successful(true) },
-    override val postReplay: () => Unit = { () => () })(implicit executionContext: ExecutionContext)
+    override val postReplay: () => Unit = { () => () },
+    override val replayProgress: Double => Unit = { _ => ()})(implicit executionContext: ExecutionContext)
     extends ReplayControl {
   private val underlyingActor = actorSystem.actorOf(Props(new TopicResetActor(settings.brokers, settings.topic)))
 
@@ -48,6 +48,8 @@ class KafkaForeverReplayControl(
       case TopicResetFailed(err) => throw err
     }
   }
+
+  override def getReplayProgress(): Future[Double] = ???
 }
 
 trait EventReplaySettings {
@@ -75,29 +77,34 @@ object KafkaForeverReplayStrategy {
       actorSystem: ActorSystem,
       settings: KafkaForeverReplaySettings,
       preReplay: () => Future[Any] = { () => Future.successful(true) },
-      postReplay: () => Unit = { () => () }): KafkaForeverReplayStrategy = {
-    new KafkaForeverReplayStrategy(actorSystem, settings, preReplay, postReplay)(ExecutionContext.global)
+      postReplay: () => Unit = { () => () },
+      replayProgress: Double => Unit = { _ => ()}): KafkaForeverReplayStrategy = {
+    new KafkaForeverReplayStrategy(actorSystem, settings, preReplay, postReplay, replayProgress)(ExecutionContext.global)
   }
 }
 
 class TopicResetActor(brokers: List[String], kafkaTopic: String) extends Actor with Stash with Logging {
 
-  def ready: Receive = { case ResetTopic(consumerGroup, partitions) =>
-    try {
-      initialize(consumerGroup, partitions)
-    } catch {
-      case err: Throwable =>
-        handleError(err, sender())
-    }
+//  TODO Create consumer and admin clients here
+
+  def ready: Receive = {
+    case ResetTopic(consumerGroup, partitions) =>
+      try {
+        initialize(consumerGroup, partitions)
+      } catch {
+        case err: Throwable =>
+          handleError(err, sender())
+      }
   }
 
   def initializing(replyTo: ActorRef, consumer: KafkaConsumer[String, Array[Byte]], kafkaTopic: String, topicPartitions: List[TopicPartition]): Receive = {
     case PartitionsAssigned =>
       try {
-        val commits = buildEarliestCommits(consumer, topicPartitions).asJava
-        consumer.commitSync(commits)
+        val preReplayCommits = consumer.committed(topicPartitions.toSet.asJava).asScala.map( kv => kv._1.partition() -> kv._2)
+        val earliestCommits = buildEarliestCommits(consumer, topicPartitions).asJava
+        consumer.commitSync(earliestCommits)
         replyTo ! TopicResetSucceed
-        context.become(ready)
+        context.become(waitingForComplete(replyTo, consumer, kafkaTopic, topicPartitions, Map.from(preReplayCommits)))
         unstashAll()
       } catch {
         case err: Throwable =>
@@ -105,9 +112,34 @@ class TopicResetActor(brokers: List[String], kafkaTopic: String) extends Actor w
       } finally {
         consumer.close()
       }
-      log.debug(s"Replay Finished for $kafkaTopic")
+      log.debug(s"Replay Started for $kafkaTopic") //TODO Report starting offsets
     case _: ResetTopic =>
       stash()
+  }
+
+  def waitingForComplete(replyTo: ActorRef, consumer: KafkaConsumer[String, Array[Byte]], kafkaTopic: String,
+                         topicPartitions: List[TopicPartition], preReplayCommits: Map[Int, OffsetAndMetadata]): Receive = {
+    case CheckProgress =>
+      try {
+        val currentCommits = consumer.committed(topicPartitions.toSet.asJava).asScala //TODO Use Admin API to
+        val complete = topicPartitions.foldLeft(true){ case (b, p) =>
+          b & currentCommits(p).offset() >= preReplayCommits(p.partition()).offset()
+        }
+        if(complete) {
+          replyTo ! TopicReplayComplete
+          context.become(ready)
+        } else {
+          log.debug(s"Replay in Progress for $kafkaTopic (${currentCommits})")
+          // TODO Report this via a TopicReplayProgress message?
+          // TODO configure this poll time
+          context.system.scheduler.scheduleOnce(30.seconds, self, CheckProgress)(context.dispatcher)
+        }
+      } catch {
+        case err: Throwable =>
+          handleError(err, replyTo)
+      } finally {
+        consumer.close()
+      }
   }
 
   def handleError(err: Throwable, replyTo: ActorRef): Unit = {
@@ -120,6 +152,7 @@ class TopicResetActor(brokers: List[String], kafkaTopic: String) extends Actor w
   def initialize(consumerGroup: String, partitions: List[Int]): Unit = {
     log.debug(s"Replay started for $kafkaTopic")
     val topicPartitions = partitions.map { partition => new TopicPartition(kafkaTopic, partition) }
+    // TODO Create admin client here
     val consumer = KafkaBytesConsumer(
       brokers,
       UltiKafkaConsumerConfig(consumerGroup),
@@ -142,6 +175,8 @@ class TopicResetActor(brokers: List[String], kafkaTopic: String) extends Actor w
     // NOTE: non-deprecated #poll(Duration) method doesn't work because it includesMetadataInTimeout opposite to this one
     consumer.poll(1000)
     context.become(initializing(sender(), consumer, kafkaTopic, topicPartitions))
+    // TODO configure this poll time
+    context.system.scheduler.scheduleOnce(30.seconds, self, CheckProgress)(context.dispatcher)
   }
 
   def buildEarliestCommits(consumer: KafkaConsumer[String, Array[Byte]], topicPartitions: List[TopicPartition]): Map[TopicPartition, OffsetAndMetadata] = {
@@ -159,11 +194,15 @@ class TopicResetActor(brokers: List[String], kafkaTopic: String) extends Actor w
 private[streams] object TopicResetActor {
   sealed trait ResetTopicCommand
   case class ResetTopic(consumerGroup: String, partitions: List[Int]) extends ResetTopicCommand
+  case object CheckProgress
 
   sealed trait ResetTopicEvent
   case object PartitionsAssigned extends ResetTopicEvent
 
   sealed trait ResetTopicResult
   case object TopicResetSucceed extends ResetTopicResult
+  case class TopicReplayProgress(percentComplete: Double) extends ResetTopicResult
+  case object TopicReplayComplete extends ResetTopicResult
   case class TopicResetFailed(err: Throwable) extends ResetTopicResult
+
 }

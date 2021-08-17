@@ -141,6 +141,10 @@ class KafkaStreamManager[Key, Value](
       }
   }
 
+  def getReplayProgress(): Future[Double] = {
+    (replayCoordinator ? ReplayCoordinator.GetReplayProgress)(metricFetchTimeout).mapTo[Double]
+  }
+
   def getReplayControl: ReplayControl = replayControl
 }
 

@@ -13,8 +13,10 @@ import scala.concurrent.Future
 import scala.concurrent.duration.{ FiniteDuration, _ }
 
 case class ReplayControlContext[Key, Value](keyDeserializer: Array[Byte] => Key, valueDeserializer: Array[Byte] => Value, dataHandler: DataHandler[Key, Value])
+
 trait EventReplayStrategy {
   def preReplay: () => Future[Any]
+  def replayProgress: Double => Unit
   def postReplay: () => Unit
   def createReplayController[Key, Value](context: ReplayControlContext[Key, Value]): ReplayControl
 }
@@ -27,7 +29,11 @@ trait EventReplayStrategy {
 trait ReplayControl {
   def preReplay: () => Future[Any]
   def postReplay: () => Unit
+  def replayProgress: Double => Unit
   def fullReplay(consumerGroup: String, partitions: Iterable[Int]): Future[Done]
+  // TODO - Look at Lore integration with gRPC Replay Service
+  def getReplayProgress(): Future[Double]
+
 }
 
 object DefaultEventReplaySettings extends EventReplaySettings {
@@ -38,15 +44,20 @@ object DefaultEventReplaySettings extends EventReplaySettings {
 class NoOpEventReplayStrategy extends EventReplayStrategy {
   override def preReplay: () => Future[Any] = () => Future.successful(true)
   override def postReplay: () => Unit = () => {}
+  override def replayProgress: Double => Unit = _ => {}
 
   override def createReplayController[Key, Value](context: ReplayControlContext[Key, Value]): NoOpEventReplayControl =
-    new NoOpEventReplayControl(preReplay, postReplay)
+  new NoOpEventReplayControl(preReplay, postReplay, replayProgress)
+
 }
-class NoOpEventReplayControl(override val preReplay: () => Future[Any] = () => Future.successful(true), override val postReplay: () => Unit = () => {})
-    extends ReplayControl {
+class NoOpEventReplayControl(override val preReplay: () => Future[Any] = () => Future.successful(true),
+                             override val postReplay: () => Unit = () => {},
+                             override val replayProgress: Double => Unit = _ => {}) extends ReplayControl {
   private val log = LoggerFactory.getLogger(getClass)
   override def fullReplay(consumerGroup: String, partitions: Iterable[Int]): Future[Done] = {
     log.warn("Event Replay has been used with the default NoOps implementation, please refer to the docs to properly chose your replay strategy")
     Future.successful(Done)
   }
+
+  override def getReplayProgress(): Future[Double] = Future.successful(0.0)
 }

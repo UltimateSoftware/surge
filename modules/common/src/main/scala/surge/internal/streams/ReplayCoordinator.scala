@@ -22,12 +22,15 @@ private[streams] object ReplayCoordinator {
   case object StartReplay extends ReplayCoordinatorRequest
   case object StopReplay extends ReplayCoordinatorRequest
   case object DoPreReplay extends ReplayCoordinatorRequest
+  case object GetReplayProgress extends ReplayCoordinatorRequest
 
   sealed trait ReplayCoordinatorResponse
+  case object ReplayStarted extends ReplayCoordinatorResponse
+  case class ReplayProgress(percentComplete: Double) extends ReplayCoordinatorResponse
   case object ReplayCompleted extends ReplayCoordinatorResponse
   case class ReplayFailed(reason: Throwable) extends ReplayCoordinatorResponse
 
-  case class ReplayState(replyTo: ActorRef, running: Set[String], stopped: Set[String], assignments: Map[TopicPartition, HostPort])
+  case class ReplayState(replyTo: ActorRef, running: Set[String], stopped: Set[String], assignments: Map[TopicPartition, HostPort], percentComplete: Double)
   object ReplayState {
     def init(sender: ActorRef): ReplayState = ReplayState(sender, Set(), Set(), Map())
   }
@@ -72,11 +75,16 @@ class ReplayCoordinator(topicName: String, consumerGroup: String, registry: Acto
       startStoppedConsumers(replayState)
       replayState.replyTo ! failure
       context.become(uninitialized())
+      // TODO ReplayProgress
+    case ReplayProgress(percent) =>
+      replayControl.replayProgress(percent)
     case ReplayCompleted =>
       replayControl.postReplay()
       startStoppedConsumers(replayState)
       replayState.replyTo ! ReplayCompleted
       context.become(uninitialized())
+    case GetReplayProgress =>
+      sender() ! ReplayProgress(replayState.percentComplete)
   }.orElse(handleStopReplay(replayState))
 
   private def handleStopReplay(replayState: ReplayState): Receive = { case ReplayCoordinator.StopReplay =>
@@ -119,7 +127,7 @@ class ReplayCoordinator(topicName: String, consumerGroup: String, registry: Acto
     replayControl
       .fullReplay(consumerGroup, existingPartitions)
       .map { _ =>
-        ReplayCompleted
+        ReplayStarted
       }
       .recover { case err: Throwable =>
         log.error("Replay failed", err)
