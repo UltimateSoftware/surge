@@ -154,6 +154,7 @@ case class KafkaStringProducer(
     p.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, brokers.mkString(","))
     p.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, classOf[StringSerializer].getName)
     p.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, classOf[StringSerializer].getName)
+    configureCommonProperties(config, p)
     kafkaConfig.foreach(propPair => p.put(propPair._1, propPair._2))
     configureSecurityProperties(p)
     p
