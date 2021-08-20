@@ -2,7 +2,7 @@
 
 package surge.core
 
-import scala.collection.JavaConverters.mapAsScalaMapConverter
+import scala.jdk.CollectionConverters._
 
 case class SerializedMessage(key: String, value: Array[Byte], headers: Map[String, String] = Map.empty)
 case class SerializedAggregate(value: Array[Byte], headers: Map[String, String] = Map.empty)

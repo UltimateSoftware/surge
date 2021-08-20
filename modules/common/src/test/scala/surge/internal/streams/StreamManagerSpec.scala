@@ -17,14 +17,13 @@ import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Millis, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
-import surge.internal.akka.kafka.AkkaKafkaConsumer
 import surge.internal.akka.streams.FlowConverter
 import surge.internal.tracing.NoopTracerFactory
 import surge.kafka.KafkaTopic
 import surge.kafka.streams.DefaultSerdes
 import surge.streams.DataPipeline._
 import surge.streams.replay._
-import surge.streams.{ DataHandler, EventPlusStreamMeta }
+import surge.streams.{ DataHandler, EventPlusStreamMeta, KafkaDataSourceConfigHelper }
 
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
@@ -66,7 +65,7 @@ class StreamManagerSpec
       businessLogic: (String, Array[Byte]) => Future[_],
       replayStrategy: EventReplayStrategy = new NoOpEventReplayStrategy,
       replaySettings: EventReplaySettings = DefaultEventReplaySettings): KafkaStreamManager[String, Array[Byte]] = {
-    val consumerSettings = new AkkaKafkaConsumer(defaultConfig).consumerSettings[String, Array[Byte]](system, groupId, kafkaBrokers, "earliest")
+    val consumerSettings = KafkaDataSourceConfigHelper.consumerSettingsFromConfig[String, Array[Byte]](system, defaultConfig, kafkaBrokers, groupId)
 
     val parallelism = 16
     val tupleFlow: (String, Array[Byte], Map[String, Array[Byte]]) => Future[_] = { (k, v, _) => businessLogic(k, v) }
@@ -233,7 +232,7 @@ class StreamManagerSpec
         publishToKafka(new ProducerRecord[String, String](topic.name, 2, record3, record3))
 
         val settings = KafkaForeverReplaySettings(defaultConfig, topic.name).copy(brokers = List(embeddedBroker))
-        val kafkaForeverReplayStrategy = KafkaForeverReplayStrategy.create[String, Array[Byte]](system, settings)
+        val kafkaForeverReplayStrategy = KafkaForeverReplayStrategy(defaultConfig, system, settings)
         val consumer =
           testStreamManager(topic, kafkaBrokers = embeddedBroker, groupId = "replay-test", sendToTestProbe(probe), kafkaForeverReplayStrategy, settings)
 

@@ -14,5 +14,5 @@ trait ProducerActorContext {
   val openTelemetry: OpenTelemetry
   def tracer: Tracer = openTelemetry.getTracer(OpenTelemetryInstrumentation.Version, OpenTelemetryInstrumentation.Name)
   val kafka: SurgeKafkaConfig
-  val partitioner: KafkaPartitioner[String] = PartitionStringUpToColon
+  val partitioner: KafkaPartitioner[String]
 }

@@ -19,7 +19,6 @@ class KafkaProducerSpec extends AnyWordSpec with Matchers {
   private val defaultConfig = ConfigFactory.load()
 
   class MockProducer(val producer: KafkaProducer[String, String]) extends KafkaProducerTrait[String, String] {
-    override protected def config: Config = defaultConfig
     override def topic: KafkaTopic = KafkaTopic("")
     override def partitioner: KafkaPartitionerBase[String] = NoPartitioner[String]
   }
@@ -31,7 +30,7 @@ class KafkaProducerSpec extends AnyWordSpec with Matchers {
       val acksConfigOverride = Map(ProducerConfig.ACKS_CONFIG -> "1")
       val producer = KafkaBytesProducer(defaultConfig, Seq("localhost:9092"), KafkaTopic("test"), kafkaConfig = acksConfigOverride)
 
-      val props = producer.props
+      val props = producer.producerProps
       props.getProperty(ProducerConfig.ACKS_CONFIG) shouldEqual "1"
     }
 
