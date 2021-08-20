@@ -128,7 +128,7 @@ dependencies {
 <dl>
   <dt>Scala</dt>
   <dd>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/scala/docs/consumer/ConsumerSpec.scala#L29-L91" target="_blank" title="Go to snippet source"></a><code class="language-scala"><br/>val openTelemetry: OpenTelemetrySdk = {
+  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/scala/docs/consumer/ConsumerSpec.scala#L27-L82" target="_blank" title="Go to snippet source"></a><code class="language-scala"><br/>val openTelemetry: OpenTelemetrySdk = {
 
   val exporter =
     JaegerGrpcSpanExporter.builder()
@@ -148,15 +148,15 @@ dependencies {
   openTelemetry
 }
 
-implicit val myTracer = openTelemetry.getTracer(&quot;MyApp&quot;, &quot;0.1&quot;)
+implicit val myTracer: Tracer = openTelemetry.getTracer(&quot;MyApp&quot;, &quot;0.1&quot;)
 
-implicit val system = ActorSystem()
+implicit val system: ActorSystem = ActorSystem()
 
 val kafkaEventSource: KafkaEventSource[String] = new KafkaEventSource[String] {
 
-  override def baseEventName: String = ???
+  override def baseEventName: String = &quot;SomeTestEvent&quot;
 
-  override def kafkaTopic: KafkaTopic = KafkaTopic(name = ???)
+  override def kafkaTopic: KafkaTopic = KafkaTopic(name = &quot;my-topic&quot;)
 
   override def formatting: SurgeEventReadFormatting[String] = bytes =&gt; new String(bytes)
 
@@ -168,13 +168,6 @@ val kafkaEventSource: KafkaEventSource[String] = new KafkaEventSource[String] {
 
 private implicit val stringDeserializer: Deserializer[String] = DefaultSerdes.stringSerde.deserializer()
 private implicit val byteArrayDeserializer: Deserializer[Array[Byte]] = DefaultSerdes.byteArraySerde.deserializer()
-
-val consumerSettings =
-  new AkkaKafkaConsumer(ConfigFactory.load())
-    .consumerSettings[String, Array[Byte]](system,
-      groupId = &quot;group-id-1&quot;,
-      brokers = &quot;127.0.0.1:9092&quot;,
-      autoOffsetReset = &quot;earliest&quot;)
 
 val eventSink: EventSink[String] = new EventSink[String] {
   override def handleEvent(key: String, event: String, headers: Map[String, Array[Byte]]): Future[Any] = {
@@ -188,7 +181,7 @@ val eventSink: EventSink[String] = new EventSink[String] {
     event
 }
 
-kafkaEventSource.to(consumerSettings)(eventSink, autoStart = true)
+kafkaEventSource.to(eventSink, &quot;group-id-1&quot;)
 </code></pre></dd>
   <dt>Java</dt>
   <dd>Java examples coming soon&hellip;</dd>
