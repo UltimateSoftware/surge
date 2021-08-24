@@ -6,10 +6,10 @@ import akka.NotUsed
 import akka.stream.scaladsl.Flow
 import io.opentelemetry.api.trace.Span
 import surge.internal.akka.streams.FlowConverter
-import surge.internal.streams.{ DefaultDataSinkExceptionHandler, DefaultDataSinkExceptionHandlerWithSupport }
-import surge.metrics.{ Metrics, Rate }
+import surge.internal.streams.{DefaultDataSinkExceptionHandler, DefaultDataSinkExceptionHandlerWithSupport, MetaFormatter}
+import surge.metrics.{Metrics, Rate}
 
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.{ExecutionContext, Future}
 
 case class EventPlusStreamMeta[Key, Value, +Meta](messageKey: Key, messageBody: Value, streamMeta: Meta, headers: Map[String, Array[Byte]], span: Span)
 
@@ -20,9 +20,13 @@ trait EventHandler[Event] {
 
   def nullEventFactory(key: String, headers: Map[String, Array[Byte]]): Option[Event] = None
 
-  def sinkExceptionHandler: DataSinkExceptionHandler[String, Event] = this match {
+  def createSinkExceptionHandler: DataSinkExceptionHandler[String, Event] = this match {
     case support: EventSinkSupport[Event] =>
-      new DefaultDataSinkExceptionHandlerWithSupport[String, Event](support.metrics, support.metricTags, support.formatMetaForExceptionHandlerMessage)
+      new DefaultDataSinkExceptionHandlerWithSupport[String, Event](support.metrics, support.metricTags,
+        new MetaFormatter[String, Event] {
+          override def formatMeta[Meta](epm: EventPlusStreamMeta[String, Event, Meta]): String = support.formatMetaForExceptionHandlerMessage.apply(epm)
+        }
+      )
     case _ =>
       new DefaultDataSinkExceptionHandler()
   }
@@ -37,7 +41,7 @@ trait EventSink[Event] extends EventHandler[Event] {
   def partitionBy(key: String, event: Event, headers: Map[String, Array[Byte]]): String
 
   override def eventHandler[Meta]: Flow[EventPlusStreamMeta[String, Event, Meta], Meta, NotUsed] = {
-    FlowConverter.flowFor(sinkName, handleEvent, partitionBy, sinkExceptionHandler, parallelism)(ExecutionContext.global)
+    FlowConverter.flowFor(sinkName, handleEvent, partitionBy, createsinkExceptionHandler, parallelism)(ExecutionContext.global)
   }
 }
 
