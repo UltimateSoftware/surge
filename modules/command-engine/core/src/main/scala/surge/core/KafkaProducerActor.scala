@@ -14,8 +14,8 @@ import surge.internal.SurgeModel
 import surge.internal.akka.actor.ActorLifecycleManagerActor
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.config.TimeoutConfig
-import surge.internal.kafka.KafkaProducerActorImpl
-import surge.kafka.KafkaBytesProducer
+import surge.internal.kafka.{ KTableLagCheckerImpl, KafkaProducerActorImpl }
+import surge.kafka.{ KafkaAdminClient, KafkaBytesProducer }
 import surge.kafka.streams._
 import surge.metrics.{ MetricInfo, Metrics, Timer }
 
@@ -36,12 +36,15 @@ object KafkaProducerActor {
       config: Config,
       kafkaProducerOverride: Option[KafkaBytesProducer] = None): KafkaProducerActor = {
 
+    val brokers = config.getString("kafka.brokers").split(",").toVector
+    val adminClient = KafkaAdminClient(config, brokers)
+
     val kafkaProducerProps = Props(
       new KafkaProducerActorImpl(
         assignedPartition = assignedPartition,
         metrics = metrics,
         businessLogic,
-        kStreams = kStreams,
+        lagChecker = new KTableLagCheckerImpl(kStreams.applicationId, adminClient),
         partitionTracker = partitionTracker,
         signalBus = signalBus,
         config = config,
