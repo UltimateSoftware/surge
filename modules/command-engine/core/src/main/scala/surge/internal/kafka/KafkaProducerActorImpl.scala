@@ -17,9 +17,9 @@ import surge.health.{ HealthSignalBusTrait, HealthyPublisher }
 import surge.internal.akka.ActorWithTracing
 import surge.internal.akka.cluster.ActorHostAwareness
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
+import surge.kafka._
 import surge.kafka.streams.HealthyActor.GetHealth
-import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, HealthCheck, HealthCheckStatus }
-import surge.kafka.{ KafkaAdminClient, KafkaBytesProducer, KafkaRecordMetadata, KafkaTopicTrait, LagInfo }
+import surge.kafka.streams.{ HealthCheck, HealthCheckStatus }
 import surge.metrics.{ MetricInfo, Metrics, Rate, Timer }
 
 import java.time.Instant
@@ -72,7 +72,7 @@ class KafkaProducerActorImpl(
     assignedPartition: TopicPartition,
     metrics: Metrics,
     producerContext: ProducerActorContext,
-    kStreams: AggregateStateStoreKafkaStreams[_],
+    lagChecker: KTableLagChecker,
     partitionTracker: KafkaConsumerPartitionAssignmentTracker,
     override val signalBus: HealthSignalBusTrait,
     config: Config,
@@ -104,8 +104,6 @@ class KafkaProducerActorImpl(
 
   private val transactionalId = s"$transactionalIdPrefix-${assignedPartition.topic()}-${assignedPartition.partition()}"
   private val kafkaPublisherMetricsName = transactionalId
-
-  private val adminClient = KafkaAdminClient(config, brokers)
 
   //noinspection ActorMutableStateInspection
   private var kafkaPublisher = getPublisher
@@ -216,9 +214,7 @@ class KafkaProducerActorImpl(
   }
 
   private def checkKTableProgress(): Unit = {
-    adminClient
-      .consumerLag(kStreams.applicationId, List(assignedPartition), new ListOffsetsOptions(IsolationLevel.READ_COMMITTED))
-      .get(assignedPartition) match {
+    lagChecker.getConsumerGroupLag(assignedPartition) match {
       case Some(lag) =>
         self ! KTableProgressUpdate(assignedPartition, lag)
       case None =>
@@ -521,5 +517,14 @@ private[internal] case class KafkaProducerActorState(
     val newInFlight = inFlight.filterNot(processedRecordsFromPartition.contains)
 
     copy(inFlight = newInFlight)
+  }
+}
+
+trait KTableLagChecker {
+  def getConsumerGroupLag(assignedPartition: TopicPartition): Option[LagInfo]
+}
+class KTableLagCheckerImpl(consumerGroup: String, adminClient: KafkaAdminClient) extends KTableLagChecker {
+  def getConsumerGroupLag(assignedPartition: TopicPartition): Option[LagInfo] = {
+    adminClient.consumerLag(consumerGroup, List(assignedPartition), new ListOffsetsOptions(IsolationLevel.READ_COMMITTED)).get(assignedPartition)
   }
 }
