@@ -91,9 +91,7 @@ class KafkaProducerActorImpl(
 
   private val assignedTopicPartitionKey = s"${assignedPartition.topic}:${assignedPartition.partition}"
   private val flushInterval = config.getDuration("kafka.publisher.flush-interval", TimeUnit.MILLISECONDS).milliseconds
-  private val publisherBatchSize = config.getInt("kafka.publisher.batch-size")
-  private val publisherLingerMs = config.getInt("kafka.publisher.linger-ms")
-  private val publisherCompression = config.getString("kafka.publisher.compression-type")
+  private val transactionTimeWarningThresholdMillis = config.getDuration("kafka.publisher.transaction-warning-time", TimeUnit.MILLISECONDS)
   private val publisherTransactionTimeoutMs = config.getString("kafka.publisher.transaction-timeout-ms")
   private val ktableCheckInterval = config.getDuration("kafka.publisher.ktable-check-interval").toMillis.milliseconds
   private val brokers = config.getString("kafka.brokers").split(",").toVector
@@ -132,11 +130,10 @@ class KafkaProducerActorImpl(
       def name = throw new IllegalStateException("there is no topic")
     }
 
+    // Because we use transactions, we must force enable idempotence to true and acks=all
     val kafkaConfig = Map[String, String](
       ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG -> true.toString,
-      ProducerConfig.BATCH_SIZE_CONFIG -> publisherBatchSize.toString,
-      ProducerConfig.LINGER_MS_CONFIG -> publisherLingerMs.toString,
-      ProducerConfig.COMPRESSION_TYPE_CONFIG -> publisherCompression,
+      ProducerConfig.ACKS_CONFIG -> "all",
       ProducerConfig.TRANSACTION_TIMEOUT_CONFIG -> publisherTransactionTimeoutMs,
       ProducerConfig.TRANSACTIONAL_ID_CONFIG -> transactionalId)
 
@@ -295,7 +292,6 @@ class KafkaProducerActorImpl(
 
   // FIXME need to open a GH issue for this warning
   private var lastTransactionInProgressWarningTime: Instant = Instant.ofEpochMilli(0L)
-  private val transactionTimeWarningThreshold = flushInterval.toMillis * 4
   private val eventsPublishedRate: Rate = metrics.rate(
     MetricInfo(
       name = s"surge.${aggregateName.toLowerCase()}.event-publish-rate",
@@ -303,8 +299,8 @@ class KafkaProducerActorImpl(
       tags = Map("aggregate" -> aggregateName)))
   private def handleFlushMessages(state: KafkaProducerActorState): Unit = {
     if (state.transactionInProgress) {
-      if (state.currentTransactionTimeMillis >= transactionTimeWarningThreshold &&
-        lastTransactionInProgressWarningTime.plusSeconds(1L).isBefore(Instant.now())) {
+      if (state.currentTransactionTimeMillis >= transactionTimeWarningThresholdMillis &&
+        lastTransactionInProgressWarningTime.plusMillis(transactionTimeWarningThresholdMillis).isBefore(Instant.now())) {
         lastTransactionInProgressWarningTime = Instant.now
         log.warn(
           s"KafkaPublisherActor partition {} tried to flush, but another transaction is already in progress. " +

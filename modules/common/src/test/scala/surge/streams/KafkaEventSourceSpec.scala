@@ -9,7 +9,6 @@ import akka.testkit.{ TestKit, TestProbe }
 import com.typesafe.config.ConfigFactory
 import io.opentelemetry.api.trace.Tracer
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
-import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.serialization.{ Deserializer, Serializer }
 import org.scalatest.BeforeAndAfterAll
@@ -19,7 +18,6 @@ import org.scalatest.time.{ Millis, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.slf4j.LoggerFactory
 import surge.core.SurgeEventReadFormatting
-import surge.internal.akka.kafka.AkkaKafkaConsumer
 import surge.internal.kafka.HeadersHelper
 import surge.internal.tracing.NoopTracerFactory
 import surge.kafka.KafkaTopic
@@ -63,10 +61,7 @@ class KafkaEventSourceSpec
   }
 
   private def testConsumerSettings(kafkaBrokers: String, groupId: String): ConsumerSettings[String, Array[Byte]] = {
-    new AkkaKafkaConsumer(defaultConfig)
-      .consumerSettings[String, Array[Byte]](system, groupId, kafkaBrokers, "earliest")
-      .withBootstrapServers(kafkaBrokers)
-      .withProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
+    KafkaDataSourceConfigHelper.consumerSettingsFromConfig[String, Array[Byte]](system, defaultConfig, kafkaBrokers, groupId)
   }
 
   private def testEventSink(probe: TestProbe): EventSink[String] = new EventSink[String] {
