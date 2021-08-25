@@ -126,7 +126,8 @@ class KafkaStreamManager[Key, Value](
     implicit val executionContext: ExecutionContext = ExecutionContext.global
     (replayCoordinator ? ReplayCoordinator.StartReplay)
       .map {
-        case ReplayCoordinator.ReplayCompleted =>
+        //todo: why are we mapping completed to started?
+        case ReplayCoordinator.ReplayStarted =>
           ReplaySuccessfullyStarted()
         case ReplayCoordinator.ReplayFailed(err) =>
           ReplayFailed(err)
@@ -141,7 +142,7 @@ class KafkaStreamManager[Key, Value](
       }
   }
 
-  def getReplayProgress(): Future[Double] = {
+  def getReplayProgress: Future[Double] = {
     (replayCoordinator ? ReplayCoordinator.GetReplayProgress)(metricFetchTimeout).mapTo[Double]
   }
 

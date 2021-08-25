@@ -3,19 +3,20 @@
 package surge.internal.streams
 
 import akka.Done
-import akka.actor.{ ActorSystem, Props }
-import akka.testkit.{ TestKit, TestProbe }
+import akka.actor.{ActorSystem, Props}
+import akka.testkit.{TestKit, TestProbe}
 import org.mockito.ArgumentMatchers._
 import org.mockito.Mockito._
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
-import surge.internal.akka.cluster.{ ActorRegistry, ActorSystemHostAwareness }
-import surge.internal.streams.ReplayCoordinator.{ ReplayCompleted, ReplayFailed, StartReplay }
+import surge.internal.akka.cluster.{ActorRegistry, ActorSystemHostAwareness}
+import surge.internal.streams.ReplayCoordinator.{ReplayCompleted, ReplayFailed, StartReplay}
 import surge.kafka.HostPort
-import surge.streams.replay.ReplayControl
+import surge.streams.replay.{NoopReplayLifecycleCallbacks, ReplayControl, ReplayLifecycleCallbacks, ReplayProgress, ResetComplete}
 
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.duration._
 
 class ReplayCoordinatorSpec
     extends TestKit(ActorSystem("ReplayCoordinatorSpec"))
@@ -38,10 +39,16 @@ class ReplayCoordinatorSpec
       probe.ref ! PostReplayCalled
     }
 
-    override def fullReplay(consumerGroup: String, partitions: Iterable[Int]): Future[Done] = {
+    override def fullReplay(consumerGroup: String,
+                            partitions: Iterable[Int],
+                            replayLifecycleCallbacks: ReplayLifecycleCallbacks = new NoopReplayLifecycleCallbacks()): Future[Done] = {
       probe.ref ! ReplayCalled(consumerGroup, partitions)
       Future.successful(Done)
     }
+
+    override def replayProgress: ReplayProgress => Unit = _ => {}
+
+    override def getReplayProgress: Future[ReplayProgress] = Future.successful(ReplayProgress())
   }
 
   "ReplayCoordinator" should {
@@ -64,7 +71,9 @@ class ReplayCoordinatorSpec
       streamManagerProbe.reply(KafkaStreamManagerActor.SuccessfullyStopped(localAddress, streamManagerProbe.ref))
 
       replayProbe.expectMsg(PreReplayCalled)
-      replayProbe.expectMsg(ReplayCalled(testConsumerGroup, List.empty))
+      replayProbe.expectMsg(10.seconds, ReplayCalled(testConsumerGroup, List.empty))
+      replayCoordinator ! ReplayCompleted
+
       replayProbe.expectMsg(PostReplayCalled)
 
       testProbe.expectMsg(ReplayCompleted)

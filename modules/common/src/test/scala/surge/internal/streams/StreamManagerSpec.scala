@@ -5,17 +5,18 @@ package surge.internal.streams
 import akka.actor.ActorSystem
 import akka.kafka.Subscriptions
 import akka.stream.scaladsl.Flow
-import akka.testkit.{ TestKit, TestProbe }
-import akka.{ Done, NotUsed }
+import akka.testkit.{TestKit, TestProbe}
+import akka.{Done, NotUsed}
 import io.opentracing.noop.NoopTracerFactory
-import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
+import net.manub.embeddedkafka.{EmbeddedKafka, EmbeddedKafkaConfig}
+import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.producer.ProducerRecord
-import org.apache.kafka.common.serialization.{ Deserializer, Serializer }
+import org.apache.kafka.common.serialization.{Deserializer, Serializer}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.PatienceConfiguration.Timeout
-import org.scalatest.concurrent.{ Eventually, ScalaFutures }
+import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.matchers.should.Matchers
-import org.scalatest.time.{ Millis, Seconds, Span }
+import org.scalatest.time.{Millis, Seconds, Span}
 import org.scalatest.wordspec.AnyWordSpecLike
 import surge.internal.akka.kafka.AkkaKafkaConsumer
 import surge.internal.akka.streams.FlowConverter
@@ -23,10 +24,10 @@ import surge.kafka.KafkaTopic
 import surge.kafka.streams.DefaultSerdes
 import surge.streams.DataPipeline._
 import surge.streams.replay._
-import surge.streams.{ DataHandler, EventPlusStreamMeta }
+import surge.streams.{DataHandler, EventPlusStreamMeta}
 
 import scala.concurrent.duration._
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.{ExecutionContext, Future}
 
 class StreamManagerSpec
     extends TestKit(ActorSystem("StreamManagerSpec"))
