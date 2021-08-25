@@ -13,6 +13,8 @@ jobs:
           java-version: openjdk@1.15.0
       - name: lint
         run: 'sbt scalastyle && sbt scalafmtCheckAll'
+      - name: Check cross-compile
+        run: 'sbt +compile'
       #- name: check-binary-compatibility
       #  run: 'sbt mimaReportBinaryIssues'
       - name: test

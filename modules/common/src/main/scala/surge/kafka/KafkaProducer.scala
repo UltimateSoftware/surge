@@ -23,9 +23,9 @@ private[surge] object KafkaProducerHelper {
   def producerPropsFromConfig(config: Config, additionalProps: Map[String, String] = Map.empty): Properties = {
     val props = new Properties()
     props.put(ProducerConfig.ACKS_CONFIG, config.getString("kafka.publisher.acks"))
-    props.put(ProducerConfig.BATCH_SIZE_CONFIG, config.getInt("kafka.publisher.batch-size"))
-    props.put(ProducerConfig.MAX_REQUEST_SIZE_CONFIG, config.getInt("kafka.publisher.max-request-size"))
-    props.put(ProducerConfig.LINGER_MS_CONFIG, config.getInt("kafka.publisher.linger-ms"))
+    props.put(ProducerConfig.BATCH_SIZE_CONFIG, config.getInt("kafka.publisher.batch-size").toString)
+    props.put(ProducerConfig.MAX_REQUEST_SIZE_CONFIG, config.getInt("kafka.publisher.max-request-size").toString)
+    props.put(ProducerConfig.LINGER_MS_CONFIG, config.getInt("kafka.publisher.linger-ms").toString)
     props.put(ProducerConfig.COMPRESSION_TYPE_CONFIG, config.getString("kafka.publisher.compression-type"))
 
     val securityHelper = new KafkaSecurityConfigurationImpl(config)
