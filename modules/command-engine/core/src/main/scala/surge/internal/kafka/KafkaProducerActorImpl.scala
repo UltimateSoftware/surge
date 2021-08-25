@@ -7,8 +7,9 @@ import akka.pattern._
 import akka.util.Timeout
 import com.typesafe.config.Config
 import io.opentelemetry.api.trace.Tracer
+import org.apache.kafka.clients.admin.ListOffsetsOptions
 import org.apache.kafka.clients.producer.{ ProducerConfig, ProducerRecord }
-import org.apache.kafka.common.TopicPartition
+import org.apache.kafka.common.{ IsolationLevel, TopicPartition }
 import org.apache.kafka.common.errors.{ AuthorizationException, ProducerFencedException }
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.core.KafkaProducerActor
@@ -18,7 +19,7 @@ import surge.internal.akka.cluster.ActorHostAwareness
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.kafka.streams.HealthyActor.GetHealth
 import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, HealthCheck, HealthCheckStatus }
-import surge.kafka.{ KafkaBytesProducer, KafkaRecordMetadata, KafkaTopicTrait, LagInfo }
+import surge.kafka.{ KafkaAdminClient, KafkaBytesProducer, KafkaRecordMetadata, KafkaTopicTrait, LagInfo }
 import surge.metrics.{ MetricInfo, Metrics, Rate, Timer }
 
 import java.time.Instant
@@ -103,6 +104,8 @@ class KafkaProducerActorImpl(
 
   private val transactionalId = s"$transactionalIdPrefix-${assignedPartition.topic()}-${assignedPartition.partition()}"
   private val kafkaPublisherMetricsName = transactionalId
+
+  private val adminClient = KafkaAdminClient(config, brokers)
 
   //noinspection ActorMutableStateInspection
   private var kafkaPublisher = getPublisher
@@ -213,17 +216,14 @@ class KafkaProducerActorImpl(
   }
 
   private def checkKTableProgress(): Unit = {
-    kStreams
-      .partitionLag(assignedPartition)
-      .map {
-        case Some(lag) =>
-          self ! KTableProgressUpdate(assignedPartition, lag)
-        case None =>
-          log.debug(s"Could not find partition lag for partition $assignedPartition")
-      }
-      .recover { case e =>
-        log.warn(s"Error fetching partition lag for $assignedPartition. Will retry in $ktableCheckInterval", e)
-      }
+    adminClient
+      .consumerLag(kStreams.applicationId, List(assignedPartition), new ListOffsetsOptions(IsolationLevel.READ_COMMITTED))
+      .get(assignedPartition) match {
+      case Some(lag) =>
+        self ! KTableProgressUpdate(assignedPartition, lag)
+      case None =>
+        log.debug(s"Could not find partition lag for partition $assignedPartition")
+    }
   }
 
   private def initializeTransactions(): Unit = {

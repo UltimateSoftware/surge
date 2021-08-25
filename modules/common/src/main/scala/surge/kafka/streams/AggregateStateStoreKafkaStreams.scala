@@ -61,7 +61,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
     stateTopic: KafkaTopic,
     partitionTrackerProvider: KafkaStreamsPartitionTrackerProvider,
     applicationHostPort: Option[String],
-    applicationId: String,
+    val applicationId: String,
     clientId: String,
     signalBus: HealthSignalBusTrait,
     system: ActorSystem,
