@@ -78,7 +78,7 @@ class ReplayCoordinatorSpec
       streamManagerProbe.reply(KafkaStreamManagerActor.SuccessfullyStopped(localAddress, streamManagerProbe.ref))
 
       replayProbe.expectMsg(PreReplayCalled)
-      replayProbe.expectMsg(10.seconds, ReplayCalled(testConsumerGroup, List.empty))
+      replayProbe.expectMsg(ReplayCalled(testConsumerGroup, List.empty))
       replayCoordinator ! ReplayCompleted
 
       replayProbe.expectMsg(PostReplayCalled)
