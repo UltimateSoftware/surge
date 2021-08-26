@@ -140,7 +140,6 @@ class KafkaStreamManager[Key, Value](
     implicit val executionContext: ExecutionContext = ExecutionContext.global
     (replayCoordinator ? ReplayCoordinator.StartReplay)
       .map {
-        //todo: why are we mapping completed to started?
         case ReplayCoordinator.ReplayStarted =>
           ReplaySuccessfullyStarted()
         case ReplayCoordinator.ReplayFailed(err) =>
@@ -205,7 +204,7 @@ class KafkaStreamManagerActor[Key, Value](
   override def receive: Receive = stopped
 
   private def stopped: Receive = {
-    case StartConsuming => startConsumer
+    case StartConsuming => startConsumer()
     case StopConsuming  => sender() ! SuccessfullyStopped(localAddress, self)
     case GetMetrics     => sender() ! MetricsWrapper.empty
     case RegisterSelf   => registerSelf()
@@ -226,7 +225,7 @@ class KafkaStreamManagerActor[Key, Value](
     case _            => stash()
   }
 
-  private def startConsumer: Unit = {
+  private def startConsumer(): Unit = {
     log.info("Starting consumer for topic {} with client id {}", Seq(topicName, clientId): _*)
     val control = new AtomicReference[Consumer.Control](Consumer.NoopControl)
 

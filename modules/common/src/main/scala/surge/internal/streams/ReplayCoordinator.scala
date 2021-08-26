@@ -85,16 +85,9 @@ class ReplayCoordinator(topicName: String, consumerGroup: String, registry: Acto
       // update progress in state
       context.become(replaying(replayState.copy(progress = progress)))
     case _: ResetComplete =>
-      // Discussion topic...
-      // Start the stopped consumers after the topics have been reset to earliest or 0L
-      // This allows the replay to proceed.  previously the consumers were not started until the replay was complete; which
-      // never occurred because the consumers were never started again.
       startStoppedConsumers(replayState)
     case ReplayCompleted =>
       replayControl.postReplay()
-      // Discussion topic...
-      // note: start stopped consumers after topic offsets have been reset.
-      //startStoppedConsumers(replayState)
       replayState.replyTo ! ReplayCompleted
       context.become(uninitialized())
     case GetReplayProgress =>
