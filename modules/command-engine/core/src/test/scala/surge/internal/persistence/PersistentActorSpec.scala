@@ -15,7 +15,7 @@ import org.mockito.invocation.InvocationOnMock
 import org.mockito.{ ArgumentCaptor, ArgumentMatcher, ArgumentMatchers, Mockito }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
-import org.scalatest.{ BeforeAndAfterAll, PartialFunctionValues }
+import org.scalatest.{ Assertion, BeforeAndAfterAll, PartialFunctionValues }
 import org.scalatestplus.mockito.MockitoSugar
 import play.api.libs.json.{ JsValue, Json }
 import surge.akka.cluster.Passivate
@@ -24,12 +24,14 @@ import surge.exceptions.{ AggregateInitializationException, KafkaPublishTimeoutE
 import surge.health.HealthSignalBusTrait
 import surge.internal.kafka.HeadersHelper
 import surge.internal.persistence.PersistentActor.{ ACKError, ApplyEvent, Stop }
+import surge.internal.utils.ExpectedTestException
 import surge.kafka.streams.AggregateStateStoreKafkaStreams
 import surge.metrics.Metrics
 
 import java.util.UUID
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
+
 class IsAtLeastOneElementSeq extends ArgumentMatcher[Seq[KafkaProducerActor.MessageToPublish]] {
   def matches(seq: Seq[KafkaProducerActor.MessageToPublish]): Boolean = seq.nonEmpty
 }
@@ -321,7 +323,7 @@ class PersistentActorSpec
 
         val mockProducer = mock[KafkaProducerActor]
         when(mockProducer.assignedPartition).thenReturn(new TopicPartition("TestTopic", 1))
-        when(mockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.failed(new RuntimeException("This is expected")), Future.successful(true))
+        when(mockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.failed(new ExpectedTestException), Future.successful(true))
         when(mockProducer.publish(anyString, any[KafkaProducerActor.MessageToPublish], any[Seq[KafkaProducerActor.MessageToPublish]]))
           .thenReturn(Future.successful(KafkaProducerActor.PublishSuccess))
 
@@ -342,9 +344,8 @@ class PersistentActorSpec
         val mockProducer = defaultMockProducer
 
         val mockStreams = mock[AggregateStateStoreKafkaStreams[JsValue]]
-        when(mockStreams.getAggregateBytes(anyString)).thenReturn(
-          Future.failed[Option[Array[Byte]]](new RuntimeException("This is expected")),
-          Future.successful(Some(Json.toJson(baseState).toString().getBytes())))
+        when(mockStreams.getAggregateBytes(anyString))
+          .thenReturn(Future.failed[Option[Array[Byte]]](new ExpectedTestException), Future.successful(Some(Json.toJson(baseState).toString().getBytes())))
 
         val actor = testActor(testAggregateId, mockProducer, mockStreams)
 
@@ -353,7 +354,7 @@ class PersistentActorSpec
       }
 
       "Return an error and stop the actor on persistent failures" in {
-        val expectedException = new RuntimeException("This is expected")
+        val expectedException = new ExpectedTestException
         val testAggregateId = UUID.randomUUID().toString
         val mockProducer = defaultMockProducer
         val mockStreams = mock[AggregateStateStoreKafkaStreams[JsValue]]
@@ -493,7 +494,7 @@ class PersistentActorSpec
 
     "Crash the actor to force reinitialization if publishing events times out" in {
       val crashingMockProducer = mock[KafkaProducerActor]
-      val expectedException = new RuntimeException("This is expected")
+      val expectedException = new ExpectedTestException
 
       when(crashingMockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.successful(true))
       when(crashingMockProducer.publish(anyString, any[KafkaProducerActor.MessageToPublish], any[Seq[KafkaProducerActor.MessageToPublish]]))
@@ -513,7 +514,7 @@ class PersistentActorSpec
 
     "Wrap and return the error from publishing to Kafka if publishing explicitly fails consistently" in {
       val failingMockProducer = mock[KafkaProducerActor]
-      val expectedException = new RuntimeException("This is expected")
+      val expectedException = new ExpectedTestException
       when(failingMockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.successful(true))
       when(failingMockProducer.publish(anyString, any[KafkaProducerActor.MessageToPublish], any[Seq[KafkaProducerActor.MessageToPublish]]))
         .thenReturn(Future.successful(KafkaProducerActor.PublishFailure(expectedException)))
@@ -532,7 +533,7 @@ class PersistentActorSpec
 
     "Retry publishing to Kafka if publishing explicitly fails" in {
       val failingMockProducer = mock[KafkaProducerActor]
-      val expectedException = new RuntimeException("This is expected")
+      val expectedException = new ExpectedTestException
       when(failingMockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.successful(true))
       when(failingMockProducer.publish(anyString, any[KafkaProducerActor.MessageToPublish], any[Seq[KafkaProducerActor.MessageToPublish]]))
         .thenReturn(Future.successful(KafkaProducerActor.PublishFailure(expectedException)))
@@ -575,34 +576,42 @@ class PersistentActorSpec
       probe.expectTerminated(actor)
     }
 
-    "Serialize/Deserialize a CommandEnvelope from Akka" in {
+    def doAkkaSerde(message: AnyRef): Assertion = {
       import akka.serialization.SerializationExtension
-      def doSerde[A](envelope: PersistentActor.ProcessMessage[A]): Unit = {
-        val serialization = SerializationExtension.get(system)
-        val serializer = serialization.findSerializerFor(envelope)
-        val serialized = serialization.serialize(envelope).get
-        val manifest = Serializers.manifestFor(serializer, envelope)
-        val deserialized = serialization.deserialize(serialized, serializer.identifier, manifest).get
-        deserialized shouldEqual envelope
-      }
-      doSerde(PersistentActor.ProcessMessage[String]("hello", "test2"))
-      doSerde(envelope(Increment(UUID.randomUUID().toString)))
+      val serialization = SerializationExtension.get(system)
+      val serializer = serialization.findSerializerFor(message)
+      val serialized = serialization.serialize(message).get
+      val manifest = Serializers.manifestFor(serializer, message)
+      val deserialized = serialization.deserialize(serialized, serializer.identifier, manifest).get
+      deserialized shouldEqual message
+    }
+
+    "Serialize/Deserialize a CommandEnvelope from Akka" in {
+      doAkkaSerde(PersistentActor.ProcessMessage[String]("hello", "test2"))
+      doAkkaSerde(envelope(Increment(UUID.randomUUID().toString)))
     }
 
     "Serialize/Deserialize an ApplyEvent from Akka" in {
-      import akka.serialization.SerializationExtension
+      doAkkaSerde(PersistentActor.ApplyEvent[String](UUID.randomUUID().toString, "test2"))
+      doAkkaSerde(eventEnvelope(CountIncremented(UUID.randomUUID().toString, 1, 1)))
+    }
 
-      def doSerde[A](envelope: ApplyEvent[A]): Unit = {
-        val serialization = SerializationExtension.get(system)
-        val serializer = serialization.findSerializerFor(envelope)
-        val serialized = serialization.serialize(envelope).get
-        val manifest = Serializers.manifestFor(serializer, envelope)
-        val deserialized = serialization.deserialize(serialized, serializer.identifier, manifest).get
-        deserialized shouldEqual envelope
-      }
+    "Serialize/Deserialize response types from Akka" in {
+      doAkkaSerde(PersistentActor.StateResponse[String](Some("test state")))
+      doAkkaSerde(PersistentActor.StateResponse[String](None))
+      doAkkaSerde(PersistentActor.StateResponse[State](Some(State(UUID.randomUUID().toString, 100, 3))))
+      doAkkaSerde(PersistentActor.StateResponse[State](None))
 
-      doSerde(PersistentActor.ApplyEvent[String](UUID.randomUUID().toString, "test2"))
-      doSerde(eventEnvelope(CountIncremented(UUID.randomUUID().toString, 1, 1)))
+      doAkkaSerde(PersistentActor.ACKSuccess[String](Some("success!")))
+      doAkkaSerde(PersistentActor.ACKSuccess[String](None))
+      doAkkaSerde(PersistentActor.ACKSuccess[State](Some(State(UUID.randomUUID().toString, 10, 3))))
+      doAkkaSerde(PersistentActor.ACKSuccess[State](None))
+
+      // FIXME We lose type info when serializing/deserializing exceptions so our assertion does not hold even though
+      //  the exception is able to be serialized/deserialized
+      //doAkkaSerde(PersistentActor.ACKError(new ExpectedTestException))
+
+      doAkkaSerde(PersistentActor.ACKRejection[String]("Rejection"))
     }
   }
 }

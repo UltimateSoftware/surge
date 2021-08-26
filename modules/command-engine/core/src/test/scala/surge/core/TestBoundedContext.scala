@@ -12,6 +12,7 @@ import surge.kafka.{ KafkaTopic, PartitionStringUpToColon }
 import surge.metrics.Metrics
 
 import scala.concurrent.Future
+import scala.util.control.NoStackTrace
 
 object TestBoundedContext {
   case class State(aggregateId: String, count: Int, version: Int)
@@ -97,7 +98,7 @@ trait TestBoundedContext {
           current.copy(count = current.count - decrementBy, version = sequenceNumber)
         case _: NoOpEvent                              => current
         case UnserializableEvent(_, sequenceNumber, _) => current.copy(version = sequenceNumber)
-        case ExceptionThrowingEvent(_, _, errorMsg)    => throw new Exception(errorMsg)
+        case ExceptionThrowingEvent(_, _, errorMsg)    => throw new Exception(errorMsg) with NoStackTrace
       }
       Some(newState)
     }
@@ -111,11 +112,11 @@ trait TestBoundedContext {
         case CreateNoOpEvent(aggregateId) => Future.successful(Right(Seq(NoOpEvent(aggregateId, newSequenceNumber))))
         case _: DoNothing                 => Future.successful(Right(Seq.empty))
         case fail: FailCommandProcessing =>
-          Future.failed(new Exception(fail.errorMsg))
+          Future.failed(new Exception(fail.errorMsg) with NoStackTrace)
         case CreateExceptionThrowingEvent(aggregateId, errorMsg) =>
           Future.successful(Right(Seq(ExceptionThrowingEvent(aggregateId, newSequenceNumber, errorMsg))))
         case CreateUnserializableEvent(aggregateId, errorMsg) =>
-          Future.successful(Right(Seq(UnserializableEvent(aggregateId, newSequenceNumber, new Exception(errorMsg)))))
+          Future.successful(Right(Seq(UnserializableEvent(aggregateId, newSequenceNumber, new Exception(errorMsg) with NoStackTrace))))
         case _ =>
           throw new RuntimeException("Received unexpected message in command handler! This should not happen and indicates a bad test")
       }

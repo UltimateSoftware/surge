@@ -3,17 +3,14 @@
 package surge.kafka.streams
 
 import java.util
-
 import org.apache.kafka.common.utils.Bytes
 import org.apache.kafka.streams.KeyValue
 import org.apache.kafka.streams.processor.{ ProcessorContext, StateStore }
 import org.apache.kafka.streams.state.{ KeyValueBytesStoreSupplier, KeyValueIterator, KeyValueStore }
+import surge.internal.utils.ExpectedTestException
 
 import scala.collection.mutable
 import scala.jdk.CollectionConverters._
-import scala.util.control.NoStackTrace
-
-class ExpectedTestException extends RuntimeException("This is expected") with NoStackTrace
 
 class SingleExceptionThrowingKeyValueStoreSupplier(val name: String) extends KeyValueBytesStoreSupplier {
   override def get(): SingleExceptionThrowingKeyValueStore = new SingleExceptionThrowingKeyValueStore(name)

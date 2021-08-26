@@ -44,19 +44,18 @@ object PersistentActor {
       extends RoutableActorMessage
 
   case class StateResponse[S](
-      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "aggregateType", visible = true) aggregateState: Option[S])
+      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "@class", visible = true) aggregateState: Option[S])
       extends JacksonSerializable
 
   sealed trait ACK extends ActorMessage with JacksonSerializable
 
   case class ACKSuccess[S](
-      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "responseType", visible = true) response: Option[S])
+      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "@class", visible = true) response: Option[S])
       extends ACK
 
   case class ACKError(exception: Throwable) extends ACK with NoSerializationVerificationNeeded
 
-  case class ACKRejection[R](
-      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "rejectionType", visible = true) rejection: R)
+  case class ACKRejection[R](@JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "@class", visible = true) rejection: R)
       extends ACK
 
   case object Stop extends ActorMessage
