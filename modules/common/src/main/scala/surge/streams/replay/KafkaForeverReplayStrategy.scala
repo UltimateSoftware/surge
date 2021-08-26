@@ -239,9 +239,6 @@ private[streams] object TopicResetActor {
   case object PartitionsAssigned extends ResetTopicEvent
 
   sealed trait ResetTopicResult
-  case object TopicResetSucceed
-      extends ResetTopicResult
-      // not used
-      //case object TopicReplayComplete extends ResetTopicResult
+  case object TopicResetSucceed extends ResetTopicResult
   case class TopicResetFailed(err: Throwable) extends ResetTopicResult
 }
