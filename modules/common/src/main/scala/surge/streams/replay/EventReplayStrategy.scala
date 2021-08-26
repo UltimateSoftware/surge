@@ -10,11 +10,9 @@ import org.slf4j.LoggerFactory
 import surge.streams.DataHandler
 
 import scala.concurrent.Future
-import scala.concurrent.duration.{FiniteDuration, _}
+import scala.concurrent.duration.{ FiniteDuration, _ }
 
-case class ReplayControlContext[Key, Value](keyDeserializer: Array[Byte] => Key,
-                                            valueDeserializer: Array[Byte] => Value,
-                                            dataHandler: DataHandler[Key, Value])
+case class ReplayControlContext[Key, Value](keyDeserializer: Array[Byte] => Key, valueDeserializer: Array[Byte] => Value, dataHandler: DataHandler[Key, Value])
 
 trait EventReplayStrategy {
   def preReplay: () => Future[Any]
@@ -53,9 +51,10 @@ trait ReplayControl {
   def preReplay: () => Future[Any]
   def postReplay: () => Unit
   def replayProgress: ReplayProgress => Unit
-  def fullReplay(consumerGroup: String,
-                 partitions: Iterable[Int],
-                 replayLifecycleCallbacks: ReplayLifecycleCallbacks = new NoopReplayLifecycleCallbacks()): Future[Done]
+  def fullReplay(
+      consumerGroup: String,
+      partitions: Iterable[Int],
+      replayLifecycleCallbacks: ReplayLifecycleCallbacks = new NoopReplayLifecycleCallbacks()): Future[Done]
   // TODO - Look at Lore integration with gRPC Replay Service
   def getReplayProgress: Future[ReplayProgress]
 }
@@ -71,16 +70,19 @@ class NoOpEventReplayStrategy extends EventReplayStrategy {
   override def replayProgress: ReplayProgress => Unit = _ => {}
 
   override def createReplayController[Key, Value](context: ReplayControlContext[Key, Value]): NoOpEventReplayControl =
-  new NoOpEventReplayControl(preReplay, postReplay, replayProgress)
+    new NoOpEventReplayControl(preReplay, postReplay, replayProgress)
 
 }
-class NoOpEventReplayControl(override val preReplay: () => Future[Any] = () => Future.successful(true),
-                             override val postReplay: () => Unit = () => {},
-                             override val replayProgress: ReplayProgress => Unit = _ => {}) extends ReplayControl {
+class NoOpEventReplayControl(
+    override val preReplay: () => Future[Any] = () => Future.successful(true),
+    override val postReplay: () => Unit = () => {},
+    override val replayProgress: ReplayProgress => Unit = _ => {})
+    extends ReplayControl {
   private val log = LoggerFactory.getLogger(getClass)
-  override def fullReplay(consumerGroup: String,
-                          partitions: Iterable[Int],
-                          replayLifecycleCallbacks: ReplayLifecycleCallbacks = new NoopReplayLifecycleCallbacks()): Future[Done] = {
+  override def fullReplay(
+      consumerGroup: String,
+      partitions: Iterable[Int],
+      replayLifecycleCallbacks: ReplayLifecycleCallbacks = new NoopReplayLifecycleCallbacks()): Future[Done] = {
     log.warn("Event Replay has been used with the default NoOps implementation, please refer to the docs to properly chose your replay strategy")
     Future.successful(Done)
   }

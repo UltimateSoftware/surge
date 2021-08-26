@@ -3,20 +3,20 @@
 package surge.internal.streams
 
 import akka.Done
-import akka.actor.{ActorSystem, Props}
-import akka.testkit.{TestKit, TestProbe}
+import akka.actor.{ ActorSystem, Props }
+import akka.testkit.{ TestKit, TestProbe }
 import org.mockito.ArgumentMatchers._
 import org.mockito.Mockito._
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
-import surge.internal.akka.cluster.{ActorRegistry, ActorSystemHostAwareness}
-import surge.internal.streams.ReplayCoordinator.{ReplayCompleted, ReplayFailed, StartReplay}
+import surge.internal.akka.cluster.{ ActorRegistry, ActorSystemHostAwareness }
+import surge.internal.streams.ReplayCoordinator.{ ReplayCompleted, ReplayFailed, StartReplay }
 import surge.kafka.HostPort
-import surge.streams.replay.{NoopReplayLifecycleCallbacks, ReplayControl, ReplayLifecycleCallbacks, ReplayProgress, ResetComplete}
+import surge.streams.replay.{ NoopReplayLifecycleCallbacks, ReplayControl, ReplayLifecycleCallbacks, ReplayProgress, ResetComplete }
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration._
 
 class ReplayCoordinatorSpec
@@ -45,9 +45,10 @@ class ReplayCoordinatorSpec
       probe.ref ! PostReplayCalled
     }
 
-    override def fullReplay(consumerGroup: String,
-                            partitions: Iterable[Int],
-                            replayLifecycleCallbacks: ReplayLifecycleCallbacks = new NoopReplayLifecycleCallbacks()): Future[Done] = {
+    override def fullReplay(
+        consumerGroup: String,
+        partitions: Iterable[Int],
+        replayLifecycleCallbacks: ReplayLifecycleCallbacks = new NoopReplayLifecycleCallbacks()): Future[Done] = {
       probe.ref ! ReplayCalled(consumerGroup, partitions)
       Future.successful(Done)
     }

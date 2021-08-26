@@ -2,20 +2,20 @@
 
 package surge.internal.streams
 
-import akka.actor.{Actor, ActorRef, Address}
+import akka.actor.{ Actor, ActorRef, Address }
 import akka.pattern.pipe
 import org.apache.kafka.common.TopicPartition
 import org.slf4j.LoggerFactory
 import surge.exceptions.SurgeReplayException
-import surge.internal.akka.cluster.{ActorHostAwareness, ActorRegistry}
+import surge.internal.akka.cluster.{ ActorHostAwareness, ActorRegistry }
 import surge.internal.kafka.HostAssignmentTracker
-import surge.internal.streams.KafkaStreamManagerActor.{StartConsuming, SuccessfullyStopped}
+import surge.internal.streams.KafkaStreamManagerActor.{ StartConsuming, SuccessfullyStopped }
 import surge.internal.utils.InlineReceive
 import surge.kafka.HostPort
-import surge.streams.replay.{ContextForwardingLifecycleCallbacks, ReplayControl, ReplayProgress, ResetComplete}
+import surge.streams.replay.{ ContextForwardingLifecycleCallbacks, ReplayControl, ReplayProgress, ResetComplete }
 
 import scala.concurrent.Future
-import scala.util.{Failure, Success}
+import scala.util.{ Failure, Success }
 
 private[streams] object ReplayCoordinator {
   sealed trait ReplayCoordinatorRequest
@@ -49,10 +49,9 @@ class ReplayCoordinator(topicName: String, consumerGroup: String, registry: Acto
 
   override def receive: Receive = uninitialized()
 
-  private def uninitialized(): Receive = {
-    case StartReplay =>
-      context.become(ready(ReplayState.init(sender())))
-      getTopicAssignments.map(assignments => TopicAssignmentsFound(assignments)).pipeTo(self)
+  private def uninitialized(): Receive = { case StartReplay =>
+    context.become(ready(ReplayState.init(sender())))
+    getTopicAssignments.map(assignments => TopicAssignmentsFound(assignments)).pipeTo(self)
   }
 
   private def ready(replayState: ReplayState): Receive = InlineReceive {
@@ -139,8 +138,8 @@ class ReplayCoordinator(topicName: String, consumerGroup: String, registry: Acto
       topicPartition.partition()
     }
     context.become(replaying(replayState))
-    replayControl.fullReplay(consumerGroup, existingPartitions,
-      new ContextForwardingLifecycleCallbacks(context))
+    replayControl
+      .fullReplay(consumerGroup, existingPartitions, new ContextForwardingLifecycleCallbacks(context))
       .map { _ =>
         ReplayStarted
       }

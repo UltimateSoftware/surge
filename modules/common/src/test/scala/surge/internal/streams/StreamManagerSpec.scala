@@ -11,12 +11,12 @@ import akka.{ Done, NotUsed }
 import com.typesafe.config.ConfigFactory
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.clients.producer.ProducerRecord
-import org.apache.kafka.common.serialization.{Deserializer, Serializer}
+import org.apache.kafka.common.serialization.{ Deserializer, Serializer }
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.PatienceConfiguration.Timeout
-import org.scalatest.concurrent.{Eventually, ScalaFutures}
+import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
-import org.scalatest.time.{Millis, Seconds, Span}
+import org.scalatest.time.{ Millis, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
 import surge.internal.akka.streams.FlowConverter
 import surge.internal.tracing.NoopTracerFactory
@@ -27,7 +27,7 @@ import surge.streams.replay._
 import surge.streams.{ DataHandler, EventPlusStreamMeta, KafkaDataSourceConfigHelper }
 
 import scala.concurrent.duration._
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ ExecutionContext, Future }
 
 class StreamManagerSpec
     extends TestKit(ActorSystem("StreamManagerSpec"))
