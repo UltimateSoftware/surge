@@ -42,10 +42,6 @@ The Surge Project Repo is broken down into multiple subprojects described below.
 * User Code facing Java API's
 * Provides for conversion of monad types (Option, Collections, Future)
 
-### RabbitMQ Support
-
-* Provides Data Sinks and Sources for RabbitMQ
-
 ### Metrics
 
 * Provides Metrics Model used to instrument other Surge components
@@ -60,10 +56,9 @@ The Surge Project Repo is broken down into multiple subprojects described below.
 ## Dependencies
 
 ### Akka
-
 [Akka Docs](https://akka.io/docs/)
 
-### Alpakka Kafka and AMQP
+### Alpakka Kafka
 [Alpakka Docs](https://doc.akka.io/docs/alpakka/current/index.html)
 
 ### Kafka Streams and Clients
@@ -72,6 +67,8 @@ The Surge Project Repo is broken down into multiple subprojects described below.
 ### Play Json
 [Play Json Docs](https://www.playframework.com/documentation/2.8.x/ScalaJson)
 
+### OpenTelemetry
+[OpenTelemetry Docs](https://opentelemetry.io/docs/)
+
 ### Paradox Plugin
 [Paradox Docs](https://developer.lightbend.com/docs/paradox/current/index.html)
-

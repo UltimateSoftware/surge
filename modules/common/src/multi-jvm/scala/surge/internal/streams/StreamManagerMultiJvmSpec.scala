@@ -17,13 +17,13 @@ import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
-import surge.internal.akka.kafka.AkkaKafkaConsumer
 import surge.internal.tracing.NoopTracerFactory
 import surge.kafka.KafkaTopic
 import surge.kafka.streams.DefaultSerdes
 import surge.streams.replay._
-import surge.streams.{ DataHandler, EventPlusStreamMeta }
+import surge.streams.{ DataHandler, EventPlusStreamMeta, KafkaDataSourceConfigHelper }
 
+import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.language.implicitConversions
 
@@ -84,7 +84,13 @@ class StreamManagerSpecBase
           }
       }
       val embeddedBroker = s"${node(node0).address.host.getOrElse("localhost")}:${config.kafkaPort}"
-      val consumerSettings = new AkkaKafkaConsumer(defaultConfig).consumerSettings[String, Array[Byte]](system, "replay-test", embeddedBroker, "earliest")
+      val consumerSettings =
+        KafkaDataSourceConfigHelper.consumerSettingsFromConfig[String, Array[Byte]](
+          actorSystem = system,
+          config = defaultConfig,
+          kafkaBrokers = embeddedBroker,
+          consumerGroup = "replay-test",
+          additionalProps = Map.empty[String, String])
 
       runOn(node0) {
         withRunningKafka {
@@ -96,11 +102,18 @@ class StreamManagerSpecBase
             ()
           }
           val replaySettings = KafkaForeverReplaySettings(defaultConfig, topic.name).copy(brokers = List(embeddedBroker))
-          val kafkaForeverReplayStrategy = KafkaForeverReplayStrategy.create(actorSystem = system, settings = replaySettings, postReplay = postReplayDef)
+          val kafkaForeverReplayStrategy =
+            KafkaForeverReplayStrategy.apply(defaultConfig, actorSystem = system, settings = replaySettings, postReplay = postReplayDef)(
+              ExecutionContext.global)
 
           val probe = TestProbe()
           val subscriptionProvider =
-            new KafkaOffsetManagementSubscriptionProvider(defaultConfig, topic.name, Subscriptions.topics(topic.name), consumerSettings, sendToTestProbe(probe))(tracer)
+            new KafkaOffsetManagementSubscriptionProvider(
+              defaultConfig,
+              topic.name,
+              Subscriptions.topics(topic.name),
+              consumerSettings,
+              sendToTestProbe(probe))(tracer)
           val consumer = new KafkaStreamManager(
             topicName = topic.name,
             consumerSettings = consumerSettings,
@@ -121,7 +134,8 @@ class StreamManagerSpecBase
       runOn(node1) {
         val probe = TestProbe()
         val subscriptionProvider =
-          new KafkaOffsetManagementSubscriptionProvider(defaultConfig, topic.name, Subscriptions.topics(topic.name), consumerSettings, sendToTestProbe(probe))(tracer)
+          new KafkaOffsetManagementSubscriptionProvider(defaultConfig, topic.name, Subscriptions.topics(topic.name), consumerSettings, sendToTestProbe(probe))(
+            tracer)
         val consumer = new KafkaStreamManager(
           topicName = topic.name,
           consumerSettings = consumerSettings,
