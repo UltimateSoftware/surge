@@ -130,7 +130,7 @@ class TopicResetActor(brokers: List[String], kafkaTopic: String, config: Config)
 
         state.replayLifecycleCallbacks.onResetComplete(ResetComplete())
 
-        val nextState = state.copy(preReplayCommits = Map.from(preReplayCommits))
+        val nextState = state.copy(preReplayCommits = preReplayCommits.toMap)
         context.become(waitingForComplete(nextState))
         unstashAll()
       } catch {
