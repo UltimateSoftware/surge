@@ -3,7 +3,7 @@
 package surge.streams.replay
 
 import akka.Done
-import akka.actor.{ Actor, ActorRef, ActorSystem, Cancellable, Props, Stash }
+import akka.actor.{ Actor, ActorRef, ActorSystem, Props, Stash }
 import akka.pattern.ask
 import akka.util.Timeout
 import com.typesafe.config.{ Config, ConfigFactory }
