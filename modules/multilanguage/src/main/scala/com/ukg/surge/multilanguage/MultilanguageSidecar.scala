@@ -78,7 +78,11 @@ class MultilanguageGatewayServiceImpl()(implicit sys: ActorSystem, mat: Material
 
   implicit val ec = sys.dispatcher
 
-  val clientSettings = GrpcClientSettings.connectToServiceAt("127.0.0.1", 7776).withTls(false)
+  val clientConfig = sys.settings.config.getConfig("business-logic-server")
+  val port = clientConfig.getInt("port")
+  val host = clientConfig.getString("host")
+
+  val clientSettings = GrpcClientSettings.connectToServiceAt(host, port).withTls(false)
 
   val bridgeToBusinessApp: BusinessLogicService = BusinessLogicServiceClient(clientSettings)
 
@@ -192,11 +196,15 @@ class MultilanguageGatewayServer(system: ActorSystem) {
     implicit val sys: ActorSystem = system
     implicit val ec: ExecutionContext = sys.dispatcher
 
+    val config = system.settings.config.getConfig("surge-server")
+    val host = config.getString("host")
+    val port = config.getInt("port")
+
     // Create service handlers
     val service: HttpRequest => Future[HttpResponse] =
       MultilanguageGatewayServiceHandler(new MultilanguageGatewayServiceImpl())
 
-    val binding = Http().newServerAt("127.0.0.1", 6667).bind(service)
+    val binding = Http().newServerAt(host, port).bind(service)
 
     // report successful binding
     binding.foreach { binding => println(s"gRPC server bound to: ${binding.localAddress}") }

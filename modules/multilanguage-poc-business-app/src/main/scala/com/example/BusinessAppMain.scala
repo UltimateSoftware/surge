@@ -65,6 +65,9 @@ object BusinessLogicServer {
   def main(args: Array[String]): Unit = {
     val conf = ConfigFactory.parseString("akka.http.server.preview.enable-http2 = on").withFallback(ConfigFactory.defaultApplication())
     implicit val system = ActorSystem("app", conf)
+
+
+
     import system.dispatcher
     val binding = new BusinessLogicServer(system).run()
     Runtime.getRuntime.addShutdownHook(new Thread() {
@@ -75,7 +78,11 @@ object BusinessLogicServer {
 
     println("Business logic server has been started")
 
-    lazy val clientSettings = GrpcClientSettings.connectToServiceAt("127.0.0.1", 6667).withTls(false)
+    val config = system.settings.config.getConfig("surge-server")
+    val host = config.getString("host")
+    val port = config.getInt("port")
+
+    lazy val clientSettings = GrpcClientSettings.connectToServiceAt(host, port).withTls(false)
 
     lazy val surge: MultilanguageGatewayService = MultilanguageGatewayServiceClient(clientSettings)
 
@@ -101,10 +108,14 @@ class BusinessLogicServer(system: ActorSystem) {
     implicit val sys: ActorSystem = system
     implicit val ec: ExecutionContext = sys.dispatcher
 
+    val serverConfig = system.settings.config.getConfig("business-logic-server")
+    val host = serverConfig.getString("host")
+    val port = serverConfig.getInt("port")
+
     val service: HttpRequest => Future[HttpResponse] =
       BusinessLogicServiceHandler(new BusinessServiceImpl())
 
-    val binding = Http().newServerAt("127.0.0.1", 7776).bind(service)
+    val binding = Http().newServerAt(host, port).bind(service)
 
     binding.foreach { binding => println(s"gRPC server bound to: ${binding.localAddress}") }
 
