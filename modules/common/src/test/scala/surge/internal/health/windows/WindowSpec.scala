@@ -20,7 +20,7 @@ class WindowSpec extends AnyWordSpec with Matchers with Eventually {
     PatienceConfig(timeout = scaled(Span(2, Seconds)), interval = scaled(Span(1, Seconds)))
   "Window" should {
     "expire" in {
-      val window = Window.windowFor(Instant.now(), duration = 1 second)
+      val window = Window.windowFor(Instant.now(), duration = 1.second)
       eventually {
         window.expired() shouldEqual true
       }
