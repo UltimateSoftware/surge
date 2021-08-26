@@ -9,7 +9,6 @@ import akka.testkit.{TestKit, TestProbe}
 import akka.{Done, NotUsed}
 import io.opentracing.noop.NoopTracerFactory
 import net.manub.embeddedkafka.{EmbeddedKafka, EmbeddedKafkaConfig}
-import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.serialization.{Deserializer, Serializer}
 import org.scalatest.BeforeAndAfterAll
