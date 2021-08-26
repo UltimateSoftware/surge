@@ -90,6 +90,7 @@ class ReplayCoordinator(topicName: String, consumerGroup: String, registry: Acto
       startStoppedConsumers(replayState)
     case ReplayCompleted =>
       replayControl.postReplay()
+      // Discussion topic...
       // note: start stopped consumers after topic offsets have been reset.
       //startStoppedConsumers(replayState)
       replayState.replyTo ! ReplayCompleted
