@@ -14,10 +14,9 @@ import org.scalatestplus.mockito.MockitoSugar
 import surge.internal.akka.cluster.{ ActorRegistry, ActorSystemHostAwareness }
 import surge.internal.streams.ReplayCoordinator.{ ReplayCompleted, ReplayFailed, StartReplay }
 import surge.kafka.HostPort
-import surge.streams.replay.{ NoopReplayLifecycleCallbacks, ReplayControl, ReplayLifecycleCallbacks, ReplayProgress, ResetComplete }
+import surge.streams.replay.{ NoopReplayLifecycleCallbacks, ReplayControl, ReplayLifecycleCallbacks, ReplayProgress }
 
 import scala.concurrent.{ ExecutionContext, Future }
-import scala.concurrent.duration._
 
 class ReplayCoordinatorSpec
     extends TestKit(ActorSystem("ReplayCoordinatorSpec"))
