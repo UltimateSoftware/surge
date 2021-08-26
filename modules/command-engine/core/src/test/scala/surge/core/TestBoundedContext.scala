@@ -8,7 +8,7 @@ import surge.core.command.{ SurgeCommandKafkaConfig, SurgeCommandModel }
 import surge.internal.domain.CommandHandler
 import surge.internal.persistence.Context
 import surge.internal.tracing.NoopTracerFactory
-import surge.kafka.KafkaTopic
+import surge.kafka.{ KafkaTopic, PartitionStringUpToColon }
 import surge.metrics.Metrics
 
 import scala.concurrent.Future
@@ -155,5 +155,6 @@ trait TestBoundedContext {
       eventWriteFormatting = eventWriter,
       metrics = Metrics.globalMetricRegistry,
       openTelemetry = OpenTelemetry.noop(),
+      partitioner = PartitionStringUpToColon.instance,
       tracer = NoopTracerFactory.create())
 }

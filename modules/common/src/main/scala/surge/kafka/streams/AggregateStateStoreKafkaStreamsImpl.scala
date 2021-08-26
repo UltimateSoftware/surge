@@ -5,17 +5,15 @@ package surge.kafka.streams
 import akka.actor.Props
 import akka.pattern.pipe
 import com.typesafe.config.Config
-import org.apache.kafka.clients.admin.ListOffsetsOptions
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.serialization.Serdes.ByteArraySerde
-import org.apache.kafka.common.{ IsolationLevel, TopicPartition }
 import org.apache.kafka.streams.errors.InvalidStateStoreException
 import org.apache.kafka.streams.kstream.Materialized
 import org.apache.kafka.streams.state.QueryableStoreTypes
 import org.apache.kafka.streams.{ StoreQueryParameters, StreamsConfig }
 import surge.kafka.streams.AggregateStateStoreKafkaStreamsImpl._
 import surge.kafka.streams.HealthyActor.GetHealth
-import surge.kafka.{ KafkaAdminClient, KafkaTopic, LagInfo }
+import surge.kafka.{ KafkaTopic, LagInfo }
 import surge.metrics.Metrics
 
 import java.util.Properties
@@ -55,8 +53,6 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
     StreamsConfig.TOPOLOGY_OPTIMIZATION_CONFIG -> StreamsConfig.OPTIMIZE,
     StreamsConfig.STATE_DIR_CONFIG -> settings.stateDirectory,
     StreamsConfig.ROCKSDB_CONFIG_SETTER_CLASS_CONFIG -> classOf[AggregateStreamsRocksDBConfig].getName)
-
-  private val adminClient = KafkaAdminClient(config, settings.brokers)
 
   override def subscribeListeners(consumer: KafkaByteStreamsConsumer): Unit = {
     // In addition to the listener added by the KafkaStreamLifeCycleManagement we need to also subscribe this one
@@ -112,10 +108,6 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
       getSubstatesForAggregate(aggregateQueryableStateStore, aggregateId).pipeTo(sender())
     case GetAggregateBytes(aggregateId) =>
       getAggregateBytes(aggregateQueryableStateStore, aggregateId).pipeTo(sender())
-    case GetPartitionLag(topicPartition) =>
-      val lagOpt =
-        adminClient.consumerLag(settings.applicationId, List(topicPartition), new ListOffsetsOptions(IsolationLevel.READ_COMMITTED)).get(topicPartition)
-      sender() ! PartitionLagResponse(lagOpt)
     case GetTopology =>
       sender() ! consumer.topology
     case GetHealth =>
@@ -171,7 +163,6 @@ private[streams] object AggregateStateStoreKafkaStreamsImpl {
   case object GetTopology extends AggregateStateStoreKafkaStreamsCommand
   case class GetSubstatesForAggregate(aggregateId: String) extends AggregateStateStoreKafkaStreamsCommand
   case class GetAggregateBytes(aggregateId: String) extends AggregateStateStoreKafkaStreamsCommand
-  case class GetPartitionLag(topicPartition: TopicPartition) extends AggregateStateStoreKafkaStreamsCommand
 
   case class PartitionLagResponse(lag: Option[LagInfo])
 

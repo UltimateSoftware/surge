@@ -9,7 +9,7 @@ import surge.core.{ SurgeAggregateReadFormatting, SurgeAggregateWriteFormatting,
 import surge.internal.SurgeModel
 import surge.internal.domain.AggregateProcessingModel
 import surge.internal.kafka.SurgeKafkaConfig
-import surge.kafka.KafkaTopic
+import surge.kafka.{ KafkaPartitioner, KafkaTopic }
 import surge.metrics.Metrics
 
 private[surge] case class SurgeCommandKafkaConfig(
@@ -35,7 +35,8 @@ private[surge] object SurgeCommandModel {
       eventWriteFormatting = businessLogic.eventWriteFormatting,
       metrics = businessLogic.metrics,
       openTelemetry = businessLogic.openTelemetry,
-      tracer = businessLogic.tracer)
+      tracer = businessLogic.tracer,
+      partitioner = businessLogic.partitioner)
   }
   def apply[AggId, Agg, Command, Rej, Event, Response](businessLogic: SurgeRejectableCommandBusinessLogicTrait[AggId, Agg, Command, Rej, Event, Response])
       : SurgeCommandModel[Agg, Command, Rej, Event, Response] = {
@@ -48,7 +49,8 @@ private[surge] object SurgeCommandModel {
       eventWriteFormatting = businessLogic.eventWriteFormatting,
       metrics = businessLogic.metrics,
       openTelemetry = businessLogic.openTelemetry,
-      tracer = businessLogic.tracer)
+      tracer = businessLogic.tracer,
+      partitioner = businessLogic.partitioner)
   }
 
 }
@@ -60,6 +62,7 @@ private[surge] case class SurgeCommandModel[Agg, Command, +Rej, Event, Response]
     override val metrics: Metrics,
     override val openTelemetry: OpenTelemetry,
     override val tracer: Tracer,
+    override val partitioner: KafkaPartitioner[String],
     override val aggregateReadFormatting: SurgeAggregateReadFormatting[Agg],
     eventWriteFormatting: SurgeEventWriteFormatting[Event])
     extends SurgeModel[Agg, Command, Rej, Event, Response] {

@@ -54,10 +54,6 @@ lazy val `surge-common` = (project in file("modules/common"))
   .configs(MultiJvm)
   .dependsOn(`surge-metrics`)
 
-lazy val `surge-rabbitmq-support` = (project in file("modules/rabbit-support"))
-  .settings(libraryDependencies ++= Seq(Alpakka.amqp, Akka.testKit, mockitoCore, scalatest, RabbitMq.embedded))
-  .dependsOn(`surge-common`)
-
 lazy val `surge-engine-command-core` = (project in file("modules/command-engine/core"))
   .settings(libraryDependencies ++= Seq(
     Akka.actor,
@@ -118,14 +114,7 @@ lazy val `surge-docs` = (project in file("modules/surge-docs"))
 
 lazy val `surge` = project
   .in(file("."))
-  .aggregate(
-    `surge-common`,
-    `surge-engine-command-core`,
-    `surge-engine-command-javadsl`,
-    `surge-engine-command-scaladsl`,
-    `surge-metrics`,
-    `surge-rabbitmq-support`,
-    `surge-docs`)
+  .aggregate(`surge-common`, `surge-engine-command-core`, `surge-engine-command-javadsl`, `surge-engine-command-scaladsl`, `surge-metrics`, `surge-docs`)
   .settings(publish / skip := true, ReleaseSettings.settings)
   .disablePlugins(MimaPlugin)
 

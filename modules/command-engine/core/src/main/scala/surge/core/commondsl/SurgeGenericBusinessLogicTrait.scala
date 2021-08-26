@@ -7,7 +7,7 @@ import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.trace.Tracer
 import surge.core.{ SurgeAggregateReadFormatting, SurgeAggregateWriteFormatting }
 import surge.internal.tracing.OpenTelemetryInstrumentation
-import surge.kafka.KafkaTopic
+import surge.kafka.{ KafkaPartitioner, KafkaTopic, PartitionStringUpToColon }
 import surge.metrics.Metrics
 
 import scala.concurrent.ExecutionContext
@@ -31,6 +31,8 @@ trait SurgeGenericBusinessLogicTrait[AggId, Agg, Command, Rej, Event] {
   def metrics: Metrics = Metrics.globalMetricRegistry
 
   val openTelemetry: OpenTelemetry = OpenTelemetry.noop()
+
+  val partitioner: KafkaPartitioner[String] = PartitionStringUpToColon.instance
 
   private[surge] def tracer: Tracer = openTelemetry.getTracer(OpenTelemetryInstrumentation.Name, OpenTelemetryInstrumentation.Version)
 

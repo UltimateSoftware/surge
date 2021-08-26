@@ -19,6 +19,24 @@ import scala.util.{ Failure, Success, Try }
 
 final case class KafkaRecordMetadata[Key](key: Option[Key], wrapped: RecordMetadata)
 
+private[surge] object KafkaProducerHelper {
+  def producerPropsFromConfig(config: Config, additionalProps: Map[String, String] = Map.empty): Properties = {
+    val props = new Properties()
+    props.put(ProducerConfig.ACKS_CONFIG, config.getString("kafka.publisher.acks"))
+    props.put(ProducerConfig.BATCH_SIZE_CONFIG, config.getInt("kafka.publisher.batch-size").toString)
+    props.put(ProducerConfig.MAX_REQUEST_SIZE_CONFIG, config.getInt("kafka.publisher.max-request-size").toString)
+    props.put(ProducerConfig.LINGER_MS_CONFIG, config.getInt("kafka.publisher.linger-ms").toString)
+    props.put(ProducerConfig.COMPRESSION_TYPE_CONFIG, config.getString("kafka.publisher.compression-type"))
+
+    val securityHelper = new KafkaSecurityConfigurationImpl(config)
+    securityHelper.configureSecurityProperties(props)
+
+    additionalProps.foreach(propPair => props.put(propPair._1, propPair._2))
+
+    props
+  }
+}
+
 trait KafkaProducerHelperCommon[K, V] {
   def topic: KafkaTopicTrait
   def partitioner: KafkaPartitionerBase[K]
@@ -102,7 +120,7 @@ trait KafkaProducerHelperCommon[K, V] {
     producer.close()
 }
 
-trait KafkaProducerTrait[K, V] extends KafkaSecurityConfiguration with KafkaProducerHelperCommon[K, V] {
+trait KafkaProducerTrait[K, V] extends KafkaProducerHelperCommon[K, V] {
   def partitionFor(key: K): Option[Int] = getPartitionFor(key)
 
   def putRecord(record: ProducerRecord[K, V]): Future[KafkaRecordMetadata[K]] = doPutRecord(record)
@@ -133,44 +151,49 @@ object KafkaStringProducer {
   def create(brokers: java.util.Collection[String], topic: KafkaTopic): KafkaStringProducer = {
     KafkaStringProducer(ConfigFactory.load(), brokers.asScala.toSeq, topic)
   }
+  def apply(
+      config: Config,
+      brokers: Seq[String],
+      topic: KafkaTopic,
+      partitioner: KafkaPartitionerBase[String] = NoPartitioner[String],
+      kafkaConfig: Map[String, String] = Map.empty): KafkaStringProducer = {
+    KafkaStringProducer(brokers, topic, partitioner, KafkaProducerHelper.producerPropsFromConfig(config, kafkaConfig))
+  }
 }
 case class KafkaStringProducer(
-    override val config: Config,
     brokers: Seq[String],
     override val topic: KafkaTopic,
-    override val partitioner: KafkaPartitionerBase[String] = NoPartitioner[String],
-    kafkaConfig: Map[String, String] = Map.empty)
+    override val partitioner: KafkaPartitionerBase[String],
+    producerProps: Properties)
     extends KafkaProducerTrait[String, String] {
-  val props: Properties = {
-    val p = new Properties()
-    p.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, brokers.mkString(","))
-    p.put(ProducerConfig.ACKS_CONFIG, "all")
-    p.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, classOf[StringSerializer].getName)
-    p.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, classOf[StringSerializer].getName)
-    kafkaConfig.foreach(propPair => p.put(propPair._1, propPair._2))
-    configureSecurityProperties(p)
-    p
-  }
-  override val producer: KafkaProducer[String, String] = new KafkaProducer[String, String](props)
+
+  producerProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, brokers.mkString(","))
+  producerProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, classOf[StringSerializer].getName)
+  producerProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, classOf[StringSerializer].getName)
+
+  override val producer: KafkaProducer[String, String] = new KafkaProducer[String, String](producerProps)
 }
 
+object KafkaBytesProducer {
+  def apply(
+      config: Config,
+      brokers: Seq[String],
+      topic: KafkaTopicTrait,
+      partitioner: KafkaPartitionerBase[String] = NoPartitioner[String],
+      kafkaConfig: Map[String, String] = Map.empty): KafkaBytesProducer = {
+    KafkaBytesProducer(brokers, topic, partitioner, KafkaProducerHelper.producerPropsFromConfig(config, kafkaConfig))
+  }
+}
 case class KafkaBytesProducer(
-    override val config: Config,
     brokers: Seq[String],
     override val topic: KafkaTopicTrait,
-    override val partitioner: KafkaPartitionerBase[String] = NoPartitioner[String],
-    kafkaConfig: Map[String, String] = Map.empty)
+    override val partitioner: KafkaPartitionerBase[String],
+    producerProps: Properties)
     extends KafkaProducerTrait[String, Array[Byte]] {
 
-  val props: Properties = {
-    val p = new Properties()
-    p.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, brokers.mkString(","))
-    p.put(ProducerConfig.ACKS_CONFIG, "all")
-    p.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, classOf[StringSerializer].getName)
-    p.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, classOf[ByteArraySerializer].getName)
-    kafkaConfig.foreach(propPair => p.put(propPair._1, propPair._2))
-    configureSecurityProperties(p)
-    p
-  }
-  override val producer: KafkaProducer[String, Array[Byte]] = new KafkaProducer[String, Array[Byte]](props)
+  producerProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, brokers.mkString(","))
+  producerProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, classOf[StringSerializer].getName)
+  producerProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, classOf[ByteArraySerializer].getName)
+
+  override val producer: KafkaProducer[String, Array[Byte]] = new KafkaProducer[String, Array[Byte]](producerProps)
 }
