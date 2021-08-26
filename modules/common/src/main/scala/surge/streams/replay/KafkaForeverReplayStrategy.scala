@@ -106,7 +106,6 @@ case class TopicResetState(
     consumer: KafkaConsumer[String, Array[Byte]],
     partitions: List[TopicPartition],
     preReplayCommits: Map[TopicPartition, OffsetAndMetadata],
-    scheduledCheck: Option[Cancellable],
     replayLifecycleCallbacks: ReplayLifecycleCallbacks)
 
 class TopicResetActor(brokers: List[String], kafkaTopic: String, config: Config) extends Actor with Stash with Logging {
@@ -209,8 +208,7 @@ class TopicResetActor(brokers: List[String], kafkaTopic: String, config: Config)
       consumerGroup = consumerGroup,
       replyTo = sender(),
       preReplayCommits = adminClient.consumerGroupOffsets(consumerGroup),
-      replayLifecycleCallbacks = replayLifecycleCallbacks,
-      scheduledCheck = None)
+      replayLifecycleCallbacks = replayLifecycleCallbacks)
 
     context.system.scheduler.scheduleOnce(checkProgressPollTime, context.self, CheckProgress)(context.dispatcher)
     context.become(initializing(state))
