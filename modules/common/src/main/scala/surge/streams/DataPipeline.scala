@@ -26,7 +26,6 @@ object DataPipeline {
   // This is a case class on purpose, Kotlin doesn't do pattern matching against scala case objects :(
   case class ReplaySuccessfullyStarted()
       extends ReplayResult
-  case class ReplaySuccessfullyCompleted() extends ReplayResult
   case class ReplayFailed(reason: Throwable) extends ReplayResult
 }
 
