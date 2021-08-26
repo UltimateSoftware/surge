@@ -9,19 +9,26 @@ import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.streams.KafkaStreams
 import org.apache.kafka.streams.state.{ HostInfo, StreamsMetadata }
 import org.mockito.Mockito._
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
 import surge.internal.akka.kafka.KafkaConsumerStateTrackingActor
 import surge.kafka.HostPort
 
+import scala.concurrent.duration.DurationInt
 import scala.jdk.CollectionConverters._
 
 class KafkaStreamsPartitionTrackerActorImplSpec
     extends TestKit(ActorSystem("KafkaStreamsPartitionTrackerActorImplSpec"))
     with AnyWordSpecLike
     with Matchers
-    with MockitoSugar {
+    with MockitoSugar
+    with BeforeAndAfterAll {
+
+  override def afterAll(): Unit = {
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
+  }
 
   private val tp0 = new TopicPartition("testTopic", 0)
   private val tp1 = new TopicPartition("testTopic", 1)

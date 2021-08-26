@@ -18,11 +18,19 @@ trait KafkaPartitioner[Key] extends KafkaPartitionerBase[Key] {
   def partitionBy: Key => String
 }
 
-object StringIdentityPartitioner extends KafkaPartitioner[String] {
+object StringIdentityPartitioner {
+  val instance: StringIdentityPartitioner = StringIdentityPartitioner()
+  def apply(): StringIdentityPartitioner = new StringIdentityPartitioner
+}
+final class StringIdentityPartitioner extends KafkaPartitioner[String] {
   override def partitionBy: String => String = identity[String]
 }
 
-object PartitionStringUpToColon extends KafkaPartitioner[String] {
+object PartitionStringUpToColon {
+  val instance: PartitionStringUpToColon = PartitionStringUpToColon()
+  def apply(): PartitionStringUpToColon = new PartitionStringUpToColon
+}
+final class PartitionStringUpToColon extends KafkaPartitioner[String] {
   override def partitionBy: String => String = { str =>
     str.takeWhile(_ != ':')
   }

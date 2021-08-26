@@ -18,7 +18,6 @@ object Dependencies extends AutoPlugin {
 
     object Alpakka {
       val alpakkaVersion = "2.0.2"
-      val amqp = "com.lightbend.akka" %% "akka-stream-alpakka-amqp" % alpakkaVersion
       val kafka = "com.typesafe.akka" %% "akka-stream-kafka" % alpakkaVersion
       val kafkaTestKit = "com.typesafe.akka" %% "akka-stream-kafka-testkit" % alpakkaVersion % Test
     }
@@ -32,18 +31,28 @@ object Dependencies extends AutoPlugin {
       val kafkaStreamsTestUtils = "org.apache.kafka" % "kafka-streams-test-utils" % kafkaVersion % Test
     }
 
-    object OpenTracing {
-      val version = "0.33.0"
-      val api = "io.opentracing" % "opentracing-api" % version
-      val mock = "io.opentracing" % "opentracing-mock" % version % Test
-      val noop = "io.opentracing" % "opentracing-noop" % version
-    }
-    object PlayFramework {
-      val json = "com.typesafe.play" %% "play-json" % "2.9.1"
+    object OpenTelemetry {
+
+      val version = "1.4.1"
+      val api = "io.opentelemetry" % "opentelemetry-api" % version
+      val sdk = "io.opentelemetry" % "opentelemetry-sdk" % OpenTelemetry.version % Test
+      val sdkTesting = "io.opentelemetry" % "opentelemetry-sdk-testing" % OpenTelemetry.version % Test
+      val grpcChannel = "io.grpc" % "grpc-netty-shaded" % "1.39.0" % Test
+
+      object HoneycombSample {
+        val sdk = OpenTelemetry.sdk
+        val exporter = "io.opentelemetry" % "opentelemetry-exporter-otlp" % OpenTelemetry.version % Test
+        val grpc = OpenTelemetry.grpcChannel
+      }
+      object JaegerSample {
+        val sdk = OpenTelemetry.sdk
+        val exporter = "io.opentelemetry" % "opentelemetry-exporter-jaeger" % OpenTelemetry.version % Test
+        val grpc = OpenTelemetry.grpcChannel
+      }
     }
 
-    object RabbitMq {
-      val embedded = "io.arivera.oss" % "embedded-rabbitmq" % "1.4.0" % Test
+    object PlayFramework {
+      val json = "com.typesafe.play" %% "play-json" % "2.9.1"
     }
 
     val scalaCollectionCompat = "org.scala-lang.modules" %% "scala-collection-compat" % "2.4.2"

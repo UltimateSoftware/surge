@@ -45,7 +45,6 @@ class SlidingHealthSignalStreamSpec
     with BeforeAndAfterEach
     with Eventually
     with MockitoHelper {
-  implicit val postfixOps: languageFeature.postfixOps = scala.language.postfixOps
   implicit override val patienceConfig: PatienceConfig =
     PatienceConfig(timeout = scaled(Span(10, Seconds)), interval = scaled(Span(10, Milliseconds)))
   private var probe: TestProbe = _
@@ -73,7 +72,7 @@ class SlidingHealthSignalStreamSpec
       streamMonitoring = Some(new StreamMonitoringRef(probe.ref)),
       filters)
 
-    bus = signalStreamProvider.busWithSupervision(startStreamOnInit = true)
+    bus = signalStreamProvider.bus()
   }
 
   override def afterEach(): Unit = {
@@ -81,7 +80,7 @@ class SlidingHealthSignalStreamSpec
   }
 
   override def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system)
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
   }
 
   "SlidingHealthSignalStream" should {
@@ -91,17 +90,21 @@ class SlidingHealthSignalStreamSpec
       }
     }
 
+    "not fail on repeated starts" in {
+      bus.signalStream().start().start().start()
+    }
+
     "not lose signals" in {
-      bus.signalWithTrace("trace.test", Trace("tester")).emit().emit().emit()
+      bus.signalWithTrace(name = "trace.test", Trace("tester")).emit().emit().emit()
 
       eventually {
-        val closed = probe.fishForMessage(max = 200.millis) { case msg =>
+        val closed = probe.fishForMessage(max = 1.second) { case msg =>
           msg.isInstanceOf[WindowClosed]
         }
 
         closed.asInstanceOf[WindowClosed].d.signals.size shouldEqual 3
 
-        val advanced = probe.fishForMessage(max = 100.millis) { case msg =>
+        val advanced = probe.fishForMessage(max = 1.second) { case msg =>
           msg.isInstanceOf[WindowAdvanced]
         }
         advanced.asInstanceOf[WindowAdvanced].d.signals.size shouldEqual 3
@@ -144,7 +147,7 @@ class SlidingHealthSignalStreamSpec
           TimeUnit.MILLISECONDS)
 
       eventually {
-        val msg = probe.fishForMessage(max = 1.second) { case msg =>
+        val msg = probe.fishForMessage(max = 2.second) { case msg =>
           msg.isInstanceOf[WindowAdvanced]
         }
 
@@ -161,7 +164,7 @@ class SlidingHealthSignalStreamSpec
       bus.signalWithError(name = "test.error", Error("error to test open-window", None)).emit()
 
       eventually {
-        val windowOpened = probe.fishForMessage(max = 1.second) { case msg =>
+        val windowOpened = probe.fishForMessage(max = 2.second) { case msg =>
           msg.isInstanceOf[WindowOpened]
         }
 
@@ -182,7 +185,7 @@ class SlidingHealthSignalStreamSpec
       bus.signalWithError(name = "test.error", Error("error to test close-open-window", None)).emit()
 
       eventually {
-        val windowClosed = probe.fishForMessage(max = 200.millis) { case msg =>
+        val windowClosed = probe.fishForMessage(max = 400.millis) { case msg =>
           msg.isInstanceOf[WindowClosed]
         }
 

@@ -4,26 +4,26 @@ package surge.internal.kafka
 
 import akka.actor.{ ActorRef, NoSerializationVerificationNeeded, Stash, Status, Timers }
 import akka.pattern._
-import com.typesafe.config.{ Config, ConfigFactory }
-import io.opentracing.Tracer
+import akka.util.Timeout
+import com.typesafe.config.Config
+import io.opentelemetry.api.trace.Tracer
+import org.apache.kafka.clients.admin.ListOffsetsOptions
 import org.apache.kafka.clients.producer.{ ProducerConfig, ProducerRecord }
-import org.apache.kafka.common.TopicPartition
+import org.apache.kafka.common.{ IsolationLevel, TopicPartition }
 import org.apache.kafka.common.errors.{ AuthorizationException, ProducerFencedException }
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.core.KafkaProducerActor
-import surge.internal.akka.ActorWithTracing
-import surge.kafka.streams.HealthyActor.GetHealth
-import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, HealthCheck, HealthCheckStatus }
-import surge.kafka.{ KafkaBytesProducer, KafkaRecordMetadata, KafkaTopicTrait, LagInfo }
-import surge.metrics.{ MetricInfo, Metrics, Rate, Timer }
-import java.time.Instant
-import java.util.concurrent.TimeUnit
-
-import akka.util.Timeout
 import surge.health.{ HealthSignalBusTrait, HealthyPublisher }
+import surge.internal.akka.ActorWithTracing
 import surge.internal.akka.cluster.ActorHostAwareness
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
+import surge.kafka._
+import surge.kafka.streams.HealthyActor.GetHealth
+import surge.kafka.streams.{ HealthCheck, HealthCheckStatus }
+import surge.metrics.{ MetricInfo, Metrics, Rate, Timer }
 
+import java.time.Instant
+import java.util.concurrent.TimeUnit
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.{ Failure, Success, Try }
@@ -72,10 +72,10 @@ class KafkaProducerActorImpl(
     assignedPartition: TopicPartition,
     metrics: Metrics,
     producerContext: ProducerActorContext,
-    kStreams: AggregateStateStoreKafkaStreams[_],
+    lagChecker: KTableLagChecker,
     partitionTracker: KafkaConsumerPartitionAssignmentTracker,
     override val signalBus: HealthSignalBusTrait,
-    config: Config = ConfigFactory.load(),
+    config: Config,
     kafkaProducerOverride: Option[KafkaBytesProducer] = None)
     extends ActorWithTracing
     with ActorHostAwareness
@@ -92,9 +92,7 @@ class KafkaProducerActorImpl(
 
   private val assignedTopicPartitionKey = s"${assignedPartition.topic}:${assignedPartition.partition}"
   private val flushInterval = config.getDuration("kafka.publisher.flush-interval", TimeUnit.MILLISECONDS).milliseconds
-  private val publisherBatchSize = config.getInt("kafka.publisher.batch-size")
-  private val publisherLingerMs = config.getInt("kafka.publisher.linger-ms")
-  private val publisherCompression = config.getString("kafka.publisher.compression-type")
+  private val transactionTimeWarningThresholdMillis = config.getDuration("kafka.publisher.transaction-warning-time", TimeUnit.MILLISECONDS)
   private val publisherTransactionTimeoutMs = config.getString("kafka.publisher.transaction-timeout-ms")
   private val ktableCheckInterval = config.getDuration("kafka.publisher.ktable-check-interval").toMillis.milliseconds
   private val brokers = config.getString("kafka.brokers").split(",").toVector
@@ -133,17 +131,16 @@ class KafkaProducerActorImpl(
       def name = throw new IllegalStateException("there is no topic")
     }
 
+    // Because we use transactions, we must force enable idempotence to true and acks=all
     val kafkaConfig = Map[String, String](
       ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG -> true.toString,
-      ProducerConfig.BATCH_SIZE_CONFIG -> publisherBatchSize.toString,
-      ProducerConfig.LINGER_MS_CONFIG -> publisherLingerMs.toString,
-      ProducerConfig.COMPRESSION_TYPE_CONFIG -> publisherCompression,
+      ProducerConfig.ACKS_CONFIG -> "all",
       ProducerConfig.TRANSACTION_TIMEOUT_CONFIG -> publisherTransactionTimeoutMs,
       ProducerConfig.TRANSACTIONAL_ID_CONFIG -> transactionalId)
 
     // Set up the producer on the events topic so the partitioner can partition automatically on the events topic since we manually set the partition for the
     // aggregate state topic record and the events topic could have a different number of partitions
-    val producer = KafkaBytesProducer(brokers, eventsTopicOpt.getOrElse(PoisonTopic), partitioner, kafkaConfig)
+    val producer = KafkaBytesProducer(config, brokers, eventsTopicOpt.getOrElse(PoisonTopic), partitioner, kafkaConfig)
     if (enableMetrics) {
       metrics.registerKafkaMetrics(kafkaPublisherMetricsName, () => producer.producer.metrics)
     }
@@ -217,10 +214,11 @@ class KafkaProducerActorImpl(
   }
 
   private def checkKTableProgress(): Unit = {
-    kStreams.partitionLag(assignedPartition).foreach { lagOpt =>
-      lagOpt.foreach { lag =>
+    lagChecker.getConsumerGroupLag(assignedPartition) match {
+      case Some(lag) =>
         self ! KTableProgressUpdate(assignedPartition, lag)
-      }
+      case None =>
+        log.debug(s"Could not find partition lag for partition $assignedPartition")
     }
   }
 
@@ -290,7 +288,6 @@ class KafkaProducerActorImpl(
 
   // FIXME need to open a GH issue for this warning
   private var lastTransactionInProgressWarningTime: Instant = Instant.ofEpochMilli(0L)
-  private val transactionTimeWarningThreshold = flushInterval.toMillis * 4
   private val eventsPublishedRate: Rate = metrics.rate(
     MetricInfo(
       name = s"surge.${aggregateName.toLowerCase()}.event-publish-rate",
@@ -298,8 +295,8 @@ class KafkaProducerActorImpl(
       tags = Map("aggregate" -> aggregateName)))
   private def handleFlushMessages(state: KafkaProducerActorState): Unit = {
     if (state.transactionInProgress) {
-      if (state.currentTransactionTimeMillis >= transactionTimeWarningThreshold &&
-        lastTransactionInProgressWarningTime.plusSeconds(1L).isBefore(Instant.now())) {
+      if (state.currentTransactionTimeMillis >= transactionTimeWarningThresholdMillis &&
+        lastTransactionInProgressWarningTime.plusMillis(transactionTimeWarningThresholdMillis).isBefore(Instant.now())) {
         lastTransactionInProgressWarningTime = Instant.now
         log.warn(
           s"KafkaPublisherActor partition {} tried to flush, but another transaction is already in progress. " +
@@ -334,7 +331,7 @@ class KafkaProducerActorImpl(
 
   private def doFlushRecords(state: KafkaProducerActorState, records: Seq[ProducerRecord[String, Array[Byte]]]): Unit = {
     val senders = state.pendingWrites.map(_.sender)
-    val futureMsg = kafkaPublisherTimer.time {
+    val futureMsg = kafkaPublisherTimer.timeFuture {
       Try(kafkaPublisher.beginTransaction()) match {
         case Failure(f: ProducerFencedException) =>
           producerFenced(state, f)
@@ -520,5 +517,14 @@ private[internal] case class KafkaProducerActorState(
     val newInFlight = inFlight.filterNot(processedRecordsFromPartition.contains)
 
     copy(inFlight = newInFlight)
+  }
+}
+
+trait KTableLagChecker {
+  def getConsumerGroupLag(assignedPartition: TopicPartition): Option[LagInfo]
+}
+class KTableLagCheckerImpl(consumerGroup: String, adminClient: KafkaAdminClient) extends KTableLagChecker {
+  def getConsumerGroupLag(assignedPartition: TopicPartition): Option[LagInfo] = {
+    adminClient.consumerLag(consumerGroup, List(assignedPartition), new ListOffsetsOptions(IsolationLevel.READ_COMMITTED)).get(assignedPartition)
   }
 }

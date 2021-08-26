@@ -2,19 +2,23 @@
 
 package surge.kafka
 
-import java.util.Properties
-import java.util.concurrent.atomic.AtomicLong
-import java.util.concurrent.{ ExecutorService, Executors }
-
+import com.typesafe.config.Config
 import org.apache.kafka.clients.consumer.{ ConsumerConfig, ConsumerRecord, KafkaConsumer }
 import org.apache.kafka.common.serialization.{ ByteArrayDeserializer, StringDeserializer }
 import org.apache.kafka.common.{ PartitionInfo, TopicPartition }
 import org.slf4j.LoggerFactory
 
+import java.util.Properties
+import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.{ ExecutorService, Executors }
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 
-final case class UltiKafkaConsumerConfig(consumerGroup: String, offsetReset: String = "earliest", pollDuration: FiniteDuration = 3.seconds)
+final case class UltiKafkaConsumerConfig(consumerGroup: String, offsetReset: String = "earliest", pollDuration: FiniteDuration = 3.seconds) {
+  def kafkaClientProps: Map[String, String] = {
+    Map(ConsumerConfig.GROUP_ID_CONFIG -> consumerGroup, ConsumerConfig.AUTO_OFFSET_RESET_CONFIG -> offsetReset)
+  }
+}
 
 private[kafka] object KafkaPollThread {
   private val threadNumberCount: AtomicLong = new AtomicLong(0)
@@ -25,26 +29,27 @@ private[kafka] object KafkaPollThread {
   })
 }
 
-abstract class KafkaConsumerTrait[K, V] extends KafkaSecurityConfiguration {
-  def brokers: Seq[String]
-  def props: Properties
-  def consumerConfig: UltiKafkaConsumerConfig
+private[surge] object KafkaConsumerHelper {
+  def consumerPropsFromConfig(config: Config, consumerConfig: UltiKafkaConsumerConfig, additionalProps: Map[String, String] = Map.empty): Properties = {
+    val props = new Properties()
+    props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false.toString)
 
+    consumerConfig.kafkaClientProps.foreach(propPair => props.put(propPair._1, propPair._2))
+
+    val securityHelper = new KafkaSecurityConfigurationImpl(config)
+    securityHelper.configureSecurityProperties(props)
+
+    additionalProps.foreach(propPair => props.put(propPair._1, propPair._2))
+
+    props
+  }
+}
+
+abstract class KafkaConsumerTrait[K, V] {
+  def consumerConfig: UltiKafkaConsumerConfig
   def consumer: KafkaConsumer[K, V]
 
   private val log = LoggerFactory.getLogger(getClass)
-
-  protected val defaultProps: Properties = {
-    val p = new Properties()
-    p.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, brokers.mkString(","))
-    p.put(ConsumerConfig.GROUP_ID_CONFIG, consumerConfig.consumerGroup)
-    p.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, consumerConfig.offsetReset)
-    p.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false: java.lang.Boolean)
-
-    configureSecurityProperties(p)
-
-    p
-  }
 
   private var running = true
 
@@ -99,27 +104,29 @@ abstract class KafkaConsumerTrait[K, V] extends KafkaSecurityConfiguration {
   }
 }
 
-final case class KafkaStringConsumer(override val brokers: Seq[String], override val consumerConfig: UltiKafkaConsumerConfig, kafkaConfig: Map[String, String])
-    extends KafkaConsumerTrait[String, String] {
-  val props: Properties = {
-    val p = defaultProps
-    kafkaConfig.foreach(propPair => p.put(propPair._1, propPair._2))
-    p.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, classOf[StringDeserializer].getName)
-    p.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, classOf[StringDeserializer].getName)
-    p
+object KafkaStringConsumer {
+  def apply(config: Config, brokers: Seq[String], consumerConfig: UltiKafkaConsumerConfig, kafkaConfig: Map[String, String]): KafkaStringConsumer = {
+    KafkaStringConsumer(brokers, consumerConfig, KafkaConsumerHelper.consumerPropsFromConfig(config, consumerConfig, kafkaConfig))
   }
-  override val consumer: KafkaConsumer[String, String] = new KafkaConsumer[String, String](props)
+}
+final case class KafkaStringConsumer(brokers: Seq[String], override val consumerConfig: UltiKafkaConsumerConfig, consumerProps: Properties)
+    extends KafkaConsumerTrait[String, String] {
+  consumerProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, brokers.mkString(","))
+  consumerProps.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, classOf[StringDeserializer].getName)
+  consumerProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, classOf[StringDeserializer].getName)
+  override val consumer: KafkaConsumer[String, String] = new KafkaConsumer[String, String](consumerProps)
 }
 
-final case class KafkaBytesConsumer(override val brokers: Seq[String], override val consumerConfig: UltiKafkaConsumerConfig, kafkaConfig: Map[String, String])
-    extends KafkaConsumerTrait[String, Array[Byte]] {
-  val props: Properties = {
-    val p = defaultProps
-    kafkaConfig.foreach(propPair => p.put(propPair._1, propPair._2))
-    p.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, classOf[StringDeserializer].getName)
-    p.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, classOf[ByteArrayDeserializer].getName)
-    p
+object KafkaBytesConsumer {
+  def apply(config: Config, brokers: Seq[String], consumerConfig: UltiKafkaConsumerConfig, kafkaConfig: Map[String, String]): KafkaBytesConsumer = {
+    KafkaBytesConsumer(brokers, consumerConfig, KafkaConsumerHelper.consumerPropsFromConfig(config, consumerConfig, kafkaConfig))
   }
+}
+final case class KafkaBytesConsumer(brokers: Seq[String], override val consumerConfig: UltiKafkaConsumerConfig, consumerProps: Properties)
+    extends KafkaConsumerTrait[String, Array[Byte]] {
+  consumerProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, brokers.mkString(","))
+  consumerProps.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, classOf[StringDeserializer].getName)
+  consumerProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, classOf[ByteArrayDeserializer].getName)
 
-  override val consumer: KafkaConsumer[String, Array[Byte]] = new KafkaConsumer[String, Array[Byte]](props)
+  override val consumer: KafkaConsumer[String, Array[Byte]] = new KafkaConsumer[String, Array[Byte]](consumerProps)
 }

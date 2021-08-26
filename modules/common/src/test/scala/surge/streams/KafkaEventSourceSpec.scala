@@ -2,33 +2,45 @@
 
 package surge.streams
 
-import java.time.Instant
-
 import akka.Done
 import akka.actor.ActorSystem
 import akka.kafka.ConsumerSettings
 import akka.testkit.{ TestKit, TestProbe }
-import io.opentracing.Tracer
-import io.opentracing.noop.NoopTracerFactory
+import com.typesafe.config.ConfigFactory
+import io.opentelemetry.api.trace.Tracer
 import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
-import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.serialization.{ Deserializer, Serializer }
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.Eventually
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Millis, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.slf4j.LoggerFactory
 import surge.core.SurgeEventReadFormatting
-import surge.internal.akka.kafka.AkkaKafkaConsumer
 import surge.internal.kafka.HeadersHelper
+import surge.internal.tracing.NoopTracerFactory
 import surge.kafka.KafkaTopic
 import surge.kafka.streams.DefaultSerdes
 
+import java.time.Instant
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
-class KafkaEventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with AnyWordSpecLike with Matchers with EmbeddedKafka with Eventually {
+class KafkaEventSourceSpec
+    extends TestKit(ActorSystem("EventSourceSpec"))
+    with AnyWordSpecLike
+    with Matchers
+    with EmbeddedKafka
+    with Eventually
+    with BeforeAndAfterAll {
+
+  private val defaultConfig = ConfigFactory.load()
+
+  override def afterAll(): Unit = {
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
+  }
+
   private val log = LoggerFactory.getLogger(getClass)
 
   implicit override val patienceConfig: PatienceConfig =
@@ -49,10 +61,7 @@ class KafkaEventSourceSpec extends TestKit(ActorSystem("EventSourceSpec")) with 
   }
 
   private def testConsumerSettings(kafkaBrokers: String, groupId: String): ConsumerSettings[String, Array[Byte]] = {
-    AkkaKafkaConsumer
-      .consumerSettings[String, Array[Byte]](system, groupId)
-      .withBootstrapServers(kafkaBrokers)
-      .withProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
+    KafkaDataSourceConfigHelper.consumerSettingsFromConfig[String, Array[Byte]](system, defaultConfig, kafkaBrokers, groupId)
   }
 
   private def testEventSink(probe: TestProbe): EventSink[String] = new EventSink[String] {

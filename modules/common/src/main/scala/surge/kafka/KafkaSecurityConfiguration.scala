@@ -3,13 +3,13 @@
 package surge.kafka
 
 import java.util.Properties
-
-import com.typesafe.config.ConfigFactory
+import com.typesafe.config.{ Config, ConfigFactory }
 import org.apache.kafka.clients.CommonClientConfigs
 import org.apache.kafka.common.config.{ SaslConfigs, SslConfigs }
 
 trait KafkaSecurityConfiguration {
-  private val config = ConfigFactory.load()
+  protected def config: Config
+
   private def setIfDefined(props: Properties, key: String, configLocation: String): Unit = {
     if (config.hasPath(configLocation)) {
       val configValue = config.getString(configLocation)
@@ -33,3 +33,9 @@ trait KafkaSecurityConfiguration {
     setIfDefined(props, SslConfigs.SSL_KEYSTORE_PASSWORD_CONFIG, "kafka.ssl.keystore.password")
   }
 }
+
+object KafkaSecurityConfiguration extends KafkaSecurityConfiguration {
+  override val config: Config = ConfigFactory.load()
+}
+
+private[surge] class KafkaSecurityConfigurationImpl(override val config: Config) extends KafkaSecurityConfiguration

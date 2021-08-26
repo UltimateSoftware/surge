@@ -103,7 +103,7 @@ class ExecutionContextProberActor(settings: ExecutionContextProberSettings) exte
     case Timeout =>
       log.warning(
         s"One of our (${settings.numProbes}) probes timed out (after ${settings.timeout}) " +
-          s"on execution context ${settings.targetEcName}. ${warningText}.")
+          s"on execution context ${settings.targetEcName}. $warningText.")
       // the execution context is potentially unhealthy so we want to suspend our checks for a bit (to give
       // it time to recover in case it's just a hiccup), hence interval * 3.
       timers.startSingleTimer(SendProbesKey, msg = SendProbes, settings.interval * 3)
@@ -112,7 +112,7 @@ class ExecutionContextProberActor(settings: ExecutionContextProberSettings) exte
       log.error(
         e,
         s"One of our (${settings.numProbes}) probes resulted in a failed future " +
-          s"on execution context ${settings.targetEcName}. ${warningText}.")
+          s"on execution context ${settings.targetEcName}. $warningText.")
       timers.startSingleTimer(SendProbesKey, msg = SendProbes, settings.interval * 3)
       timers.cancel(TimeoutKey)
       context.become(ready(detectedIssue = true))

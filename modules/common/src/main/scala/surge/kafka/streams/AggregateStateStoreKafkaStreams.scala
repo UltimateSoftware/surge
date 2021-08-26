@@ -2,24 +2,24 @@
 
 package surge.kafka.streams
 
-import java.util.regex.Pattern
-
-import akka.actor.{ ActorRef, ActorSystem }
+import akka.actor.{ ActorRef, ActorSystem, Props }
 import akka.pattern.{ ask, BackoffOpts, BackoffSupervisor }
 import akka.util.Timeout
-import com.typesafe.config.ConfigFactory
-import org.apache.kafka.common.TopicPartition
+import com.typesafe.config.{ Config, ConfigFactory }
 import org.apache.kafka.streams.Topology
+import surge.core.Ack
 import surge.health.HealthSignalBusTrait
+import surge.internal.akka.actor.ActorLifecycleManagerActor
 import surge.internal.config.{ BackoffConfig, TimeoutConfig }
 import surge.internal.utils.{ BackoffChildActorTerminationWatcher, Logging }
-import surge.kafka.{ KafkaTopic, LagInfo }
+import surge.kafka.KafkaTopic
 import surge.kafka.streams.AggregateStateStoreKafkaStreamsImpl._
-import surge.kafka.streams.KafkaStreamLifeCycleManagement.{ Restart, Start, Stop }
+import surge.kafka.streams.KafkaStreamLifeCycleManagement.{ Start, Stop }
 import surge.metrics.Metrics
 
+import java.util.regex.Pattern
 import scala.concurrent.{ ExecutionContext, Future }
-import scala.util.{ Failure, Success }
+import scala.util.{ Failure, Success, Try }
 
 object AggregateStreamsWriteBufferSettings extends WriteBufferSettings {
   private val config = ConfigFactory.load()
@@ -49,9 +49,6 @@ class AggregateStreamsRocksDBConfig
      *   Registered within a Kafka Streams state change listener to track updates to the Kafka Streams consumer group. When the consumer group transitions from
      *   rebalancing to running, the partition tracker provided will be notified automatically. This can be used for notifying other processes/interested
      *   parties that a consumer group change has occurred.
-     * @param aggregateValidator
-     *   Validation function used for each consumed message from Kafka to check if a change from previous aggregate state to new aggregate state is valid or
-     *   not. Just emits a warning if the change is not valid.
      * @param applicationHostPort
      *   Optional string to use for a host/port exposed by this application. This information is exposed to the partition tracker provider as mappings from
      *   application host/port to assigned partitions.
@@ -62,16 +59,16 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
     aggregateName: String,
     stateTopic: KafkaTopic,
     partitionTrackerProvider: KafkaStreamsPartitionTrackerProvider,
-    aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) => Boolean,
     applicationHostPort: Option[String],
-    applicationId: String,
+    val applicationId: String,
     clientId: String,
     signalBus: HealthSignalBusTrait,
     system: ActorSystem,
-    metrics: Metrics)
+    metrics: Metrics,
+    config: Config)
     extends HealthyComponent
     with Logging {
-  private[streams] lazy val settings = AggregateStateStoreKafkaStreamsImplSettings(applicationId, aggregateName, clientId)
+  private[streams] lazy val settings = AggregateStateStoreKafkaStreamsImplSettings(config, applicationId, aggregateName, clientId)
 
   private[streams] val underlyingActor = createUnderlyingActorWithBackOff()
 
@@ -85,36 +82,28 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
    * Used to actually start the Kafka Streams process. Optionally cleans up persistent state directories left behind by previous runs if
    * `kafka.streams.wipe-state-on-start` config setting is set to true.
    */
-  override def start(): Unit = {
-    underlyingActor ! Start
-    val registrationResult = signalBus.register(
-      underlyingActor,
-      componentName = "state-store-kafka-streams",
-      shutdownSignalPatterns = shutdownSignalPatterns(),
-      restartSignalPatterns = restartSignalPatterns())
-
-    registrationResult.onComplete {
-      case Failure(exception) =>
-        log.error("AggregateStateStore registration failed", exception)
-      case Success(done) =>
-        log.debug(s"AggregateStateStore registration succeeded - ${done.success}")
-    }(system.dispatcher)
+  override def start(): Future[Ack] = {
+    implicit val ec: ExecutionContext = system.dispatcher
+    underlyingActor.ask(ActorLifecycleManagerActor.Start).mapTo[Ack].andThen(registrationCallback())
   }
 
-  override def shutdown(): Unit = {
+  override def shutdown(): Future[Ack] = {
     stop()
   }
 
-  override def stop(): Unit = {
-    underlyingActor ! Stop
+  override def stop(): Future[Ack] = {
+    implicit val ec: ExecutionContext = system.dispatcher
+    underlyingActor.ask(ActorLifecycleManagerActor.Stop).mapTo[Ack]
   }
 
-  override def restart(): Unit = {
-    underlyingActor ! Restart
-  }
-
-  def partitionLag(topicPartition: TopicPartition)(implicit ec: ExecutionContext): Future[Option[LagInfo]] = {
-    underlyingActor.ask(GetPartitionLag(topicPartition)).mapTo[PartitionLagResponse].map(_.lag)
+  override def restart(): Future[Ack] = {
+    implicit val executionContext: ExecutionContext = system.dispatcher
+    for {
+      _ <- stop()
+      started <- start()
+    } yield {
+      started
+    }
   }
 
   def getAggregateBytes(aggregateId: String): Future[Option[Array[Byte]]] = {
@@ -136,7 +125,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
     }
 
     val aggregateStateStoreKafkaStreamsImplProps =
-      AggregateStateStoreKafkaStreamsImpl.props(aggregateName, stateTopic, partitionTrackerProvider, aggregateValidator, applicationHostPort, settings, metrics)
+      AggregateStateStoreKafkaStreamsImpl.props(aggregateName, stateTopic, partitionTrackerProvider, applicationHostPort, settings, metrics, config)
 
     val underlyingActorProps = BackoffSupervisor.props(
       BackoffOpts
@@ -148,7 +137,8 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
           randomFactor = BackoffConfig.StateStoreKafkaStreamActor.randomFactor)
         .withMaxNrOfRetries(BackoffConfig.StateStoreKafkaStreamActor.maxRetries))
 
-    val underlyingCreatedActor = system.actorOf(underlyingActorProps)
+    val underlyingCreatedActor =
+      system.actorOf(Props(new ActorLifecycleManagerActor(underlyingActorProps, initMessage = Some(() => Start), finalizeMessage = Some(() => Stop))))
 
     system.actorOf(BackoffChildActorTerminationWatcher.props(underlyingCreatedActor, () => onMaxRetries()))
 
@@ -157,5 +147,23 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
 
   private[streams] def getTopology: Future[Topology] = {
     underlyingActor.ask(GetTopology).mapTo[Topology]
+  }
+
+  private def registrationCallback(): PartialFunction[Try[Ack], Unit] = {
+    case Success(_) =>
+      val registrationResult = signalBus.register(
+        control = this,
+        componentName = "state-store-kafka-streams",
+        shutdownSignalPatterns = shutdownSignalPatterns(),
+        restartSignalPatterns = restartSignalPatterns())
+
+      registrationResult.onComplete {
+        case Failure(exception) =>
+          log.error(s"$getClass registration failed", exception)
+        case Success(_) =>
+          log.debug(s"$getClass registration succeeded")
+      }(system.dispatcher)
+    case Failure(error) =>
+      log.error(s"Unable to register $getClass for supervision", error)
   }
 }

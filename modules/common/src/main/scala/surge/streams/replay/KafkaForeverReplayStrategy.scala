@@ -6,7 +6,7 @@ import akka.Done
 import akka.actor.{Actor, ActorRef, ActorSystem, Cancellable, Props, Stash}
 import akka.pattern.ask
 import akka.util.Timeout
-import com.typesafe.config.ConfigFactory
+import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.kafka.clients.consumer.{ConsumerConfig, ConsumerRebalanceListener, KafkaConsumer, OffsetAndMetadata}
 import org.apache.kafka.common.TopicPartition
 import surge.internal.streams.PartitionAssignorConfig
@@ -20,26 +20,51 @@ import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.jdk.CollectionConverters._
 
-class KafkaForeverReplayStrategy(
+trait KafkaForeverReplayStrategy extends EventReplayStrategy
+
+object KafkaForeverReplayStrategy {
+  def apply(
+      config: Config,
+      actorSystem: ActorSystem,
+      settings: KafkaForeverReplaySettings,
+      preReplay: () => Future[Any] = { () => Future.successful(true) },
+      postReplay: () => Unit = { () => () })(implicit executionContext: ExecutionContext): KafkaForeverReplayStrategy = {
+    new KafkaForeverReplayStrategyImpl(config, actorSystem, settings, preReplay, postReplay)
+  }
+
+  @deprecated("Use KafkaForeverReplayStrategy.apply instead", "0.5.17")
+  def create[Key, Value](
+      actorSystem: ActorSystem,
+      settings: KafkaForeverReplaySettings,
+      preReplay: () => Future[Any] = { () => Future.successful(true) },
+      postReplay: () => Unit = { () => () }): KafkaForeverReplayStrategy = {
+    val config = ConfigFactory.load()
+    KafkaForeverReplayStrategy(config, actorSystem, settings, preReplay, postReplay)(ExecutionContext.global)
+  }
+}
+
+class KafkaForeverReplayStrategyImpl(
+    config: Config,
     actorSystem: ActorSystem,
     settings: KafkaForeverReplaySettings,
     override val preReplay: () => Future[Any] = { () => Future.successful(true) },
     override val postReplay: () => Unit = { () => () },
     override val replayProgress: ReplayProgress => Unit = { _ => ()})(implicit executionContext: ExecutionContext)
-    extends EventReplayStrategy {
+    extends KafkaForeverReplayStrategy {
 
   override def createReplayController[Key, Value](context: ReplayControlContext[Key, Value]): KafkaForeverReplayControl =
-    new KafkaForeverReplayControl(actorSystem, settings, preReplay, postReplay)
+    new KafkaForeverReplayControl(actorSystem, settings, config, preReplay, postReplay)
 }
 
 class KafkaForeverReplayControl(
     actorSystem: ActorSystem,
     settings: KafkaForeverReplaySettings,
+    config: Config,
     override val preReplay: () => Future[Any] = { () => Future.successful(true) },
     override val postReplay: () => Unit = { () => () },
     override val replayProgress: ReplayProgress => Unit = { _ => ()})(implicit executionContext: ExecutionContext)
     extends ReplayControl {
-  private val underlyingActor = actorSystem.actorOf(Props(new TopicResetActor(settings.brokers, settings.topic)))
+  private val underlyingActor = actorSystem.actorOf(Props(new TopicResetActor(settings.brokers, settings.topic, config)))
 
   implicit val timeout: Timeout = Timeout(settings.resetTopicTimeout)
 
@@ -63,27 +88,17 @@ case class KafkaForeverReplaySettings(brokers: List[String], resetTopicTimeout: 
     extends EventReplaySettings
 
 object KafkaForeverReplaySettings {
-  private val config = ConfigFactory.load()
-  private val brokers = config.getString("kafka.brokers").split(",").toList
-  private val resetTopicTimeout: FiniteDuration = config.getDuration("kafka.streams.replay.reset-topic-timeout", TimeUnit.MILLISECONDS).milliseconds
-  private val entireProcessTimeout: FiniteDuration = config.getDuration("kafka.streams.replay.entire-process-timeout", TimeUnit.MILLISECONDS).milliseconds
-
-  def apply(topic: String): KafkaForeverReplaySettings = {
+  def apply(config: Config, topic: String): KafkaForeverReplaySettings = {
+    val brokers = config.getString("kafka.brokers").split(",").toList
+    val resetTopicTimeout: FiniteDuration = config.getDuration("kafka.streams.replay.reset-topic-timeout", TimeUnit.MILLISECONDS).milliseconds
+    val entireProcessTimeout: FiniteDuration = config.getDuration("kafka.streams.replay.entire-process-timeout", TimeUnit.MILLISECONDS).milliseconds
     new KafkaForeverReplaySettings(brokers, resetTopicTimeout, entireProcessTimeout, topic)
   }
 
-  def create(topic: String): KafkaForeverReplaySettings = apply(topic)
-}
+  @deprecated("Use create(config, topic) instead", "0.5.17")
+  def create(topic: String): KafkaForeverReplaySettings = create(ConfigFactory.load(), topic)
 
-object KafkaForeverReplayStrategy {
-  def create[Key, Value](
-      actorSystem: ActorSystem,
-      settings: KafkaForeverReplaySettings,
-      preReplay: () => Future[Any] = { () => Future.successful(true) },
-      postReplay: () => Unit = { () => () },
-      replayProgress: ReplayProgress => Unit = { _ => ()}): KafkaForeverReplayStrategy = {
-    new KafkaForeverReplayStrategy(actorSystem, settings, preReplay, postReplay, replayProgress)(ExecutionContext.global)
-  }
+  def create(config: Config, topic: String): KafkaForeverReplaySettings = apply(config, topic)
 }
 
 case class TopicResetState(adminClient: KafkaAdminClient,
@@ -94,7 +109,8 @@ case class TopicResetState(adminClient: KafkaAdminClient,
                            preReplayCommits: Map[TopicPartition, OffsetAndMetadata],
                            scheduledCheck: Option[Cancellable],
                            replayLifecycleCallbacks: ReplayLifecycleCallbacks)
-class TopicResetActor(brokers: List[String], kafkaTopic: String) extends Actor with Stash with Logging {
+
+class TopicResetActor(brokers: List[String], kafkaTopic: String, config: Config) extends Actor with Stash with Logging {
 
   def ready: Receive = {
     case ResetTopic(consumerGroup, partitions, replayLifecycleCallbacks) =>
@@ -162,15 +178,18 @@ class TopicResetActor(brokers: List[String], kafkaTopic: String) extends Actor w
   def initialize(consumerGroup: String, partitions: List[Int],
                  replayLifecycleCallbacks: ReplayLifecycleCallbacks): Unit = {
     log.debug(s"Replay started for $kafkaTopic")
+    val checkProgressPollTime: FiniteDuration =
+      config.getDuration("kafka.streams.replay.check-progress-poll-time").toMillis.millis
     val topicPartitions = partitions.map { partition => new TopicPartition(kafkaTopic, partition) }
-    val adminClient = KafkaAdminClient(brokers)
+    val adminClient = KafkaAdminClient(config, brokers)
 
     val consumer = KafkaBytesConsumer(
+      config,
       brokers,
       UltiKafkaConsumerConfig(consumerGroup),
       Map(
         ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG -> "60000",
-        ConsumerConfig.PARTITION_ASSIGNMENT_STRATEGY_CONFIG -> PartitionAssignorConfig.assignorClassName)).consumer
+        ConsumerConfig.PARTITION_ASSIGNMENT_STRATEGY_CONFIG -> PartitionAssignorConfig.assignorClassName(config))).consumer
     consumer.subscribe(
       List(kafkaTopic).asJava,
       new ConsumerRebalanceListener() {
@@ -185,7 +204,7 @@ class TopicResetActor(brokers: List[String], kafkaTopic: String) extends Actor w
         override def onPartitionsRevoked(partitions: util.Collection[TopicPartition]): Unit = {}
       })
     // NOTE: non-deprecated #poll(Duration) method doesn't work because it includesMetadataInTimeout opposite to this one
-    consumer.poll(1000)
+    consumer.poll(1.second.toMillis)
 
     val state = TopicResetState(adminClient = adminClient,
       consumer = consumer,
@@ -196,8 +215,7 @@ class TopicResetActor(brokers: List[String], kafkaTopic: String) extends Actor w
       replayLifecycleCallbacks = replayLifecycleCallbacks,
       scheduledCheck = None)
 
-    // TODO configure this poll time
-    context.system.scheduler.scheduleOnce(5.seconds, context.self, CheckProgress)(context.dispatcher)
+    context.system.scheduler.scheduleOnce(checkProgressPollTime, context.self, CheckProgress)(context.dispatcher)
     context.become(initializing(state))
   }
 
@@ -228,6 +246,7 @@ private[streams] object TopicResetActor {
 
   sealed trait ResetTopicResult
   case object TopicResetSucceed extends ResetTopicResult
-  case object TopicReplayComplete extends ResetTopicResult
+  // not used
+  //case object TopicReplayComplete extends ResetTopicResult
   case class TopicResetFailed(err: Throwable) extends ResetTopicResult
 }
