@@ -63,10 +63,7 @@ class BusinessServiceImpl(implicit mat: Materializer) extends BusinessLogicServi
 
 object BusinessLogicServer {
   def main(args: Array[String]): Unit = {
-    val conf = ConfigFactory.parseString("akka.http.server.preview.enable-http2 = on").withFallback(ConfigFactory.defaultApplication())
-    implicit val system = ActorSystem("app", conf)
-
-
+    implicit val system = ActorSystem("app")
 
     import system.dispatcher
     val binding = new BusinessLogicServer(system).run()
@@ -79,8 +76,11 @@ object BusinessLogicServer {
     println("Business logic server has been started")
 
     val config = system.settings.config.getConfig("surge-server")
+    config.resolve()
     val host = config.getString("host")
     val port = config.getInt("port")
+    println(s"surge host is$host")
+    println(s"surge port is$port")
 
     lazy val clientSettings = GrpcClientSettings.connectToServiceAt(host, port).withTls(false)
 
