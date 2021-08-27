@@ -79,8 +79,8 @@ object BusinessLogicServer {
     config.resolve()
     val host = config.getString("host")
     val port = config.getInt("port")
-    println(s"surge host is$host")
-    println(s"surge port is$port")
+    println(s"surge host is $host")
+    println(s"surge port is $port")
 
     lazy val clientSettings = GrpcClientSettings.connectToServiceAt(host, port).withTls(false)
 
