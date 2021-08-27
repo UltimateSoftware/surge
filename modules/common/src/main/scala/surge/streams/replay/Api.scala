@@ -24,8 +24,10 @@ case class ReplayProgress(partitionResults: Map[TopicPartition, Boolean] = Map.e
   }
 }
 
-case object ReplayStarted
-case class ResetComplete()
-case object ReplayComplete
+sealed trait ReplayLifecycleEvent
+case object ReplayStarted extends ReplayLifecycleEvent
+case class ResetComplete() extends ReplayLifecycleEvent
+case object ReplayComplete extends ReplayLifecycleEvent
 
-case object GetReplayProgress
+sealed trait ReplayRequest
+case object GetReplayProgress extends ReplayRequest
