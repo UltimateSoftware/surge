@@ -86,7 +86,7 @@ lazy val `surge-engine-multilanguage` =
 lazy val `surge-engine-multilanguage-poc-business-app` =
   (project in file("modules/multilanguage-poc-business-app"))
     .dependsOn(`surge-engine-multilanguage`)
-    .settings(libraryDependencies ++= Seq(logback))
+    .settings(libraryDependencies ++= Seq(Akka.slf4j, logback, slf4jApi))
     .enablePlugins(AkkaGrpcPlugin, JavaServerAppPackaging)
 
 lazy val `surge-metrics` = (project in file("modules/metrics")).settings(

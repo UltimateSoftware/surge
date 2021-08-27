@@ -3,32 +3,34 @@
 package com.example
 
 import akka.actor.ActorSystem
+import akka.event.Logging
 import akka.grpc.GrpcClientSettings
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.{ HttpRequest, HttpResponse }
+import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
 import akka.stream.Materializer
-import com.typesafe.config.ConfigFactory
 import com.ukg.surge.multilanguage.protobuf._
-import com.ukg.surge.poc.business.{ PersonTagged, Photo, TagPerson }
+import com.ukg.surge.poc.business.{PersonTagged, Photo, TagPerson}
 
 import scala.concurrent.duration.DurationInt
-import scala.concurrent.{ ExecutionContext, Future }
-import scala.util.{ Failure, Success }
+import scala.concurrent.{ExecutionContext, Future}
+import scala.util.{Failure, Success}
 
-class BusinessServiceImpl(implicit mat: Materializer) extends BusinessLogicService {
+class BusinessServiceImpl(implicit system: ActorSystem) extends BusinessLogicService {
+
+  val logger = Logging(system, classOf[BusinessServiceImpl])
 
   override def processCommand(in: ProcessCommandRequest): Future[ProcessCommandReply] = {
-    println("Surge sidecar called processCommand")
+    logger.info("In processCommand")
     in.command match {
       case Some(command: Command) =>
-        println("Received command:" + command)
+        logger.info("Received command:" + command)
         val tagPerson: TagPerson = TagPerson.parseFrom(command.payload.toByteArray)
         val personTagged: PersonTagged = PersonTagged(personName = tagPerson.personName)
         val event = com.ukg.surge.multilanguage.protobuf.Event(command.aggregateId, personTagged.toByteString)
-        println(s"Responding with event with payload of size ${event.payload.size()}")
+        logger.info(s"Responding with event with payload of size ${event.payload.size()}")
         Future.successful(ProcessCommandReply(List(event)))
       case None =>
-        println("No command! Returning failed future..")
+        logger.info("No command! Returning failed future..")
         Future.failed(new UnsupportedOperationException)
     }
   }
@@ -61,9 +63,12 @@ class BusinessServiceImpl(implicit mat: Materializer) extends BusinessLogicServi
 
 }
 
-object BusinessLogicServer {
+class Main
+
+object Main {
   def main(args: Array[String]): Unit = {
     implicit val system = ActorSystem("app")
+    val logger = Logging(system, classOf[Main])
 
     import system.dispatcher
     val binding = new BusinessLogicServer(system).run()
@@ -73,14 +78,14 @@ object BusinessLogicServer {
       }
     })
 
-    println("Business logic server has been started")
+    logger.info("Business logic server has been started")
 
     val config = system.settings.config.getConfig("surge-server")
     config.resolve()
     val host = config.getString("host")
     val port = config.getInt("port")
-    println(s"surge host is $host")
-    println(s"surge port is $port")
+    logger.info(s"Surge host is $host")
+    logger.info(s"Surge port is $port")
 
     lazy val clientSettings = GrpcClientSettings.connectToServiceAt(host, port).withTls(false)
 
@@ -96,8 +101,8 @@ object BusinessLogicServer {
       .onComplete {
         case Failure(exception: Throwable) =>
           exception.printStackTrace()
-        case Success(value: SendCommandReply) =>
-          println(value.toString)
+        case Success(value: ForwardCommandReply) =>
+          logger.info(s"Success ${value.toString}")
       }
 
   }
