@@ -37,12 +37,13 @@ message HandleEventResponse {
 }
 
 message SendCommandRequest {
-  Command command = 1; // TODO: decide what else we need here
+  Command command = 1;
 }
 
 message SendCommandReply {
-  string successMessage = 1;  // TODO: decide what else we need here
+  bool isSuccess = 1;
   string rejectionMessage = 2;
+  State newState = 3;
 }
 
 service MultilanguageGatewayService {
