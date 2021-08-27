@@ -2,19 +2,18 @@
 <configuration>
 
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
-        <layout class="ch.qos.logback.classic.PatternLayout">
-            <pattern>%blue(%d{ISO8601}) %highlight(%-5level) [%blue(%t)] %yellow(%logger): %msg%n%throwable</pattern>
-        </layout>
+        <encoder>
+            <pattern>[%date{ISO8601}] [%level] [%logger] [%marker] [%thread] - %msg MDC: {%mdc}%n</pattern>
+        </encoder>
     </appender>
 
-    <logger name="surge" level="DEBUG" />
-
-    <logger name="kafka" level="ERROR" />
-    <logger name="org.apache.kafka" level="ERROR" />
-    <logger name="org.apache.zookeeper" level="ERROR" />
+    <appender name="ASYNC" class="ch.qos.logback.classic.AsyncAppender">
+        <queueSize>8192</queueSize>
+        <neverBlock>true</neverBlock>
+        <appender-ref ref="STDOUT" />
+    </appender>
 
     <root level="INFO">
-        <appender-ref ref="STDOUT" />
+        <appender-ref ref="ASYNC"/>
     </root>
-
 </configuration>

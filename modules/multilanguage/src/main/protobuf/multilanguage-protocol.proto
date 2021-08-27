@@ -36,18 +36,18 @@ message HandleEventResponse {
   State state = 1;
 }
 
-message SendCommandRequest {
+message ForwardCommandRequest {
   Command command = 1;
 }
 
-message SendCommandReply {
+message ForwardCommandReply {
   bool isSuccess = 1;
   string rejectionMessage = 2;
   State newState = 3;
 }
 
 service MultilanguageGatewayService {
-  rpc SendCommand (SendCommandRequest) returns (SendCommandReply) {}
+  rpc ForwardCommand (ForwardCommandRequest) returns (ForwardCommandReply) {}
 }
 
 service BusinessLogicService {

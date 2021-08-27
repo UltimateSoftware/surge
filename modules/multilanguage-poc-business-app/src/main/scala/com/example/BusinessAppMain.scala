@@ -91,7 +91,7 @@ object BusinessLogicServer {
 
     akka.pattern
       .after(duration = 15.seconds, system.scheduler) {
-        surge.sendCommand(SendCommandRequest(Some(command)))
+        surge.forwardCommand(ForwardCommandRequest(Some(command)))
       }
       .onComplete {
         case Failure(exception: Throwable) =>
