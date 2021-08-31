@@ -7,7 +7,7 @@ import akka.stream.scaladsl.{ Keep, Sink }
 import akka.stream.testkit.TestPublisher
 import akka.stream.testkit.scaladsl.TestSource
 import surge.internal.tracing.NoopTracerFactory
-import surge.streams.replay.{ NoOpEventReplayControl, ReplayControl }
+import surge.streams.replay.{ NoOpEventReplayControl, ReplayControl, ReplayProgress }
 import surge.streams.{ DataPipeline, EventHandler, EventPlusStreamMeta, EventSource }
 
 import scala.concurrent.Future
@@ -26,6 +26,7 @@ class TestDataPipeline[Event](probe: TestPublisher.Probe[EventPlusStreamMeta[Str
   override def start(): Unit = {}
   override def stop(): Unit = {}
   override def replay(): Future[DataPipeline.ReplayResult] = Future.successful(DataPipeline.ReplaySuccessfullyStarted())
+
   def sendEvent(event: Event): DataPipeline = {
     val tracer = NoopTracerFactory.create()
     val span = tracer.spanBuilder("sendEvent (TestDataPipeline)").setNoParent().startSpan()

@@ -5,7 +5,7 @@ package surge.internal.streams
 import akka.actor.{ Actor, ActorRef, ActorSystem, Address, NoSerializationVerificationNeeded, Props, Stash }
 import akka.kafka.scaladsl.Consumer
 import akka.kafka.scaladsl.Consumer.DrainingControl
-import akka.kafka.{ ConsumerMessage, _ }
+import akka.kafka._
 import akka.pattern._
 import akka.stream.scaladsl.{ Flow, RestartSource, Sink }
 import akka.util.Timeout
@@ -19,9 +19,10 @@ import org.slf4j.{ LoggerFactory, MDC }
 import surge.internal.akka.ActorWithTracing
 import surge.internal.akka.cluster.{ ActorHostAwareness, ActorRegistry, ActorSystemHostAwareness }
 import surge.internal.kafka.{ HeadersHelper, HostAwareCooperativeStickyAssignor, HostAwareRangeAssignor }
+import surge.internal.streams.ReplayCoordinator.GetReplayProgress
 import surge.internal.utils.Logging
 import surge.streams.DataPipeline._
-import surge.streams.replay.{ EventReplaySettings, EventReplayStrategy, ReplayControl, ReplayControlContext }
+import surge.streams.replay._
 import surge.streams.{ EventPlusStreamMeta, KafkaStreamMeta }
 
 import java.util.concurrent.atomic.AtomicReference

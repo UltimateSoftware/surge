@@ -38,7 +38,7 @@ class StreamManagerSpec
     with BeforeAndAfterAll
     with ScalaFutures {
   implicit override val patienceConfig: PatienceConfig =
-    PatienceConfig(timeout = scaled(Span(30, Seconds)), interval = scaled(Span(50, Millis)))
+    PatienceConfig(timeout = scaled(Span(60, Seconds)), interval = scaled(Span(50, Millis)))
 
   private implicit val ex: ExecutionContext = ExecutionContext.global
   private implicit val stringSer: Serializer[String] = DefaultSerdes.stringSerde.serializer()
