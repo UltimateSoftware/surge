@@ -19,12 +19,12 @@ import org.slf4j.{ LoggerFactory, MDC }
 import surge.internal.akka.ActorWithTracing
 import surge.internal.akka.cluster.{ ActorHostAwareness, ActorRegistry, ActorSystemHostAwareness }
 import surge.internal.kafka.{ HeadersHelper, HostAwareCooperativeStickyAssignor, HostAwareRangeAssignor }
-import surge.internal.streams.ReplayCoordinator.GetReplayProgress
 import surge.internal.utils.Logging
 import surge.streams.DataPipeline._
 import surge.streams.replay._
 import surge.streams.{ EventPlusStreamMeta, KafkaStreamMeta }
 
+import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
 import scala.concurrent.ExecutionContext.global
 import scala.concurrent.duration._
@@ -139,12 +139,13 @@ class KafkaStreamManager[Key, Value](
   def replay(): Future[ReplayResult] = {
     implicit val entireProcessTimeout: Timeout = Timeout(replaySettings.entireReplayTimeout)
     implicit val executionContext: ExecutionContext = ExecutionContext.global
+    val replayId = UUID.randomUUID().toString
     (replayCoordinator ? ReplayCoordinator.StartReplay)
       .map {
         case ReplayCoordinator.ReplayCompleted =>
-          ReplaySuccessfullyStarted()
+          ReplaySuccessfullyStarted(replayId)
         case ReplayCoordinator.ReplayFailed(err) =>
-          ReplayFailed(err)
+          ReplayFailed(replayId, err)
       }
       .recoverWith { case err: Throwable =>
         log.error(
@@ -152,7 +153,7 @@ class KafkaStreamManager[Key, Value](
             s"please try again, if the problem persists, reach out the Surge team for support",
           err)
         replayCoordinator ! ReplayCoordinator.StopReplay
-        Future.successful(ReplayFailed(err))
+        Future.successful(ReplayFailed(replayId, err))
       }
   }
 
