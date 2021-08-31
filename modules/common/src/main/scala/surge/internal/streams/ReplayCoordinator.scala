@@ -12,7 +12,7 @@ import surge.internal.kafka.HostAssignmentTracker
 import surge.internal.streams.KafkaStreamManagerActor.{ StartConsuming, SuccessfullyStopped }
 import surge.internal.utils.InlineReceive
 import surge.kafka.HostPort
-import surge.streams.replay.{ ContextForwardingLifecycleCallbacks, ReplayControl, ReplayProgress, ResetComplete }
+import surge.streams.replay.{ ContextForwardingLifecycleCallbacks, ReplayControl, ReplayProgress, ReplayReady }
 
 import scala.concurrent.Future
 import scala.util.{ Failure, Success }
@@ -76,7 +76,6 @@ class ReplayCoordinator(topicName: String, consumerGroup: String, registry: Acto
       context.become(uninitialized())
     case ReplayStarted =>
       log.debug("Replay Started")
-      replayState.replyTo ! ReplayStarted
     case progress: ReplayProgress =>
       replayControl.replayProgress(progress)
       if (progress.isComplete) {
@@ -84,7 +83,7 @@ class ReplayCoordinator(topicName: String, consumerGroup: String, registry: Acto
       }
       // update progress in state
       context.become(replaying(replayState.copy(progress = progress)))
-    case _: ResetComplete =>
+    case _: ReplayReady =>
       startStoppedConsumers(replayState)
     case ReplayCompleted =>
       replayControl.postReplay()

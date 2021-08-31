@@ -140,7 +140,7 @@ class KafkaStreamManager[Key, Value](
     implicit val executionContext: ExecutionContext = ExecutionContext.global
     (replayCoordinator ? ReplayCoordinator.StartReplay)
       .map {
-        case ReplayCoordinator.ReplayStarted =>
+        case ReplayCoordinator.ReplayCompleted =>
           ReplaySuccessfullyStarted()
         case ReplayCoordinator.ReplayFailed(err) =>
           ReplayFailed(err)

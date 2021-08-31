@@ -64,7 +64,7 @@ class StreamManagerSpec
       kafkaBrokers: String,
       groupId: String,
       businessLogic: (String, Array[Byte]) => Future[_],
-      replayStrategy: EventReplayStrategy = new NoOpEventReplayStrategy,
+      replayStrategy: EventReplayStrategy = new NoOpEventReplayStrategy(),
       replaySettings: EventReplaySettings = DefaultEventReplaySettings): KafkaStreamManager[String, Array[Byte]] = {
     val consumerSettings = KafkaDataSourceConfigHelper.consumerSettingsFromConfig[String, Array[Byte]](system, defaultConfig, kafkaBrokers, groupId)
 
@@ -233,7 +233,9 @@ class StreamManagerSpec
         publishToKafka(new ProducerRecord[String, String](topic.name, 2, record3, record3))
 
         val settings = KafkaForeverReplaySettings(defaultConfig, topic.name).copy(brokers = List(embeddedBroker))
-        val kafkaForeverReplayStrategy = KafkaForeverReplayStrategy(defaultConfig, system, settings)
+        val completeProbe = TestProbe()
+        val kafkaForeverReplayStrategy =
+          new KafkaForeverReplayStrategyImpl(defaultConfig, system, settings, () => Future.successful(), () => completeProbe.ref ! ReplayComplete)
         val consumer =
           testStreamManager(topic, kafkaBrokers = embeddedBroker, groupId = "replay-test", sendToTestProbe(probe), kafkaForeverReplayStrategy, settings)
 
@@ -242,6 +244,8 @@ class StreamManagerSpec
         val replayResult = consumer.replay().futureValue(Timeout(settings.entireReplayTimeout))
         replayResult shouldBe ReplaySuccessfullyStarted()
         probe.expectMsgAllOf(40.seconds, record1, record2, record3)
+
+        completeProbe.expectMsg(ReplayComplete)
       }
     }
   }

@@ -22,19 +22,24 @@ trait EventReplayStrategy {
 }
 
 trait ReplayLifecycleCallbacks {
-  def onResetComplete(resetComplete: ResetComplete): Unit
+  def onReplayStarted(replayStarted: ReplayStarted): Unit
+  def onReplayReady(replayReady: ReplayReady): Unit
   def onReplayProgress(replayProgress: ReplayProgress): Unit
 }
 
 class NoopReplayLifecycleCallbacks extends ReplayLifecycleCallbacks {
-  override def onResetComplete(resetComplete: ResetComplete): Unit = {}
-
+  override def onReplayStarted(replayStarted: ReplayStarted): Unit = {}
+  override def onReplayReady(replayReady: ReplayReady): Unit = {}
   override def onReplayProgress(replayProgress: ReplayProgress): Unit = {}
 }
 
 class ContextForwardingLifecycleCallbacks(context: ActorContext) extends ReplayLifecycleCallbacks {
-  override def onResetComplete(resetComplete: ResetComplete): Unit = {
-    context.self ! resetComplete
+  override def onReplayStarted(replayStarted: ReplayStarted): Unit = {
+    context.self ! replayStarted
+  }
+
+  override def onReplayReady(replayReady: ReplayReady): Unit = {
+    context.self ! replayReady
   }
 
   override def onReplayProgress(replayProgress: ReplayProgress): Unit = {

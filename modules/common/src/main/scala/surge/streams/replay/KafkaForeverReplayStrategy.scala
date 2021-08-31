@@ -70,7 +70,8 @@ class KafkaForeverReplayControl(
 
   override def fullReplay(consumerGroup: String, partitions: Iterable[Int], replayLifecycleCallbacks: ReplayLifecycleCallbacks): Future[Done] = {
     underlyingActor.ask(TopicResetActor.ResetTopic(consumerGroup, partitions.toList, replayLifecycleCallbacks)).mapTo[ResetTopicResult].map {
-      case TopicResetSucceed     => Done
+      case TopicResetSucceed =>
+        Done
       case TopicResetFailed(err) => throw err
     }
   }
@@ -127,7 +128,7 @@ class TopicResetActor(brokers: List[String], kafkaTopic: String, config: Config)
         state.consumer.commitSync(earliestCommits)
         state.replyTo ! TopicResetSucceed
 
-        state.replayLifecycleCallbacks.onResetComplete(ResetComplete())
+        state.replayLifecycleCallbacks.onReplayReady(ReplayReady())
 
         val nextState = state.copy(preReplayCommits = preReplayCommits.toMap)
         context.become(waitingForComplete(nextState))
@@ -144,23 +145,25 @@ class TopicResetActor(brokers: List[String], kafkaTopic: String, config: Config)
 
   def waitingForComplete(state: TopicResetState): Receive = { case CheckProgress =>
     try {
+      val preReplayCommits = state.preReplayCommits
       val currentCommits = state.adminClient.consumerGroupOffsets(state.consumerGroup)
 
-      val progress: ReplayProgress = calculateProgress(currentCommits, state.preReplayCommits)
+      val progress: TopicReplayProgress = calculateProgress(currentCommits, preReplayCommits)
 
+      log.debug(s"Replay in Progress for $kafkaTopic ($currentCommits) - ($preReplayCommits")
+      log.debug(s"Topic Replay percent complete is ${progress.percentComplete()}")
+      state.replayLifecycleCallbacks.onReplayProgress(progress.asReplayProgress())
+
+      // Become ready if replay is complete
       if (progress.isComplete) {
-        state.replayLifecycleCallbacks.onReplayProgress(progress)
         context.become(ready)
       } else {
-        log.debug(s"Replay in Progress for $kafkaTopic ($currentCommits)")
-        state.replayLifecycleCallbacks.onReplayProgress(progress)
+        // otherwise; check progress again.
         context.system.scheduler.scheduleOnce(5.seconds, context.self, CheckProgress)(context.dispatcher)
       }
     } catch {
       case err: Throwable =>
         handleError(err, state.replyTo)
-    } finally {
-      state.consumer.close()
     }
   }
 
@@ -211,7 +214,7 @@ class TopicResetActor(brokers: List[String], kafkaTopic: String, config: Config)
       replayLifecycleCallbacks = replayLifecycleCallbacks)
 
     context.system.scheduler.scheduleOnce(checkProgressPollTime, context.self, CheckProgress)(context.dispatcher)
-    context.become(initializing(state))
+    context.become(initializing(state.copy()))
   }
 
   def buildEarliestCommits(consumer: KafkaConsumer[String, Array[Byte]], topicPartitions: List[TopicPartition]): Map[TopicPartition, OffsetAndMetadata] = {
@@ -225,9 +228,22 @@ class TopicResetActor(brokers: List[String], kafkaTopic: String, config: Config)
 
   override def receive: Receive = ready
 
-  private def calculateProgress(current: Map[TopicPartition, OffsetAndMetadata], preReplay: Map[TopicPartition, OffsetAndMetadata]): ReplayProgress = {
-    ReplayProgress(preReplay.transform((tp, o) => current(tp).offset() >= o.offset()))
+  /**
+   * Calculate the TopicReplayProgress that has been made by comparing the current offsets with the preReplay offsets.
+   * @param current
+   *   Map[TopicPartition, OffsetAndMetadata]
+   * @param preReplay
+   *   Map[TopicPartition, OffsetAndMetadata]
+   * @return
+   *   TopicReplayProgress
+   */
+  private def calculateProgress(current: Map[TopicPartition, OffsetAndMetadata], preReplay: Map[TopicPartition, OffsetAndMetadata]): TopicReplayProgress = {
+    // A topic-partition is deemed complete if the current offset is greater than or equal to the preReplay offset.
+    TopicReplayProgress(preReplay.transform((tp, o) => topicPartitionCompleted(current, tp, o)))
   }
+
+  private def topicPartitionCompleted: (Map[TopicPartition, OffsetAndMetadata], TopicPartition, OffsetAndMetadata) => Boolean =
+    (current: Map[TopicPartition, OffsetAndMetadata], tp: TopicPartition, o: OffsetAndMetadata) => current(tp).offset() >= o.offset()
 }
 
 private[streams] object TopicResetActor {
@@ -241,4 +257,19 @@ private[streams] object TopicResetActor {
   sealed trait ResetTopicResult
   case object TopicResetSucceed extends ResetTopicResult
   case class TopicResetFailed(err: Throwable) extends ResetTopicResult
+
+  case class TopicReplayProgress(partitionResults: Map[TopicPartition, Boolean] = Map.empty) {
+    def isComplete: Boolean = {
+      percentComplete() >= 100.0
+    }
+
+    def percentComplete(): Double = {
+      val numCompletedPartitions = partitionResults.values.count(p => p)
+      (numCompletedPartitions / partitionResults.values.size) * 100.0
+    }
+
+    def asReplayProgress(): ReplayProgress = {
+      ReplayProgress(percentComplete())
+    }
+  }
 }
