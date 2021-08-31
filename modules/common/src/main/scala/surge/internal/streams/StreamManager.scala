@@ -142,7 +142,7 @@ class KafkaStreamManager[Key, Value](
     val replayId = UUID.randomUUID().toString
     (replayCoordinator ? ReplayCoordinator.StartReplay)
       .map {
-        case ReplayCoordinator.ReplayCompleted =>
+        case ReplayCoordinator.ReplayStarted =>
           ReplaySuccessfullyStarted(replayId)
         case ReplayCoordinator.ReplayFailed(err) =>
           ReplayFailed(replayId, err)

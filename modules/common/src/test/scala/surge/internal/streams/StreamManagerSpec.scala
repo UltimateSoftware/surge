@@ -245,7 +245,7 @@ class StreamManagerSpec
         replayResult shouldBe a[ReplaySuccessfullyStarted]
         probe.expectMsgAllOf(40.seconds, record1, record2, record3)
 
-        completeProbe.expectMsg(ReplayComplete)
+        completeProbe.expectMsg(40.seconds, ReplayComplete)
       }
     }
   }

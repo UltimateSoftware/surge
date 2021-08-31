@@ -76,6 +76,7 @@ class ReplayCoordinator(topicName: String, consumerGroup: String, registry: Acto
       context.become(uninitialized())
     case ReplayStarted =>
       log.debug("Replay Started")
+      replayState.replyTo ! ReplayStarted
     case progress: ReplayProgress =>
       replayControl.replayProgress(progress)
       if (progress.isComplete) {
