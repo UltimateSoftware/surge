@@ -14,7 +14,8 @@ case class ReplayProgress(percentComplete: Double = 0.0) {
 sealed trait ReplayLifecycleEvent
 case class ReplayStarted() extends ReplayLifecycleEvent
 case class ReplayReady() extends ReplayLifecycleEvent
-case object ReplayComplete extends ReplayLifecycleEvent
+case class ReplayComplete() extends ReplayLifecycleEvent
+case class ReplayFailed(error: Throwable) extends ReplayLifecycleEvent
 
 sealed trait ReplayRequest
 case object GetReplayProgress extends ReplayRequest

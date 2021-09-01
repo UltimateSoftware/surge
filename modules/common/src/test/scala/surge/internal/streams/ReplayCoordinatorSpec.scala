@@ -53,8 +53,6 @@ class ReplayCoordinatorSpec
     }
 
     override def replayProgress: ReplayProgress => Unit = _ => {}
-
-    override def getReplayProgress: Future[ReplayProgress] = Future.successful(ReplayProgress())
   }
 
   "ReplayCoordinator" should {

@@ -75,8 +75,6 @@ class KafkaForeverReplayControl(
       case TopicResetFailed(err) => throw err
     }
   }
-
-  override def getReplayProgress: Future[ReplayProgress] = (underlyingActor ? GetReplayProgress).mapTo[ReplayProgress]
 }
 
 trait EventReplaySettings {
@@ -116,7 +114,7 @@ class TopicResetActor(brokers: List[String], kafkaTopic: String, config: Config)
       initialize(consumerGroup, partitions, replayLifecycleCallbacks)
     } catch {
       case err: Throwable =>
-        handleError(err, sender())
+        handleError(err, sender(), replayLifecycleCallbacks)
     }
   }
 
@@ -135,7 +133,7 @@ class TopicResetActor(brokers: List[String], kafkaTopic: String, config: Config)
         unstashAll()
       } catch {
         case err: Throwable =>
-          handleError(err, state.replyTo)
+          handleError(err, state.replyTo, state.replayLifecycleCallbacks)
       } finally {
         state.consumer.close()
       }
@@ -163,14 +161,15 @@ class TopicResetActor(brokers: List[String], kafkaTopic: String, config: Config)
       }
     } catch {
       case err: Throwable =>
-        handleError(err, state.replyTo)
+        handleError(err, state.replyTo, state.replayLifecycleCallbacks)
     }
   }
 
-  def handleError(err: Throwable, replyTo: ActorRef): Unit = {
+  def handleError(err: Throwable, replyTo: ActorRef, replayLifecycleCallbacks: ReplayLifecycleCallbacks): Unit = {
     log.error(s"Topic reset failed for $kafkaTopic", err)
     replyTo ! TopicResetFailed(err)
     context.become(ready)
+    replayLifecycleCallbacks.onReplayFailed(ReplayFailed(err))
     unstashAll()
   }
 

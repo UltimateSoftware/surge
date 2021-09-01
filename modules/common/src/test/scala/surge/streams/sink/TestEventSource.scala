@@ -26,7 +26,7 @@ class TestEventSource[Event](implicit system: ActorSystem) extends EventSource[E
 class TestDataPipeline[Event](probe: TestPublisher.Probe[EventPlusStreamMeta[String, Event, String]]) extends DataPipeline {
   override def start(): Unit = {}
   override def stop(): Unit = {}
-  override def replay(): Future[DataPipeline.ReplayResult] = Future.successful(DataPipeline.ReplaySuccessfullyStarted(UUID.randomUUID().toString))
+  override def replay(): Future[DataPipeline.ReplayResult] = Future.successful(DataPipeline.ReplaySuccessfullyStarted())
 
   def sendEvent(event: Event): DataPipeline = {
     val tracer = NoopTracerFactory.create()

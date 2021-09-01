@@ -25,12 +25,19 @@ trait ReplayLifecycleCallbacks {
   def onReplayStarted(replayStarted: ReplayStarted): Unit
   def onReplayReady(replayReady: ReplayReady): Unit
   def onReplayProgress(replayProgress: ReplayProgress): Unit
+
+  def onReplayComplete(replayComplete: ReplayComplete): Unit
+  def onReplayFailed(replayFailed: ReplayFailed)
 }
 
 class NoopReplayLifecycleCallbacks extends ReplayLifecycleCallbacks {
   override def onReplayStarted(replayStarted: ReplayStarted): Unit = {}
   override def onReplayReady(replayReady: ReplayReady): Unit = {}
   override def onReplayProgress(replayProgress: ReplayProgress): Unit = {}
+
+  override def onReplayComplete(replayComplete: ReplayComplete): Unit = {}
+
+  override def onReplayFailed(replayFailed: ReplayFailed): Unit = {}
 }
 
 class ContextForwardingLifecycleCallbacks(context: ActorContext) extends ReplayLifecycleCallbacks {
@@ -45,6 +52,18 @@ class ContextForwardingLifecycleCallbacks(context: ActorContext) extends ReplayL
   override def onReplayProgress(replayProgress: ReplayProgress): Unit = {
     context.self ! replayProgress
   }
+
+  override def onReplayComplete(replayComplete: ReplayComplete): Unit = {
+    context.self ! replayComplete
+  }
+
+  override def onReplayFailed(replayFailed: ReplayFailed): Unit = {
+    context.self ! replayFailed
+  }
+}
+
+trait ReplayProgressMonitor {
+  def replayProgress: ReplayProgress => Unit
 }
 
 /**
@@ -52,16 +71,18 @@ class ContextForwardingLifecycleCallbacks(context: ActorContext) extends ReplayL
  * itself does not coordinate stopping any currently running consumers - it simply provides a way to access various replay functionality for callers who need
  * replay-like functionality outside of a typical full/coordinated replay.
  */
-trait ReplayControl {
+trait ReplayControl extends ReplayProgressMonitor {
   def preReplay: () => Future[Any]
   def postReplay: () => Unit
-  def replayProgress: ReplayProgress => Unit
+
+  final def fullReplay(consumerGroup: String, partitions: Iterable[Int]): Future[Done] = {
+    fullReplay(consumerGroup, partitions, new NoopReplayLifecycleCallbacks())
+  }
+
   def fullReplay(
       consumerGroup: String,
       partitions: Iterable[Int],
       replayLifecycleCallbacks: ReplayLifecycleCallbacks = new NoopReplayLifecycleCallbacks()): Future[Done]
-  // TODO - Look at Lore integration with gRPC Replay Service
-  def getReplayProgress: Future[ReplayProgress]
 }
 
 object DefaultEventReplaySettings extends EventReplaySettings {
@@ -91,6 +112,4 @@ class NoOpEventReplayControl(
     log.warn("Event Replay has been used with the default NoOps implementation, please refer to the docs to properly chose your replay strategy")
     Future.successful(Done)
   }
-
-  override def getReplayProgress: Future[ReplayProgress] = Future.successful(ReplayProgress())
 }

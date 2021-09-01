@@ -235,7 +235,7 @@ class StreamManagerSpec
         val settings = KafkaForeverReplaySettings(defaultConfig, topic.name).copy(brokers = List(embeddedBroker))
         val completeProbe = TestProbe()
         val kafkaForeverReplayStrategy =
-          new KafkaForeverReplayStrategyImpl(defaultConfig, system, settings, () => Future.successful(), () => completeProbe.ref ! ReplayComplete)
+          new KafkaForeverReplayStrategyImpl(defaultConfig, system, settings, () => Future.successful(true), () => completeProbe.ref ! ReplayComplete)
         val consumer =
           testStreamManager(topic, kafkaBrokers = embeddedBroker, groupId = "replay-test", sendToTestProbe(probe), kafkaForeverReplayStrategy, settings)
 

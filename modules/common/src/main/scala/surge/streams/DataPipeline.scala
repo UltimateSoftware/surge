@@ -21,14 +21,12 @@ trait DataPipeline {
 }
 
 object DataPipeline {
-  sealed trait ReplayResult {
-    def replayId: String
-  }
+  sealed trait ReplayResult
   // This is a case class on purpose, Kotlin doesn't do pattern matching against scala case objects :(
-  case class ReplaySuccessfullyStarted(replayId: String) extends ReplayResult
-  case class ReplayFailed(replayId: String, reason: Throwable) extends ReplayResult
+  case class ReplaySuccessfullyStarted() extends ReplayResult
+  case class ReplayFailed(reason: Throwable) extends ReplayResult
 
-  case class ReplayProgress(replayId: String, percentComplete: Double) extends ReplayResult
+  case class ReplayProgress(percentComplete: Double) extends ReplayResult
 }
 
 class TypedDataPipeline[Type](dataPipeline: DataPipeline) extends DataPipeline {
