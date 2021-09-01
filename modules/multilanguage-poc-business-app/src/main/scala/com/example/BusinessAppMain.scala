@@ -7,7 +7,6 @@ import akka.event.Logging
 import akka.grpc.GrpcClientSettings
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
-import akka.stream.Materializer
 import com.ukg.surge.multilanguage.protobuf._
 import com.ukg.surge.poc.business.{PersonTagged, Photo, TagPerson}
 
