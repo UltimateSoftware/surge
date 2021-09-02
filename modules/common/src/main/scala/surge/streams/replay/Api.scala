@@ -2,6 +2,10 @@
 
 package surge.streams.replay
 
+object ReplayProgress {
+  def complete(): ReplayProgress = ReplayProgress(percentComplete = 100.0)
+}
+
 /**
  * ReplayProgress
  * @param percentComplete

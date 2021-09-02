@@ -27,7 +27,7 @@ trait ReplayLifecycleCallbacks {
   def onReplayProgress(replayProgress: ReplayProgress): Unit
 
   def onReplayComplete(replayComplete: ReplayComplete): Unit
-  def onReplayFailed(replayFailed: ReplayFailed)
+  def onReplayFailed(replayFailed: ReplayFailed): Unit
 }
 
 class NoopReplayLifecycleCallbacks extends ReplayLifecycleCallbacks {
