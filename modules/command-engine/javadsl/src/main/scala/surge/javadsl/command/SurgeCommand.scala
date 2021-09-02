@@ -20,23 +20,23 @@ import scala.compat.java8.FutureConverters
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.jdk.CollectionConverters._
 
-trait SurgeCommand[AggId, Agg, Command, Rej, Evt, Response] extends core.SurgeProcessingTrait[Agg, Command, Rej, Evt, Response] with HealthCheckTrait {
-  def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Command, Evt, Response]
+trait SurgeCommand[AggId, Agg, Command, Rej, Evt] extends core.SurgeProcessingTrait[Agg, Command, Rej, Evt, Agg] with HealthCheckTrait {
+  def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Command, Evt, Agg]
   def getMetrics: java.util.List[Metric]
-  def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Command, Rej, Evt, Response]): Unit
+  def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Command, Rej, Evt]): Unit
 }
 
 object SurgeCommand {
-  def create[AggId, Agg, Command, Evt, Response](
-      businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Evt, Response]): SurgeCommand[AggId, Agg, Command, Nothing, Evt, Response] = {
+  def create[AggId, Agg, Command, Evt](
+      businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Evt, Agg]): SurgeCommand[AggId, Agg, Command, Nothing, Evt] = {
     val actorSystem = ActorSystem(s"${businessLogic.aggregateName}ActorSystem")
     create(actorSystem, businessLogic, businessLogic.config)
   }
 
-  def create[AggId, Agg, Command, Evt, Response](
+  def create[AggId, Agg, Command, Evt](
       actorSystem: ActorSystem,
-      businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Evt, Response],
-      config: Config): SurgeCommand[AggId, Agg, Command, Nothing, Evt, Response] = {
+      businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Evt, Agg],
+      config: Config): SurgeCommand[AggId, Agg, Command, Nothing, Evt] = {
     new SurgeCommandImpl(
       actorSystem,
       SurgeCommandModel(businessLogic),
@@ -45,10 +45,10 @@ object SurgeCommand {
       config)
   }
 
-  def create[AggId, Agg, Command, Rej, Evt, Response](
+  def create[AggId, Agg, Command, Rej, Evt](
       actorSystem: ActorSystem,
-      businessLogic: SurgeRejectableCommandBusinessLogicTrait[AggId, Agg, Command, Rej, Evt, Response],
-      config: Config): SurgeCommand[AggId, Agg, Command, Rej, Evt, Response] = {
+      businessLogic: SurgeRejectableCommandBusinessLogicTrait[AggId, Agg, Command, Rej, Evt, Agg],
+      config: Config): SurgeCommand[AggId, Agg, Command, Rej, Evt] = {
     new SurgeCommandImpl(
       actorSystem,
       SurgeCommandModel(businessLogic),
@@ -58,27 +58,27 @@ object SurgeCommand {
   }
 }
 
-private[javadsl] class SurgeCommandImpl[AggId, Agg, Command, Rej, Evt, Response](
+private[javadsl] class SurgeCommandImpl[AggId, Agg, Command, Rej, Evt](
     val actorSystem: ActorSystem,
-    override val businessLogic: SurgeCommandModel[Agg, Command, Rej, Evt, Response],
+    override val businessLogic: SurgeCommandModel[Agg, Command, Rej, Evt, Agg],
     signalStreamProvider: HealthSignalStreamProvider,
     aggIdToString: AggId => String,
     config: Config)
-    extends domain.SurgeCommandImpl[Agg, Command, Rej, Evt, Response](actorSystem, businessLogic, signalStreamProvider, config)
-    with SurgeCommand[AggId, Agg, Command, Rej, Evt, Response] {
+    extends domain.SurgeCommandImpl[Agg, Command, Rej, Evt, Agg](actorSystem, businessLogic, signalStreamProvider, config)
+    with SurgeCommand[AggId, Agg, Command, Rej, Evt] {
 
   import surge.javadsl.common.HealthCheck._
   def getHealthCheck: CompletionStage[HealthCheck] = {
     FutureConverters.toJava(healthCheck().map(_.asJava))
   }
 
-  def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Command, Evt, Response] = {
+  def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Command, Evt, Agg] = {
     new AggregateRefImpl(aggIdToString(aggregateId), actorRouter.actorRegion, businessLogic.tracer)
   }
 
   def getMetrics: java.util.List[Metric] = businessLogic.metrics.getMetrics.asJava
 
-  def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Command, Rej, Evt, Response]): Unit = {
+  def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Command, Rej, Evt]): Unit = {
     registerRebalanceCallback { assignments =>
       val javaAssignments = assignments.partitionAssignments.map(kv => kv._1 -> kv._2.asJava).asJava
       listener.onRebalance(engine = this, javaAssignments)

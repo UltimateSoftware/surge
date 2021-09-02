@@ -24,7 +24,7 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event, Response](val aggregateId: 
 
   def sendCommand(command: Cmd): Future[CommandResult[Response]] = {
     val envelope = PersistentActor.ProcessMessage[Cmd](aggregateId.toString, command)
-    sendCommandWithRetries(envelope).map {
+    doSendCommand(envelope).map {
       case Left(error) =>
         CommandFailure[Response](error)
       case Right(aggOpt) =>

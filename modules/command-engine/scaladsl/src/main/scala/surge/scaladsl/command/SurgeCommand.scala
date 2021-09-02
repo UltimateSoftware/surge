@@ -15,22 +15,22 @@ import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamPro
 import surge.metrics.Metric
 import surge.scaladsl.common.HealthCheckTrait
 
-trait SurgeCommand[AggId, Agg, Command, Rej, Evt, Response] extends core.SurgeProcessingTrait[Agg, Command, Rej, Evt, Response] with HealthCheckTrait {
-  def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Command, Evt, Response]
+trait SurgeCommand[AggId, Agg, Command, Rej, Evt] extends core.SurgeProcessingTrait[Agg, Command, Rej, Evt, Agg] with HealthCheckTrait {
+  def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Command, Evt, Agg]
   def getMetrics: Seq[Metric] = businessLogic.metrics.getMetrics
-  def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Command, Rej, Evt, Response]): Unit
+  def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Command, Rej, Evt]): Unit
 }
 
 object SurgeCommand {
-  def apply[AggId, Agg, Command, Event, Response](
-      businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Event, Response]): SurgeCommand[AggId, Agg, Command, Nothing, Event, Response] = {
+  def apply[AggId, Agg, Command, Event](
+      businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Event, Agg]): SurgeCommand[AggId, Agg, Command, Nothing, Event] = {
     val actorSystem = ActorSystem(s"${businessLogic.aggregateName}ActorSystem")
     apply(actorSystem, businessLogic, businessLogic.config)
   }
-  def apply[AggId, Agg, Command, Event, Response](
+  def apply[AggId, Agg, Command, Event](
       actorSystem: ActorSystem,
-      businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Event, Response],
-      config: Config): SurgeCommand[AggId, Agg, Command, Nothing, Event, Response] = {
+      businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Event, Agg],
+      config: Config): SurgeCommand[AggId, Agg, Command, Nothing, Event] = {
     new SurgeCommandImpl(
       actorSystem,
       SurgeCommandModel(businessLogic),
@@ -39,10 +39,10 @@ object SurgeCommand {
       config)
   }
 
-  def apply[AggId, Agg, Command, Rej, Evt, Response](
+  def apply[AggId, Agg, Command, Rej, Evt](
       actorSystem: ActorSystem,
-      businessLogic: SurgeRejectableCommandBusinessLogicTrait[AggId, Agg, Command, Rej, Evt, Response],
-      config: Config): SurgeCommand[AggId, Agg, Command, Rej, Evt, Response] = {
+      businessLogic: SurgeRejectableCommandBusinessLogicTrait[AggId, Agg, Command, Rej, Evt, Agg],
+      config: Config): SurgeCommand[AggId, Agg, Command, Rej, Evt] = {
     new SurgeCommandImpl(
       actorSystem,
       SurgeCommandModel(businessLogic),
@@ -52,22 +52,22 @@ object SurgeCommand {
   }
 }
 
-private[scaladsl] class SurgeCommandImpl[AggId, Agg, Command, Rej, Event, Response](
+private[scaladsl] class SurgeCommandImpl[AggId, Agg, Command, Rej, Event](
     val actorSystem: ActorSystem,
-    override val businessLogic: SurgeCommandModel[Agg, Command, Rej, Event, Response],
+    override val businessLogic: SurgeCommandModel[Agg, Command, Rej, Event, Agg],
     signalStreamProvider: HealthSignalStreamProvider,
     aggIdToString: AggId => String,
     override val config: Config)
-    extends domain.SurgeCommandImpl[Agg, Command, Rej, Event, Response](actorSystem, businessLogic, signalStreamProvider, config)
-    with SurgeCommand[AggId, Agg, Command, Rej, Event, Response] {
+    extends domain.SurgeCommandImpl[Agg, Command, Rej, Event, Agg](actorSystem, businessLogic, signalStreamProvider, config)
+    with SurgeCommand[AggId, Agg, Command, Rej, Event] {
 
-  def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Command, Event, Response] = {
+  def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Command, Event, Agg] = {
     new AggregateRefImpl(aggIdToString(aggregateId), actorRouter.actorRegion, businessLogic.tracer)
   }
 
   override def getMetrics: Seq[Metric] = businessLogic.metrics.getMetrics
 
-  def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Command, Rej, Event, Response]): Unit = {
+  def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Command, Rej, Event]): Unit = {
     registerRebalanceCallback { assignments => listener.onRebalance(engine = this, assignments.partitionAssignments) }
   }
 }

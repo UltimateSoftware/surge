@@ -2,7 +2,6 @@
 
 package surge.scaladsl.common
 
-import surge.internal
 import surge.internal.persistence
 
 trait Context {}

@@ -22,7 +22,7 @@ trait AggregateRefBaseTrait[AggId, Agg, Cmd, Event, Response] extends AggregateR
 
   def applyEvent(event: Event): Future[ApplyEventResult[Response]] = {
     val envelope = PersistentActor.ApplyEvent[Event](aggregateId.toString, event)
-    applyEventsWithRetries(envelope).map(aggOpt => ApplyEventSuccess[Response](aggOpt)).recover { case e =>
+    doApplyEvents(envelope).map(aggOpt => ApplyEventSuccess[Response](aggOpt)).recover { case e =>
       ApplyEventFailure[Response](e)
     }
   }

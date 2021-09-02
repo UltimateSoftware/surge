@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.Optional;
 
 // #command_model_class
-public class BankAccountCommandModel implements AggregateCommandModel<BankAccount, BankAccountCommand, BankAccountEvent, BankAccount> {
+public class BankAccountCommandModel implements AggregateCommandModel<BankAccount, BankAccountCommand, BankAccountEvent> {
 
     @Override
     public List<BankAccountEvent> processCommand(Optional<BankAccount> aggregate, BankAccountCommand command) {
@@ -80,11 +80,5 @@ public class BankAccountCommandModel implements AggregateCommandModel<BankAccoun
         }
         throw new RuntimeException("Unhandled event");
     }
-
-    @Override
-    public Optional<BankAccount> extractResponse(Optional<BankAccount> aggregate) {
-        return aggregate;
-    }
-
 }
 // #command_model_class

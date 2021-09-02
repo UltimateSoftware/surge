@@ -2,10 +2,10 @@
 
 package surge.scaladsl.common
 
-sealed trait CommandResult[Reply]
-case class CommandSuccess[Reply](reply: Option[Reply]) extends CommandResult[Reply]
-case class CommandFailure[Reply](reason: Throwable) extends CommandResult[Reply]
+sealed trait CommandResult[Agg]
+case class CommandSuccess[Agg](aggregateState: Option[Agg]) extends CommandResult[Agg]
+case class CommandFailure[Agg](reason: Throwable) extends CommandResult[Agg]
 
-sealed trait ApplyEventResult[Reply]
-case class ApplyEventSuccess[Reply](reply: Option[Reply]) extends ApplyEventResult[Reply]
-case class ApplyEventFailure[Reply](reason: Throwable) extends ApplyEventResult[Reply]
+sealed trait ApplyEventResult[Agg]
+case class ApplyEventSuccess[Agg](aggregateState: Option[Agg]) extends ApplyEventResult[Agg]
+case class ApplyEventFailure[Agg](reason: Throwable) extends ApplyEventResult[Agg]

@@ -10,31 +10,29 @@ import surge.scaladsl.common.Context
 import scala.concurrent.Future
 import scala.util.Try
 
-trait AggregateCommandModel[Agg, Cmd, Evt, Response] extends AggregateCommandModelCoreTrait[Agg, Cmd, Nothing, Evt, Response] {
+trait AggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCoreTrait[Agg, Cmd, Nothing, Evt, Agg] {
   def processCommand(aggregate: Option[Agg], command: Cmd): Try[Seq[Evt]]
   def handleEvent(aggregate: Option[Agg], event: Evt): Option[Agg]
-  def responseFromState(state: Option[Agg]): Option[Response]
 
-  final def toCore: CommandHandler[Agg, Cmd, Nothing, Evt, Response] =
-    new CommandHandler[Agg, Cmd, Nothing, Evt, Response] {
+  final def toCore: CommandHandler[Agg, Cmd, Nothing, Evt, Agg] =
+    new CommandHandler[Agg, Cmd, Nothing, Evt, Agg] {
       override def processCommand(ctx: persistence.Context, state: Option[Agg], cmd: Cmd): Future[CommandResult] =
         Future.fromTry(AggregateCommandModel.this.processCommand(state, cmd).map(v => Right(v)))
       override def apply(ctx: persistence.Context, state: Option[Agg], event: Evt): Option[Agg] = handleEvent(state, event)
-      override def extractResponse(state: Option[Agg]): Option[Response] = responseFromState(state)
+      override def extractResponse(state: Option[Agg]): Option[Agg] = state
     }
 }
 
-trait ContextAwareAggregateCommandModel[Agg, Cmd, Evt, Response] extends AggregateCommandModelCoreTrait[Agg, Cmd, Nothing, Evt, Response] {
+trait ContextAwareAggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCoreTrait[Agg, Cmd, Nothing, Evt, Agg] {
   def processCommand(ctx: Context, aggregate: Option[Agg], command: Cmd): Future[Seq[Evt]]
   def handleEvent(ctx: Context, aggregate: Option[Agg], event: Evt): Option[Agg]
-  def responseFromState(state: Option[Agg]): Option[Response]
 
-  final def toCore: CommandHandler[Agg, Cmd, Nothing, Evt, Response] =
-    new CommandHandler[Agg, Cmd, Nothing, Evt, Response] {
+  final def toCore: CommandHandler[Agg, Cmd, Nothing, Evt, Agg] =
+    new CommandHandler[Agg, Cmd, Nothing, Evt, Agg] {
       override def processCommand(ctx: persistence.Context, state: Option[Agg], cmd: Cmd): Future[CommandResult] =
         ContextAwareAggregateCommandModel.this.processCommand(Context(ctx), state, cmd).map(v => Right(v))(ctx.executionContext)
       override def apply(ctx: persistence.Context, state: Option[Agg], event: Evt): Option[Agg] = handleEvent(Context(ctx), state, event)
-      override def extractResponse(state: Option[Agg]): Option[Response] = responseFromState(state)
+      override def extractResponse(state: Option[Agg]): Option[Agg] = state
     }
 }
 
@@ -49,7 +47,7 @@ trait ContextAwareAggregateCommandModel[Agg, Cmd, Evt, Response] extends Aggrega
  * @tparam Evt
  *   event type
  */
-trait RejectableAggregateCommandModel[Agg, Cmd, Rej, Evt, Response] extends AggregateCommandModelCoreTrait[Agg, Cmd, Rej, Evt, Response] {
+trait RejectableAggregateCommandModel[Agg, Cmd, Rej, Evt] extends AggregateCommandModelCoreTrait[Agg, Cmd, Rej, Evt, Agg] {
 
   /**
    * Process a command
@@ -77,21 +75,12 @@ trait RejectableAggregateCommandModel[Agg, Cmd, Rej, Evt, Response] extends Aggr
    */
   def handleEvent(ctx: Context, aggregate: Option[Agg], event: Evt): Option[Agg]
 
-  /**
-   * Extracts a response from the resulting state.
-   *
-   * @param maybeAgg
-   *   The state of the aggregate after a comannd is successfully handled and any generated events are applied to the previous state
-   * @return
-   *   A response to send back to the original sender of the command
-   */
-  def responseFromState(maybeAgg: Option[Agg]): Option[Response]
-
-  final def toCore: CommandHandler[Agg, Cmd, Rej, Evt, Response] =
-    new CommandHandler[Agg, Cmd, Rej, Evt, Response] {
+  final def toCore: CommandHandler[Agg, Cmd, Rej, Evt, Agg] =
+    new CommandHandler[Agg, Cmd, Rej, Evt, Agg] {
       override def processCommand(ctx: persistence.Context, state: Option[Agg], cmd: Cmd): Future[CommandResult] =
         RejectableAggregateCommandModel.this.processCommand(Context(ctx), state, cmd)
       override def apply(ctx: persistence.Context, state: Option[Agg], event: Evt): Option[Agg] = handleEvent(Context(ctx), state, event)
-      override def extractResponse(state: Option[Agg]): Option[Response] = responseFromState(state)
+
+      override def extractResponse(state: Option[Agg]): Option[Agg] = state
     }
 }

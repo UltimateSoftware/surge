@@ -5,8 +5,8 @@ package surge.scaladsl.command
 import surge.core.commondsl.SurgeCommandBusinessLogicTrait
 import surge.scaladsl.common.DefaultAggregateValidator
 
-abstract class SurgeCommandBusinessLogic[AggId, Agg, Command, Event, Response]
-    extends SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Event, Response]
+abstract class SurgeCommandBusinessLogic[AggId, Agg, Command, Event]
+    extends SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Event, Agg]
     with DefaultAggregateValidator {
 
   @deprecated("Will be removed from here once an alternative model to CQRS processing is available.", "0.5.2")

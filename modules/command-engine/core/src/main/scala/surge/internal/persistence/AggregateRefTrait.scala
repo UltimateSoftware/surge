@@ -64,27 +64,20 @@ private[surge] trait AggregateRefTrait[AggId, Agg, Cmd, Event, Response] extends
   }
 
   /**
-   * Asynchronously send a command envelope to the aggregate business logic actor this reference is talking to. Retries a given number of times if sending the
-   * command envelope to the business logic actor fails.
+   * Asynchronously send a command envelope to the aggregate business logic actor this reference is talking to.
    *
    * @param envelope
    *   The command envelope to send to this aggregate actor
-   * @param retriesRemaining
-   *   Number of retry attempts remaining, defaults to 0 for no retries.
    * @param ec
    *   Implicit execution context to use for transforming the raw actor response into a better typed response.
    * @return
    *   A future of either validation errors from the business logic aggregate or the updated state of the business logic aggregate after handling the command
    *   and applying any events that resulted from the command.
    */
-  protected def sendCommandWithRetries(envelope: PersistentActor.ProcessMessage[Cmd], retriesRemaining: Int = 0)(
-      implicit ec: ExecutionContext): Future[Either[Throwable, Option[Response]]] = {
+  protected def doSendCommand(envelope: PersistentActor.ProcessMessage[Cmd])(implicit ec: ExecutionContext): Future[Either[Throwable, Option[Response]]] = {
     val askSpan = createSpan(envelope.message.getClass.getSimpleName).setTag("aggregateId", aggregateId.toString)
     askSpan.log("actor ask", Map("timeout" -> timeout.duration.toString()))
     (region ? TracedMessage(envelope, askSpan)(tracer)).map(interpretActorResponse(askSpan)).recoverWith {
-      case _: Throwable if retriesRemaining > 0 =>
-        log.warn("Ask timed out to aggregate actor region, retrying request...")
-        sendCommandWithRetries(envelope, retriesRemaining - 1)
       case a: AskTimeoutException =>
         val msg = s"Ask timed out after $askTimeoutDuration to aggregate actor with id ${envelope.aggregateId} executing command " +
           s"${envelope.message.getClass.getName}. This is typically a result of other parts of the engine performing incorrectly or " +
@@ -99,9 +92,7 @@ private[surge] trait AggregateRefTrait[AggId, Agg, Cmd, Event, Response] extends
     }
   }
 
-  // FIXME Remove retries from these 2 functions as they're not used and just make things more complicated
-  protected def applyEventsWithRetries(envelope: PersistentActor.ApplyEvent[Event], retriesRemaining: Int = 0)(
-      implicit ec: ExecutionContext): Future[Option[Response]] = {
+  protected def doApplyEvents(envelope: PersistentActor.ApplyEvent[Event])(implicit ec: ExecutionContext): Future[Option[Response]] = {
     val askSpan = createSpan("send_events_to_aggregate").setTag("aggregateId", aggregateId.toString)
     (region ? TracedMessage(envelope, askSpan)(tracer)).map(interpretActorResponse(askSpan)).flatMap {
       case Left(exception) => Future.failed(exception)

@@ -7,13 +7,13 @@ import surge.internal.domain.EventHandler
 import surge.internal.persistence
 import surge.scaladsl.common.Context
 
-trait AggregateEventModel[Agg, Evt, Response] extends AggregateEventModelCoreTrait[Agg, Evt, Response] {
+trait AggregateEventModel[Agg, Evt] extends AggregateEventModelCoreTrait[Agg, Evt, Agg] {
   def handleEvent(ctx: Context, state: Option[Agg], event: Evt): Option[Agg]
-  def extractResponse(agg: Option[Agg]): Option[Response]
 
-  override def toCore: EventHandler[Agg, Evt, Response] = new EventHandler[Agg, Evt, Response] {
+  override def toCore: EventHandler[Agg, Evt, Agg] = new EventHandler[Agg, Evt, Agg] {
     override def handleEvent(ctx: persistence.Context, state: Option[Agg], event: Evt): Option[Agg] =
       AggregateEventModel.this.handleEvent(Context(ctx), state, event)
-    override def extractResponse(state: Option[Agg]): Option[Response] = AggregateEventModel.this.extractResponse(state)
+
+    override def extractResponse(state: Option[Agg]): Option[Agg] = state
   }
 }

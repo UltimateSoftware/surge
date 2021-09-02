@@ -16,33 +16,31 @@ import scala.concurrent.Future
 import scala.jdk.CollectionConverters._
 import scala.util.Try
 
-trait AggregateCommandModel[Agg, Cmd, Evt, Response] extends AggregateCommandModelCoreTrait[Agg, Cmd, Nothing, Evt, Response] {
+trait AggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCoreTrait[Agg, Cmd, Nothing, Evt, Agg] {
   def processCommand(aggregate: Optional[Agg], command: Cmd): JList[Evt]
   def handleEvent(aggregate: Optional[Agg], event: Evt): Optional[Agg]
-  def extractResponse(aggregate: Optional[Agg]): Optional[Response]
 
-  final def toCore: CommandHandler[Agg, Cmd, Nothing, Evt, Response] =
-    new CommandHandler[Agg, Cmd, Nothing, Evt, Response] {
+  final def toCore: CommandHandler[Agg, Cmd, Nothing, Evt, Agg] =
+    new CommandHandler[Agg, Cmd, Nothing, Evt, Agg] {
       override def processCommand(ctx: persistence.Context, state: Option[Agg], cmd: Cmd): Future[CommandResult] =
         Future.fromTry(Try(Right(AggregateCommandModel.this.processCommand(state.asJava, cmd).asScala.toSeq)))
       override def apply(ctx: persistence.Context, state: Option[Agg], event: Evt): Option[Agg] = handleEvent(state.asJava, event).asScala
-      override def extractResponse(state: Option[Agg]): Option[Response] = AggregateCommandModel.this.extractResponse(state.asJava).asScala
+      override def extractResponse(state: Option[Agg]): Option[Agg] = state
     }
 }
 
-trait ContextAwareAggregateCommandModel[Agg, Cmd, Evt, Response] extends AggregateCommandModelCoreTrait[Agg, Cmd, Nothing, Evt, Response] {
+trait ContextAwareAggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCoreTrait[Agg, Cmd, Nothing, Evt, Agg] {
   def processCommand(ctx: common.Context, aggregate: Optional[Agg], command: Cmd): CompletableFuture[Seq[Evt]]
   def handleEvent(ctx: common.Context, aggregate: Optional[Agg], event: Evt): Optional[Agg]
-  def extractResponse(agg: Optional[Agg]): Optional[Response]
 
-  final def toCore: CommandHandler[Agg, Cmd, Nothing, Evt, Response] =
-    new CommandHandler[Agg, Cmd, Nothing, Evt, Response] {
+  final def toCore: CommandHandler[Agg, Cmd, Nothing, Evt, Agg] =
+    new CommandHandler[Agg, Cmd, Nothing, Evt, Agg] {
       override def processCommand(ctx: persistence.Context, state: Option[Agg], cmd: Cmd): Future[CommandResult] =
         FutureConverters
           .toScala(ContextAwareAggregateCommandModel.this.processCommand(Context(ctx), state.asJava, cmd))
           .map(v => Right(v))(ctx.executionContext)
       override def apply(ctx: persistence.Context, state: Option[Agg], event: Evt): Option[Agg] = handleEvent(Context(ctx), state.asJava, event).asScala
-      override def extractResponse(state: Option[Agg]): Option[Response] = ContextAwareAggregateCommandModel.this.extractResponse(state.asJava).asScala
+      override def extractResponse(state: Option[Agg]): Option[Agg] = state
     }
 }
 
@@ -57,7 +55,7 @@ trait ContextAwareAggregateCommandModel[Agg, Cmd, Evt, Response] extends Aggrega
  * @tparam Evt
  *   event type
  */
-trait RejectableAggregateCommandModel[Agg, Cmd, Rej, Evt, Response] extends AggregateCommandModelCoreTrait[Agg, Cmd, Rej, Evt, Response] {
+trait RejectableAggregateCommandModel[Agg, Cmd, Rej, Evt] extends AggregateCommandModelCoreTrait[Agg, Cmd, Rej, Evt, Agg] {
 
   /**
    * Process a command
@@ -85,13 +83,11 @@ trait RejectableAggregateCommandModel[Agg, Cmd, Rej, Evt, Response] extends Aggr
    */
   def handleEvent(ctx: Context, aggregate: Optional[Agg], event: Evt): Optional[Agg]
 
-  def extractResponse(agg: Optional[Agg]): Optional[Response]
-
-  final def toCore: CommandHandler[Agg, Cmd, Rej, Evt, Response] =
-    new CommandHandler[Agg, Cmd, Rej, Evt, Response] {
+  final def toCore: CommandHandler[Agg, Cmd, Rej, Evt, Agg] =
+    new CommandHandler[Agg, Cmd, Rej, Evt, Agg] {
       override def processCommand(ctx: persistence.Context, state: Option[Agg], cmd: Cmd): Future[CommandResult] =
         FutureConverters.toScala(RejectableAggregateCommandModel.this.processCommand(Context(ctx), state.asJava, cmd))
       override def apply(ctx: persistence.Context, state: Option[Agg], event: Evt): Option[Agg] = handleEvent(Context(ctx), state.asJava, event).asScala
-      override def extractResponse(state: Option[Agg]): Option[Response] = RejectableAggregateCommandModel.this.extractResponse(state.asJava).asScala
+      override def extractResponse(state: Option[Agg]): Option[Agg] = state
     }
 }

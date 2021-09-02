@@ -74,7 +74,7 @@ lazy val `surge-engine-command-scaladsl` = (project in file("modules/command-eng
 
 lazy val `surge-engine-command-javadsl` =
   (project in file("modules/command-engine/javadsl"))
-    .dependsOn(`surge-engine-command-core`)
+    .dependsOn(`surge-engine-command-core` % "compile->compile;test->test")
     .settings(libraryDependencies ++= Seq(scalatest, scalatestPlusMockito, mockitoCore))
 
 lazy val `surge-metrics` = (project in file("modules/metrics")).settings(
