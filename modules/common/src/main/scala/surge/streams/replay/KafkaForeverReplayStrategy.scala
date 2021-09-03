@@ -82,7 +82,7 @@ class KafkaForeverReplayControl(
     override val postReplay: () => Unit = { () => () },
     override val replayProgress: ReplayProgress => Unit = { _ => () })(implicit executionContext: ExecutionContext)
     extends ReplayControl {
-  private val underlyingActor = actorSystem.actorOf(Props(new TopicResetActor(settings.brokers, settings.topic, config)))
+  private val underlyingActor = actorSystem.actorOf(Props(new TopicResetActor(settings.brokers, settings.topic, config, computeProgress)))
 
   implicit val timeout: Timeout = Timeout(settings.resetTopicTimeout)
   override def fullReplay(consumerGroup: String, partitions: Iterable[Int], replayLifecycleCallbacks: ReplayLifecycleCallbacks): Future[Done] = {
@@ -130,7 +130,14 @@ case class TopicResetState(
     progressChecker: Option[Cancellable],
     replayLifecycleCallbacks: ReplayLifecycleCallbacks)
 
-class TopicResetActor(brokers: List[String], kafkaTopic: String, config: Config) extends Actor with Stash with Logging {
+class TopicResetActor(
+    brokers: List[String],
+    kafkaTopic: String,
+    config: Config,
+    computeProgress: (Map[TopicPartition, OffsetAndMetadata], Map[TopicPartition, OffsetAndMetadata]) => ReplayProgress)
+    extends Actor
+    with Stash
+    with Logging {
 
   def ready: Receive = { case ResetTopic(consumerGroup, partitions, replayLifecycleCallbacks) =>
     try {
@@ -169,11 +176,10 @@ class TopicResetActor(brokers: List[String], kafkaTopic: String, config: Config)
       val preReplayCommits = state.preReplayCommits
       val currentCommits = state.adminClient.consumerGroupOffsets(state.consumerGroup)
 
-      val progress: TopicReplayProgress = calculateProgress(currentCommits, preReplayCommits)
-
+      val progress: ReplayProgress = computeProgress(currentCommits, preReplayCommits)
       log.debug(s"Replay in Progress for $kafkaTopic ($currentCommits) - ($preReplayCommits")
-      log.debug(s"Topic Replay percent complete is ${progress.percentComplete()}")
-      state.replayLifecycleCallbacks.onReplayProgress(progress.asReplayProgress())
+      log.debug(s"Topic Replay percent complete is ${progress.percentComplete}")
+      state.replayLifecycleCallbacks.onReplayProgress(progress)
 
       // Become ready if replay is complete
       if (progress.isComplete) {
@@ -246,23 +252,6 @@ class TopicResetActor(brokers: List[String], kafkaTopic: String, config: Config)
   }
 
   override def receive: Receive = ready
-
-  /**
-   * Calculate the TopicReplayProgress that has been made by comparing the current offsets with the preReplay offsets.
-   * @param current
-   *   Map[TopicPartition, OffsetAndMetadata]
-   * @param preReplay
-   *   Map[TopicPartition, OffsetAndMetadata]
-   * @return
-   *   TopicReplayProgress
-   */
-  private def calculateProgress(current: Map[TopicPartition, OffsetAndMetadata], preReplay: Map[TopicPartition, OffsetAndMetadata]): TopicReplayProgress = {
-    // A topic-partition is deemed complete if the current offset is greater than or equal to the preReplay offset.
-    TopicReplayProgress(preReplay.transform((tp, o) => topicPartitionCompleted(current, tp, o)))
-  }
-
-  private def topicPartitionCompleted: (Map[TopicPartition, OffsetAndMetadata], TopicPartition, OffsetAndMetadata) => Boolean =
-    (current: Map[TopicPartition, OffsetAndMetadata], tp: TopicPartition, o: OffsetAndMetadata) => current(tp).offset() >= o.offset()
 }
 
 private[streams] object TopicResetActor {
@@ -276,19 +265,4 @@ private[streams] object TopicResetActor {
   sealed trait ResetTopicResult
   case object TopicResetSucceed extends ResetTopicResult
   case class TopicResetFailed(err: Throwable) extends ResetTopicResult
-
-  case class TopicReplayProgress(partitionResults: Map[TopicPartition, Boolean] = Map.empty) {
-    def isComplete: Boolean = {
-      percentComplete() >= 100.0
-    }
-
-    def percentComplete(): Double = {
-      val numCompletedPartitions = partitionResults.values.count(p => p)
-      (numCompletedPartitions / partitionResults.values.size) * 100.0
-    }
-
-    def asReplayProgress(): ReplayProgress = {
-      ReplayProgress(percentComplete())
-    }
-  }
 }

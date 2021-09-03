@@ -6,6 +6,8 @@ import java.util.concurrent.TimeUnit
 import akka.Done
 import akka.actor.ActorContext
 import com.typesafe.config.ConfigFactory
+import org.apache.kafka.clients.consumer.OffsetAndMetadata
+import org.apache.kafka.common.TopicPartition
 import org.slf4j.LoggerFactory
 import surge.streams.DataHandler
 
@@ -74,6 +76,18 @@ trait ReplayControl {
 
   def replayProgress: ReplayProgress => Unit
   def monitorProgress(coordinatorApi: ReplayCoordinatorApi): ReplayProgressMonitor
+
+  def computeProgress(current: Map[TopicPartition, OffsetAndMetadata], end: Map[TopicPartition, OffsetAndMetadata]): ReplayProgress = {
+    val sumCurrent = current.values.map(o => o.offset()).sum
+    val sumEnd = end.values.map(o => o.offset()).sum
+
+    if (sumEnd > 0) {
+      val percentComplete = (sumCurrent / sumEnd) * 100.0
+      ReplayProgress(percentComplete)
+    } else {
+      ReplayProgress.start()
+    }
+  }
 
   final def fullReplay(consumerGroup: String, partitions: Iterable[Int]): Future[Done] = {
     fullReplay(consumerGroup, partitions, new NoopReplayLifecycleCallbacks())
