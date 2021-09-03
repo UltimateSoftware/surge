@@ -3,7 +3,7 @@
 package surge.streams.replay
 
 import akka.Done
-import akka.actor.{ Actor, ActorRef, ActorSystem, Props, Stash }
+import akka.actor.{ Actor, ActorRef, ActorSystem, Cancellable, Props, Stash }
 import akka.pattern.ask
 import akka.util.Timeout
 import com.typesafe.config.{ Config, ConfigFactory }
@@ -105,6 +105,7 @@ case class TopicResetState(
     consumer: KafkaConsumer[String, Array[Byte]],
     partitions: List[TopicPartition],
     preReplayCommits: Map[TopicPartition, OffsetAndMetadata],
+    progressChecker: Option[Cancellable],
     replayLifecycleCallbacks: ReplayLifecycleCallbacks)
 
 class TopicResetActor(brokers: List[String], kafkaTopic: String, config: Config) extends Actor with Stash with Logging {
@@ -129,7 +130,8 @@ class TopicResetActor(brokers: List[String], kafkaTopic: String, config: Config)
         state.replayLifecycleCallbacks.onReplayReady(ReplayReady())
 
         val nextState = state.copy(preReplayCommits = preReplayCommits.toMap)
-        context.become(waitingForComplete(nextState))
+        val progressChecker = context.system.scheduler.scheduleAtFixedRate(1.second, 5.seconds, self, CheckProgress)(context.dispatcher)
+        context.become(waitingForComplete(nextState.copy(progressChecker = Some(progressChecker))))
         unstashAll()
       } catch {
         case err: Throwable =>
@@ -154,10 +156,9 @@ class TopicResetActor(brokers: List[String], kafkaTopic: String, config: Config)
 
       // Become ready if replay is complete
       if (progress.isComplete) {
+        state.replayLifecycleCallbacks.onReplayComplete(ReplayComplete())
+        state.progressChecker.foreach(checker => checker.cancel())
         context.become(ready)
-      } else {
-        // otherwise; check progress again.
-        context.system.scheduler.scheduleOnce(5.seconds, context.self, CheckProgress)(context.dispatcher)
       }
     } catch {
       case err: Throwable =>
@@ -210,9 +211,9 @@ class TopicResetActor(brokers: List[String], kafkaTopic: String, config: Config)
       consumerGroup = consumerGroup,
       replyTo = sender(),
       preReplayCommits = adminClient.consumerGroupOffsets(consumerGroup),
+      progressChecker = None,
       replayLifecycleCallbacks = replayLifecycleCallbacks)
 
-    context.system.scheduler.scheduleOnce(checkProgressPollTime, context.self, CheckProgress)(context.dispatcher)
     context.become(initializing(state.copy()))
   }
 
