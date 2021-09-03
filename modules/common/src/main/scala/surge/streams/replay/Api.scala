@@ -2,7 +2,19 @@
 
 package surge.streams.replay
 
+trait ReplayLifecycleCallbacks {
+  def onReplayStarted(replayStarted: ReplayStarted): Unit
+  def onReplayReadyForMonitoring(replayReady: ReplayReadyForMonitoring): Unit
+  def onReplayProgress(replayProgress: ReplayProgress): Unit
+
+  def onReplayComplete(replayComplete: ReplayComplete): Unit
+  def onReplayFailed(replayFailed: ReplayFailed): Unit
+}
+
+sealed trait ReplayLifecycleEvent
+
 object ReplayProgress {
+  def start(): ReplayProgress = ReplayProgress()
   def complete(): ReplayProgress = ReplayProgress(percentComplete = 100.0)
 }
 
@@ -11,13 +23,12 @@ object ReplayProgress {
  * @param percentComplete
  *   Double
  */
-case class ReplayProgress(percentComplete: Double = 0.0) {
+case class ReplayProgress(percentComplete: Double = 0.0) extends ReplayLifecycleEvent {
   def isComplete: Boolean = percentComplete >= 100.0
 }
 
-sealed trait ReplayLifecycleEvent
 case class ReplayStarted() extends ReplayLifecycleEvent
-case class ReplayReady() extends ReplayLifecycleEvent
+case class ReplayReadyForMonitoring() extends ReplayLifecycleEvent
 case class ReplayComplete() extends ReplayLifecycleEvent
 case class ReplayFailed(error: Throwable) extends ReplayLifecycleEvent
 

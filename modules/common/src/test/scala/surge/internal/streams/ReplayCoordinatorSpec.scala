@@ -14,7 +14,14 @@ import org.scalatestplus.mockito.MockitoSugar
 import surge.internal.akka.cluster.{ ActorRegistry, ActorSystemHostAwareness }
 import surge.internal.streams.ReplayCoordinator.{ ReplayCompleted, ReplayFailed, StartReplay }
 import surge.kafka.HostPort
-import surge.streams.replay.{ NoopReplayLifecycleCallbacks, ReplayControl, ReplayLifecycleCallbacks, ReplayProgress }
+import surge.streams.replay.{
+  NoopReplayLifecycleCallbacks,
+  ReplayControl,
+  ReplayCoordinatorApi,
+  ReplayLifecycleCallbacks,
+  ReplayProgress,
+  ReplayProgressMonitor
+}
 
 import scala.concurrent.{ ExecutionContext, Future }
 
@@ -44,6 +51,13 @@ class ReplayCoordinatorSpec
       probe.ref ! PostReplayCalled
     }
 
+    override def monitorProgress(coordinatorApi: ReplayCoordinatorApi): ReplayProgressMonitor = {
+      new ReplayProgressMonitor {
+        override def getReplayProgress: Future[ReplayProgress] = Future.successful(ReplayProgress.complete())
+
+        override def stop(): Unit = {}
+      }
+    }
     override def fullReplay(
         consumerGroup: String,
         partitions: Iterable[Int],

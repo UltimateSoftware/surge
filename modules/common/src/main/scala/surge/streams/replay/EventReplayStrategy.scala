@@ -12,6 +12,10 @@ import surge.streams.DataHandler
 import scala.concurrent.Future
 import scala.concurrent.duration.{ FiniteDuration, _ }
 
+trait ReplayCoordinatorApi {
+  def resumeConsumers(): Unit
+}
+
 case class ReplayControlContext[Key, Value](keyDeserializer: Array[Byte] => Key, valueDeserializer: Array[Byte] => Value, dataHandler: DataHandler[Key, Value])
 
 trait EventReplayStrategy {
@@ -21,18 +25,9 @@ trait EventReplayStrategy {
   def createReplayController[Key, Value](context: ReplayControlContext[Key, Value]): ReplayControl
 }
 
-trait ReplayLifecycleCallbacks {
-  def onReplayStarted(replayStarted: ReplayStarted): Unit
-  def onReplayReady(replayReady: ReplayReady): Unit
-  def onReplayProgress(replayProgress: ReplayProgress): Unit
-
-  def onReplayComplete(replayComplete: ReplayComplete): Unit
-  def onReplayFailed(replayFailed: ReplayFailed): Unit
-}
-
 class NoopReplayLifecycleCallbacks extends ReplayLifecycleCallbacks {
   override def onReplayStarted(replayStarted: ReplayStarted): Unit = {}
-  override def onReplayReady(replayReady: ReplayReady): Unit = {}
+  override def onReplayReadyForMonitoring(replayReady: ReplayReadyForMonitoring): Unit = {}
   override def onReplayProgress(replayProgress: ReplayProgress): Unit = {}
 
   override def onReplayComplete(replayComplete: ReplayComplete): Unit = {}
@@ -45,7 +40,7 @@ class ContextForwardingLifecycleCallbacks(context: ActorContext) extends ReplayL
     context.self ! replayStarted
   }
 
-  override def onReplayReady(replayReady: ReplayReady): Unit = {
+  override def onReplayReadyForMonitoring(replayReady: ReplayReadyForMonitoring): Unit = {
     context.self ! replayReady
   }
 
@@ -63,7 +58,9 @@ class ContextForwardingLifecycleCallbacks(context: ActorContext) extends ReplayL
 }
 
 trait ReplayProgressMonitor {
-  def replayProgress: ReplayProgress => Unit
+  def getReplayProgress: Future[ReplayProgress]
+
+  def stop(): Unit
 }
 
 /**
@@ -71,9 +68,12 @@ trait ReplayProgressMonitor {
  * itself does not coordinate stopping any currently running consumers - it simply provides a way to access various replay functionality for callers who need
  * replay-like functionality outside of a typical full/coordinated replay.
  */
-trait ReplayControl extends ReplayProgressMonitor {
+trait ReplayControl {
   def preReplay: () => Future[Any]
   def postReplay: () => Unit
+
+  def replayProgress: ReplayProgress => Unit
+  def monitorProgress(coordinatorApi: ReplayCoordinatorApi): ReplayProgressMonitor
 
   final def fullReplay(consumerGroup: String, partitions: Iterable[Int]): Future[Done] = {
     fullReplay(consumerGroup, partitions, new NoopReplayLifecycleCallbacks())
@@ -99,17 +99,29 @@ class NoOpEventReplayStrategy extends EventReplayStrategy {
     new NoOpEventReplayControl(preReplay, postReplay, replayProgress)
 
 }
+
+class NoOpReplayProgressMonitor extends ReplayProgressMonitor {
+  override def getReplayProgress: Future[ReplayProgress] = Future.successful(ReplayProgress.complete())
+
+  override def stop(): Unit = {}
+}
+
 class NoOpEventReplayControl(
     override val preReplay: () => Future[Any] = () => Future.successful(true),
     override val postReplay: () => Unit = () => {},
     override val replayProgress: ReplayProgress => Unit = _ => {})
     extends ReplayControl {
   private val log = LoggerFactory.getLogger(getClass)
+
   override def fullReplay(
       consumerGroup: String,
       partitions: Iterable[Int],
       replayLifecycleCallbacks: ReplayLifecycleCallbacks = new NoopReplayLifecycleCallbacks()): Future[Done] = {
     log.warn("Event Replay has been used with the default NoOps implementation, please refer to the docs to properly chose your replay strategy")
     Future.successful(Done)
+  }
+
+  override def monitorProgress(coordinatorApi: ReplayCoordinatorApi): ReplayProgressMonitor = {
+    new NoOpReplayProgressMonitor()
   }
 }
