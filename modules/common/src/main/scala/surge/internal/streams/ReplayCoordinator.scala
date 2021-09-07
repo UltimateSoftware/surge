@@ -69,11 +69,12 @@ class ReplayCoordinator(topicName: String, consumerGroup: String, registry: Acto
   override def receive: Receive = uninitialized()
 
   override def resumeConsumers(): Unit = {
-    self ! ResumeConsumers
+    context.self ! ResumeConsumers
   }
 
-  override def getReplayProgress: Future[ReplayProgress] =
-    self.ask(GetReplayProgress)(TimeoutConfig.ReplayCoordinatorActor.actorAskTimeout).mapTo[ReplayProgress]
+  override def getReplayProgress: Future[ReplayProgress] = {
+    context.self.ask(GetReplayProgress)(TimeoutConfig.ReplayCoordinatorActor.actorAskTimeout).mapTo[ReplayProgress]
+  }
 
   private def uninitialized(): Receive = { case StartReplay =>
     context.become(ready(ReplayState.init(sender())))
