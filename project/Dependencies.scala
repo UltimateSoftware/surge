@@ -6,7 +6,7 @@ object Dependencies extends AutoPlugin {
   object autoImport {
 
     object Akka {
-      val version = "2.6.9"
+      val version = "2.6.15"
 
       val actor = "com.typesafe.akka" %% "akka-actor" % version
       val multiNodeTestkit = "com.typesafe.akka" %% "akka-multi-node-testkit" % version % Test
