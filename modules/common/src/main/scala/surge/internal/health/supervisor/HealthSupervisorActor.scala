@@ -64,6 +64,7 @@ class ControlProxyActor(finder: ControllableLookup, remover: ControllableRemover
     case RestartComponent(name, _) =>
       finder.lookup(name) match {
         case Some(controllable) =>
+          log.debug(s"Restarting component $name")
           controllable.restart().andThen { restartControllableCallback(componentName = name, replyTo = sender()) }
         case None =>
           sender() ! akka.actor.Status.Failure(new RuntimeException(s"Cannot restart unregistered component $name"))
@@ -82,6 +83,7 @@ class ControlProxyActor(finder: ControllableLookup, remover: ControllableRemover
       log.error(s"$componentName failed to restart", exception)
       replyTo ! akka.actor.Status.Failure(exception)
     case Success(ack) =>
+      log.debug(s"$componentName was restarted successfully")
       replyTo ! ack
   }
 
