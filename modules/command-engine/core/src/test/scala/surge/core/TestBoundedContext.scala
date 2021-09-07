@@ -85,7 +85,8 @@ trait TestBoundedContext {
 
   trait BusinessLogicTrait extends CommandHandler[State, BaseTestCommand, Nothing, BaseTestEvent] {
 
-    override def apply(ctx: Context, agg: Option[State], evt: BaseTestEvent): Option[State] = handleEvent(agg, evt)
+    override def apply(ctx: Context, agg: Option[State], evt: BaseTestEvent): Future[Option[State]] =
+      Future.successful(handleEvent(agg, evt))
     def handleEvent(agg: Option[State], evt: BaseTestEvent): Option[State] = {
 
       val current = agg.getOrElse(State(evt.aggregateId, 0, 0))

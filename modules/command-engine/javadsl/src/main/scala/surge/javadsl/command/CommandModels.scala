@@ -24,7 +24,8 @@ trait AggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCoreTrai
     new CommandHandler[Agg, Cmd, Nothing, Evt] {
       override def processCommand(ctx: persistence.Context, state: Option[Agg], cmd: Cmd): Future[CommandResult] =
         Future.fromTry(Try(Right(AggregateCommandModel.this.processCommand(state.asJava, cmd).asScala.toSeq)))
-      override def apply(ctx: persistence.Context, state: Option[Agg], event: Evt): Option[Agg] = handleEvent(state.asJava, event).asScala
+      override def apply(ctx: persistence.Context, state: Option[Agg], event: Evt): Future[Option[Agg]] =
+        Future.successful(handleEvent(state.asJava, event).asScala)
     }
 }
 
@@ -38,7 +39,8 @@ trait ContextAwareAggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandM
         FutureConverters
           .toScala(ContextAwareAggregateCommandModel.this.processCommand(Context(ctx), state.asJava, cmd))
           .map(v => Right(v))(ctx.executionContext)
-      override def apply(ctx: persistence.Context, state: Option[Agg], event: Evt): Option[Agg] = handleEvent(Context(ctx), state.asJava, event).asScala
+      override def apply(ctx: persistence.Context, state: Option[Agg], event: Evt): Future[Option[Agg]] =
+        Future.successful(handleEvent(Context(ctx), state.asJava, event).asScala)
     }
 }
 
@@ -85,6 +87,7 @@ trait RejectableAggregateCommandModel[Agg, Cmd, Rej, Evt] extends AggregateComma
     new CommandHandler[Agg, Cmd, Rej, Evt] {
       override def processCommand(ctx: persistence.Context, state: Option[Agg], cmd: Cmd): Future[CommandResult] =
         FutureConverters.toScala(RejectableAggregateCommandModel.this.processCommand(Context(ctx), state.asJava, cmd))
-      override def apply(ctx: persistence.Context, state: Option[Agg], event: Evt): Option[Agg] = handleEvent(Context(ctx), state.asJava, event).asScala
+      override def apply(ctx: persistence.Context, state: Option[Agg], event: Evt): Future[Option[Agg]] =
+        Future.successful(handleEvent(Context(ctx), state.asJava, event).asScala)
     }
 }

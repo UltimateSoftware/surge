@@ -19,7 +19,8 @@ trait AggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCoreTrai
     new CommandHandler[Agg, Cmd, Nothing, Evt] {
       override def processCommand(ctx: persistence.Context, state: Option[Agg], cmd: Cmd): Future[CommandResult] =
         Future.fromTry(AggregateCommandModel.this.processCommand(state, cmd).map(v => Right(v)))
-      override def apply(ctx: persistence.Context, state: Option[Agg], event: Evt): Option[Agg] = handleEvent(state, event)
+      override def apply(ctx: persistence.Context, state: Option[Agg], event: Evt): Future[Option[Agg]] =
+        Future.successful(handleEvent(state, event))
     }
 }
 
@@ -31,7 +32,8 @@ trait ContextAwareAggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandM
     new CommandHandler[Agg, Cmd, Nothing, Evt] {
       override def processCommand(ctx: persistence.Context, state: Option[Agg], cmd: Cmd): Future[CommandResult] =
         ContextAwareAggregateCommandModel.this.processCommand(Context(ctx), state, cmd).map(v => Right(v))(ctx.executionContext)
-      override def apply(ctx: persistence.Context, state: Option[Agg], event: Evt): Option[Agg] = handleEvent(Context(ctx), state, event)
+      override def apply(ctx: persistence.Context, state: Option[Agg], event: Evt): Future[Option[Agg]] =
+        Future.successful(handleEvent(Context(ctx), state, event))
     }
 }
 
@@ -78,6 +80,7 @@ trait RejectableAggregateCommandModel[Agg, Cmd, Rej, Evt] extends AggregateComma
     new CommandHandler[Agg, Cmd, Rej, Evt] {
       override def processCommand(ctx: persistence.Context, state: Option[Agg], cmd: Cmd): Future[CommandResult] =
         RejectableAggregateCommandModel.this.processCommand(Context(ctx), state, cmd)
-      override def apply(ctx: persistence.Context, state: Option[Agg], event: Evt): Option[Agg] = handleEvent(Context(ctx), state, event)
+      override def apply(ctx: persistence.Context, state: Option[Agg], event: Evt): Future[Option[Agg]] =
+        Future.successful(handleEvent(Context(ctx), state, event))
     }
 }

@@ -57,7 +57,7 @@ trait AggregateProcessingModel[S, M, +R, E] {
    * @return
    *   the future resulting state
    */
-  def apply(ctx: Context, state: Option[S], event: E): Option[S]
+  def apply(ctx: Context, state: Option[S], event: E): Future[Option[S]]
 
 }
 
@@ -67,10 +67,12 @@ trait CommandHandler[S, M, R, E] extends AggregateProcessingModel[S, M, R, E] {
   def processCommand(ctx: Context, state: Option[S], cmd: M): Future[CommandResult]
 
   override final def handle(ctx: Context, state: Option[S], cmd: M)(implicit ec: ExecutionContext): Future[Either[R, HandledMessageResult[S, E]]] =
-    processCommand(ctx, state, cmd).map {
-      case Left(rejected) => Left(rejected)
+    processCommand(ctx, state, cmd).flatMap {
+      case Left(rejected) => Future.successful(Left(rejected))
       case Right(events) =>
-        Right(HandledMessageResult(events.foldLeft(state)((s: Option[S], e: E) => apply(ctx, s, e)), events))
+        // fold left async
+        val resultingStateFuture: Future[Option[S]] = ???
+        resultingStateFuture.map(s => Right(HandledMessageResult(s, events)))
     }
 }
 
@@ -81,5 +83,6 @@ trait EventHandler[S, E] extends AggregateProcessingModel[S, Nothing, Nothing, E
       implicit ec: ExecutionContext): Future[Either[Nothing, HandledMessageResult[S, Nothing]]] =
     throw new RuntimeException("Impossible")
 
-  override final def apply(ctx: Context, state: Option[S], event: E): Option[S] = handleEvent(ctx, state, event)
+  override final def apply(ctx: Context, state: Option[S], event: E): Future[Option[S]] =
+    Future.successful(handleEvent(ctx, state, event))
 }

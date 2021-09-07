@@ -61,6 +61,8 @@ object PersistentActor {
 
   case object Stop extends ActorMessage
 
+  final case class HandleEventAsyncResult[S](result: Option[S])
+
   case class MetricsQuiver(
       stateInitializationTimer: Timer,
       aggregateDeserializationTimer: Timer,
@@ -264,28 +266,18 @@ class PersistentActor[S, M, R, E](
   }
 
   private def handle(state: InternalActorState, applyEventEnvelope: ApplyEvent[E]): Unit = {
-    handleEvents(state, Seq(applyEventEnvelope.event)) match {
-      case Success(newState) =>
-        context.setReceiveTimeout(Duration.Inf)
-        context.become(persistingEvents(state))
-        val futureStatePersisted = serializeState(newState).flatMap { serializedState =>
-          doPublish(
-            state.copy(stateOpt = newState),
-            serializedEvents = Seq.empty,
-            serializedState = serializedState,
-            startTime = Instant.now,
-            didStateChange = state.stateOpt != newState)
-        }
-        futureStatePersisted.pipeTo(self)(sender())
-      case Failure(e) =>
-        sender() ! ACKError(e)
-    }
+    callEventHandler(state, applyEventEnvelope.event)
   }
 
-  private def handleEvents(state: InternalActorState, events: Seq[E]): Try[Option[S]] = Try {
-    events.foldLeft(state.stateOpt) { (state, evt) =>
-      metrics.eventHandlingTimer.time(businessLogic.model.apply(surgeContext(), state, evt))
+  private def callEventHandler(state: InternalActorState, evt: E): Unit = {
+    lazy val future = {
+      metrics.eventHandlingTimer.timeFuture(businessLogic.model.apply(surgeContext(), state.stateOpt, evt))
+        .map {
+          case item: Option[S] => HandleEventAsyncResult(item)
+        }
     }
+    pipe(future).to(self)
+    context.become(handleEvent(state, evt))
   }
 
   private def uninitialized: Receive = {
@@ -311,6 +303,24 @@ class PersistentActor[S, M, R, E](
     context.stop(self)
   }
 
+  private def handleEvent(state: InternalActorState, evt: E): Receive = {
+    case HandleEventAsyncResult(newState: Option[S]) =>
+      context.setReceiveTimeout(Duration.Inf)
+      context.become(persistingEvents(state))
+      val futureStatePersisted = serializeState(newState).flatMap { serializedState =>
+        doPublish(
+          state.copy(stateOpt = newState),
+          serializedEvents = Seq.empty,
+          serializedState = serializedState,
+          startTime = Instant.now,
+          didStateChange = state.stateOpt != newState)
+      }
+      futureStatePersisted.pipeTo(self)(sender())
+    case akka.actor.Status.Failure(e) =>
+      log.error("Failed to call remote event handler", e)
+      sender() ! ACKError(e)
+  }
+
   private def handleCommandError(state: InternalActorState, error: ACKError): Unit = {
     log.debug(s"The command for ${businessLogic.aggregateName} $aggregateId resulted in an error", error.exception)
     context.setReceiveTimeout(receiveTimeout)
@@ -318,6 +328,8 @@ class PersistentActor[S, M, R, E](
 
     sender() ! error
   }
+
+
 
   override def receiveWhilePersistingEvents(state: InternalActorState): Receive = {
     case msg: ACKError  => handleCommandError(state, msg)
