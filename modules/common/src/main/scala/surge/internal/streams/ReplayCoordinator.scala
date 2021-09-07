@@ -3,11 +3,12 @@
 package surge.internal.streams
 
 import akka.actor.{ Actor, ActorRef, Address }
-import akka.pattern.pipe
+import akka.pattern.{ ask, pipe }
 import org.apache.kafka.common.TopicPartition
 import org.slf4j.LoggerFactory
 import surge.exceptions.SurgeReplayException
 import surge.internal.akka.cluster.{ ActorHostAwareness, ActorRegistry }
+import surge.internal.config.TimeoutConfig
 import surge.internal.kafka.HostAssignmentTracker
 import surge.internal.streams.KafkaStreamManagerActor.{ StartConsuming, SuccessfullyStopped }
 import surge.internal.utils.InlineReceive
@@ -70,6 +71,9 @@ class ReplayCoordinator(topicName: String, consumerGroup: String, registry: Acto
   override def resumeConsumers(): Unit = {
     self ! ResumeConsumers
   }
+
+  override def getReplayProgress: Future[ReplayProgress] =
+    self.ask(GetReplayProgress)(TimeoutConfig.ReplayCoordinatorActor.actorAskTimeout).mapTo[ReplayProgress]
 
   private def uninitialized(): Receive = { case StartReplay =>
     context.become(ready(ReplayState.init(sender())))
