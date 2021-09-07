@@ -3,13 +3,15 @@
 package surge.internal.streams
 
 import akka.actor.{ Actor, ActorRef, Address }
-import akka.pattern.pipe
+import akka.pattern.{ ask, pipe }
 import org.apache.kafka.common.TopicPartition
 import org.slf4j.LoggerFactory
 import surge.exceptions.SurgeReplayException
 import surge.internal.akka.cluster.{ ActorHostAwareness, ActorRegistry }
+import surge.internal.config.TimeoutConfig
 import surge.internal.kafka.HostAssignmentTracker
 import surge.internal.streams.KafkaStreamManagerActor.{ StartConsuming, SuccessfullyStopped }
+import surge.internal.streams.ReplayCoordinator.{ GetReplayProgress, ResumeConsumers }
 import surge.internal.utils.InlineReceive
 import surge.kafka.HostPort
 import surge.streams.replay.{
@@ -31,6 +33,7 @@ private[streams] object ReplayCoordinator {
   case object StopReplay extends ReplayCoordinatorRequest
   case object DoPreReplay extends ReplayCoordinatorRequest
   case object GetReplayProgress extends ReplayCoordinatorRequest
+  case object ResumeConsumers extends ReplayCoordinatorRequest
 
   sealed trait ReplayCoordinatorResponse
   case object ReplayStarted extends ReplayCoordinatorResponse
@@ -49,10 +52,14 @@ private[streams] object ReplayCoordinator {
   }
 }
 
-class ReplayCoordinator(topicName: String, consumerGroup: String, registry: ActorRegistry, replayControl: ReplayControl)
-    extends Actor
-    with ActorHostAwareness
-    with ReplayCoordinatorApi {
+class ReplayCoordinationManager(underlyingActor: ActorRef) extends ReplayCoordinatorApi {
+  override def resumeConsumers(): Unit = underlyingActor ! ResumeConsumers
+
+  override def getReplayProgress: Future[ReplayProgress] =
+    underlyingActor.ask(GetReplayProgress)(TimeoutConfig.ReplayCoordinatorActor.actorAskTimeout).mapTo[ReplayProgress]
+}
+
+class ReplayCoordinator(topicName: String, consumerGroup: String, registry: ActorRegistry, replayControl: ReplayControl) extends Actor with ActorHostAwareness {
 
   import ReplayCoordinator._
   import context.dispatcher
@@ -63,13 +70,8 @@ class ReplayCoordinator(topicName: String, consumerGroup: String, registry: Acto
   private case class TopicConsumersFound(assignments: Map[TopicPartition, HostPort], actorPaths: List[String]) extends Internal
   private case class TopicAssignmentsFound(assignments: Map[TopicPartition, HostPort]) extends Internal
   private case object PreReplayCompleted extends Internal
-  private case object ResumeConsumers extends Internal
 
   override def receive: Receive = uninitialized()
-
-  override def resumeConsumers(): Unit = {
-    self ! ResumeConsumers
-  }
 
   private def uninitialized(): Receive = { case StartReplay =>
     context.become(ready(ReplayState.init(sender())))
@@ -80,6 +82,8 @@ class ReplayCoordinator(topicName: String, consumerGroup: String, registry: Acto
     case TopicAssignmentsFound(assignments) =>
       getTopicConsumers(assignments).map(actors => TopicConsumersFound(assignments, actors)).pipeTo(self)
     case msg: TopicConsumersFound => handleTopicConsumersFound(replayState, msg)
+    case GetReplayProgress =>
+      sender() ! replayState.progress
   }.orElse(handleStopReplay(replayState))
 
   private def pausing(replayState: ReplayState): Receive = InlineReceive {
@@ -89,6 +93,8 @@ class ReplayCoordinator(topicName: String, consumerGroup: String, registry: Acto
       doReplay(replayState)
     case DoPreReplay =>
       doPreReplay()
+    case GetReplayProgress =>
+      sender() ! replayState.progress
   }.orElse(handleStopReplay(replayState))
 
   private def replaying(replayState: ReplayState): Receive = InlineReceive {
@@ -104,7 +110,7 @@ class ReplayCoordinator(topicName: String, consumerGroup: String, registry: Acto
       // update progress in state
       context.become(replaying(replayState.copy(progress = progress)))
     case ReplayReadyForMonitoring() =>
-      val progressMonitor = replayControl.monitorProgress(this)
+      val progressMonitor = replayControl.monitorProgress(new ReplayCoordinationManager(self))
       context.become(replaying(replayState.copy(progressMonitor = Some(progressMonitor))))
     case ReplayComplete() =>
       context.self ! ReplayCompleted
