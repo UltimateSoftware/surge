@@ -16,6 +16,7 @@ import scala.concurrent.duration.{ FiniteDuration, _ }
 
 trait ReplayCoordinatorApi {
   def resumeConsumers(): Unit
+  def getReplayProgress: Future[ReplayProgress]
 }
 
 case class ReplayControlContext[Key, Value](keyDeserializer: Array[Byte] => Key, valueDeserializer: Array[Byte] => Value, dataHandler: DataHandler[Key, Value])
