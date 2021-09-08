@@ -214,7 +214,7 @@ class PersistentActor[S, M, R, E](
     case pm: ProcessMessage[M] =>
       handle(state, pm)
     case ae: ApplyEvent[E] =>
-      val evt = ae.event
+      val evt: E = ae.event
       val result: Future[HandleEventResult] =
         metrics.eventHandlingTimer.time(businessLogic.model.applyAsync(surgeContext(), state.stateOpt, evt)).map { maybeS: Option[S] =>
           HandleEventResult(result = maybeS)
@@ -272,7 +272,7 @@ class PersistentActor[S, M, R, E](
     metrics.messageHandlingTimer.timeFuture { businessLogic.model.handle(surgeContext(), state.stateOpt, ProcessMessage.message) }
   }
 
-  private def callEventHandler(): Future[HandleEventResult] = {
+  private def callEventHandler(state: InternalActorState, evt: E): Future[HandleEventResult] = {
     val result: Future[HandleEventResult] = {
       metrics.eventHandlingTimer.time(businessLogic.model.applyAsync(surgeContext(), state.stateOpt, evt)).map { maybeS: Option[S] =>
         HandleEventResult(result = maybeS)
@@ -299,6 +299,7 @@ class PersistentActor[S, M, R, E](
       futureStatePersisted.pipeTo(self)(sender())
     case failedFuture: akka.actor.Status.Failure =>
       sender() ! ACKError(failedFuture.cause)
+      context.become(freeToProcess(state))
   }
 
   private def uninitialized: Receive = {
