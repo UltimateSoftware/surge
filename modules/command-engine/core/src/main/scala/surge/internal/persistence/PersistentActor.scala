@@ -165,7 +165,7 @@ class PersistentActor[S, M, R, E](
 
   protected case class InternalActorState(stateOpt: Option[S])
 
-  protected case class HandleEventResult(result: Option[S])
+  protected case class HandleEventResult(result: Option[S]) extends NoSerializationVerificationNeeded
 
   override type ActorState = InternalActorState
 
@@ -215,10 +215,7 @@ class PersistentActor[S, M, R, E](
       handle(state, pm)
     case ae: ApplyEvent[E] =>
       val evt: E = ae.event
-      val result: Future[HandleEventResult] =
-        metrics.eventHandlingTimer.time(businessLogic.model.applyAsync(surgeContext(), state.stateOpt, evt)).map { maybeS: Option[S] =>
-          HandleEventResult(result = maybeS)
-        }
+      val result: Future[HandleEventResult] = callEventHandler(state, evt)
       pipe(result).to(self, sender())
       context.become(waitForHandleEventResult(state))
     case GetState(_)    => sender() ! StateResponse(state.stateOpt)
@@ -286,6 +283,7 @@ class PersistentActor[S, M, R, E](
 
   private def waitForHandleEventResult(state: InternalActorState): Receive = {
     case HandleEventResult(newState) =>
+      println("got result")
       context.setReceiveTimeout(Duration.Inf)
       context.become(persistingEvents(state))
       val futureStatePersisted = serializeState(newState).flatMap { serializedState =>
@@ -298,8 +296,13 @@ class PersistentActor[S, M, R, E](
       }
       futureStatePersisted.pipeTo(self)(sender())
     case failedFuture: akka.actor.Status.Failure =>
+      println("got failed future")
       sender() ! ACKError(failedFuture.cause)
       context.become(freeToProcess(state))
+      unstashAll()
+    case otherMsg =>
+      println("stashing:" + otherMsg)
+      stash()
   }
 
   private def uninitialized: Receive = {
