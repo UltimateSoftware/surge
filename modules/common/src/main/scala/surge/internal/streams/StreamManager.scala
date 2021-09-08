@@ -5,7 +5,7 @@ package surge.internal.streams
 import akka.actor.{ Actor, ActorRef, ActorSystem, Address, NoSerializationVerificationNeeded, Props, Stash }
 import akka.kafka.scaladsl.Consumer
 import akka.kafka.scaladsl.Consumer.DrainingControl
-import akka.kafka.{ ConsumerMessage, _ }
+import akka.kafka._
 import akka.pattern._
 import akka.stream.scaladsl.{ Flow, RestartSource, Sink }
 import akka.util.Timeout
@@ -140,7 +140,7 @@ class KafkaStreamManager[Key, Value](
     implicit val executionContext: ExecutionContext = ExecutionContext.global
     (replayCoordinator ? ReplayCoordinator.StartReplay)
       .map {
-        case ReplayCoordinator.ReplayCompleted =>
+        case ReplayCoordinator.ReplayStarted =>
           ReplaySuccessfullyStarted()
         case ReplayCoordinator.ReplayFailed(err) =>
           ReplayFailed(err)
@@ -153,6 +153,10 @@ class KafkaStreamManager[Key, Value](
         replayCoordinator ! ReplayCoordinator.StopReplay
         Future.successful(ReplayFailed(err))
       }
+  }
+
+  def getReplayProgress: Future[Double] = {
+    (replayCoordinator ? ReplayCoordinator.GetReplayProgress)(metricFetchTimeout).mapTo[Double]
   }
 
   def getReplayControl: ReplayControl = replayControl
@@ -200,7 +204,7 @@ class KafkaStreamManagerActor[Key, Value](
   override def receive: Receive = stopped
 
   private def stopped: Receive = {
-    case StartConsuming => startConsumer
+    case StartConsuming => startConsumer()
     case StopConsuming  => sender() ! SuccessfullyStopped(localAddress, self)
     case GetMetrics     => sender() ! MetricsWrapper.empty
     case RegisterSelf   => registerSelf()
@@ -221,7 +225,7 @@ class KafkaStreamManagerActor[Key, Value](
     case _            => stash()
   }
 
-  private def startConsumer: Unit = {
+  private def startConsumer(): Unit = {
     log.info("Starting consumer for topic {} with client id {}", Seq(topicName, clientId): _*)
     val control = new AtomicReference[Consumer.Control](Consumer.NoopControl)
 
