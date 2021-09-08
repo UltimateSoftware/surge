@@ -60,12 +60,7 @@ trait AggregateProcessingModel[S, M, +R, E] {
    */
   def apply(ctx: Context, state: Option[S], event: E): Option[S]
 
-  def applyAsync(ctx: Context, state: Option[S], event: E): Future[Option[S]] = {
-    Try(apply(ctx, state, event)) match {
-      case Failure(exception) => Future.failed(exception)
-      case Success(value)     => Future.successful(value)
-    }
-  }
+  def applyAsync(ctx: Context, state: Option[S], event: E): Future[Option[S]]
 
 }
 
@@ -73,6 +68,13 @@ trait CommandHandler[S, M, R, E] extends AggregateProcessingModel[S, M, R, E] {
   type CommandResult = Either[R, Seq[E]]
 
   def processCommand(ctx: Context, state: Option[S], cmd: M): Future[CommandResult]
+
+  override def applyAsync(ctx: Context, state: Option[S], event: E): Future[Option[S]] = {
+    Try(apply(ctx, state, event)) match {
+      case Failure(exception) => Future.failed(exception)
+      case Success(value)     => Future.successful(value)
+    }
+  }
 
   override def handle(ctx: Context, state: Option[S], cmd: M)(implicit ec: ExecutionContext): Future[Either[R, HandledMessageResult[S, E]]] =
     processCommand(ctx, state, cmd).map {
