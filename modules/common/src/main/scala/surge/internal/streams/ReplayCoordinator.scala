@@ -3,16 +3,26 @@
 package surge.internal.streams
 
 import akka.actor.{ Actor, ActorRef, Address }
-import akka.pattern.pipe
+import akka.pattern.{ ask, pipe }
 import org.apache.kafka.common.TopicPartition
 import org.slf4j.LoggerFactory
 import surge.exceptions.SurgeReplayException
 import surge.internal.akka.cluster.{ ActorHostAwareness, ActorRegistry }
+import surge.internal.config.TimeoutConfig
 import surge.internal.kafka.HostAssignmentTracker
 import surge.internal.streams.KafkaStreamManagerActor.{ StartConsuming, SuccessfullyStopped }
+import surge.internal.streams.ReplayCoordinator.{ GetReplayProgress, ResumeConsumers }
 import surge.internal.utils.InlineReceive
 import surge.kafka.HostPort
-import surge.streams.replay.ReplayControl
+import surge.streams.replay.{
+  ReplayComplete,
+  ReplayControl,
+  ReplayCoordinatorApi,
+  ReplayProgress,
+  ReplayProgressMonitor,
+  ReplayReadyForMonitoring,
+  ContextForwardingLifecycleCallbacks => ReplayCoordinationCallbacks
+}
 
 import scala.concurrent.Future
 import scala.util.{ Failure, Success }
@@ -22,15 +32,31 @@ private[streams] object ReplayCoordinator {
   case object StartReplay extends ReplayCoordinatorRequest
   case object StopReplay extends ReplayCoordinatorRequest
   case object DoPreReplay extends ReplayCoordinatorRequest
+  case object GetReplayProgress extends ReplayCoordinatorRequest
+  case object ResumeConsumers extends ReplayCoordinatorRequest
 
   sealed trait ReplayCoordinatorResponse
+  case object ReplayStarted extends ReplayCoordinatorResponse
   case object ReplayCompleted extends ReplayCoordinatorResponse
   case class ReplayFailed(reason: Throwable) extends ReplayCoordinatorResponse
 
-  case class ReplayState(replyTo: ActorRef, running: Set[String], stopped: Set[String], assignments: Map[TopicPartition, HostPort])
+  case class ReplayState(
+      replyTo: ActorRef,
+      running: Set[String],
+      stopped: Set[String],
+      assignments: Map[TopicPartition, HostPort],
+      progressMonitor: Option[ReplayProgressMonitor],
+      progress: ReplayProgress)
   object ReplayState {
-    def init(sender: ActorRef): ReplayState = ReplayState(sender, Set(), Set(), Map())
+    def init(sender: ActorRef): ReplayState = ReplayState(sender, Set(), Set(), Map(), None, ReplayProgress.start())
   }
+}
+
+class ReplayCoordinationManager(underlyingActor: ActorRef) extends ReplayCoordinatorApi {
+  override def resumeConsumers(): Unit = underlyingActor ! ResumeConsumers
+
+  override def getReplayProgress: Future[ReplayProgress] =
+    underlyingActor.ask(GetReplayProgress)(TimeoutConfig.ReplayCoordinatorActor.actorAskTimeout).mapTo[ReplayProgress]
 }
 
 class ReplayCoordinator(topicName: String, consumerGroup: String, registry: ActorRegistry, replayControl: ReplayControl) extends Actor with ActorHostAwareness {
@@ -41,9 +67,9 @@ class ReplayCoordinator(topicName: String, consumerGroup: String, registry: Acto
   private val log = LoggerFactory.getLogger(getClass)
 
   private sealed trait Internal
-  private case class TopicConsumersFound(assignments: Map[TopicPartition, HostPort], actorPaths: List[String])
-  private case class TopicAssignmentsFound(assignments: Map[TopicPartition, HostPort])
-  private case object PreReplayCompleted
+  private case class TopicConsumersFound(assignments: Map[TopicPartition, HostPort], actorPaths: List[String]) extends Internal
+  private case class TopicAssignmentsFound(assignments: Map[TopicPartition, HostPort]) extends Internal
+  private case object PreReplayCompleted extends Internal
 
   override def receive: Receive = uninitialized()
 
@@ -56,6 +82,8 @@ class ReplayCoordinator(topicName: String, consumerGroup: String, registry: Acto
     case TopicAssignmentsFound(assignments) =>
       getTopicConsumers(assignments).map(actors => TopicConsumersFound(assignments, actors)).pipeTo(self)
     case msg: TopicConsumersFound => handleTopicConsumersFound(replayState, msg)
+    case GetReplayProgress =>
+      sender() ! replayState.progress
   }.orElse(handleStopReplay(replayState))
 
   private def pausing(replayState: ReplayState): Receive = InlineReceive {
@@ -65,6 +93,8 @@ class ReplayCoordinator(topicName: String, consumerGroup: String, registry: Acto
       doReplay(replayState)
     case DoPreReplay =>
       doPreReplay()
+    case GetReplayProgress =>
+      sender() ! replayState.progress
   }.orElse(handleStopReplay(replayState))
 
   private def replaying(replayState: ReplayState): Receive = InlineReceive {
@@ -72,11 +102,28 @@ class ReplayCoordinator(topicName: String, consumerGroup: String, registry: Acto
       startStoppedConsumers(replayState)
       replayState.replyTo ! failure
       context.become(uninitialized())
+    case ReplayStarted =>
+      log.debug("Replay Started")
+      replayState.replyTo ! ReplayStarted
+    case progress: ReplayProgress =>
+      replayControl.replayProgress(progress)
+      // update progress in state
+      context.become(replaying(replayState.copy(progress = progress)))
+    case ReplayReadyForMonitoring() =>
+      val progressMonitor = replayControl.monitorProgress(new ReplayCoordinationManager(self))
+      context.become(replaying(replayState.copy(progressMonitor = Some(progressMonitor))))
+    case ReplayComplete() =>
+      context.self ! ReplayCompleted
     case ReplayCompleted =>
       replayControl.postReplay()
-      startStoppedConsumers(replayState)
       replayState.replyTo ! ReplayCompleted
+      // Stop Monitoring Progress
+      replayState.progressMonitor.foreach(monitor => monitor.stop())
       context.become(uninitialized())
+    case GetReplayProgress =>
+      sender() ! replayState.progress
+    case ResumeConsumers =>
+      startStoppedConsumers(replayState)
   }.orElse(handleStopReplay(replayState))
 
   private def handleStopReplay(replayState: ReplayState): Receive = { case ReplayCoordinator.StopReplay =>
@@ -117,9 +164,9 @@ class ReplayCoordinator(topicName: String, consumerGroup: String, registry: Acto
     }
     context.become(replaying(replayState))
     replayControl
-      .fullReplay(consumerGroup, existingPartitions)
+      .fullReplay(consumerGroup, existingPartitions, new ReplayCoordinationCallbacks(context))
       .map { _ =>
-        ReplayCompleted
+        ReplayStarted
       }
       .recover { case err: Throwable =>
         log.error("Replay failed", err)

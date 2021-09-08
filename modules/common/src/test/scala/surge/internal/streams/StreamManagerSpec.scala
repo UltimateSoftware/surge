@@ -5,6 +5,7 @@ package surge.internal.streams
 import akka.actor.ActorSystem
 import akka.kafka.Subscriptions
 import akka.stream.scaladsl.Flow
+
 import akka.testkit.{ TestKit, TestProbe }
 import akka.{ Done, NotUsed }
 import com.typesafe.config.ConfigFactory
@@ -37,7 +38,7 @@ class StreamManagerSpec
     with BeforeAndAfterAll
     with ScalaFutures {
   implicit override val patienceConfig: PatienceConfig =
-    PatienceConfig(timeout = scaled(Span(30, Seconds)), interval = scaled(Span(50, Millis)))
+    PatienceConfig(timeout = scaled(Span(60, Seconds)), interval = scaled(Span(50, Millis)))
 
   private implicit val ex: ExecutionContext = ExecutionContext.global
   private implicit val stringSer: Serializer[String] = DefaultSerdes.stringSerde.serializer()
@@ -63,7 +64,7 @@ class StreamManagerSpec
       kafkaBrokers: String,
       groupId: String,
       businessLogic: (String, Array[Byte]) => Future[_],
-      replayStrategy: EventReplayStrategy = new NoOpEventReplayStrategy,
+      replayStrategy: EventReplayStrategy = new NoOpEventReplayStrategy(),
       replaySettings: EventReplaySettings = DefaultEventReplaySettings): KafkaStreamManager[String, Array[Byte]] = {
     val consumerSettings = KafkaDataSourceConfigHelper.consumerSettingsFromConfig[String, Array[Byte]](system, defaultConfig, kafkaBrokers, groupId)
 
@@ -232,15 +233,19 @@ class StreamManagerSpec
         publishToKafka(new ProducerRecord[String, String](topic.name, 2, record3, record3))
 
         val settings = KafkaForeverReplaySettings(defaultConfig, topic.name).copy(brokers = List(embeddedBroker))
-        val kafkaForeverReplayStrategy = KafkaForeverReplayStrategy(defaultConfig, system, settings)
+        val completeProbe = TestProbe()
+        val kafkaForeverReplayStrategy =
+          new KafkaForeverReplayStrategyImpl(defaultConfig, system, settings, () => Future.successful(true), () => completeProbe.ref ! ReplayComplete)
         val consumer =
           testStreamManager(topic, kafkaBrokers = embeddedBroker, groupId = "replay-test", sendToTestProbe(probe), kafkaForeverReplayStrategy, settings)
 
         consumer.start()
         probe.expectMsgAllOf(20.seconds, record1, record2, record3)
         val replayResult = consumer.replay().futureValue(Timeout(settings.entireReplayTimeout))
-        replayResult shouldBe ReplaySuccessfullyStarted()
+        replayResult shouldBe a[ReplaySuccessfullyStarted]
         probe.expectMsgAllOf(40.seconds, record1, record2, record3)
+
+        completeProbe.expectMsg(40.seconds, ReplayComplete)
       }
     }
   }
