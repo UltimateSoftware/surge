@@ -21,7 +21,7 @@ import surge.metrics.{ MetricInfo, Metrics, Timer }
 
 import java.time.Instant
 import java.util.concurrent.Executors
-import scala.concurrent.duration.{ Duration, FiniteDuration }
+import scala.concurrent.duration.{ Duration, DurationInt, FiniteDuration }
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.{ Failure, Success, Try }
 
@@ -270,6 +270,18 @@ class PersistentActor[S, M, R, E](
 
   private def processMessage(state: InternalActorState, ProcessMessage: ProcessMessage[M]): Future[Either[R, HandledMessageResult[S, E]]] = {
     metrics.messageHandlingTimer.timeFuture { businessLogic.model.handle(surgeContext(), state.stateOpt, ProcessMessage.message) }
+  }
+
+  private def callEventHandler(): Future[HandleEventResult] = {
+    val result: Future[HandleEventResult] = {
+      metrics.eventHandlingTimer.time(businessLogic.model.applyAsync(surgeContext(), state.stateOpt, evt)).map { maybeS: Option[S] =>
+        HandleEventResult(result = maybeS)
+      }
+    }
+    val timeOutFut =
+      akka.pattern.after(5.seconds, context.system.scheduler)(Future.failed(new Exception("Async event handler timed out after 5 seconds")))
+
+    Future.firstCompletedOf(List(timeOutFut, result))
   }
 
   private def waitForHandleEventResult(state: InternalActorState): Receive = {
