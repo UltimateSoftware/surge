@@ -2,11 +2,10 @@
 
 package surge.streams
 
-import java.util.concurrent.CompletionStage
-
 import surge.streams.DataPipeline.ReplayResult
 import surge.streams.replay.ReplayControl
 
+import java.util.concurrent.CompletionStage
 import scala.compat.java8.FutureConverters._
 import scala.concurrent.Future
 
@@ -26,6 +25,8 @@ object DataPipeline {
   // This is a case class on purpose, Kotlin doesn't do pattern matching against scala case objects :(
   case class ReplaySuccessfullyStarted() extends ReplayResult
   case class ReplayFailed(reason: Throwable) extends ReplayResult
+
+  case class ReplayProgress(percentComplete: Double) extends ReplayResult
 }
 
 class TypedDataPipeline[Type](dataPipeline: DataPipeline) extends DataPipeline {

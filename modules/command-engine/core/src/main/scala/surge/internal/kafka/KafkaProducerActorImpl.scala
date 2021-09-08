@@ -61,6 +61,7 @@ object KafkaProducerActorImpl {
   case object InitTransactionSuccess extends InternalMessage
   case object FailedToInitTransactions extends InternalMessage
   case object FlushMessages extends InternalMessage
+  case object CheckKTableProgress extends InternalMessage
   case class PublishWithSender(sender: ActorRef, publish: Publish) extends InternalMessage
   case class PendingInitialization(actor: ActorRef, key: String, expiration: Instant) extends InternalMessage
   case class KTableProgressUpdate(topicPartition: TopicPartition, lagInfo: LagInfo) extends InternalMessage
@@ -119,7 +120,7 @@ class KafkaProducerActorImpl(
 
   context.system.scheduler.scheduleOnce(10.milliseconds, self, InitTransactions)
   context.system.scheduler.scheduleWithFixedDelay(flushInterval, flushInterval, self, FlushMessages)
-  context.system.scheduler.scheduleAtFixedRate(ktableCheckInterval, ktableCheckInterval)(() => checkKTableProgress())
+  context.system.scheduler.scheduleAtFixedRate(ktableCheckInterval, ktableCheckInterval, self, CheckKTableProgress)
 
   private def getPublisher: KafkaBytesProducer = {
     kafkaProducerOverride.getOrElse(newPublisher())
@@ -154,11 +155,12 @@ class KafkaProducerActorImpl(
   }
 
   private def uninitialized: Receive = {
-    case InitTransactions => initializeTransactions()
+    case CheckKTableProgress => checkKTableProgress()
+    case InitTransactions    => initializeTransactions()
     case InitTransactionSuccess =>
       unstashAll()
       context.become(waitingForKTableIndexing())
-    case FlushMessages              => // Ignore from this state
+    case FlushMessages              => log.trace("KafkaPublisherActor ignoring FlushMessages message from the uninitialized state")
     case GetHealth                  => doHealthCheck()
     case _: KTableProgressUpdate    => stash() // process only AFTER flush message is sent
     case _: Publish                 => stash()
@@ -166,8 +168,9 @@ class KafkaProducerActorImpl(
   }
 
   private def waitingForKTableIndexing(): Receive = {
+    case CheckKTableProgress        => checkKTableProgress()
     case msg: KTableProgressUpdate  => handleFromWaitingForKTableIndexingState(msg)
-    case FlushMessages              => // Ignore from this state
+    case FlushMessages              => log.trace("KafkaPublisherActor ignoring FlushMessages message from the waitingForKTableIndexing state")
     case GetHealth                  => doHealthCheck()
     case _: Publish                 => stash()
     case _: IsAggregateStateCurrent => sender().tell(false, self)
@@ -178,9 +181,11 @@ class KafkaProducerActorImpl(
     case msg: EventsFailedToPublish =>
       context.become(fenced(state.completeTransaction()))
       msg.originalSenders.foreach(_ ! KafkaProducerActor.PublishFailure(msg.reason))
-    case RestartProducer  => restartPublisher()
-    case ShutdownProducer => context.stop(self)
-    case _                => stash()
+    case RestartProducer     => restartPublisher()
+    case ShutdownProducer    => context.stop(self)
+    case CheckKTableProgress => log.trace("KafkaPublisherActor ignoring CheckKTableProgress message from the fenced state")
+    case FlushMessages       => log.trace("KafkaPublisherActor ignoring FlushMessages message from the fenced state")
+    case _                   => stash()
   }
 
   private def processing(state: KafkaProducerActorState): Receive = {
@@ -201,6 +206,7 @@ class KafkaProducerActorImpl(
 
   private def handleProcessingInternalMessage(message: InternalMessage, state: KafkaProducerActorState): Unit = {
     message match {
+      case CheckKTableProgress         => checkKTableProgress()
       case msg: KTableProgressUpdate   => handle(state, msg)
       case msg: EventsPublished        => handle(state, msg)
       case msg: EventsFailedToPublish  => handleFailedToPublish(state, msg)
