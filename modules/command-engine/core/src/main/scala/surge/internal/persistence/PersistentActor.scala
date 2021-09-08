@@ -21,7 +21,7 @@ import surge.metrics.{ MetricInfo, Metrics, Timer }
 
 import java.time.Instant
 import java.util.concurrent.Executors
-import scala.concurrent.duration.{ Duration, FiniteDuration }
+import scala.concurrent.duration.{ Duration, DurationInt, FiniteDuration }
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.{ Failure, Success, Try }
 
@@ -165,6 +165,8 @@ class PersistentActor[S, M, R, E](
 
   protected case class InternalActorState(stateOpt: Option[S])
 
+  protected case class HandleEventResult(result: Option[S]) extends NoSerializationVerificationNeeded
+
   override type ActorState = InternalActorState
 
   import regionSharedResources._
@@ -211,10 +213,14 @@ class PersistentActor[S, M, R, E](
   private def freeToProcess(state: InternalActorState): Receive = {
     case pm: ProcessMessage[M] =>
       handle(state, pm)
-    case ae: ApplyEvent[E] => handle(state, ae)
-    case GetState(_)       => sender() ! StateResponse(state.stateOpt)
-    case ReceiveTimeout    => handlePassivate()
-    case Stop              => handleStop()
+    case ae: ApplyEvent[E] =>
+      val evt: E = ae.event
+      val result: Future[HandleEventResult] = callEventHandler(state, evt)
+      pipe(result).to(self, sender())
+      context.become(waitForHandleEventResult(state))
+    case GetState(_)    => sender() ! StateResponse(state.stateOpt)
+    case ReceiveTimeout => handlePassivate()
+    case Stop           => handleStop()
   }
 
   private def handle(initializeWithState: InitializeWithState): Unit = {
@@ -263,29 +269,40 @@ class PersistentActor[S, M, R, E](
     metrics.messageHandlingTimer.timeFuture { businessLogic.model.handle(surgeContext(), state.stateOpt, ProcessMessage.message) }
   }
 
-  private def handle(state: InternalActorState, applyEventEnvelope: ApplyEvent[E]): Unit = {
-    handleEvents(state, Seq(applyEventEnvelope.event)) match {
-      case Success(newState) =>
-        context.setReceiveTimeout(Duration.Inf)
-        context.become(persistingEvents(state))
-        val futureStatePersisted = serializeState(newState).flatMap { serializedState =>
-          doPublish(
-            state.copy(stateOpt = newState),
-            serializedEvents = Seq.empty,
-            serializedState = serializedState,
-            startTime = Instant.now,
-            didStateChange = state.stateOpt != newState)
-        }
-        futureStatePersisted.pipeTo(self)(sender())
-      case Failure(e) =>
-        sender() ! ACKError(e)
+  private def callEventHandler(state: InternalActorState, evt: E): Future[HandleEventResult] = {
+    val result: Future[HandleEventResult] = {
+      metrics.eventHandlingTimer.time(businessLogic.model.applyAsync(surgeContext(), state.stateOpt, evt)).map { maybeS: Option[S] =>
+        HandleEventResult(result = maybeS)
+      }
     }
+    val timeOutFut =
+      akka.pattern.after(5.seconds, context.system.scheduler)(Future.failed(new Exception("Async event handler timed out after 5 seconds")))
+
+    Future.firstCompletedOf(List(timeOutFut, result))
   }
 
-  private def handleEvents(state: InternalActorState, events: Seq[E]): Try[Option[S]] = Try {
-    events.foldLeft(state.stateOpt) { (state, evt) =>
-      metrics.eventHandlingTimer.time(businessLogic.model.apply(surgeContext(), state, evt))
-    }
+  private def waitForHandleEventResult(state: InternalActorState): Receive = {
+    case HandleEventResult(newState) =>
+      log.debug("Received result from async handle event call!")
+      context.setReceiveTimeout(Duration.Inf)
+      context.become(persistingEvents(state))
+      unstashAll()
+      val futureStatePersisted = serializeState(newState).flatMap { serializedState =>
+        doPublish(
+          state.copy(stateOpt = newState),
+          serializedEvents = Seq.empty,
+          serializedState = serializedState,
+          startTime = Instant.now,
+          didStateChange = state.stateOpt != newState)
+      }
+      futureStatePersisted.pipeTo(self)(sender())
+    case failedFuture: akka.actor.Status.Failure =>
+      log.error("Received failure from async handle event call!", failedFuture.cause)
+      sender() ! ACKError(failedFuture.cause)
+      context.become(freeToProcess(state))
+      unstashAll()
+    case otherMsg =>
+      stash()
   }
 
   private def uninitialized: Receive = {
