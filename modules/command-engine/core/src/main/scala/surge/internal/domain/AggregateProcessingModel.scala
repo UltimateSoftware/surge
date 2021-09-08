@@ -5,6 +5,7 @@ package surge.internal.domain
 import surge.internal.persistence.Context
 
 import scala.concurrent.{ ExecutionContext, Future }
+import scala.util.{ Failure, Success, Try }
 
 /**
  * The result of handling a message
@@ -59,7 +60,12 @@ trait AggregateProcessingModel[S, M, +R, E] {
    */
   def apply(ctx: Context, state: Option[S], event: E): Option[S]
 
-  def applyAsync(ctx: Context, state: Option[S], event: E): Future[Option[S]] = Future.successful(apply(ctx, state, event))
+  def applyAsync(ctx: Context, state: Option[S], event: E): Future[Option[S]] = {
+    Try(apply(ctx, state, event)) match {
+      case Failure(exception) => Future.failed(exception)
+      case Success(value)     => Future.successful(value)
+    }
+  }
 
 }
 

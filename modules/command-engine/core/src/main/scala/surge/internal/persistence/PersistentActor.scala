@@ -283,9 +283,10 @@ class PersistentActor[S, M, R, E](
 
   private def waitForHandleEventResult(state: InternalActorState): Receive = {
     case HandleEventResult(newState) =>
-      println("got result")
+      log.debug("Received result from async handle event call!")
       context.setReceiveTimeout(Duration.Inf)
       context.become(persistingEvents(state))
+      unstashAll()
       val futureStatePersisted = serializeState(newState).flatMap { serializedState =>
         doPublish(
           state.copy(stateOpt = newState),
@@ -296,12 +297,11 @@ class PersistentActor[S, M, R, E](
       }
       futureStatePersisted.pipeTo(self)(sender())
     case failedFuture: akka.actor.Status.Failure =>
-      println("got failed future")
+      log.error("Received failure from async handle event call!", failedFuture.cause)
       sender() ! ACKError(failedFuture.cause)
       context.become(freeToProcess(state))
       unstashAll()
     case otherMsg =>
-      println("stashing:" + otherMsg)
       stash()
   }
 
