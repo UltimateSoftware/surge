@@ -74,11 +74,34 @@ trait CommandHandler[S, M, R, E] extends AggregateProcessingModel[S, M, R, E] {
 
   def processCommand(ctx: Context, state: Option[S], cmd: M): Future[CommandResult]
 
-  override final def handle(ctx: Context, state: Option[S], cmd: M)(implicit ec: ExecutionContext): Future[Either[R, HandledMessageResult[S, E]]] =
+  override def handle(ctx: Context, state: Option[S], cmd: M)(implicit ec: ExecutionContext): Future[Either[R, HandledMessageResult[S, E]]] =
     processCommand(ctx, state, cmd).map {
       case Left(rejected) => Left(rejected)
       case Right(events) =>
         Right(HandledMessageResult(events.foldLeft(state)((s: Option[S], e: E) => apply(ctx, s, e)), events))
+    }
+}
+
+trait AsyncCommandHandler[S, M, R, E] extends CommandHandler[S, M, R, E] {
+
+  def processCommand(ctx: Context, state: Option[S], cmd: M): Future[CommandResult]
+
+  override def apply(ctx: Context, state: Option[S], event: E): Option[S] =
+    throw new Exception("Synchronous event handler called when using AsyncCommandHandler. This should never happen")
+
+  // equivalent to a fold left but executed remotely
+  def applyAsync(ctx: Context, initialState: Option[S], events: Seq[E]): Future[Option[S]]
+
+  override def applyAsync(ctx: Context, state: Option[S], event: E): Future[Option[S]] =
+    applyAsync(ctx, state, Seq(event))
+
+  override final def handle(ctx: Context, state: Option[S], cmd: M)(implicit ec: ExecutionContext): Future[Either[R, HandledMessageResult[S, E]]] =
+    processCommand(ctx, state, cmd).flatMap {
+      case Left(rejected) => Future.successful(Left(rejected))
+      case Right(events) =>
+        applyAsync(ctx, state, events).map { maybeS =>
+          Right(HandledMessageResult(maybeS, events))
+        }
     }
 }
 
