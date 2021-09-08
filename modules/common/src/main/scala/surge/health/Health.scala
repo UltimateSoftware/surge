@@ -15,8 +15,9 @@ import surge.core.{ Ack, Controllable }
 import surge.health.config.ThrottleConfig
 import surge.health.domain.{ EmittableHealthSignal, Error, HealthSignal, HealthSignalSource, Timed, Trace, Warning }
 import surge.health.matchers.SignalPatternMatcherDefinition
+import surge.health.supervisor.Api.{ RegisterSupervisedComponentRequest, RestartComponent, ShutdownComponent, StartComponent }
+import surge.health.supervisor.Domain.SupervisedComponentRegistration
 import surge.internal.health.RegistrationHandler
-import surge.internal.health.supervisor.{ RegisterSupervisedComponentRequest, RestartComponent, ShutdownComponent, SupervisedComponentRegistration }
 
 import scala.concurrent.Future
 import scala.util.Try
@@ -126,6 +127,10 @@ case class ControlProxy(name: String, actor: ActorRef) {
 
   def restart(replyTo: ActorRef): Unit = {
     actor ! RestartComponent(name, replyTo)
+  }
+
+  def start(replyTo: ActorRef): Unit = {
+    actor ! StartComponent(name, replyTo)
   }
 }
 

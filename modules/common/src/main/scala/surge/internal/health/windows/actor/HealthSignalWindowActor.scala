@@ -2,30 +2,19 @@
 
 package surge.internal.health.windows.actor
 
-import java.time.Instant
 import akka.actor.{ Actor, ActorRef, ActorSystem, Cancellable, PoisonPill, Props, Stash }
 import akka.pattern.{ ask, BackoffOpts, BackoffSupervisor }
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.health.HealthSignalBusTrait
 import surge.health.domain.{ HealthSignal, HealthSignalSource }
 import surge.health.matchers.{ SideEffect, SideEffectBuilder, SignalPatternMatchResult, SignalPatternMatcherDefinition }
-import surge.health.windows.{
-  AddedToWindow,
-  Advancer,
-  Window,
-  WindowAdvanced,
-  WindowClosed,
-  WindowData,
-  WindowOpened,
-  WindowPaused,
-  WindowResumed,
-  WindowStopped
-}
-import surge.internal.config.BackoffConfig
+import surge.health.windows._
+import surge.internal.config.{ BackoffConfig, TimeoutConfig }
 import surge.internal.health.windows._
 
-import scala.concurrent.{ ExecutionContext, Future }
+import java.time.Instant
 import scala.concurrent.duration._
+import scala.concurrent.{ ExecutionContext, Future }
 import scala.languageFeature.postfixOps
 
 case class WindowState(window: Option[Window] = None, replyTo: Option[ActorRef] = None)
@@ -33,13 +22,14 @@ case class WindowState(window: Option[Window] = None, replyTo: Option[ActorRef] 
 object HealthSignalWindowActor {
   val log: Logger = LoggerFactory.getLogger(getClass)
 
-  case class Start(window: Window, replyTo: ActorRef)
-  case class Tick()
-  case class Stop()
-  case class Flush()
+  trait Control {}
+  case class Start(window: Window, replyTo: ActorRef) extends Control
+  case class Tick() extends Control
+  case class Stop() extends Control
+  case class Flush() extends Control
 
-  case class Pause(duration: FiniteDuration)
-  case class Resume()
+  case class Pause(duration: FiniteDuration) extends Control
+  case class Resume() extends Control
 
   def apply(
       actorSystem: ActorSystem,
@@ -124,8 +114,8 @@ class HealthSignalWindowActorRef(
     this
   }
 
-  def windowSnapshot(): Future[Option[Window]] = {
-    actor.ask(GetWindowSnapShot())(10.seconds).map(a => a.asInstanceOf[Option[Window]])(ExecutionContext.global)
+  def windowSnapshot(): Future[Option[WindowSnapShot]] = {
+    actor.ask(GetWindowSnapShot())(TimeoutConfig.HealthWindow.actorAskTimeout).mapTo[Option[WindowSnapShot]]
   }
 }
 
@@ -154,17 +144,19 @@ class HealthSignalWindowActor(
 
   private val matcher = signalPatternMatcherDefinition.toMatcher
 
+  override def receive: Receive = initializing
+
   /**
    * Initialization
    * @return
    *   Receive
    */
-  override def receive: Receive = {
+  def initializing: Receive = {
     case Start(window, replyTo) =>
       HealthSignalWindowActor.log.trace("Starting window {}", window)
       unstashAll()
-      context.become(ready(WindowState().copy(replyTo = Some(replyTo))))
       context.self ! OpenWindow(window, None)
+      context.become(ready(WindowState().copy(replyTo = Some(replyTo))))
     case Stop() =>
       context.stop(self)
     case HealthSignal => stash()
@@ -180,19 +172,19 @@ class HealthSignalWindowActor(
   def ready(state: WindowState): Receive = {
     case AdvanceWindow(w, n) =>
       reportWindowAdvanced(w, n, state)
-      val advancedWindowState = handleAdvanceWindow(w, n, state)
+      val advancedWindowState = advanceWindow(w, n, state)
       context.self ! OpenWindow(n, None)
-      context.become(ready(advancedWindowState))
+      context.become(ready(advancedWindowState.copy()))
     case signal: HealthSignal =>
-      log.debug(s"Got signal ${signal} while in ready state. oops")
+      log.debug(s"Got signal $signal while in ready state.")
       stash()
     case OpenWindow(w, maybeSignal) =>
-      val openedWindowState = handleOpenWindow(w, maybeSignal, state)
+      val openedWindowState = openWindow(w, maybeSignal, state)
       unstashAll()
-      context.become(windowing(openedWindowState))
+      context.become(windowing(openedWindowState.copy()))
     case GetWindowSnapShot() =>
-      sender ! state.window
-    case Stop() => handleStop(state)
+      sender ! WindowSnapShot(data = state.window.map(w => w.snapShotData()).getOrElse(Seq.empty))
+    case Stop() => stop(state)
     case _      => stash()
   }
 
@@ -203,40 +195,35 @@ class HealthSignalWindowActor(
    * @return
    *   Receive
    */
+  // scalastyle:off cyclomatic.complexity
   def windowing(state: WindowState): Receive = {
     case signal: HealthSignal =>
-      val nextState = handleSignal(signal, state)
-      context.become(windowing(nextState))
+      state.window.foreach(w => context.self ! AddToWindow(signal, w))
     case AdvanceWindow(w, n) =>
-      val nextState = handleAdvanceWindow(w, n, state)
-      context.become(windowing(nextState))
+      context.become(windowing(state = advanceWindow(w, n, state).copy()))
     case AddToWindow(signal: HealthSignal, window) =>
-      val nextState = handleAddToWindow(window, signal, state)
-      context.become(windowing(nextState))
+      context.become(windowing(addToWindow(window, signal, state)))
     case CloseWindow(window, advance) =>
-      val nextState = handleCloseWindow(window, advance, state)
-      context.become(ready(nextState))
+      context.become(ready(closeWindow(window, advance, state).copy()))
     case Flush() =>
-      val nextState = handleFlush(state)
-      context.become(windowing(nextState))
+      context.become(windowing(flush(state).copy()))
     case Pause(duration) =>
-      val nextState = handlePause(duration, state)
-      context.become(pausing(nextState))
+      context.become(pausing(pause(duration, state).copy()))
     case CloseCurrentWindow =>
       state.window.foreach(w => context.self ! CloseWindow(w, advance = true))
-      context.become(windowing(state))
     case GetWindowSnapShot() =>
-      sender ! state.window
-    case Stop() => handleStop(state)
-    case Tick() => handleTick(state)
+      sender ! state.window.map(w => WindowSnapShot(w.snapShotData()))
+    case Stop() => stop(state)
+    case Tick() =>
+      tick(state)
   }
 
   def pausing(state: WindowState): Receive = {
     case GetWindowSnapShot() =>
-      sender ! state.window
+      sender ! state.window.map(w => WindowSnapShot(w.snapShotData()))
     case _: HealthSignal =>
       stash()
-    case Stop() => handleStop(state)
+    case Stop() => stop(state)
     case Resume() =>
       state.window.foreach { w =>
         state.replyTo.foreach(a => {
@@ -244,16 +231,16 @@ class HealthSignalWindowActor(
           a ! WindowResumed(w)
         })
       }
-      context.become(windowing(state))
+      context.become(windowing(state.copy()))
   }
 
-  private def handleFlush(state: WindowState): WindowState = {
+  private def flush(state: WindowState): WindowState = {
     val flushedWindow = state.window.flatMap(w => Some(w.copy(data = Seq.empty)))
     context.self ! Pause(duration = resumeWindowProcessingDelay)
     state.copy(window = flushedWindow)
   }
 
-  private def handlePause(duration: FiniteDuration, state: WindowState): WindowState = {
+  private def pause(duration: FiniteDuration, state: WindowState): WindowState = {
     state.window.foreach { w =>
       state.replyTo.foreach(a => {
         HealthSignalWindowActor.log.trace("Notifying {} that window closed", a)
@@ -267,7 +254,7 @@ class HealthSignalWindowActor(
     state.copy()
   }
 
-  private def handleStop(state: WindowState): Unit = {
+  private def stop(state: WindowState): WindowState = {
     state.replyTo.foreach(a => {
       HealthSignalWindowActor.log.trace("Notifying {} that windowing stopped", a)
       a ! WindowStopped(state.window)
@@ -280,14 +267,11 @@ class HealthSignalWindowActor(
       })
     }
     context.stop(self)
-  }
 
-  private def handleSignal(signal: HealthSignal, state: WindowState): WindowState = {
-    state.window.foreach(w => context.self ! AddToWindow(signal, w))
     state.copy()
   }
 
-  private def handleAddToWindow(window: Window, signal: HealthSignal, state: WindowState): WindowState = {
+  private def addToWindow(window: Window, signal: HealthSignal, state: WindowState): WindowState = {
     val updatedWindow = window.copy(data = window.data ++ Seq(signal))
     advanceWindowCommand(updatedWindow).foreach(cmd => {
       context.self ! cmd
@@ -300,14 +284,14 @@ class HealthSignalWindowActor(
     state.copy(window = Some(updatedWindow))
   }
 
-  private def handleAdvanceWindow(window: Window, newWindow: Window, state: WindowState): WindowState = {
+  private def advanceWindow(window: Window, newWindow: Window, state: WindowState): WindowState = {
     HealthSignalWindowActor.log.trace("Window advanced {}", window)
     reportWindowAdvanced(window, newWindow, state)
     processWindowForPatternMatches(window)
-    state.copy(window = Some(newWindow.copy()))
+    state.copy(window = Some(newWindow.copy(priorData = window.data)))
   }
 
-  private def handleCloseWindow(window: Window, advance: Boolean, state: WindowState): WindowState = {
+  private def closeWindow(window: Window, advance: Boolean, state: WindowState): WindowState = {
     val capturedSignals = state.window.map(w => w.data).getOrElse(Seq.empty)
     HealthSignalWindowActor.log.trace("Closing window {} and informing {}", Seq(window, state.replyTo): _*)
     state.replyTo.foreach(r => {
@@ -327,15 +311,17 @@ class HealthSignalWindowActor(
     nextState
   }
 
-  protected def handleTick(state: WindowState): Unit = {
+  protected def tick(state: WindowState): WindowState = {
     state.window.foreach(w => {
       if (w.expired()) {
         context.self ! CloseWindow(w, advance = true)
       }
     })
+
+    state.copy()
   }
 
-  private def handleOpenWindow(window: Window, maybeSignal: Option[HealthSignal], state: WindowState): WindowState = {
+  private def openWindow(window: Window, maybeSignal: Option[HealthSignal], state: WindowState): WindowState = {
     val nextState = state.copy(window = Some(window.copy()))
 
     maybeSignal.foreach(s => context.self ! s)
@@ -377,11 +363,6 @@ class HealthSignalWindowActor(
     })
 
     injectSignalPatternMatchResultIntoStream(result.copy(sideEffect = sideEffectBuilder.buildSideEffect()))
-
-    //if (result.matches.nonEmpty) it.flush()
-
-    //it.copy(data = Seq.empty)
-    //it.copy()
   }
 
   private def signalSource(window: Window, data: Seq[HealthSignal]): HealthSignalSource = {

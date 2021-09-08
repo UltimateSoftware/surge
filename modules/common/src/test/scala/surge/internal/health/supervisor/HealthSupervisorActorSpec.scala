@@ -2,7 +2,8 @@
 
 package surge.internal.health.supervisor
 
-import akka.actor.ActorSystem
+import akka.actor.{ ActorRef, ActorSystem }
+import akka.pattern.ask
 import akka.testkit.{ TestKit, TestProbe }
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.{ Eventually, ScalaFutures }
@@ -10,14 +11,20 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Milliseconds, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
 import surge.core.{ Ack, ControllableAdapter }
+import surge.health._
 import surge.health.config.{ ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig }
 import surge.health.domain.{ HealthSignal, Trace }
+import surge.health.jmx.Domain.HealthRegistrationDetail
+import surge.health.jmx.View.HealthRegistrationDetailMxView
 import surge.health.matchers.{ SideEffect, SignalPatternMatcherDefinition }
-import surge.health._
+import surge.health.supervisor.Api.{ QueryComponentExists, RestartComponent, ShutdownComponent }
 import surge.internal.health._
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
 
+import java.lang.management.ManagementFactory
 import java.util.regex.Pattern
+import javax.management.openmbean.CompositeData
+import javax.management.{ MBeanInfo, MBeanServer, ObjectName }
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
@@ -29,13 +36,14 @@ class HealthSupervisorActorSpec
     with Matchers
     with Eventually {
   implicit override val patienceConfig: PatienceConfig =
-    PatienceConfig(timeout = scaled(Span(10, Seconds)), interval = scaled(Span(10, Milliseconds)))
+    PatienceConfig(timeout = scaled(Span(30, Seconds)), interval = scaled(Span(10, Milliseconds)))
 
   private val testHealthSignal = HealthSignal(topic = "health.signal", name = "boom", signalType = SignalType.TRACE, data = Trace("test"), source = None)
 
-  case class TestContext(probe: TestProbe, bus: HealthSignalBusTrait)
+  case class TestContext(probe: TestProbe, bus: HealthSignalBusTrait, mbs: MBeanServer, objectName: ObjectName, beanInfo: MBeanInfo)
 
   def testContext[T](testFun: TestContext => T): T = {
+    import scala.jdk.CollectionConverters._
     val probe = TestProbe()
     val bus = new SlidingHealthSignalStreamProvider(
       WindowingStreamConfig(
@@ -49,10 +57,24 @@ class HealthSupervisorActorSpec
       Seq(
         SignalPatternMatcherDefinition
           .nameEquals(signalName = "test.trace", frequency = 100.milliseconds, sideEffect = Some(SideEffect(Seq(testHealthSignal)))))).bus()
+    val mbs = ManagementFactory.getPlatformMBeanServer
+    val found = eventually {
+      val objectNames: java.util.Set[ObjectName] = mbs.queryNames(null, null)
+      val found = objectNames.asScala.find(name => name.getCanonicalName.contains("SurgeHealth"))
+      found.nonEmpty shouldEqual true
+
+      found
+    }
+
+    found shouldBe defined
+
+    // Health Registrations should be empty
+    val beanInfo = mbs.getMBeanInfo(found.get)
+    val objectName = found.get
     try {
-      testFun(TestContext(probe, bus))
+      testFun(TestContext(probe, bus, objectName = objectName, beanInfo = beanInfo, mbs = mbs))
     } finally {
-      bus.signalStream().stop()
+      bus.unsupervise().signalStream().stop()
     }
   }
 
@@ -61,6 +83,88 @@ class HealthSupervisorActorSpec
   }
 
   "HealthSupervisorActorSpec" should {
+    "expose jmx management bean" in testContext { ctx =>
+      import scala.jdk.CollectionConverters._
+
+      val beanInfo = ctx.beanInfo
+      val jmxBeanName = ctx.objectName
+
+      val attributeValues = ctx.mbs.getAttributes(jmxBeanName, beanInfo.getAttributes.map(info => info.getName))
+      val maybeHealthRegistry = attributeValues.asList().asScala.find(att => att.getName == "HealthRegistry")
+
+      maybeHealthRegistry shouldBe defined
+
+      // Health Registrations should be empty
+      maybeHealthRegistry.get.getValue shouldBe a[CompositeData]
+      maybeHealthRegistry.get.getValue.asInstanceOf[CompositeData].get("registrations").asInstanceOf[Array[CompositeData]].isEmpty shouldEqual true
+
+      val operations = beanInfo.getOperations
+      operations.toSeq.nonEmpty shouldEqual true
+    }
+
+    "stop component using jmx bean" in testContext { ctx =>
+      import ctx._
+
+      import scala.jdk.CollectionConverters._
+
+      val componentName = "testRegistrationControl"
+      val stopProbe = TestProbe()
+      val control = new ControllableAdapter() {
+        override def stop(): Future[Ack] = Future {
+          stopProbe.ref ! ShutdownComponent(componentName, probe.ref)
+          Ack()
+        }(system.dispatcher)
+      }
+
+      // Register
+      bus.register(control, componentName = componentName, Seq()).futureValue shouldBe an[Ack]
+
+      val registryList = eventually {
+        val jmxBeanAttributes = ctx.mbs.getAttributes(ctx.objectName, ctx.beanInfo.getAttributes.map(att => att.getName))
+        val maybeHealthRegistry = jmxBeanAttributes.asList().asScala.find(att => att.getName == "HealthRegistry")
+
+        maybeHealthRegistry shouldBe defined
+        maybeHealthRegistry.get.getValue shouldBe a[CompositeData]
+
+        val registryAsList = maybeHealthRegistry.get.getValue.asInstanceOf[CompositeData].get("registrations").asInstanceOf[Array[CompositeData]]
+        registryAsList.exists(detail => detail.get("componentName") == componentName) shouldEqual true
+
+        registryAsList.toSeq
+          .map(d => HealthRegistrationDetailMxView(HealthRegistrationDetail(d.get("componentName").toString, d.get("controlRefPath").toString)))
+          .toList
+      }
+
+      registryList.size shouldEqual 1
+
+      // Attempt to stop
+      val maybeStopOperation = beanInfo.getOperations.toList.find(op => op.getName == "stop")
+      maybeStopOperation shouldBe defined
+
+      val actorSelection = system.actorSelection(registryList.head.sender)
+
+      val controlRef: ActorRef = actorSelection.resolveOne(10.seconds).futureValue
+      controlRef.ask(QueryComponentExists(componentName))(30.seconds).futureValue shouldEqual true
+
+      mbs.invoke(objectName, maybeStopOperation.get.getName, Array(componentName), Array("java.lang.String"))
+
+      // Verify stopped
+      eventually {
+        val jmxBeanAttributes = ctx.mbs.getAttributes(ctx.objectName, ctx.beanInfo.getAttributes.map(att => att.getName))
+        val maybeHealthRegistry = jmxBeanAttributes.asList().asScala.find(att => att.getName == "HealthRegistry")
+
+        maybeHealthRegistry shouldBe defined
+        maybeHealthRegistry.get.getValue shouldBe a[CompositeData]
+
+        val registryAsList = maybeHealthRegistry.get.getValue.asInstanceOf[CompositeData].get("registrations").asInstanceOf[Array[CompositeData]].toList
+        registryAsList.nonEmpty shouldEqual false
+
+        // Component should not exist in registry after stopped.
+        eventually {
+          actorSelection.resolveOne(10.seconds).futureValue.ask(QueryComponentExists(componentName))(30.seconds).futureValue shouldEqual false
+        }
+      }
+    }
+
     "sliding stream; attempt to restart registered actor" in testContext { ctx =>
       import ctx._
       // Start signal streaming

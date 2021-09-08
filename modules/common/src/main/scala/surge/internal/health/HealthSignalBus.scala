@@ -12,6 +12,8 @@ import surge.core.{ Ack, Controllable }
 import surge.health._
 import surge.health.config.HealthSignalBusConfig
 import surge.health.domain.{ EmittableHealthSignal, Error, HealthSignal, HealthSignalSource, SnapshotHealthSignalSource, Trace, Warning }
+import surge.health.supervisor.Api.{ HealthRegistrationDetailsRequest, RegisterSupervisedComponentRequest, Stop }
+import surge.health.supervisor.Domain.SupervisedComponentRegistration
 import surge.internal.health.HealthSignalBus.log
 import surge.internal.health.supervisor._
 

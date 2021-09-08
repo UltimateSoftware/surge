@@ -18,11 +18,21 @@ object Window {
   }
 }
 
-case class Window(from: Long, to: Long, data: Seq[HealthSignal], duration: FiniteDuration, control: Option[ActorRef]) extends HealthSignalSource {
+case class WindowSnapShot(data: Seq[HealthSignal])
+case class Window(from: Long, to: Long, data: Seq[HealthSignal], priorData: Seq[HealthSignal] = Seq.empty, duration: FiniteDuration, control: Option[ActorRef])
+    extends HealthSignalSource {
   override def toString: String = s"At ${Instant.now().toEpochMilli} Window From $from To $to} - expired == ${expired()} - durationInMillis == $duration"
 
   def expired(): Boolean = {
     to <= Instant.now().toEpochMilli
+  }
+
+  def snapShotData(): Seq[HealthSignal] = {
+    if (data.isEmpty) {
+      priorData
+    } else {
+      data
+    }
   }
 
   override def flush(): Unit = {
