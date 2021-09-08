@@ -16,8 +16,6 @@ import scala.concurrent.duration._
 import scala.concurrent.{ Await, ExecutionContext, Future }
 import scala.util.{ Failure, Success }
 
-import scala.jdk.CollectionConverters._
-
 object SurgeHealthActor {
   val managementName: String = "SurgeHealthMBean"
   def apply(supervisorRef: ActorRef): SurgeHealthActor = {
@@ -105,8 +103,15 @@ class SurgeHealthActor(val supervisorRef: ActorRef) extends ActorWithJMX with Su
   }
 
   override def registeredComponentNames(): util.List[String] = {
-    Await.result(asyncGetHealthRegistry, 30.seconds).toList.map(r => r.componentName).asJava
+    val list = Await.result(asyncGetHealthRegistry, 30.seconds).toList
+
+    val returnedList = new util.ArrayList[String]()
+    list.foreach(r => returnedList.add(r.componentName))
+
+    returnedList
   }
+
+  override def countRegisteredComponents(): Int = registeredComponentNames().size()
 
   override def exists(componentName: String): Boolean = {
     Await.result(asyncExists(componentName), 30.seconds)
