@@ -8,16 +8,37 @@ import akka.kafka.{ AutoSubscription, ConsumerSettings, Subscriptions }
 import com.typesafe.config.{ Config, ConfigFactory }
 import io.opentelemetry.api.trace.Tracer
 import org.apache.kafka.clients.consumer.ConsumerConfig
+import org.apache.kafka.common.IsolationLevel
 import org.apache.kafka.common.serialization.Deserializer
-import surge.internal.akka.kafka.AkkaKafkaConsumer
 import surge.internal.streams.{ KafkaOffsetManagementSubscriptionProvider, KafkaStreamManager, ManagedDataPipeline, ManualOffsetManagementSubscriptionProvider }
 import surge.internal.tracing.NoopTracerFactory
-import surge.kafka.KafkaTopic
+import surge.kafka.{ KafkaConsumerHelper, KafkaTopic, UltiKafkaConsumerConfig }
 import surge.metrics.Metrics
 import surge.streams.replay.{ DefaultEventReplaySettings, EventReplaySettings, EventReplayStrategy, NoOpEventReplayStrategy }
 
 import scala.concurrent.ExecutionContext
 import scala.jdk.CollectionConverters._
+
+private[surge] object KafkaDataSourceConfigHelper {
+  def consumerSettingsFromConfig[Key, Value](
+      actorSystem: ActorSystem,
+      config: Config,
+      kafkaBrokers: String,
+      consumerGroup: String,
+      additionalProps: Map[String, String] = Map.empty)(implicit keyDeser: Deserializer[Key], valueDeser: Deserializer[Value]): ConsumerSettings[Key, Value] = {
+    val consumerSessionTimeout = config.getDuration("surge.kafka-event-source.consumer.session-timeout")
+    val autoOffsetReset = config.getString("surge.kafka-event-source.consumer.auto-offset-reset")
+
+    val props = KafkaConsumerHelper.consumerPropsFromConfig(config, UltiKafkaConsumerConfig(consumerGroup, autoOffsetReset))
+    ConsumerSettings[Key, Value](actorSystem, Some(keyDeser), Some(valueDeser))
+      .withBootstrapServers(kafkaBrokers)
+      .withProperty(ConsumerConfig.ISOLATION_LEVEL_CONFIG, IsolationLevel.READ_COMMITTED.toString.toLowerCase)
+      .withProperty(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, consumerSessionTimeout.toMillis.toString)
+      .withProperties(props.asScala.toMap)
+      .withProperties(additionalProps)
+  }
+
+}
 
 trait DataSource[Key, Value] {
   private val defaultReplayStrategy = new NoOpEventReplayStrategy
@@ -51,15 +72,13 @@ trait KafkaDataSource[Key, Value] extends DataSource[Key, Value] {
   }
 
   def to(sink: DataHandler[Key, Value], consumerGroup: String, autoStart: Boolean): DataPipeline = {
-    val consumerSessionTimeout = config.getDuration("surge.kafka-event-source.consumer.session-timeout")
-    val autoOffsetReset = config.getString("surge.kafka-event-source.consumer.auto-offset-reset")
-
-    val consumerSettings = new AkkaKafkaConsumer(config)
-      .consumerSettings[Key, Value](actorSystem, groupId = consumerGroup, brokers = kafkaBrokers, autoOffsetReset = autoOffsetReset)(
-        keyDeserializer,
-        valueDeserializer)
-      .withProperty(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, consumerSessionTimeout.toMillis.toString)
-      .withProperties(additionalKafkaProperties.asScala.toMap)
+    val consumerSettings =
+      KafkaDataSourceConfigHelper.consumerSettingsFromConfig(
+        actorSystem = actorSystem,
+        config = config,
+        kafkaBrokers = kafkaBrokers,
+        consumerGroup = consumerGroup,
+        additionalProps = additionalKafkaProperties.asScala.toMap)(keyDeserializer, valueDeserializer)
     to(consumerSettings)(sink, autoStart)
   }
 

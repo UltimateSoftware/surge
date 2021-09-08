@@ -7,8 +7,9 @@ import akka.pattern._
 import akka.util.Timeout
 import com.typesafe.config.Config
 import io.opentelemetry.api.trace.Tracer
+import org.apache.kafka.clients.admin.ListOffsetsOptions
 import org.apache.kafka.clients.producer.{ ProducerConfig, ProducerRecord }
-import org.apache.kafka.common.TopicPartition
+import org.apache.kafka.common.{ IsolationLevel, TopicPartition }
 import org.apache.kafka.common.errors.{ AuthorizationException, ProducerFencedException }
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.core.KafkaProducerActor
@@ -17,9 +18,9 @@ import surge.health.{ HealthSignalBusTrait, HealthyPublisher }
 import surge.internal.akka.ActorWithTracing
 import surge.internal.akka.cluster.ActorHostAwareness
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
+import surge.kafka._
 import surge.kafka.streams.HealthyActor.GetHealth
-import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, HealthCheck, HealthCheckStatus }
-import surge.kafka.{ KafkaBytesProducer, KafkaRecordMetadata, KafkaTopicTrait, LagInfo }
+import surge.kafka.streams.{ HealthCheck, HealthCheckStatus }
 import surge.metrics.{ MetricInfo, Metrics, Rate, Timer }
 
 import java.time.Instant
@@ -61,6 +62,7 @@ object KafkaProducerActorImpl {
   case object InitTransactionSuccess extends InternalMessage
   case object FailedToInitTransactions extends InternalMessage
   case object FlushMessages extends InternalMessage
+  case object CheckKTableProgress extends InternalMessage
   case class PublishWithSender(sender: ActorRef, publish: Publish) extends InternalMessage
   case class PendingInitialization(actor: ActorRef, key: String, expiration: Instant) extends InternalMessage
   case class KTableProgressUpdate(topicPartition: TopicPartition, lagInfo: LagInfo) extends InternalMessage
@@ -72,7 +74,7 @@ class KafkaProducerActorImpl(
     assignedPartition: TopicPartition,
     metrics: Metrics,
     producerContext: ProducerActorContext,
-    kStreams: AggregateStateStoreKafkaStreams[_],
+    lagChecker: KTableLagChecker,
     partitionTracker: KafkaConsumerPartitionAssignmentTracker,
     override val signalBus: HealthSignalBusTrait,
     config: Config,
@@ -92,10 +94,7 @@ class KafkaProducerActorImpl(
 
   private val assignedTopicPartitionKey = s"${assignedPartition.topic}:${assignedPartition.partition}"
   private val flushInterval = config.getDuration("kafka.publisher.flush-interval", TimeUnit.MILLISECONDS).milliseconds
-  private val publisherBatchSize = config.getInt("kafka.publisher.batch-size")
-  private val publisherMaxRequestSize = config.getInt("kafka.publisher.max-request-size")
-  private val publisherLingerMs = config.getInt("kafka.publisher.linger-ms")
-  private val publisherCompression = config.getString("kafka.publisher.compression-type")
+  private val transactionTimeWarningThresholdMillis = config.getDuration("kafka.publisher.transaction-warning-time", TimeUnit.MILLISECONDS)
   private val publisherTransactionTimeoutMs = config.getString("kafka.publisher.transaction-timeout-ms")
   private val ktableCheckInterval = config.getDuration("kafka.publisher.ktable-check-interval").toMillis.milliseconds
   private val brokers = config.getString("kafka.brokers").split(",").toVector
@@ -122,7 +121,7 @@ class KafkaProducerActorImpl(
 
   context.system.scheduler.scheduleOnce(10.milliseconds, self, InitTransactions)
   context.system.scheduler.scheduleWithFixedDelay(flushInterval, flushInterval, self, FlushMessages)
-  context.system.scheduler.scheduleAtFixedRate(ktableCheckInterval, ktableCheckInterval)(() => checkKTableProgress())
+  context.system.scheduler.scheduleAtFixedRate(ktableCheckInterval, ktableCheckInterval, self, CheckKTableProgress)
 
   private def getPublisher: KafkaBytesProducer = {
     kafkaProducerOverride.getOrElse(newPublisher())
@@ -134,12 +133,10 @@ class KafkaProducerActorImpl(
       def name = throw new IllegalStateException("there is no topic")
     }
 
+    // Because we use transactions, we must force enable idempotence to true and acks=all
     val kafkaConfig = Map[String, String](
       ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG -> true.toString,
-      ProducerConfig.BATCH_SIZE_CONFIG -> publisherBatchSize.toString,
-      ProducerConfig.MAX_REQUEST_SIZE_CONFIG -> publisherMaxRequestSize.toString,
-      ProducerConfig.LINGER_MS_CONFIG -> publisherLingerMs.toString,
-      ProducerConfig.COMPRESSION_TYPE_CONFIG -> publisherCompression,
+      ProducerConfig.ACKS_CONFIG -> "all",
       ProducerConfig.TRANSACTION_TIMEOUT_CONFIG -> publisherTransactionTimeoutMs,
       ProducerConfig.TRANSACTIONAL_ID_CONFIG -> transactionalId)
 
@@ -159,11 +156,12 @@ class KafkaProducerActorImpl(
   }
 
   private def uninitialized: Receive = {
-    case InitTransactions => initializeTransactions()
+    case CheckKTableProgress => checkKTableProgress()
+    case InitTransactions    => initializeTransactions()
     case InitTransactionSuccess =>
       unstashAll()
       context.become(waitingForKTableIndexing())
-    case FlushMessages              => // Ignore from this state
+    case FlushMessages              => log.trace("KafkaPublisherActor ignoring FlushMessages message from the uninitialized state")
     case GetHealth                  => doHealthCheck()
     case _: KTableProgressUpdate    => stash() // process only AFTER flush message is sent
     case _: Publish                 => stash()
@@ -171,8 +169,9 @@ class KafkaProducerActorImpl(
   }
 
   private def waitingForKTableIndexing(): Receive = {
+    case CheckKTableProgress        => checkKTableProgress()
     case msg: KTableProgressUpdate  => handleFromWaitingForKTableIndexingState(msg)
-    case FlushMessages              => // Ignore from this state
+    case FlushMessages              => log.trace("KafkaPublisherActor ignoring FlushMessages message from the waitingForKTableIndexing state")
     case GetHealth                  => doHealthCheck()
     case _: Publish                 => stash()
     case _: IsAggregateStateCurrent => sender().tell(false, self)
@@ -183,9 +182,11 @@ class KafkaProducerActorImpl(
     case msg: EventsFailedToPublish =>
       context.become(fenced(state.completeTransaction()))
       msg.originalSenders.foreach(_ ! KafkaProducerActor.PublishFailure(msg.reason))
-    case RestartProducer  => restartPublisher()
-    case ShutdownProducer => context.stop(self)
-    case _                => stash()
+    case RestartProducer     => restartPublisher()
+    case ShutdownProducer    => context.stop(self)
+    case CheckKTableProgress => log.trace("KafkaPublisherActor ignoring CheckKTableProgress message from the fenced state")
+    case FlushMessages       => log.trace("KafkaPublisherActor ignoring FlushMessages message from the fenced state")
+    case _                   => stash()
   }
 
   private def processing(state: KafkaProducerActorState): Receive = {
@@ -206,6 +207,7 @@ class KafkaProducerActorImpl(
 
   private def handleProcessingInternalMessage(message: InternalMessage, state: KafkaProducerActorState): Unit = {
     message match {
+      case CheckKTableProgress         => checkKTableProgress()
       case msg: KTableProgressUpdate   => handle(state, msg)
       case msg: EventsPublished        => handle(state, msg)
       case msg: EventsFailedToPublish  => handleFailedToPublish(state, msg)
@@ -219,19 +221,12 @@ class KafkaProducerActorImpl(
   }
 
   private def checkKTableProgress(): Unit = {
-    kStreams
-      .partitionLag(assignedPartition)
-      .map {
-        case Some(lag) =>
-          self ! KTableProgressUpdate(assignedPartition, lag)
-        case None =>
-          log.debug(s"Could not find partition lag for partition $assignedPartition")
-      }
-      .recover { case e =>
-        val warningMessage = s"Error fetching partition lag for $assignedPartition. Will retry in $ktableCheckInterval"
-        signalBus.signalWithWarning(name = "kafka.producer.actor.partition.lag.error", Warning(warningMessage, Some(e), None), signalMetadata()).emit()
-        log.warn(warningMessage, e)
-      }
+    lagChecker.getConsumerGroupLag(assignedPartition) match {
+      case Some(lag) =>
+        self ! KTableProgressUpdate(assignedPartition, lag)
+      case None =>
+        log.debug(s"Could not find partition lag for partition $assignedPartition")
+    }
   }
 
   private def initializeTransactions(): Unit = {
@@ -300,7 +295,6 @@ class KafkaProducerActorImpl(
 
   // FIXME need to open a GH issue for this warning
   private var lastTransactionInProgressWarningTime: Instant = Instant.ofEpochMilli(0L)
-  private val transactionTimeWarningThreshold = flushInterval.toMillis * 4
   private val eventsPublishedRate: Rate = metrics.rate(
     MetricInfo(
       name = s"surge.${aggregateName.toLowerCase()}.event-publish-rate",
@@ -308,8 +302,8 @@ class KafkaProducerActorImpl(
       tags = Map("aggregate" -> aggregateName)))
   private def handleFlushMessages(state: KafkaProducerActorState): Unit = {
     if (state.transactionInProgress) {
-      if (state.currentTransactionTimeMillis >= transactionTimeWarningThreshold &&
-        lastTransactionInProgressWarningTime.plusSeconds(1L).isBefore(Instant.now())) {
+      if (state.currentTransactionTimeMillis >= transactionTimeWarningThresholdMillis &&
+        lastTransactionInProgressWarningTime.plusMillis(transactionTimeWarningThresholdMillis).isBefore(Instant.now())) {
         lastTransactionInProgressWarningTime = Instant.now
         log.warn(
           s"KafkaPublisherActor partition {} tried to flush, but another transaction is already in progress. " +
@@ -530,5 +524,14 @@ private[internal] case class KafkaProducerActorState(
     val newInFlight = inFlight.filterNot(processedRecordsFromPartition.contains)
 
     copy(inFlight = newInFlight)
+  }
+}
+
+trait KTableLagChecker {
+  def getConsumerGroupLag(assignedPartition: TopicPartition): Option[LagInfo]
+}
+class KTableLagCheckerImpl(consumerGroup: String, adminClient: KafkaAdminClient) extends KTableLagChecker {
+  def getConsumerGroupLag(assignedPartition: TopicPartition): Option[LagInfo] = {
+    adminClient.consumerLag(consumerGroup, List(assignedPartition), new ListOffsetsOptions(IsolationLevel.READ_COMMITTED)).get(assignedPartition)
   }
 }

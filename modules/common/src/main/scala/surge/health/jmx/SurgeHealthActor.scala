@@ -10,10 +10,13 @@ import surge.health.jmx.View.{ HealthRegistrationDetailMxView, HealthRegistryMxV
 import surge.health.supervisor.Api.{ QueryComponentExists, RestartComponent, ShutdownComponent, StartComponent }
 import surge.jmx.ActorWithJMX
 
-import javax.management.openmbean.{ CompositeData, TabularData }
+import java.util
+import javax.management.openmbean.CompositeData
 import scala.concurrent.duration._
 import scala.concurrent.{ Await, ExecutionContext, Future }
 import scala.util.{ Failure, Success }
+
+import scala.jdk.CollectionConverters._
 
 object SurgeHealthActor {
   val managementName: String = "SurgeHealthMBean"
@@ -23,6 +26,7 @@ object SurgeHealthActor {
 }
 
 case class SurgeHealthState(registry: Seq[HealthRegistrationDetail] = Seq[HealthRegistrationDetail]())
+
 class SurgeHealthActor(val supervisorRef: ActorRef) extends ActorWithJMX with SurgeHealthActorMBean {
   implicit val executionContext: ExecutionContext = ExecutionContext.global
 
@@ -98,6 +102,10 @@ class SurgeHealthActor(val supervisorRef: ActorRef) extends ActorWithJMX with Su
       case Failure(exception) =>
         log.error("Failed to retrieve Health Registry data", exception)
     }
+  }
+
+  override def registeredComponentNames(): util.List[String] = {
+    Await.result(asyncGetHealthRegistry, 30.seconds).toList.map(r => r.componentName).asJava
   }
 
   override def exists(componentName: String): Boolean = {

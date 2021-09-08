@@ -6,7 +6,7 @@ object Dependencies extends AutoPlugin {
   object autoImport {
 
     object Akka {
-      val version = "2.6.9"
+      val version = "2.6.15"
 
       val actor = "com.typesafe.akka" %% "akka-actor" % version
       val multiNodeTestkit = "com.typesafe.akka" %% "akka-multi-node-testkit" % version % Test
@@ -18,7 +18,6 @@ object Dependencies extends AutoPlugin {
 
     object Alpakka {
       val alpakkaVersion = "2.0.2"
-      val amqp = "com.lightbend.akka" %% "akka-stream-alpakka-amqp" % alpakkaVersion
       val kafka = "com.typesafe.akka" %% "akka-stream-kafka" % alpakkaVersion
       val kafkaTestKit = "com.typesafe.akka" %% "akka-stream-kafka-testkit" % alpakkaVersion % Test
     }
@@ -54,10 +53,6 @@ object Dependencies extends AutoPlugin {
 
     object PlayFramework {
       val json = "com.typesafe.play" %% "play-json" % "2.9.1"
-    }
-
-    object RabbitMq {
-      val embedded = "io.arivera.oss" % "embedded-rabbitmq" % "1.4.0" % Test
     }
 
     val scalaCollectionCompat = "org.scala-lang.modules" %% "scala-collection-compat" % "2.4.2"

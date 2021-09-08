@@ -5,6 +5,7 @@ package surge.internal.streams
 import akka.actor.ActorSystem
 import akka.kafka.Subscriptions
 import akka.stream.scaladsl.Flow
+
 import akka.testkit.{ TestKit, TestProbe }
 import akka.{ Done, NotUsed }
 import com.typesafe.config.ConfigFactory
@@ -17,14 +18,13 @@ import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Millis, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
-import surge.internal.akka.kafka.AkkaKafkaConsumer
 import surge.internal.akka.streams.FlowConverter
 import surge.internal.tracing.NoopTracerFactory
 import surge.kafka.KafkaTopic
 import surge.kafka.streams.DefaultSerdes
 import surge.streams.DataPipeline._
 import surge.streams.replay._
-import surge.streams.{ DataHandler, EventPlusStreamMeta }
+import surge.streams.{ DataHandler, EventPlusStreamMeta, KafkaDataSourceConfigHelper }
 
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
@@ -38,7 +38,7 @@ class StreamManagerSpec
     with BeforeAndAfterAll
     with ScalaFutures {
   implicit override val patienceConfig: PatienceConfig =
-    PatienceConfig(timeout = scaled(Span(30, Seconds)), interval = scaled(Span(50, Millis)))
+    PatienceConfig(timeout = scaled(Span(60, Seconds)), interval = scaled(Span(50, Millis)))
 
   private implicit val ex: ExecutionContext = ExecutionContext.global
   private implicit val stringSer: Serializer[String] = DefaultSerdes.stringSerde.serializer()
@@ -64,9 +64,9 @@ class StreamManagerSpec
       kafkaBrokers: String,
       groupId: String,
       businessLogic: (String, Array[Byte]) => Future[_],
-      replayStrategy: EventReplayStrategy = new NoOpEventReplayStrategy,
+      replayStrategy: EventReplayStrategy = new NoOpEventReplayStrategy(),
       replaySettings: EventReplaySettings = DefaultEventReplaySettings): KafkaStreamManager[String, Array[Byte]] = {
-    val consumerSettings = new AkkaKafkaConsumer(defaultConfig).consumerSettings[String, Array[Byte]](system, groupId, kafkaBrokers, "earliest")
+    val consumerSettings = KafkaDataSourceConfigHelper.consumerSettingsFromConfig[String, Array[Byte]](system, defaultConfig, kafkaBrokers, groupId)
 
     val parallelism = 16
     val tupleFlow: (String, Array[Byte], Map[String, Array[Byte]]) => Future[_] = { (k, v, _) => businessLogic(k, v) }
@@ -233,15 +233,19 @@ class StreamManagerSpec
         publishToKafka(new ProducerRecord[String, String](topic.name, 2, record3, record3))
 
         val settings = KafkaForeverReplaySettings(defaultConfig, topic.name).copy(brokers = List(embeddedBroker))
-        val kafkaForeverReplayStrategy = KafkaForeverReplayStrategy.create[String, Array[Byte]](system, settings)
+        val completeProbe = TestProbe()
+        val kafkaForeverReplayStrategy =
+          new KafkaForeverReplayStrategyImpl(defaultConfig, system, settings, () => Future.successful(true), () => completeProbe.ref ! ReplayComplete)
         val consumer =
           testStreamManager(topic, kafkaBrokers = embeddedBroker, groupId = "replay-test", sendToTestProbe(probe), kafkaForeverReplayStrategy, settings)
 
         consumer.start()
         probe.expectMsgAllOf(20.seconds, record1, record2, record3)
         val replayResult = consumer.replay().futureValue(Timeout(settings.entireReplayTimeout))
-        replayResult shouldBe ReplaySuccessfullyStarted()
+        replayResult shouldBe a[ReplaySuccessfullyStarted]
         probe.expectMsgAllOf(40.seconds, record1, record2, record3)
+
+        completeProbe.expectMsg(40.seconds, ReplayComplete)
       }
     }
   }

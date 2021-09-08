@@ -25,7 +25,7 @@ trait ActorWithJMX extends Actor with ActorLogging {
   override def preStart(): Unit = Try {
     mbs().registerMBean(this, objName)
   }.recover { case _: InstanceAlreadyExistsException =>
-    log.info("SurgeHealthMBean Already Registered")
+    log.info("JmxBean Already Registered - {}", objName)
   }
 
   override def postStop(): Unit = mbs().unregisterMBean(objName)

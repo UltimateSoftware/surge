@@ -8,6 +8,7 @@ trait SurgeHealthActorMBean {
   def start(componentName: String): Unit
   def restart(componentName: String): Unit
 
+  def registeredComponentNames(): java.util.List[String]
   def exists(componentName: String): Boolean
   def getHealthRegistry: CompositeData
 }

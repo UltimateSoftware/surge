@@ -86,7 +86,7 @@ class HealthSupervisorActorSpec
     "expose jmx management bean" in testContext { ctx =>
       import scala.jdk.CollectionConverters._
 
-      val beanInfo = ctx.beanInfo
+      val beanInfo: MBeanInfo = ctx.beanInfo
       val jmxBeanName = ctx.objectName
 
       val attributeValues = ctx.mbs.getAttributes(jmxBeanName, beanInfo.getAttributes.map(info => info.getName))

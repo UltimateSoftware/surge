@@ -9,7 +9,6 @@ import java.beans.ConstructorProperties
 import java.util
 import javax.management.openmbean._
 import scala.beans.BeanProperty
-import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 object View {
@@ -18,14 +17,6 @@ object View {
     def compositeType(): CompositeType = {
       new CompositeType("HealthRegistry", "Live Registry", itemNames(), itemDescriptions(), itemTypes())
     }
-
-//    def tabularType(): TabularType = {
-//      new TabularType(
-//        "HealthRegistrationDetails",
-//        "Existing Health Registration Details",
-//        HealthRegistrationDetailMxView.compositeType(),
-//        HealthRegistrationDetailMxView.itemNames())
-//    }
 
     def arrayType(): ArrayType[CompositeData] = {
       new ArrayType[CompositeData](1, HealthRegistrationDetailMxView.compositeType())
@@ -62,24 +53,13 @@ object View {
     import scala.jdk.CollectionConverters._
 
     def asCompositeData(): CompositeData = {
-      new CompositeDataSupport(compositeType(), itemNames(), Array[Object](asTabularData(), sender))
+      new CompositeDataSupport(compositeType(), itemNames(), Array[Object](asArrayData(), sender))
     }
 
     private def asArrayData(): Array[CompositeData] = {
       val data: ArrayBuffer[CompositeData] = ArrayBuffer[CompositeData]()
       registrations.asScala.foreach(r => data.append(r.asCompositeData()))
       data.toArray
-    }
-
-    private def asTabularData(): TabularData = {
-      val data: TabularDataSupport = new TabularDataSupport(
-        new TabularType(
-          "HealthRegistrationDetailMxView",
-          "Health Registration Data",
-          HealthRegistrationDetailMxView.compositeType(),
-          HealthRegistrationDetailMxView.itemNames()))
-      data.putAll(registrations.asScala.map(details => details.asCompositeData()).toArray)
-      data
     }
   }
 
