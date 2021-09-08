@@ -165,6 +165,8 @@ class PersistentActor[S, M, R, E](
 
   protected case class InternalActorState(stateOpt: Option[S])
 
+  protected case class HandleEventResult(result: Option[S])
+
   override type ActorState = InternalActorState
 
   import regionSharedResources._
@@ -211,10 +213,17 @@ class PersistentActor[S, M, R, E](
   private def freeToProcess(state: InternalActorState): Receive = {
     case pm: ProcessMessage[M] =>
       handle(state, pm)
-    case ae: ApplyEvent[E] => handle(state, ae)
-    case GetState(_)       => sender() ! StateResponse(state.stateOpt)
-    case ReceiveTimeout    => handlePassivate()
-    case Stop              => handleStop()
+    case ae: ApplyEvent[E] =>
+      val evt = ae.event
+      val result: Future[HandleEventResult] =
+        metrics.eventHandlingTimer.time(businessLogic.model.applyAsync(surgeContext(), state.stateOpt, evt)).map { maybeS: Option[S] =>
+          HandleEventResult(result = maybeS)
+        }
+      pipe(result).to(self, sender())
+      context.become(waitForHandleEventResult(state))
+    case GetState(_)    => sender() ! StateResponse(state.stateOpt)
+    case ReceiveTimeout => handlePassivate()
+    case Stop           => handleStop()
   }
 
   private def handle(initializeWithState: InitializeWithState): Unit = {
@@ -263,29 +272,21 @@ class PersistentActor[S, M, R, E](
     metrics.messageHandlingTimer.timeFuture { businessLogic.model.handle(surgeContext(), state.stateOpt, ProcessMessage.message) }
   }
 
-  private def handle(state: InternalActorState, applyEventEnvelope: ApplyEvent[E]): Unit = {
-    handleEvents(state, Seq(applyEventEnvelope.event)) match {
-      case Success(newState) =>
-        context.setReceiveTimeout(Duration.Inf)
-        context.become(persistingEvents(state))
-        val futureStatePersisted = serializeState(newState).flatMap { serializedState =>
-          doPublish(
-            state.copy(stateOpt = newState),
-            serializedEvents = Seq.empty,
-            serializedState = serializedState,
-            startTime = Instant.now,
-            didStateChange = state.stateOpt != newState)
-        }
-        futureStatePersisted.pipeTo(self)(sender())
-      case Failure(e) =>
-        sender() ! ACKError(e)
-    }
-  }
-
-  private def handleEvents(state: InternalActorState, events: Seq[E]): Try[Option[S]] = Try {
-    events.foldLeft(state.stateOpt) { (state, evt) =>
-      metrics.eventHandlingTimer.time(businessLogic.model.apply(surgeContext(), state, evt))
-    }
+  private def waitForHandleEventResult(state: InternalActorState): Receive = {
+    case HandleEventResult(newState) =>
+      context.setReceiveTimeout(Duration.Inf)
+      context.become(persistingEvents(state))
+      val futureStatePersisted = serializeState(newState).flatMap { serializedState =>
+        doPublish(
+          state.copy(stateOpt = newState),
+          serializedEvents = Seq.empty,
+          serializedState = serializedState,
+          startTime = Instant.now,
+          didStateChange = state.stateOpt != newState)
+      }
+      futureStatePersisted.pipeTo(self)(sender())
+    case failedFuture: akka.actor.Status.Failure =>
+      sender() ! ACKError(failedFuture.cause)
   }
 
   private def uninitialized: Receive = {

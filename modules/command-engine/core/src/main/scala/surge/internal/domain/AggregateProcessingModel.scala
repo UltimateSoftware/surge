@@ -47,7 +47,7 @@ trait AggregateProcessingModel[S, M, +R, E] {
   def handle(ctx: Context, state: Option[S], msg: M)(implicit ec: ExecutionContext): Future[Either[R, HandledMessageResult[S, E]]]
 
   /**
-   * Apply an event. Apply event to state and return a future of the resulting state.
+   * Apply an event. Apply event to state and return the resulting state.
    * @param ctx
    *   a context object for interacting with the X-engine.
    * @param state
@@ -55,9 +55,11 @@ trait AggregateProcessingModel[S, M, +R, E] {
    * @param event
    *   the event to apply
    * @return
-   *   the future resulting state
+   *   the resulting state
    */
   def apply(ctx: Context, state: Option[S], event: E): Option[S]
+
+  def applyAsync(ctx: Context, state: Option[S], event: E): Future[Option[S]] = Future.successful(apply(ctx, state, event))
 
 }
 
