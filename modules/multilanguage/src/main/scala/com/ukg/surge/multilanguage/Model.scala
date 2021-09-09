@@ -6,11 +6,11 @@ import com.google.protobuf.ByteString
 
 import scala.language.implicitConversions
 
-case class SurgeState(payload: Array[Byte])
+final case class SurgeState(payload: Array[Byte])
 
-case class SurgeEvent(aggregateId: String, payload: Array[Byte])
+final case class SurgeEvent(aggregateId: String, payload: Array[Byte])
 
-case class SurgeCmd(aggregateId: String, payload: Array[Byte])
+final case class SurgeCmd(aggregateId: String, payload: Array[Byte])
 
 object Implicits {
 
