@@ -74,8 +74,6 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     system.actorOf(CustomConsumerGroupRebalanceListener.props(stateChangeActor, callback))
   }
 
-  // todo: chain the component starts together; if one fails they all fail and we rollback and
-  //  stop any that have started. if all pass, we register..
   override def start(): Future[Ack] = {
     implicit val ec: ExecutionContext = system.dispatcher
     val result = for {
