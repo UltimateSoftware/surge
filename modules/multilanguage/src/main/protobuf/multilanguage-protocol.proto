@@ -24,7 +24,7 @@ message ProcessCommandRequest {
 
 message ProcessCommandReply {
   bool isSuccess = 1;
-  string rejectionMessage = 2;
+  string rejectionMessage = 2;  // non-empty when isSuccess = false
   repeated Event events = 3;
   State newState = 4;
 }
@@ -44,7 +44,7 @@ message ForwardCommandRequest {
 
 message ForwardCommandReply {
   bool isSuccess = 1;
-  string rejectionMessage = 2;
+  string rejectionMessage = 2; // non-empty when isSuccess = false
   State newState = 3;
   repeated Event loggedEvents = 4;
 }
