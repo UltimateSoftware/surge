@@ -6,8 +6,12 @@ import java.util.regex.Pattern
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import surge.health.config.SignalPatternMatcherConfig
-import surge.health.matchers.SignalPatternMatcherDefinition.{RegularExpressionSignalNameMatcherDefinition, RepeatingSignalMatcherDefinition, SignalNameEqualsMatcherDefinition}
-import surge.internal.health.matchers.{RepeatingSignalMatcher, SignalNameEqualsMatcher, SignalNamePatternMatcher}
+import surge.health.matchers.SignalPatternMatcherDefinition.{
+  RegularExpressionSignalNameMatcherDefinition,
+  RepeatingSignalMatcherDefinition,
+  SignalNameEqualsMatcherDefinition
+}
+import surge.internal.health.matchers.{ RepeatingSignalMatcher, SignalNameEqualsMatcher, SignalNamePatternMatcher }
 
 import scala.concurrent.duration._
 
