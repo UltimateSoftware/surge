@@ -23,16 +23,18 @@ message ProcessCommandRequest {
 }
 
 message ProcessCommandReply {
-  repeated Event events = 1;
-  string rejection = 2;
+  bool isSuccess = 1;
+  string rejectionMessage = 2;
+  repeated Event events = 3;
+  State newState = 4;
 }
 
-message HandleEventRequest {
+message HandleEventsRequest {
   State state = 1;
-  Event event = 2;
+  repeated Event events = 2;
 }
 
-message HandleEventResponse {
+message HandleEventsResponse {
   State state = 1;
 }
 
@@ -44,6 +46,7 @@ message ForwardCommandReply {
   bool isSuccess = 1;
   string rejectionMessage = 2;
   State newState = 3;
+  repeated Event loggedEvents = 4;
 }
 
 service MultilanguageGatewayService {
@@ -52,5 +55,5 @@ service MultilanguageGatewayService {
 
 service BusinessLogicService {
   rpc ProcessCommand (ProcessCommandRequest) returns (ProcessCommandReply) {}
-  rpc HandleEvent (HandleEventRequest) returns (HandleEventResponse) {}
+  rpc HandleEvents (HandleEventsRequest) returns (HandleEventsResponse) {}
 }

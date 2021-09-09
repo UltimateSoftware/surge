@@ -83,12 +83,6 @@ lazy val `surge-engine-multilanguage` =
     .settings(libraryDependencies ++= Seq(Akka.slf4j, logback, slf4jApi))
     .enablePlugins(AkkaGrpcPlugin, JavaServerAppPackaging)
 
-lazy val `surge-engine-multilanguage-poc-business-app` =
-  (project in file("modules/multilanguage-poc-business-app"))
-    .dependsOn(`surge-engine-multilanguage`)
-    .settings(libraryDependencies ++= Seq(Akka.slf4j, logback, slf4jApi))
-    .enablePlugins(AkkaGrpcPlugin, JavaServerAppPackaging)
-
 lazy val `surge-metrics` = (project in file("modules/metrics")).settings(
   libraryDependencies ++= Seq(
     Akka.actor,
@@ -133,8 +127,7 @@ lazy val `surge` = project
     `surge-engine-command-scaladsl`,
     `surge-metrics`,
     `surge-docs`,
-    `surge-engine-multilanguage`,
-    `surge-engine-multilanguage-poc-business-app`)
+    `surge-engine-multilanguage`)
   .settings(skip in publish := true, ReleaseSettings.settings)
   .disablePlugins(MimaPlugin)
 

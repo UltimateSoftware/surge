@@ -14,7 +14,8 @@ import java.util.UUID
 import scala.concurrent.Future
 import scala.language.implicitConversions
 
-class MultilanguageGatewayServiceImpl()(implicit system: ActorSystem) extends MultilanguageGatewayService {
+class MultilanguageGatewayServiceImpl(aggregateName: String, eventsTopicName: String, stateTopicName: String)(implicit system: ActorSystem)
+    extends MultilanguageGatewayService {
 
   import Implicits._
   import system.dispatcher
@@ -31,7 +32,7 @@ class MultilanguageGatewayServiceImpl()(implicit system: ActorSystem) extends Mu
 
   val bridgeToBusinessApp: BusinessLogicService = BusinessLogicServiceClient(businessLogicgRPCClientSettings)
 
-  val genericSurgeCommandBusinessLogic = new GenericSurgeCommandBusinessLogic(bridgeToBusinessApp)
+  val genericSurgeCommandBusinessLogic = new GenericSurgeCommandBusinessLogic(aggregateName, eventsTopicName, stateTopicName, bridgeToBusinessApp)
 
   lazy val surgeEngine: SurgeCommand[UUID, SurgeState, SurgeCmd, Nothing, SurgeEvent] = {
     val engine = SurgeCommand(system, genericSurgeCommandBusinessLogic, system.settings.config)
@@ -64,4 +65,5 @@ class MultilanguageGatewayServiceImpl()(implicit system: ActorSystem) extends Mu
         Future.successful(ForwardCommandReply(isSuccess = false, rejectionMessage = "No command given to forward", newState = None))
     }
   }
+
 }

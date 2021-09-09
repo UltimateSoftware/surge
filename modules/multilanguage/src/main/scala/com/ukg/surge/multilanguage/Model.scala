@@ -8,7 +8,7 @@ import scala.language.implicitConversions
 
 // We need a fix in core Surge to get rid of these case classes
 // For some reason, Surge doesn't allow us to serialize protobuf
-// Potential issue: backward compatibility
+
 case class SurgeState(payload: Array[Byte]) {}
 
 case class SurgeEvent(aggregateId: String, payload: Array[Byte]) {}

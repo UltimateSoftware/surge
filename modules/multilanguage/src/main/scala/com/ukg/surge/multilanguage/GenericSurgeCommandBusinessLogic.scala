@@ -10,15 +10,16 @@ import surge.scaladsl.command.SurgeCommandBusinessLogic
 
 import java.util.UUID
 
-class GenericSurgeCommandBusinessLogic(bridgeToBusinessApp: BusinessLogicService)(implicit system: ActorSystem)
+class GenericSurgeCommandBusinessLogic(aggregName: String, eventsTopicName: String, stateTopicName: String, bridgeToBusinessApp: BusinessLogicService)(
+    implicit system: ActorSystem)
     extends SurgeCommandBusinessLogic[UUID, SurgeState, SurgeCmd, SurgeEvent] {
 
   import Implicits._
 
   override def commandModel: AggregateCommandModelCoreTrait[SurgeState, SurgeCmd, Nothing, SurgeEvent] =
-    new GenericAggregateCommandModel(bridgeToBusinessApp)
+    new GenericAsyncAggregateCommandModel(bridgeToBusinessApp)
 
-  override def eventsTopic: KafkaTopic = KafkaTopic("events")
+  override def eventsTopic: KafkaTopic = KafkaTopic(eventsTopicName)
 
   override def aggregateReadFormatting: SurgeAggregateReadFormatting[SurgeState] = (bytes: Array[Byte]) => {
     val pbState: protobuf.State = protobuf.State.parseFrom(bytes)
@@ -35,7 +36,7 @@ class GenericSurgeCommandBusinessLogic(bridgeToBusinessApp: BusinessLogicService
     new SerializedAggregate(pbState.toByteArray, Map.empty)
   }
 
-  override def aggregateName: String = "aggregate"
+  override def aggregateName: String = aggregName
 
-  override def stateTopic: KafkaTopic = KafkaTopic("state")
+  override def stateTopic: KafkaTopic = KafkaTopic(stateTopicName)
 }

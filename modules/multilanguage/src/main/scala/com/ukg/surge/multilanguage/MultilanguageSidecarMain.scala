@@ -14,9 +14,4 @@ object MultilanguageSidecarMain extends App {
   val logger = Logging(system, classOf[MultilanguageSidecarMain])
   import system.dispatcher
   val binding = new MultilanguageGatewayServer(system).run()
-  Runtime.getRuntime.addShutdownHook(new Thread() {
-    override def run(): Unit = {
-      binding.map(_.terminate(hardDeadline = 7.seconds))
-    }
-  })
 }

@@ -6,6 +6,7 @@ import akka.actor.ActorSystem
 import akka.event.{ Logging, LoggingAdapter }
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.{ HttpRequest, HttpResponse }
+import com.typesafe.config.Config
 import com.ukg.surge.multilanguage.protobuf._
 
 import scala.concurrent.{ ExecutionContext, Future }
@@ -23,10 +24,17 @@ class MultilanguageGatewayServer(system: ActorSystem) {
     val host = config.getString("host")
     val port = config.getInt("port")
 
-    logger.info(s"Binding multilanguage gateway server on ${host}:${port}")
+    val aggregateName: String = config.getString("aggregate-name")
+    val eventsTopicName: String = config.getString("events-topic")
+    val stateTopicName: String = config.getString("state-topic")
+
+    logger.info(s"""Binding multilanguage gateway server on $host:$port.
+         |Aggregate name: $aggregateName.
+         |Events topic: $eventsTopicName.
+         |State topic: ${stateTopicName}""".stripMargin)
 
     val service: HttpRequest => Future[HttpResponse] =
-      MultilanguageGatewayServiceHandler(new MultilanguageGatewayServiceImpl())
+      MultilanguageGatewayServiceHandler(new MultilanguageGatewayServiceImpl(aggregateName, eventsTopicName, stateTopicName))
 
     val binding = Http().newServerAt(host, port).bind(service)
 
