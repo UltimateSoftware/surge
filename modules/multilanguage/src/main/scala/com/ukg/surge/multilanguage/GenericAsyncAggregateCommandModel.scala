@@ -44,12 +44,10 @@ class GenericAsyncAggregateCommandModel(bridgeToBusinessApp: BusinessLogicServic
   }
 
   override def handleEvents(aggregate: Option[SurgeState], surgeEvents: Seq[SurgeEvent]): Future[Option[SurgeState]] = {
-    logger.info(
-      s"""Calling event handler of business app via gRPC.
+    logger.info(s"""Calling event handler of business app via gRPC.
          |State defined: ${aggregate.isDefined}.
          |Num events: ${surgeEvents.size}.
-         |Event payload sizes (bytes): $${surgeEvents.map(_.payload.length).mkString(""".stripMargin,
-      ")}.")
+         |Event payload sizes (bytes): ${surgeEvents.map(_.payload.length).mkString(",")}.""".stripMargin)
     val maybePbState: Option[protobuf.State] = aggregate.map(surgeState => surgeState: protobuf.State)
     val handleEventRequest = HandleEventsRequest(maybePbState, surgeEvents.map(surgeEvent => surgeEvent: protobuf.Event))
     val reply: Future[HandleEventsResponse] = bridgeToBusinessApp.handleEvents(handleEventRequest)

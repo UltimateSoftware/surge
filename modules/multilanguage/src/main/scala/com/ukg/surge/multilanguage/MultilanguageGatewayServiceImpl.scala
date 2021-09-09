@@ -66,4 +66,14 @@ class MultilanguageGatewayServiceImpl(aggregateName: String, eventsTopicName: St
     }
   }
 
+  override def getState(in: GetStateRequest): Future[GetStateReply] = {
+    logger.info(s"Business app asking for state of aggregate with id ${in.aggregateId}!")
+    val adggIdUUID = UUID.fromString(in.aggregateId)
+    surgeEngine.aggregateFor(adggIdUUID).getState.map { maybeS: Option[SurgeState] =>
+      {
+        GetStateReply(in.aggregateId, state = maybeS.map(s => s: protobuf.State))
+      }
+    }
+  }
+
 }

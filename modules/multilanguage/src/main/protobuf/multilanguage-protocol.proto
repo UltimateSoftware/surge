@@ -49,8 +49,18 @@ message ForwardCommandReply {
   repeated Event loggedEvents = 4;
 }
 
+message GetStateRequest {
+  string aggregateId = 1;
+}
+
+message GetStateReply {
+  string aggregateId = 1;
+  State state = 2;
+}
+
 service MultilanguageGatewayService {
   rpc ForwardCommand (ForwardCommandRequest) returns (ForwardCommandReply) {}
+  rpc GetState (GetStateRequest) returns (GetStateReply) {}
 }
 
 service BusinessLogicService {
