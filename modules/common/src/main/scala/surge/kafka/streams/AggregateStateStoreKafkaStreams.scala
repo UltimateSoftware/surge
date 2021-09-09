@@ -138,7 +138,13 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
         .withMaxNrOfRetries(BackoffConfig.StateStoreKafkaStreamActor.maxRetries))
 
     val underlyingCreatedActor =
-      system.actorOf(Props(new ActorLifecycleManagerActor(underlyingActorProps, initMessage = Some(() => Start), finalizeMessage = Some(() => Stop))))
+      system.actorOf(
+        Props(
+          new ActorLifecycleManagerActor(
+            underlyingActorProps,
+            componentName = s"state-store-kafka-streams-$aggregateName",
+            initMessage = Some(() => Start),
+            finalizeMessage = Some(() => Stop))))
 
     system.actorOf(BackoffChildActorTerminationWatcher.props(underlyingCreatedActor, () => onMaxRetries()))
 

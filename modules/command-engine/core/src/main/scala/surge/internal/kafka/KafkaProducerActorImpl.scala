@@ -69,6 +69,7 @@ object KafkaProducerActorImpl {
   case object RestartProducer extends InternalMessage
   case object ShutdownProducer extends InternalMessage
 }
+
 class KafkaProducerActorImpl(
     assignedPartition: TopicPartition,
     metrics: Metrics,
@@ -119,8 +120,14 @@ class KafkaProducerActorImpl(
   private implicit val rates: AggregateStateRates = AggregateStateRates(aggregateName, metrics)
 
   context.system.scheduler.scheduleOnce(10.milliseconds, self, InitTransactions)
-  context.system.scheduler.scheduleWithFixedDelay(flushInterval, flushInterval, self, FlushMessages)
-  context.system.scheduler.scheduleAtFixedRate(ktableCheckInterval, ktableCheckInterval, self, CheckKTableProgress)
+  private val flushMessagesScheduledTask = context.system.scheduler.scheduleWithFixedDelay(flushInterval, flushInterval, self, FlushMessages)
+  private val checkKTableLagScheduledTask = context.system.scheduler.scheduleAtFixedRate(ktableCheckInterval, ktableCheckInterval, self, CheckKTableProgress)
+
+  override def postStop(): Unit = {
+    flushMessagesScheduledTask.cancel()
+    checkKTableLagScheduledTask.cancel()
+    super.postStop()
+  }
 
   private def getPublisher: KafkaBytesProducer = {
     kafkaProducerOverride.getOrElse(newPublisher())
@@ -148,23 +155,24 @@ class KafkaProducerActorImpl(
     producer
   }
 
-  override def receive: Receive = uninitialized
+  override def receive: Receive = uninitialized(None)
 
   override def signalMetadata(): Map[String, String] = {
     Map[String, String](elems = "aggregateName" -> aggregateName)
   }
 
-  private def uninitialized: Receive = {
+  private def uninitialized(lastProgressUpdate: Option[KTableProgressUpdate]): Receive = {
     case CheckKTableProgress => checkKTableProgress()
     case InitTransactions    => initializeTransactions()
     case InitTransactionSuccess =>
       unstashAll()
       context.become(waitingForKTableIndexing())
-    case FlushMessages              => log.trace("KafkaPublisherActor ignoring FlushMessages message from the uninitialized state")
-    case GetHealth                  => doHealthCheck()
-    case _: KTableProgressUpdate    => stash() // process only AFTER flush message is sent
-    case _: Publish                 => stash()
-    case _: IsAggregateStateCurrent => sender().tell(false, self)
+      lastProgressUpdate.foreach(update => self ! update)
+    case FlushMessages                => log.trace("KafkaPublisherActor ignoring FlushMessages message from the uninitialized state")
+    case GetHealth                    => doHealthCheck()
+    case update: KTableProgressUpdate => context.become(uninitialized(lastProgressUpdate = Some(update)))
+    case _: Publish                   => stash()
+    case _: IsAggregateStateCurrent   => sender().tell(false, self)
   }
 
   private def waitingForKTableIndexing(): Receive = {
@@ -181,11 +189,12 @@ class KafkaProducerActorImpl(
     case msg: EventsFailedToPublish =>
       context.become(fenced(state.completeTransaction()))
       msg.originalSenders.foreach(_ ! KafkaProducerActor.PublishFailure(msg.reason))
-    case RestartProducer     => restartPublisher()
-    case ShutdownProducer    => context.stop(self)
-    case CheckKTableProgress => log.trace("KafkaPublisherActor ignoring CheckKTableProgress message from the fenced state")
-    case FlushMessages       => log.trace("KafkaPublisherActor ignoring FlushMessages message from the fenced state")
-    case _                   => stash()
+    case RestartProducer              => restartPublisher()
+    case ShutdownProducer             => context.stop(self)
+    case CheckKTableProgress          => log.trace("KafkaPublisherActor ignoring CheckKTableProgress message from the fenced state")
+    case FlushMessages                => log.trace("KafkaPublisherActor ignoring FlushMessages message from the fenced state")
+    case update: KTableProgressUpdate => context.become(fenced(state.processedUpTo(update)))
+    case _                            => stash()
   }
 
   private def processing(state: KafkaProducerActorState): Receive = {
@@ -383,7 +392,7 @@ class KafkaProducerActorImpl(
   private def restartPublisher(): Unit = {
     closeAndRecreatePublisher()
     context.system.scheduler.scheduleOnce(10.milliseconds, self, InitTransactions)
-    context.become(uninitialized)
+    context.become(uninitialized(None))
   }
 
   private def producerFenced(state: KafkaProducerActorState, exception: ProducerFencedException): Unit = {

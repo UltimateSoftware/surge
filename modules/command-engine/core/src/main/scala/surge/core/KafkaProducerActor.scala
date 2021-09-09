@@ -51,7 +51,7 @@ object KafkaProducerActor {
         kafkaProducerOverride = kafkaProducerOverride)).withDispatcher(dispatcherName)
 
     new KafkaProducerActor(
-      actorSystem.actorOf(Props(new ActorLifecycleManagerActor(kafkaProducerProps))),
+      actorSystem.actorOf(Props(new ActorLifecycleManagerActor(kafkaProducerProps, s"producer-actor-${assignedPartition.toString}"))),
       metrics,
       businessLogic.aggregateName,
       assignedPartition,
