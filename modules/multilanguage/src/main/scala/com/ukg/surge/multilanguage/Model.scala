@@ -6,21 +6,13 @@ import com.google.protobuf.ByteString
 
 import scala.language.implicitConversions
 
-// We need a fix in core Surge to get rid of these case classes
-// For some reason, Surge doesn't allow us to serialize protobuf
+case class SurgeState(payload: Array[Byte])
 
-case class SurgeState(payload: Array[Byte]) {}
+case class SurgeEvent(aggregateId: String, payload: Array[Byte])
 
-case class SurgeEvent(aggregateId: String, payload: Array[Byte]) {}
-
-case class SurgeCmd(aggregateId: String, payload: Array[Byte]) {}
+case class SurgeCmd(aggregateId: String, payload: Array[Byte])
 
 object Implicits {
-
-  //
-  // Once we get rid of the case classes above, the implicit convs
-  // are not going to be needed
-  //
 
   implicit def byteArrayToByteString(byteArray: Array[Byte]): ByteString = {
     ByteString.copyFrom(byteArray)
