@@ -31,9 +31,7 @@ object SlidingHealthSignalStream {
       patternMatchers: Seq[SignalPatternMatcherDefinition],
       streamMonitoringRef: Option[StreamMonitoringRef] = None,
       actorSystem: ActorSystem): SlidingHealthSignalStream = {
-//    val listener: WindowStreamListener =
-//      SignalPatternMatchResultHandler.asListener(signalBus, patternMatchers.map(d => d.toMatcher), streamMonitoringRef.map(r => r.actor))
-    val ref = actorSystem.actorOf(Props(HealthSignalStreamActor(None)))
+    val ref = streamMonitoringRef.map(m => m.actor).getOrElse(actorSystem.actorOf(Props(HealthSignalStreamActor())))
     new SlidingHealthSignalStreamImpl(slidingConfig, signalBus, patternMatchers, ref, actorSystem)
   }
 }

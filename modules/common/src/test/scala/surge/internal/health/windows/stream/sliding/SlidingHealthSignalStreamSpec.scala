@@ -2,8 +2,6 @@
 
 package surge.internal.health.windows.stream.sliding
 
-import java.time.Instant
-import java.util.concurrent.{ Executors, TimeUnit }
 import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.stream.scaladsl.{ Sink, Source }
@@ -21,12 +19,13 @@ import surge.health.config.{ ThrottleConfig, WindowingStreamConfig, WindowingStr
 import surge.health.domain.{ Error, HealthSignal, Trace }
 import surge.health.matchers.{ SideEffect, SignalPatternMatcherDefinition }
 import surge.health.windows._
-import surge.health.{ HealthSignalReceived, HealthSignalStream, SignalType }
+import surge.health.{ HealthSignalStream, SignalType }
 import surge.internal.health._
 import surge.internal.health.windows.stream.WindowingHealthSignalStream
 
+import java.time.Instant
 import java.util.regex.Pattern
-import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.duration._
 
 trait MockitoHelper extends MockitoSugar {
@@ -62,9 +61,9 @@ class SlidingHealthSignalStreamSpec
 
     signalStreamProvider = new SlidingHealthSignalStreamProvider(
       WindowingStreamConfig(
-        advancerConfig = WindowingStreamSliderConfig(buffer = 10, advanceAmount = 1),
-        throttleConfig = ThrottleConfig(100, 5.seconds),
-        windowingInitDelay = 1.seconds,
+        advancerConfig = WindowingStreamSliderConfig(buffer = 5, advanceAmount = 1),
+        throttleConfig = ThrottleConfig(100, 10.seconds),
+        windowingInitDelay = 100.millis,
         windowingResumeDelay = 1.seconds,
         maxWindowSize = 500),
       system,
@@ -94,19 +93,21 @@ class SlidingHealthSignalStreamSpec
     }
 
     "not lose signals" in {
-      bus.signalWithTrace(name = "trace.test", Trace("tester")).emit().emit().emit()
+      val windowEventSourceWithQueue = bus.signalStream().asInstanceOf[WindowingHealthSignalStream].windowEventSource()
+
+      val windowEventBucket: ArrayBuffer[WindowEvent] = ArrayBuffer[WindowEvent]()
+      windowEventSourceWithQueue.source.runWith(Sink.foreach(event => windowEventBucket.addOne(event)))
+
+      bus.signalWithTrace(name = "trace.test", Trace("tester")).emit().emit().emit().emit().emit()
 
       eventually {
-        val closed = probe.fishForMessage(max = 1.second) { case msg =>
-          msg.isInstanceOf[WindowClosed]
-        }
+        // 1 advance event
+        val advancedEvents = windowEventBucket.filter(e => e.isInstanceOf[WindowAdvanced])
+        advancedEvents.size shouldEqual 1
 
-        closed.asInstanceOf[WindowClosed].d.signals.size shouldEqual 3
+        // 5 signals captured in advance event
+        advancedEvents.head.asInstanceOf[WindowAdvanced].d.signals.size shouldEqual 5
 
-        val advanced = probe.fishForMessage(max = 1.second) { case msg =>
-          msg.isInstanceOf[WindowAdvanced]
-        }
-        advanced.asInstanceOf[WindowAdvanced].d.signals.size shouldEqual 3
       }
     }
 
@@ -119,11 +120,9 @@ class SlidingHealthSignalStreamSpec
       val windowEventSource: Source[WindowEvent, NotUsed] =
         signalStream.get.asInstanceOf[WindowingHealthSignalStream].windowEventSource().source
 
-      val receivedWindowEvents: mutable.ArrayBuffer[WindowEvent] = new mutable.ArrayBuffer[WindowEvent]()
+      val receivedWindowEvents: ArrayBuffer[WindowEvent] = new ArrayBuffer[WindowEvent]()
 
-      windowEventSource.runWith(Sink.foreach(event => {
-        receivedWindowEvents.addOne(event)
-      }))
+      windowEventSource.runWith(Sink.foreach(event => receivedWindowEvents.addOne(event)))
 
       bus.signalWithError(name = "test.error", Error("error to test close-open-window", None)).emit()
 
@@ -136,73 +135,33 @@ class SlidingHealthSignalStreamSpec
       }
     }
 
-    "receive multiple health signals aggregated in one WindowAdvance event" in {
-      val scheduledEmit = Executors
-        .newScheduledThreadPool(1)
-        .scheduleAtFixedRate(
-          () => bus.signalWithTrace(name = "test.trace", Trace("test.trace")).emit(),
-          5.seconds.toMillis,
-          5.seconds.toMillis,
-          TimeUnit.MILLISECONDS)
-
-      eventually {
-        val msg = probe.fishForMessage(max = 2.second) { case msg =>
-          msg.isInstanceOf[WindowAdvanced]
-        }
-
-        msg.isInstanceOf[WindowAdvanced] shouldEqual true
-        msg.asInstanceOf[WindowAdvanced].d.signals.size == 2
-      }
-
-      scheduledEmit.cancel(true)
-    }
-
-    "open window when signal emitted" in {
-
-      // Send error signal
-      bus.signalWithError(name = "test.error", Error("error to test open-window", None)).emit()
-
-      eventually {
-        val windowOpened = probe.fishForMessage(max = 2.second) { case msg =>
-          msg.isInstanceOf[WindowOpened]
-        }
-
-        windowOpened.asInstanceOf[WindowOpened].window().isDefined shouldEqual true
-      }
-
-    }
-
     "add to window when signal emitted" in {
-      bus.signalWithError(name = "test.error", Error("error to test addtowindow", None)).emit()
+      val signalStream: Option[HealthSignalStream] = bus.backingSignalStream()
+
+      val windowEventSource: Source[WindowEvent, NotUsed] =
+        signalStream.get.asInstanceOf[WindowingHealthSignalStream].windowEventSource().source
+
+      val receivedWindowEvents: ArrayBuffer[WindowEvent] = new ArrayBuffer[WindowEvent]()
+
+      windowEventSource.runWith(Sink.foreach(event => receivedWindowEvents.addOne(event)))
+
+      bus.signalWithError(name = "test.error", Error("error to test addToWindow", None)).emit()
 
       eventually {
-        probe.expectMsgClass(classOf[AddedToWindow])
+        receivedWindowEvents.count(event => event.isInstanceOf[AddedToWindow]) shouldEqual 1
       }
     }
 
-    "close an opened window" in {
-      bus.signalWithError(name = "test.error", Error("error to test close-open-window", None)).emit()
+    "detect 5 messages" in {
+      val signalStream: HealthSignalStream = bus.signalStream()
+      val signalSourceWithQueue = signalStream.signalSource(10, ThrottleConfig(10, 10.seconds))
+      val signalBucket: ArrayBuffer[HealthSignal] = ArrayBuffer[HealthSignal]()
+      signalSourceWithQueue.source.runWith(Sink.foreach(signal => signalBucket.addOne(signal)))
 
-      eventually {
-        val windowClosed = probe.fishForMessage(max = 400.millis) { case msg =>
-          msg.isInstanceOf[WindowClosed]
-        }
-
-        windowClosed.asInstanceOf[WindowClosed].window().isDefined shouldEqual true
-        windowClosed.asInstanceOf[WindowClosed].d.signals.exists(s => s.name == "test.error") shouldEqual true
-      }
-    }
-
-    "detect 5 messages in a 10 second window" in {
       bus.signalWithTrace(name = "test.trace", Trace("test.trace")).emit().emit().emit().emit().emit()
 
       eventually {
-        val received: Any = probe.fishForMessage(max = 2.seconds) { case msg =>
-          msg.isInstanceOf[HealthSignalReceived]
-        }
-
-        received shouldBe a[HealthSignalReceived]
-        received.asInstanceOf[HealthSignalReceived].signal.name == "5 in a row" shouldEqual true
+        signalBucket.size shouldEqual 5
       }
     }
   }

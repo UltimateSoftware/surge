@@ -16,7 +16,6 @@ import surge.internal.persistence.PersistentActorRegionCreator
 import surge.kafka.PartitionAssignments
 import surge.kafka.streams._
 
-import java.util.regex.Pattern
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.{ Failure, Success, Try }
 
@@ -70,9 +69,6 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
   override def healthCheck(): Future[HealthCheck] = {
     surgeHealthCheck.healthCheck()
   }
-
-  override def shutdownSignalPatterns(): Seq[Pattern] =
-    Seq[Pattern](Pattern.compile("surge.pipeline.fatal.error"))
 
   protected def registerRebalanceCallback(callback: PartitionAssignments => Unit): Unit = {
     system.actorOf(CustomConsumerGroupRebalanceListener.props(stateChangeActor, callback))
