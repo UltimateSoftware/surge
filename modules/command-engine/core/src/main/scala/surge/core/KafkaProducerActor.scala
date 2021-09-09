@@ -15,7 +15,6 @@ import surge.internal.akka.actor.ActorLifecycleManagerActor
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.config.TimeoutConfig
 import surge.internal.kafka.{ KTableLagCheckerImpl, KafkaProducerActorImpl }
-import surge.internal.kafka.KafkaProducerActorImpl.ShutdownProducer
 import surge.kafka.{ KafkaAdminClient, KafkaBytesProducer }
 import surge.kafka.streams._
 import surge.metrics.{ MetricInfo, Metrics, Timer }
@@ -52,7 +51,7 @@ object KafkaProducerActor {
         kafkaProducerOverride = kafkaProducerOverride)).withDispatcher(dispatcherName)
 
     new KafkaProducerActor(
-      actorSystem.actorOf(Props(new ActorLifecycleManagerActor(kafkaProducerProps, finalizeMessage = Some(() => ShutdownProducer)))),
+      actorSystem.actorOf(Props(new ActorLifecycleManagerActor(kafkaProducerProps, s"producer-actor-${assignedPartition.toString}"))),
       metrics,
       businessLogic.aggregateName,
       assignedPartition,

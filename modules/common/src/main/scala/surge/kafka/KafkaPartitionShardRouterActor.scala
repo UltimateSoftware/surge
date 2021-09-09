@@ -321,7 +321,7 @@ class KafkaPartitionShardRouterActor(
         case err: Throwable =>
           log.error(s"Failed to get partition region health check ${partitionRegion.regionManager.pathString}", err)
           Future.successful(
-            HealthCheck(name = partitionRegion.regionManager.pathString, id = partitionRegion.regionManager.pathString, status = HealthCheckStatus.DOWN))
+            HealthCheck(name = "shard", id = new TopicPartition(trackedTopic.name, partitionRegion.partitionNumber).toString, status = HealthCheckStatus.DOWN))
       }
     }.toSeq
   }
