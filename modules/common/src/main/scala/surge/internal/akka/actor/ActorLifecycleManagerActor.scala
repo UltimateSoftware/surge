@@ -10,13 +10,11 @@ import surge.internal.akka.ActorOps
 object ActorLifecycleManagerActor {
   case object Start
   case object Stop
-  def apply(managedActorProps: Props, managedActorName: Option[String]): ActorLifecycleManagerActor = {
-    new ActorLifecycleManagerActor(managedActorProps, managedActorName)
-  }
 }
 
 class ActorLifecycleManagerActor(
     managedActorProps: Props,
+    componentName: String,
     managedActorName: Option[String] = None,
     initMessage: Option[() => Any] = None,
     finalizeMessage: Option[() => Any] = None)
@@ -37,7 +35,7 @@ class ActorLifecycleManagerActor(
 
       initMessage.foreach(init => actor ! init())
 
-      log.info("Lifecycle manager starting actor named {}", actor.prettyPrintPath)
+      log.info("Lifecycle manager starting actor named {} for component {}", Seq(actor.prettyPrintPath, componentName): _*)
       context.watch(actor)
       context.become(running(actor))
       sender() ! Ack()
@@ -51,7 +49,7 @@ class ActorLifecycleManagerActor(
     case ActorLifecycleManagerActor.Start =>
       sender() ! Ack()
     case ActorLifecycleManagerActor.Stop =>
-      log.info("Lifecycle manager stopping actor named {}", managedActor.prettyPrintPath)
+      log.info("Lifecycle manager stopping actor named {} for component {}", Seq(managedActor.prettyPrintPath, componentName): _*)
       finalizeMessage match {
         case Some(fin) => managedActor ! fin()
         case None =>
@@ -60,7 +58,7 @@ class ActorLifecycleManagerActor(
       context.become(stopped)
       sender() ! Ack()
     case Terminated(actorRef) if actorRef == managedActor =>
-      log.info("Lifecycle manager saw actor named {} stop", managedActor.prettyPrintPath)
+      log.info("Lifecycle manager saw actor named {} stop for component {}", Seq(managedActor.prettyPrintPath, componentName): _*)
       context.become(stopped)
     case msg => managedActor.forward(msg)
   }
