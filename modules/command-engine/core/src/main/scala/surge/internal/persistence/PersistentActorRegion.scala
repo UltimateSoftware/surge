@@ -105,11 +105,11 @@ class PersistentActorRegion[M](
 
       registrationResult.onComplete {
         case Failure(exception) =>
-          log.error(s"$getClass registration failed", exception)
+          log.error(s"${this.getClass} registration failed", exception)
         case Success(_) =>
-          log.debug(s"$getClass registration succeeded")
+          log.debug(s"${this.getClass} registration succeeded")
       }(ExecutionContext.global)
     case Failure(error) =>
-      log.error(s"Unable to register $getClass for supervision", error)
+      log.error(s"Unable to register ${this.getClass} for supervision", error)
   }
 }
