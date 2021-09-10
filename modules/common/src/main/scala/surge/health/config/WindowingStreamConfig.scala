@@ -2,6 +2,7 @@
 
 package surge.health.config
 
+import akka.stream.OverflowStrategy
 import com.typesafe.config.Config
 
 import scala.concurrent.duration._
@@ -36,6 +37,7 @@ sealed trait WindowingStreamAdvancerConfig {
 sealed trait ThrottleConfig {
   def elements: Int
   def duration: FiniteDuration
+  def overflowStrategy(): OverflowStrategy = OverflowStrategy.backpressure
 }
 
 object ThrottleConfig {
@@ -69,7 +71,6 @@ object WindowingStreamConfigLoader {
     val initDelay = windowStreamConfig.getDuration("init-delay").toMillis.millis
     val resumeDelay = windowStreamConfig.getDuration("resume-delay").toMillis.millis
     val maxStreamSize = windowStreamConfig.getInt("max-size")
-    //val frequencies = windowStreamConfig.getDurationList("frequencies").asScala.map(d => d.toMillis.millis)
 
     val throttleConfig = windowStreamConfig.getConfig("throttle")
     val windowStreamThrottleConfig = ThrottleConfig(throttleConfig.getInt("elements"), throttleConfig.getDuration("duration").toMillis.millis)

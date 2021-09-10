@@ -143,8 +143,8 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
           new ActorLifecycleManagerActor(
             underlyingActorProps,
             componentName = s"state-store-kafka-streams-$aggregateName",
-            initMessage = Some(() => Start),
-            finalizeMessage = Some(() => Stop))))
+            startMessageAdapter = Some(() => Start),
+            stopMessageAdapter = Some(() => Stop))))
 
     system.actorOf(BackoffChildActorTerminationWatcher.props(underlyingCreatedActor, () => onMaxRetries()))
 

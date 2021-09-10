@@ -45,7 +45,13 @@ private[surge] final class SurgePartitionRouterImpl(
 
   private val routerActorName = s"${businessLogic.aggregateName}RouterActor"
   private val lifecycleManager =
-    system.actorOf(Props(new ActorLifecycleManagerActor(shardRouterProps, componentName = routerActorName, managedActorName = Some(routerActorName))))
+    system.actorOf(
+      Props(
+        new ActorLifecycleManagerActor(
+          shardRouterProps,
+          componentName = routerActorName,
+          managedActorName = Some(routerActorName),
+          stopMessageAdapter = Some(() => KafkaPartitionShardRouterActor.Shutdown))))
   override val actorRegion: ActorRef = lifecycleManager
 
   override def start(): Future[Ack] = {

@@ -2,22 +2,30 @@
 
 package surge.internal.akka.actor
 
-import akka.actor.{ Actor, ActorRef, Props, Terminated }
+import akka.actor.{Actor, ActorRef, Props, Terminated}
+import akka.pattern._
 import org.slf4j.LoggerFactory
 import surge.core.Ack
 import surge.internal.akka.ActorOps
+import surge.internal.akka.actor.ActorLifecycleManagerActor.defaultStopTimeout
+import surge.internal.config.TimeoutConfig
+
+import scala.concurrent.Await
+import scala.concurrent.duration._
 
 object ActorLifecycleManagerActor {
   case object Start
   case object Stop
+
+  val defaultStopTimeout: FiniteDuration = 30.seconds
 }
 
 class ActorLifecycleManagerActor(
     managedActorProps: Props,
     componentName: String,
     managedActorName: Option[String] = None,
-    initMessage: Option[() => Any] = None,
-    finalizeMessage: Option[() => Any] = None)
+    startMessageAdapter: Option[() => Any] = None,
+    stopMessageAdapter: Option[() => Any] = None)
     extends Actor
     with ActorOps {
   private val log = LoggerFactory.getLogger(getClass)
@@ -33,7 +41,7 @@ class ActorLifecycleManagerActor(
         case _ => context.actorOf(managedActorProps)
       }
 
-      initMessage.foreach(init => actor ! init())
+      startMessageAdapter.foreach(init => actor ! init())
 
       log.info("Lifecycle manager starting actor named {} for component {}", Seq(actor.prettyPrintPath, componentName): _*)
       context.watch(actor)
@@ -50,11 +58,13 @@ class ActorLifecycleManagerActor(
       sender() ! Ack()
     case ActorLifecycleManagerActor.Stop =>
       log.info("Lifecycle manager stopping actor named {} for component {}", Seq(managedActor.prettyPrintPath, componentName): _*)
-      finalizeMessage match {
-        case Some(fin) => managedActor ! fin()
+      val stoppedActor = stopMessageAdapter match {
+        case Some(fin) =>
+          gracefulStop(managedActor, defaultStopTimeout, fin())
         case None =>
-          context.stop(managedActor)
+          gracefulStop(managedActor, defaultStopTimeout)
       }
+      Await.result(stoppedActor, TimeoutConfig.LifecycleManagerActor.askTimeout)
       context.become(stopped)
       sender() ! Ack()
     case Terminated(actorRef) if actorRef == managedActor =>

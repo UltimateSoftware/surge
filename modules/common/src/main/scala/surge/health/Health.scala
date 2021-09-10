@@ -256,23 +256,41 @@ trait HealthSignalStreamControl {
 trait HealthSignalStream extends HealthSignalListener {
   def actorSystem: ActorSystem
   def signalTopic: String
+
+  /**
+   * Get SignalHandler
+   * @see
+   *   surge.health.HealthSignalStream#subscribe
+   * @return
+   *   SignalHandler
+   */
   def signalHandler: SignalHandler
 
   def patternMatchers(): Seq[SignalPatternMatcherDefinition]
 
   /**
    * Provide HealthSignal(s) in a Source for stream operations
+   *
+   * @param buffer
+   *   Int
+   * @param throttleConfig
+   *   ThrottleConfig
    * @return
    *   SourcePlusQueue[HealthSignal]
    */
   def signalSource(buffer: Int, throttleConfig: ThrottleConfig): SourcePlusQueue[HealthSignal] = {
-    val signalSource = Source.queue[HealthSignal](buffer, OverflowStrategy.backpressure).throttle(throttleConfig.elements, throttleConfig.duration)
+    val signalSource = Source.queue[HealthSignal](buffer, throttleConfig.overflowStrategy()).throttle(throttleConfig.elements, throttleConfig.duration)
 
     val (sourceMat, source) = signalSource.preMaterialize()(Materializer(actorSystem))
 
     SourcePlusQueue(source, sourceMat)
   }
 
+  /**
+   * Subscribe for HealthSignals
+   * @return
+   *   HealthSignalStream
+   */
   def subscribe(): HealthSignalStream = {
     subscribe(signalHandler).asInstanceOf[HealthSignalStream]
   }
