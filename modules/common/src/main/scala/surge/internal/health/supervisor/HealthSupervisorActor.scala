@@ -9,11 +9,11 @@ import akka.util.Timeout
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.core.{ Ack, Controllable, ControllableLookup, ControllableRemover }
 import surge.health._
+import surge.health.config.HealthSupervisorConfig
 import surge.health.domain.HealthSignal
 import surge.health.jmx.Api.{ AddComponent, RemoveComponent, StartManagement, StopManagement }
 import surge.health.jmx.Domain.HealthRegistrationDetail
 import surge.health.jmx.{ HealthJmxTrait, SurgeHealthActor }
-import surge.health.matchers.SignalPatternMatcher
 import surge.health.supervisor.Api._
 import surge.health.supervisor.Domain.SupervisedComponentRegistration
 import surge.internal.config.{ BackoffConfig, TimeoutConfig }
@@ -192,12 +192,13 @@ class HealthSupervisorActorRef(val actor: ActorRef, askTimeout: FiniteDuration, 
 case class HealthState(registered: Map[String, SupervisedComponentRegistration] = Map.empty, replyTo: Option[ActorRef] = None)
 
 object HealthSupervisorActor {
+  val config: HealthSupervisorConfig = HealthSupervisorConfig()
 
-  def apply(signalBus: HealthSignalBusInternal, filters: Seq[SignalPatternMatcher], actorSystem: ActorSystem): HealthSupervisorActorRef = {
+  def apply(signalBus: HealthSignalBusInternal, actorSystem: ActorSystem, config: HealthSupervisorConfig): HealthSupervisorActorRef = {
     val props = BackoffSupervisor.props(
       BackoffOpts
         .onFailure(
-          Props(new HealthSupervisorActor(signalBus)),
+          Props(new HealthSupervisorActor(signalBus, config)),
           childName = "healthSupervisorActor",
           minBackoff = BackoffConfig.HealthSupervisorActor.minBackoff,
           maxBackoff = BackoffConfig.HealthSupervisorActor.maxBackoff,
@@ -205,6 +206,10 @@ object HealthSupervisorActor {
         .withMaxNrOfRetries(BackoffConfig.HealthSupervisorActor.maxRetries))
     val actorRef = actorSystem.actorOf(props)
     new HealthSupervisorActorRef(actorRef, 30.seconds, actorSystem)
+  }
+
+  def apply(signalBus: HealthSignalBusInternal, actorSystem: ActorSystem): HealthSupervisorActorRef = {
+    apply(signalBus, actorSystem, config)
   }
 
   protected[supervisor] class ContextForwardingRegistrationHandler(context: ActorContext) extends RegistrationHandler {
@@ -222,19 +227,23 @@ object HealthSupervisorActor {
   }
 }
 
-class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal)
+class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, config: HealthSupervisorConfig)
     extends Actor
     with ActorJMXSupervisor
     with HealthSignalListener
     with HealthRegistrationListener
     with HealthJmxTrait {
-  import HealthSupervisorActor._
   implicit val askTimeout: Timeout = TimeoutConfig.HealthSupervision.actorAskTimeout
   implicit val executionContext: ExecutionContext = ExecutionContext.global
 
+  import HealthSupervisorActor._
   val state: HealthState = HealthState()
 
-  private[this] val jmxActor = context.actorOf(Props(SurgeHealthActor(asActorRef())), name = "jmx")
+  private[this] val jmxActor: Option[ActorRef] = if (config.jmxEnabled) {
+    Some(context.actorOf(Props(SurgeHealthActor(asActorRef())), name = "jmx"))
+  } else {
+    None
+  }
 
   val signalHandler: SignalHandler = new ContextForwardingSignalHandler(context)
   val registrationHandler: RegistrationHandler = new ContextForwardingRegistrationHandler(context)
@@ -242,12 +251,12 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal)
   override def id(): String = "HealthSuperVisorActor_1"
   override def asActorRef(): ActorRef = context.self
 
-  override def getJmxActor: ActorRef = jmxActor
+  override def getJmxActor: Option[ActorRef] = jmxActor
 
   override def receive: Receive = {
     case Start(replyTo) =>
       start(maybeSideEffect = Some(() => {
-        getJmxActor ! StartManagement()
+        getJmxActor.foreach(a => a ! StartManagement())
         context.become(monitoring(state.copy(replyTo = replyTo)))
       }))
     case Stop =>
@@ -264,7 +273,7 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal)
 
   override def stop(): HealthSignalListener = {
     unsubscribe()
-    getJmxActor ! StopManagement()
+    getJmxActor.foreach(a => a ! StopManagement())
     context.stop(self)
     this
   }
@@ -303,11 +312,11 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal)
       context.watch(reg.controlProxyRef)
       context.become(monitoring(state.copy(registered = state.registered + (reg.componentName -> reg.asSupervisedComponentRegistration()))))
       sender() ! Ack()
-      getJmxActor ! AddComponent(HealthRegistrationDetail(reg.componentName, reg.controlProxyRef.path.toStringWithoutAddress))
+      getJmxActor.foreach(a => a ! AddComponent(HealthRegistrationDetail(reg.componentName, reg.controlProxyRef.path.toStringWithoutAddress)))
     case remove: UnregisterSupervisedComponentRequest =>
       context.become(monitoring(state.copy(registered = state.registered - remove.componentName)))
       sender() ! Ack()
-      getJmxActor ! RemoveComponent(remove.componentName)
+      getJmxActor.foreach(a => a ! RemoveComponent(remove.componentName))
     case HealthRegistrationDetailsRequest =>
       sender() ! state.registered.values.toList
     case signal: HealthSignal =>

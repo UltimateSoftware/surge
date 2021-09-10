@@ -4,7 +4,7 @@ package surge.internal.health
 
 import akka.Done
 import akka.actor.{ ActorRef, ActorSystem }
-import surge.health.config.HealthSignalBusConfig
+import surge.health.config.{ HealthSignalBusConfig, HealthSupervisorConfig }
 import surge.health.domain.HealthSignal
 import surge.health.matchers.SignalPatternMatcherDefinition
 import surge.health.windows._
@@ -79,9 +79,10 @@ class StreamMonitoringRef(override val actor: ActorRef) extends WindowStreamList
 
 trait HealthSignalStreamProvider {
   private lazy val signalBus: HealthSignalBusInternal =
-    HealthSignalBus(signalStream = this)
-      .withStreamSupervision(bus => HealthSupervisorActor(bus, patternMatchers().map(definition => definition.toMatcher), actorSystem), streamMonitoring)
+    HealthSignalBus(signalStream = this, healthSupervisorConfig = healthSupervisionConfig)
+      .withStreamSupervision(bus => HealthSupervisorActor(bus, actorSystem, healthSupervisionConfig), streamMonitoring)
 
+  def healthSupervisionConfig: HealthSupervisorConfig
   def actorSystem: ActorSystem
   def provide(bus: HealthSignalBusInternal): HealthSignalStream
   def provide(): HealthSignalStream =
@@ -124,6 +125,7 @@ class DisabledHealthSignalStreamProvider(config: HealthSignalBusConfig, bus: Hea
     extends HealthSignalStreamProvider {
   private lazy val nullStream: HealthSignalStream = new NullHealthSignalStream(config, bus, actorSystem)
 
+  override def healthSupervisionConfig: HealthSupervisorConfig = HealthSupervisorConfig()
   override def provide(bus: HealthSignalBusInternal): HealthSignalStream = nullStream
 
   override def patternMatchers(): Seq[SignalPatternMatcherDefinition] = Seq.empty

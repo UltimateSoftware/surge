@@ -2,7 +2,6 @@
 
 package surge.internal.health
 
-import java.util.regex.Pattern
 import akka.actor.{ Actor, ActorSystem, BootstrapSetup, Props, ProviderSelection }
 import akka.event.LookupClassification
 import akka.pattern._
@@ -10,13 +9,14 @@ import com.typesafe.config.{ Config, ConfigFactory }
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.core.{ Ack, Controllable }
 import surge.health._
-import surge.health.config.HealthSignalBusConfig
+import surge.health.config.{ HealthSignalBusConfig, HealthSupervisorConfig }
 import surge.health.domain.{ EmittableHealthSignal, Error, HealthSignal, HealthSignalSource, SnapshotHealthSignalSource, Trace, Warning }
 import surge.health.supervisor.Api.{ HealthRegistrationDetailsRequest, RegisterSupervisedComponentRequest, Stop }
 import surge.health.supervisor.Domain.SupervisedComponentRegistration
 import surge.internal.health.HealthSignalBus.log
 import surge.internal.health.supervisor._
 
+import java.util.regex.Pattern
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.Try
@@ -28,9 +28,20 @@ object HealthSignalBus {
   val log: Logger = LoggerFactory.getLogger(getClass)
 
   val config: Config = ConfigFactory.load().getConfig("surge.health")
+  val startStreamOnInit: Boolean = config.getBoolean("bus.stream.start-on-init")
 
-  def apply(healthSignalBusConfig: HealthSignalBusConfig, signalStream: HealthSignalStreamProvider, startOnInit: Boolean): HealthSignalBusInternal = {
-    val bus = new HealthSignalBusImpl(healthSignalBusConfig, signalStream, startOnInit)
+  val healthSignalBusConfig: HealthSignalBusConfig = HealthSignalBusConfig(
+    streamingEnabled = config.getBoolean("bus.stream.enabled"),
+    signalTopic = config.getString("bus.signal-topic"),
+    registrationTopic = config.getString("bus.registration-topic"),
+    allowedSubscriberCount = config.getInt("bus.allowed-subscriber-count"))
+
+  def apply(
+      healthSignalBusConfig: HealthSignalBusConfig,
+      signalStream: HealthSignalStreamProvider,
+      startOnInit: Boolean,
+      healthSupervisorConfig: HealthSupervisorConfig): HealthSignalBusInternal = {
+    val bus = new HealthSignalBusImpl(healthSignalBusConfig, signalStream, startOnInit, healthSupervisorConfig)
 
     if (startOnInit && healthSignalBusConfig.streamingEnabled) {
       bus.signalStream().start()
@@ -39,15 +50,22 @@ object HealthSignalBus {
     bus
   }
 
-  def apply(signalStream: HealthSignalStreamProvider): HealthSignalBusInternal = {
-    val startStreamOnInit = config.getBoolean("bus.stream.start-on-init")
-    val healthSignalBusConfig = HealthSignalBusConfig(
-      streamingEnabled = config.getBoolean("bus.stream.enabled"),
-      signalTopic = config.getString("bus.signal-topic"),
-      registrationTopic = config.getString("bus.registration-topic"),
-      allowedSubscriberCount = config.getInt("bus.allowed-subscriber-count"))
+  def apply(healthSignalBusConfig: HealthSignalBusConfig, signalStream: HealthSignalStreamProvider, startOnInit: Boolean): HealthSignalBusInternal = {
+    val bus = new HealthSignalBusImpl(healthSignalBusConfig, signalStream, startOnInit, HealthSupervisorConfig())
 
-    HealthSignalBus(healthSignalBusConfig, signalStream, startStreamOnInit)
+    if (startOnInit && healthSignalBusConfig.streamingEnabled) {
+      bus.signalStream().start()
+    }
+
+    bus
+  }
+
+  def apply(signalStream: HealthSignalStreamProvider, healthSupervisorConfig: HealthSupervisorConfig = HealthSupervisorConfig()): HealthSignalBusInternal = {
+    HealthSignalBus(healthSignalBusConfig, signalStream, startStreamOnInit, healthSupervisorConfig)
+  }
+
+  def apply(signalStream: HealthSignalStreamProvider): HealthSignalBusInternal = {
+    HealthSignalBus(healthSignalBusConfig, signalStream, startStreamOnInit, HealthSupervisorConfig())
   }
 }
 
@@ -125,21 +143,25 @@ private class EmittableHealthSignalImpl(healthSignal: HealthSignal, signalBus: H
   private def log(logType: String, signal: HealthSignal): EmittableHealthSignal = {
     logType match {
       case "debug" =>
-        logger.debug(healthSignal.data.description)
+        logger.debug(signal.data.description)
       case "error" =>
-        logger.error(healthSignal.data.description)
+        logger.error(signal.data.description)
       case "warn" =>
-        logger.warn(healthSignal.data.description)
+        logger.warn(signal.data.description)
       case "trace" =>
-        logger.trace(healthSignal.data.description)
+        logger.trace(signal.data.description)
       case _ =>
-        logger.debug(healthSignal.data.description)
+        logger.debug(signal.data.description)
     }
     this
   }
 }
 
-private[surge] class HealthSignalBusImpl(config: HealthSignalBusConfig, signalStreamSupplier: HealthSignalStreamProvider, stopStreamOnUnsubscribe: Boolean)
+private[surge] class HealthSignalBusImpl(
+    config: HealthSignalBusConfig,
+    signalStreamSupplier: HealthSignalStreamProvider,
+    stopStreamOnUnsubscribe: Boolean,
+    healthSupervisorConfig: HealthSupervisorConfig = HealthSupervisorConfig())
     extends HealthSignalBusInternal {
   implicit val actorSystem: ActorSystem =
     ActorSystem.create(name = "healthSignalBusActorSystem", BootstrapSetup().withActorRefProvider(ProviderSelection.local()))
@@ -226,7 +248,7 @@ private[surge] class HealthSignalBusImpl(config: HealthSignalBusConfig, signalSt
         }
         this
       case None =>
-        val ref = HealthSupervisorActor(this, signalStreamSupplier.patternMatchers().map(definition => definition.toMatcher), actorSystem)
+        val ref = HealthSupervisorActor(this, actorSystem, healthSupervisorConfig)
         supervisorRef = Some(ref)
         ref.start(monitoringRef.map(ref => ref.actor))
         this

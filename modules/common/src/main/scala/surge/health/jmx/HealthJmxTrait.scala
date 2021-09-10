@@ -6,5 +6,5 @@ import akka.actor.ActorRef
 
 trait HealthJmxTrait {
   def asActorRef(): ActorRef
-  def getJmxActor: ActorRef
+  def getJmxActor: Option[ActorRef]
 }

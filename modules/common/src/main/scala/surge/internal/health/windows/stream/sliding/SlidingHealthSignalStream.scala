@@ -7,10 +7,10 @@ import akka.actor.{ Actor, ActorRef, ActorSystem, Props }
 import akka.stream.Materializer
 import akka.stream.scaladsl.{ Keep, Sink, Source, SourceQueue, SourceQueueWithComplete }
 import org.slf4j.{ Logger, LoggerFactory }
-import surge.health.config.{ ThrottleConfig, WindowingStreamConfig }
+import surge.health.config.{ HealthSupervisorConfig, ThrottleConfig, WindowingStreamConfig }
 import surge.health.domain.HealthSignal
 import surge.health.matchers.SignalPatternMatcherDefinition
-import surge.health.windows.{ WindowEvent, WindowStreamListener }
+import surge.health.windows.WindowEvent
 import surge.health.{ HealthSignalListener, SignalHandler, SourcePlusQueue, SourceQueueBackedSignalHandler }
 import surge.internal.health._
 import surge.internal.health.windows._
@@ -27,6 +27,7 @@ object SlidingHealthSignalStream {
 
   def apply(
       slidingConfig: WindowingStreamConfig,
+      supervisionConfig: HealthSupervisorConfig,
       signalBus: HealthSignalBusInternal,
       patternMatchers: Seq[SignalPatternMatcherDefinition],
       streamMonitoringRef: Option[StreamMonitoringRef] = None,

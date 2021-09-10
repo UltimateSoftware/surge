@@ -4,6 +4,7 @@ package surge.internal.health.context
 
 import akka.Done
 import akka.actor.ActorSystem
+import surge.health.config.HealthSupervisorConfig
 import surge.health.domain.HealthSignal
 import surge.health.matchers.SignalPatternMatcherDefinition
 import surge.health.{ HealthSignalListener, HealthSignalStream, SignalHandler }
@@ -54,4 +55,6 @@ class TestHealthSignalStreamProvider(
     extends HealthSignalStreamProvider {
   override def provide(bus: HealthSignalBusInternal): HealthSignalStream =
     new TestHealthSignalStream(bus, this.patternMatchers, actorSystem)
+
+  override def healthSupervisionConfig: HealthSupervisorConfig = HealthSupervisorConfig()
 }

@@ -12,8 +12,7 @@ import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
-import surge.health.config.HealthSignalBusConfig
-
+import surge.health.config.{ HealthSignalBusConfig, HealthSupervisorConfig }
 import surge.health.domain._
 import surge.health.{ HealthSignalListener, SignalHandler }
 import surge.internal.health.context.TestHealthSignalStream
