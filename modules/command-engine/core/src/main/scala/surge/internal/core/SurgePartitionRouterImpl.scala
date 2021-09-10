@@ -57,7 +57,8 @@ private[surge] final class SurgePartitionRouterImpl(
   override def stop(): Future[Ack] = {
     implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PartitionRouter.askTimeout)
 
-    actorRegion.ask(ActorLifecycleManagerActor.Stop).mapTo[Ack]
+    //actorRegion.ask(ActorLifecycleManagerActor.Stop).mapTo[Ack]
+    Future.successful(Ack())
   }
 
   override def shutdown(): Future[Ack] = stop()

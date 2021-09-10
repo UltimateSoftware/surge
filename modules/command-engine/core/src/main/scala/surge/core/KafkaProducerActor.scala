@@ -153,7 +153,8 @@ class KafkaProducerActor(
   override def stop(): Future[Ack] = {
     implicit val askTimeout: Timeout = Timeout(TimeoutConfig.LifecycleManagerActor.askTimeout)
 
-    publisherActor.ask(ActorLifecycleManagerActor.Stop).mapTo[Ack]
+    //publisherActor.ask(ActorLifecycleManagerActor.Stop).mapTo[Ack]
+    Future.successful(Ack())
   }
 
   override def shutdown(): Future[Ack] = stop()
