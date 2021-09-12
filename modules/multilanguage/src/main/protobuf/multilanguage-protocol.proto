@@ -4,7 +4,8 @@ option java_multiple_files = true;
 option java_package = "com.ukg.surge.multilanguage.protobuf";
 
 message State {
-  bytes payload = 1;
+  string aggregateId = 1;
+  bytes payload = 2;
 }
 
 message Command {
@@ -18,35 +19,41 @@ message Event {
 }
 
 message ProcessCommandRequest {
-  State state = 1;
-  Command command = 2;
+  string aggregateId = 1;
+  State state = 2;
+  Command command = 3;
 }
 
 message ProcessCommandReply {
-  bool isSuccess = 1;
-  string rejectionMessage = 2;  // non-empty when isSuccess = false
-  repeated Event events = 3;
-  State newState = 4;
+  string aggregateId = 1;
+  bool isSuccess = 2;
+  string rejectionMessage = 3;  // non-empty when isSuccess = false
+  repeated Event events = 4;
+  State newState = 5;
 }
 
 message HandleEventsRequest {
-  State state = 1;
-  repeated Event events = 2;
+  string aggregateId = 1;
+  State state = 2;
+  repeated Event events = 3;
 }
 
 message HandleEventsResponse {
-  State state = 1;
+  string aggregateId = 1;
+  State state = 2;
 }
 
 message ForwardCommandRequest {
-  Command command = 1;
+  string aggregateId = 1;
+  Command command = 2;
 }
 
 message ForwardCommandReply {
-  bool isSuccess = 1;
-  string rejectionMessage = 2; // non-empty when isSuccess = false
-  State newState = 3;
-  repeated Event loggedEvents = 4;
+  string aggregateId = 1;
+  bool isSuccess = 2;
+  string rejectionMessage = 3; // non-empty when isSuccess = false
+  State newState = 4;
+  repeated Event loggedEvents = 5;
 }
 
 message GetStateRequest {
