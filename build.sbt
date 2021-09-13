@@ -84,9 +84,7 @@ lazy val `surge-engine-multilanguage` =
     .enablePlugins(AkkaGrpcPlugin, JavaServerAppPackaging)
 
 lazy val `surge-engine-multilanguage-scala-sdk` =
-  (project in file("modules/multilanguage-scala-sdk"))
-    .dependsOn(`surge-engine-multilanguage`)
-    .enablePlugins(AkkaGrpcPlugin)
+  (project in file("modules/multilanguage-scala-sdk")).dependsOn(`surge-engine-multilanguage`).enablePlugins(AkkaGrpcPlugin)
 
 lazy val `surge-metrics` = (project in file("modules/metrics")).settings(
   libraryDependencies ++= Seq(
@@ -133,8 +131,7 @@ lazy val `surge` = project
     `surge-metrics`,
     `surge-docs`,
     `surge-engine-multilanguage`,
-    `surge-engine-multilanguage-scala-sdk`
-  )
+    `surge-engine-multilanguage-scala-sdk`)
   .settings(skip in publish := true, ReleaseSettings.settings)
   .disablePlugins(MimaPlugin)
 
