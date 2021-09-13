@@ -67,9 +67,9 @@ trait ReplayProgressMonitor {
 }
 
 /**
- * The ReplayControl is a low level control object for performing replay. By default it has a preReplay, postReplay, and fullReplay function. The ReplayControl
- * itself does not coordinate stopping any currently running consumers - it simply provides a way to access various replay functionality for callers who need
- * replay-like functionality outside of a typical full/coordinated replay.
+ * The ReplayControl is a low level control object for performing replay. By default it has a computeProgress, preReplay, postReplay, and fullReplay function.
+ * The ReplayControl itself does not coordinate stopping any currently running consumers - it simply provides a way to access various replay functionality for
+ * callers who need replay-like functionality outside of a typical full/coordinated replay.
  */
 trait ReplayControl {
   def preReplay: () => Future[Any]
@@ -79,8 +79,8 @@ trait ReplayControl {
   def monitorProgress(coordinatorApi: ReplayCoordinatorApi): ReplayProgressMonitor
 
   def computeProgress(current: Map[TopicPartition, OffsetAndMetadata], end: Map[TopicPartition, OffsetAndMetadata]): ReplayProgress = {
-    val sumCurrent = current.values.map(o => o.offset()).sum
-    val sumEnd = end.values.map(o => o.offset()).sum
+    val sumCurrent = sum(current)
+    val sumEnd = sum(end)
 
     if (sumEnd > 0) {
       val percentComplete = (sumCurrent / sumEnd) * 100.0
@@ -98,6 +98,10 @@ trait ReplayControl {
       consumerGroup: String,
       partitions: Iterable[Int],
       replayLifecycleCallbacks: ReplayLifecycleCallbacks = new NoopReplayLifecycleCallbacks()): Future[Done]
+
+  private def sum(offsets: Map[TopicPartition, OffsetAndMetadata]): Long = {
+    offsets.flatMap(o => Option(o._2).map(offsetPlusMeta => offsetPlusMeta.offset())).sum
+  }
 }
 
 object DefaultEventReplaySettings extends EventReplaySettings {
