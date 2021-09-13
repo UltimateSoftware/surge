@@ -67,9 +67,9 @@ trait ReplayProgressMonitor {
 }
 
 /**
- * The ReplayControl is a low level control object for performing replay. By default it has a computeProgress, preReplay, postReplay, and fullReplay function. The ReplayControl
- * itself does not coordinate stopping any currently running consumers - it simply provides a way to access various replay functionality for callers who need
- * replay-like functionality outside of a typical full/coordinated replay.
+ * The ReplayControl is a low level control object for performing replay. By default it has a computeProgress, preReplay, postReplay, and fullReplay function.
+ * The ReplayControl itself does not coordinate stopping any currently running consumers - it simply provides a way to access various replay functionality for
+ * callers who need replay-like functionality outside of a typical full/coordinated replay.
  */
 trait ReplayControl {
   def preReplay: () => Future[Any]
@@ -100,7 +100,7 @@ trait ReplayControl {
       replayLifecycleCallbacks: ReplayLifecycleCallbacks = new NoopReplayLifecycleCallbacks()): Future[Done]
 
   private def sum(offsets: Map[TopicPartition, OffsetAndMetadata]): Long = {
-    offsets.values.map[Long](o => Option(o).map[Long](offsetPlusMeta => offsetPlusMeta.offset()).getOrElse(0L)).sum[Long]
+    offsets.flatMap(o => Option(o).map(offsetPlusMeta => offsetPlusMeta._2.offset())).sum
   }
 }
 
