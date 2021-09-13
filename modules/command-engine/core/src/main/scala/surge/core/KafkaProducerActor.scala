@@ -87,6 +87,10 @@ object KafkaProducerActor {
  *   Metrics provider to use for recording internal metrics to
  * @param aggregateName
  *   The name of the aggregate this publisher is responsible for
+ * @param assignedPartition
+ *   TopicPartition
+ * @param signalBus
+ *   HealthSignalBusTrait
  */
 class KafkaProducerActor(
     publisherActor: ActorRef,
