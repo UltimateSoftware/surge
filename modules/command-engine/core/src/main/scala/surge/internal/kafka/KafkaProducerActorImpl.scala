@@ -229,11 +229,15 @@ class KafkaProducerActorImpl(
   }
 
   private def checkKTableProgress(): Unit = {
-    lagChecker.getConsumerGroupLag(assignedPartition) match {
-      case Some(lag) =>
+    Future {
+      lagChecker.getConsumerGroupLag(assignedPartition)
+    }.onComplete {
+      case Success(Some(lag)) =>
         self ! KTableProgressUpdate(assignedPartition, lag)
-      case None =>
+      case Success(None) =>
         log.debug(s"Could not find partition lag for partition $assignedPartition")
+      case Failure(exception) =>
+        log.debug(s"Could not find partition lag for partition $assignedPartition", exception)
     }
   }
 
