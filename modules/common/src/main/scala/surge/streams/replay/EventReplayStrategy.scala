@@ -100,8 +100,7 @@ trait ReplayControl {
       replayLifecycleCallbacks: ReplayLifecycleCallbacks = new NoopReplayLifecycleCallbacks()): Future[Done]
 
   private def sum(offsets: Map[TopicPartition, OffsetAndMetadata]): Long = {
-    offsets.values.map[Long](o => Option(o).map[Long](offsetPlusMeta =>
-      offsetPlusMeta.offset()).getOrElse(0L)).sum
+    offsets.values.map[Long](o => Option(o).map[Long](offsetPlusMeta => offsetPlusMeta.offset()).getOrElse(0L)).sum
   }
 }
 
