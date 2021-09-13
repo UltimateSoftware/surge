@@ -51,7 +51,7 @@ class MultilanguageGatewayServiceImpl(aggregateName: String, eventsTopicName: St
         logger.info(s"Forwarding command to aggregate with id ${cmd.aggregateId}!")
         surgeEngine.aggregateFor(aggIdUUID).sendCommand(surgeCmd).map {
           case CommandSuccess(aggregateState: Option[SurgeState]) =>
-            val payloadSize: Any = aggregateState.map(_.payload.length).getOrElse(0)
+            val payloadSize: Int = aggregateState.map(_.payload.length).getOrElse(0)
             logger.info(s"Success! Aggregate state payload has size ${payloadSize} (bytes)")
             ForwardCommandReply(isSuccess = true, newState = aggregateState.map((item: SurgeState) => item: protobuf.State))
           case CommandFailure(reason) =>

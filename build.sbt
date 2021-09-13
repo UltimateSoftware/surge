@@ -132,7 +132,9 @@ lazy val `surge` = project
     `surge-engine-command-scaladsl`,
     `surge-metrics`,
     `surge-docs`,
-    `surge-engine-multilanguage`)
+    `surge-engine-multilanguage`,
+    `surge-engine-multilanguage-scala-sdk`
+  )
   .settings(skip in publish := true, ReleaseSettings.settings)
   .disablePlugins(MimaPlugin)
 
