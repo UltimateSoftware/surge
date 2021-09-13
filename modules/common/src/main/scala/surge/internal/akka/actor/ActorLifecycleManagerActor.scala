@@ -7,7 +7,6 @@ import akka.pattern._
 import org.slf4j.LoggerFactory
 import surge.core.Ack
 import surge.internal.akka.ActorOps
-import surge.internal.akka.actor.ActorLifecycleManagerActor.defaultStopTimeout
 import surge.internal.config.TimeoutConfig
 
 import scala.concurrent.Await
@@ -16,7 +15,7 @@ import scala.concurrent.duration._
 object ActorLifecycleManagerActor {
   case object Start
   case object Stop
-
+  case object GetManagedActorPath
   val defaultStopTimeout: FiniteDuration = 30.seconds
 }
 
@@ -28,6 +27,7 @@ class ActorLifecycleManagerActor(
     stopMessageAdapter: Option[() => Any] = None)
     extends Actor
     with ActorOps {
+  import ActorLifecycleManagerActor._
   private val log = LoggerFactory.getLogger(getClass)
 
   override def receive: Receive = stopped
@@ -54,6 +54,8 @@ class ActorLifecycleManagerActor(
   }
 
   private def running(managedActor: ActorRef): Receive = {
+    case ActorLifecycleManagerActor.GetManagedActorPath =>
+      sender() ! managedActor.path
     case ActorLifecycleManagerActor.Start =>
       sender() ! Ack()
     case ActorLifecycleManagerActor.Stop =>
