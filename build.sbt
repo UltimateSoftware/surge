@@ -77,6 +77,15 @@ lazy val `surge-engine-command-javadsl` =
     .dependsOn(`surge-engine-command-core`)
     .settings(libraryDependencies ++= Seq(scalatest, scalatestPlusMockito, mockitoCore))
 
+lazy val `surge-engine-multilanguage` =
+  (project in file("modules/multilanguage"))
+    .dependsOn(`surge-engine-command-scaladsl`)
+    .settings(libraryDependencies ++= Seq(Akka.slf4j, logback, slf4jApi))
+    .enablePlugins(AkkaGrpcPlugin, JavaServerAppPackaging)
+
+lazy val `surge-engine-multilanguage-scala-sdk` =
+  (project in file("modules/multilanguage-scala-sdk")).dependsOn(`surge-engine-multilanguage`).enablePlugins(AkkaGrpcPlugin)
+
 lazy val `surge-metrics` = (project in file("modules/metrics")).settings(
   libraryDependencies ++= Seq(
     Akka.actor,
@@ -114,8 +123,16 @@ lazy val `surge-docs` = (project in file("modules/surge-docs"))
 
 lazy val `surge` = project
   .in(file("."))
-  .aggregate(`surge-common`, `surge-engine-command-core`, `surge-engine-command-javadsl`, `surge-engine-command-scaladsl`, `surge-metrics`, `surge-docs`)
-  .settings(publish / skip := true, ReleaseSettings.settings)
+  .aggregate(
+    `surge-common`,
+    `surge-engine-command-core`,
+    `surge-engine-command-javadsl`,
+    `surge-engine-command-scaladsl`,
+    `surge-metrics`,
+    `surge-docs`,
+    `surge-engine-multilanguage`,
+    `surge-engine-multilanguage-scala-sdk`)
+  .settings(skip in publish := true, ReleaseSettings.settings)
   .disablePlugins(MimaPlugin)
 
 addCommandAlias("codeFormat", ";headerCreate;test:headerCreate;scalafmtAll;scalafmtSbt")
