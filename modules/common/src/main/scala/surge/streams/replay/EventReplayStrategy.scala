@@ -79,8 +79,8 @@ trait ReplayControl {
   def monitorProgress(coordinatorApi: ReplayCoordinatorApi): ReplayProgressMonitor
 
   def computeProgress(current: Map[TopicPartition, OffsetAndMetadata], end: Map[TopicPartition, OffsetAndMetadata]): ReplayProgress = {
-    val sumCurrent = current.values.map(o => o.offset()).sum
-    val sumEnd = end.values.map(o => o.offset()).sum
+    val sumCurrent = sum(current)
+    val sumEnd = sum(end)
 
     if (sumEnd > 0) {
       val percentComplete = (sumCurrent / sumEnd) * 100.0
@@ -98,6 +98,11 @@ trait ReplayControl {
       consumerGroup: String,
       partitions: Iterable[Int],
       replayLifecycleCallbacks: ReplayLifecycleCallbacks = new NoopReplayLifecycleCallbacks()): Future[Done]
+
+  private def sum(offsets: Map[TopicPartition, OffsetAndMetadata]): Long = {
+    offsets.values.map[Long](o => Option(o).map[Long](offsetPlusMeta =>
+      offsetPlusMeta.offset()).getOrElse(0L)).sum
+  }
 }
 
 object DefaultEventReplaySettings extends EventReplaySettings {
