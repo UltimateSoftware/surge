@@ -12,7 +12,7 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
 import surge.internal.akka.cluster.{ ActorRegistry, ActorSystemHostAwareness }
-import surge.internal.streams.ReplayCoordinator.{ ReplayCompleted, ReplayFailed, StartReplay }
+import surge.internal.streams.ReplayCoordinator.{ ReplayCompleted, ReplayFailed, ReplayStarted, StartReplay }
 import surge.kafka.HostPort
 import surge.streams.replay.{
   NoopReplayLifecycleCallbacks,
@@ -90,10 +90,10 @@ class ReplayCoordinatorSpec
 
       replayProbe.expectMsg(PreReplayCalled)
       replayProbe.expectMsg(ReplayCalled(testConsumerGroup, List.empty))
+      testProbe.expectMsg(ReplayStarted)
+
       replayCoordinator ! ReplayCompleted
-
       replayProbe.expectMsg(PostReplayCalled)
-
       testProbe.expectMsg(ReplayCompleted)
     }
 
