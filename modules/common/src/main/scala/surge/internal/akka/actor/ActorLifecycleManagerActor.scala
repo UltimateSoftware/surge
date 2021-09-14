@@ -2,21 +2,49 @@
 
 package surge.internal.akka.actor
 
-import akka.actor.{ Actor, ActorRef, Props, Terminated }
+import akka.actor.{ Actor, ActorPath, ActorRef, ActorSystem, Props, Terminated }
 import akka.pattern._
+import akka.util.Timeout
 import org.slf4j.LoggerFactory
 import surge.core.Ack
 import surge.internal.akka.ActorOps
+import surge.internal.akka.actor.ActorLifecycleManagerActor.GetManagedActorPath
 import surge.internal.config.TimeoutConfig
 
-import scala.concurrent.Await
+import scala.concurrent.{ Await, Future }
 import scala.concurrent.duration._
+
+case class ManagedActorRef(ref: ActorRef) {
+  implicit val timeout: Timeout = TimeoutConfig.LifecycleManagerActor.askTimeout
+  def start(): Future[Ack] = {
+    ref.ask(ActorLifecycleManagerActor.Start).mapTo[Ack]
+  }
+
+  def stop(): Future[Ack] = {
+    ref.ask(ActorLifecycleManagerActor.Stop).mapTo[Ack]
+  }
+
+  def managedPath(): Future[ActorPath] = {
+    ref.ask(GetManagedActorPath)(30.seconds).mapTo[ActorPath]
+  }
+}
 
 object ActorLifecycleManagerActor {
   case object Start
   case object Stop
   case object GetManagedActorPath
   val defaultStopTimeout: FiniteDuration = 30.seconds
+
+  def manage(
+      actorSystem: ActorSystem,
+      managedActorProps: Props,
+      componentName: String,
+      managedActorName: Option[String] = None,
+      startMessageAdapter: Option[() => Any] = None,
+      stopMessageAdapter: Option[() => Any] = None): ManagedActorRef = {
+    ManagedActorRef(
+      actorSystem.actorOf(Props(new ActorLifecycleManagerActor(managedActorProps, componentName, managedActorName, startMessageAdapter, stopMessageAdapter))))
+  }
 }
 
 class ActorLifecycleManagerActor(

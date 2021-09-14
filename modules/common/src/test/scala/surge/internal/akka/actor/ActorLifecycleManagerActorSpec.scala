@@ -9,6 +9,7 @@ import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Milliseconds, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
+import surge.core.Ack
 import surge.internal.akka.actor.ActorLifecycleManagerActor.GetManagedActorPath
 
 import scala.concurrent.duration._
@@ -24,24 +25,38 @@ class ActorLifecycleManagerActorSpec
 
   case object StopIt
   "ActorLifecycleManagerActor" should {
+    "manage an actor" in {
+      val managed = ActorLifecycleManagerActor.manage(
+        system,
+        Props(new Actor() {
+          override def receive: Receive = { case StopIt =>
+            context.stop(self)
+          }
+        }),
+        managedActorName = Some("testActor"),
+        stopMessageAdapter = Some(() => StopIt),
+        componentName = "testComponent")
+
+      managed.start().futureValue shouldEqual Ack()
+      managed.stop().futureValue shouldEqual Ack()
+    }
+
     "gracefully stop actor" in {
-      val actorRef = system.actorOf(
-        Props(
-          new ActorLifecycleManagerActor(
-            Props(new Actor() {
-              override def receive: Receive = { case StopIt =>
-                context.stop(self)
-              }
-            }),
-            managedActorName = Some("testActor"),
-            stopMessageAdapter = Some(() => StopIt),
-            componentName = "testComponent")))
+      val managed = ActorLifecycleManagerActor.manage(
+        system,
+        Props(new Actor() {
+          override def receive: Receive = { case StopIt =>
+            context.stop(self)
+          }
+        }),
+        managedActorName = Some("testActor"),
+        stopMessageAdapter = Some(() => StopIt),
+        componentName = "testComponent")
 
-      actorRef ! ActorLifecycleManagerActor.Start
+      managed.start()
 
-      val managerActorPath: ActorPath = actorRef.ask(GetManagedActorPath)(30.seconds).mapTo[ActorPath].futureValue
-
-      actorRef ! ActorLifecycleManagerActor.Stop
+      val managerActorPath: ActorPath = managed.managedPath().futureValue
+      managed.stop()
 
       // Should be unable to resolve actorSelection after testActor stopped
       eventually {

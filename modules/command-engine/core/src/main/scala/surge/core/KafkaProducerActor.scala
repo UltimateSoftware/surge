@@ -2,7 +2,7 @@
 
 package surge.core
 
-import akka.actor.{ ActorRef, ActorSystem, PoisonPill, Props }
+import akka.actor.{ ActorSystem, PoisonPill, Props }
 import akka.pattern._
 import akka.util.Timeout
 import com.typesafe.config.Config
@@ -11,12 +11,12 @@ import org.apache.kafka.common.header.Headers
 import org.slf4j.LoggerFactory
 import surge.health.{ HealthSignalBusAware, HealthSignalBusTrait }
 import surge.internal.SurgeModel
-import surge.internal.akka.actor.ActorLifecycleManagerActor
+import surge.internal.akka.actor.{ ActorLifecycleManagerActor, ManagedActorRef }
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.config.TimeoutConfig
 import surge.internal.kafka.{ KTableLagCheckerImpl, KafkaProducerActorImpl }
-import surge.kafka.{ KafkaAdminClient, KafkaBytesProducer }
 import surge.kafka.streams._
+import surge.kafka.{ KafkaAdminClient, KafkaBytesProducer }
 import surge.metrics.{ MetricInfo, Metrics, Timer }
 
 import scala.concurrent.{ ExecutionContext, Future }
@@ -51,7 +51,7 @@ object KafkaProducerActor {
         kafkaProducerOverride = kafkaProducerOverride)).withDispatcher(dispatcherName)
 
     new KafkaProducerActor(
-      actorSystem.actorOf(Props(new ActorLifecycleManagerActor(kafkaProducerProps, s"producer-actor-${assignedPartition.toString}"))),
+      publisherActor = ActorLifecycleManagerActor.manage(actorSystem, kafkaProducerProps, s"producer-actor-${assignedPartition.toString}"),
       metrics,
       businessLogic.aggregateName,
       assignedPartition,
@@ -93,7 +93,7 @@ object KafkaProducerActor {
  *   HealthSignalBusTrait
  */
 class KafkaProducerActor(
-    publisherActor: ActorRef,
+    publisherActor: ManagedActorRef,
     metrics: Metrics,
     aggregateName: String,
     val assignedPartition: TopicPartition,
@@ -110,11 +110,11 @@ class KafkaProducerActor(
     log.trace(s"Publishing state for {} {}", Seq(aggregateName, state.key): _*)
     implicit val ec: ExecutionContext = ExecutionContext.global
     implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PublisherActor.publishTimeout)
-    (publisherActor ? KafkaProducerActorImpl.Publish(eventsToPublish = events, state = state)).mapTo[KafkaProducerActor.PublishResult]
+    (publisherActor.ref ? KafkaProducerActorImpl.Publish(eventsToPublish = events, state = state)).mapTo[KafkaProducerActor.PublishResult]
   }
 
   def terminate(): Unit = {
-    publisherActor ! PoisonPill
+    publisherActor.ref ! PoisonPill
   }
 
   private val isAggregateStateCurrentTimer: Timer = metrics.timer(
@@ -125,12 +125,12 @@ class KafkaProducerActor(
   def isAggregateStateCurrent(aggregateId: String): Future[Boolean] = {
     implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PublisherActor.aggregateStateCurrentTimeout)
     isAggregateStateCurrentTimer.timeFuture {
-      (publisherActor ? KafkaProducerActorImpl.IsAggregateStateCurrent(aggregateId)).mapTo[Boolean]
+      (publisherActor.ref ? KafkaProducerActorImpl.IsAggregateStateCurrent(aggregateId)).mapTo[Boolean]
     }
   }
 
   def healthCheck(): Future[HealthCheck] = {
-    publisherActor
+    publisherActor.ref
       .ask(HealthyActor.GetHealth)(TimeoutConfig.HealthCheck.actorAskTimeout)
       .mapTo[HealthCheck]
       .recoverWith { case err: Throwable =>
@@ -149,15 +149,11 @@ class KafkaProducerActor(
   }
 
   override def start(): Future[Ack] = {
-    implicit val askTimeout: Timeout = Timeout(TimeoutConfig.LifecycleManagerActor.askTimeout)
-
-    publisherActor.ask(ActorLifecycleManagerActor.Start).mapTo[Ack].andThen(registrationCallback())
+    publisherActor.start().andThen(registrationCallback())
   }
 
   override def stop(): Future[Ack] = {
-    implicit val askTimeout: Timeout = Timeout(TimeoutConfig.LifecycleManagerActor.askTimeout)
-
-    publisherActor.ask(ActorLifecycleManagerActor.Stop).mapTo[Ack]
+    publisherActor.stop()
   }
 
   override def shutdown(): Future[Ack] = stop()
@@ -170,12 +166,13 @@ class KafkaProducerActor(
           componentName = s"kafka-producer-actor-${assignedPartition.topic()}-${assignedPartition.partition()}",
           restartSignalPatterns = restartSignalPatterns())
 
-      registrationResult.onComplete {
-        case Failure(exception) =>
-          log.error(s"$getClass registration failed", exception)
-        case Success(_) =>
-          log.debug(s"$getClass registration succeeded")
-      }
+      Option(registrationResult).foreach(result =>
+        result.onComplete {
+          case Failure(exception) =>
+            log.error(s"$getClass registration failed", exception)
+          case Success(_) =>
+            log.debug(s"$getClass registration succeeded")
+        })
     case Failure(error) =>
       log.error(s"Unable to register $getClass for supervision", error)
   }
