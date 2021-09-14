@@ -354,7 +354,7 @@ class PersistentActor[S, M, R, E](
   }
 
   def onInitializationFailed(cause: Throwable): Unit = {
-    log.error(s"Could not initialize actor for $aggregateId after ${retryConfig.AggregateActor.maxInitializationAttempts} attempts.  Stopping actor")
+    log.error(s"Could not initialize actor for $aggregateId after ${retryConfig.AggregateActor.maxInitializationAttempts} attempts. Stopping actor", cause)
     context.become(initializationFailed(ACKError(cause)))
     unstashAll() // Handle any pending messages before stopping so we can reply with an explicit error instead of timing out
     self ! Stop
