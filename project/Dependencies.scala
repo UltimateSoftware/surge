@@ -6,7 +6,7 @@ object Dependencies extends AutoPlugin {
   object autoImport {
 
     object Akka {
-      val version = "2.6.15"
+      val version = "2.6.16"
 
       val actor = "com.typesafe.akka" %% "akka-actor" % version
       val slf4j = "com.typesafe.akka" %% "akka-slf4j" % version
