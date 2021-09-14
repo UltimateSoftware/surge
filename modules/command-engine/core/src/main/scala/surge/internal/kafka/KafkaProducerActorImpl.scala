@@ -289,7 +289,7 @@ class KafkaProducerActorImpl(
       unstashAll()
       context.become(processing(KafkaProducerActorState.empty))
     } else {
-      log.debug("Producer actor still waiting for KTable to finish indexing, current lag is {}", kTableProgressUpdate.lagInfo.offsetLag)
+      log.debug("Producer actor {} still waiting for KTable to finish indexing, current lag is {}", assignedPartition, kTableProgressUpdate.lagInfo.offsetLag)
     }
   }
 
