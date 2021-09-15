@@ -61,6 +61,7 @@ object Dependencies extends AutoPlugin {
     val embeddedKafka = "io.github.embeddedkafka" %% "embedded-kafka" % Kafka.kafkaVersion % Test
     val junit = "junit" % "junit" % "4.13.1" % Test
     val logback = "ch.qos.logback" % "logback-classic" % "1.2.3"
+    val json4s = "org.json4s" %% "json4s-native" % "4.0.3"
     val mockitoCore = "org.mockito" % "mockito-core" % "3.6.28" % Test
     val scalatest = "org.scalatest" %% "scalatest" % "3.2.7" % Test
     val scalatestPlusMockito = "org.scalatestplus" %% "mockito-3-4" % "3.2.7.0" % Test
