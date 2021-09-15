@@ -110,6 +110,8 @@ class KafkaProducerActorImpl(
   //noinspection ActorMutableStateInspection
   private var kafkaPublisher = getPublisher
 
+  private val nonTransactionalStatePublisher = kafkaProducerOverride.getOrElse(KafkaBytesProducer(config, brokers, stateTopic, partitioner = partitioner))
+
   override val tracer: Tracer = producerContext.tracer
 
   private val kafkaPublisherTimer: Timer = metrics.timer(
@@ -162,12 +164,9 @@ class KafkaProducerActorImpl(
   }
 
   private def uninitialized(lastProgressUpdate: Option[KTableProgressUpdate]): Receive = {
-    case CheckKTableProgress => checkKTableProgress()
-    case InitTransactions    => initializeTransactions()
-    case InitTransactionSuccess =>
-      unstashAll()
-      context.become(waitingForKTableIndexing())
-      lastProgressUpdate.foreach(update => self ! update)
+    case CheckKTableProgress          => checkKTableProgress()
+    case InitTransactions             => initializeTransactions()
+    case InitTransactionSuccess       => initTransactionsSuccess(lastProgressUpdate)
     case FlushMessages                => log.trace("KafkaPublisherActor ignoring FlushMessages message from the uninitialized state")
     case GetHealth                    => doHealthCheck()
     case update: KTableProgressUpdate => context.become(uninitialized(lastProgressUpdate = Some(update)))
@@ -242,11 +241,14 @@ class KafkaProducerActorImpl(
   }
 
   private def initializeTransactions(): Unit = {
+    val flushRecord = new ProducerRecord[String, Array[Byte]](assignedPartition.topic(), assignedPartition.partition(), "", "".getBytes)
     kafkaPublisher
       .initTransactions()
-      .map { _ =>
+      .flatMap { _ =>
         log.debug(s"KafkaPublisherActor transactions successfully initialized: $assignedPartition")
-        self ! InitTransactionSuccess
+        nonTransactionalStatePublisher.putRecord(flushRecord).map { _ =>
+          self ! InitTransactionSuccess
+        }
       }
       .recover { case err: Throwable =>
         val retryTime = initTransactionsRetryTimeFromError(err)
@@ -257,6 +259,12 @@ class KafkaProducerActorImpl(
         closeAndRecreatePublisher()
         context.system.scheduler.scheduleOnce(retryTime, self, InitTransactions)
       }
+  }
+
+  private def initTransactionsSuccess(lastProgressUpdate: Option[KTableProgressUpdate]): Unit = {
+    unstashAll()
+    context.become(waitingForKTableIndexing())
+    lastProgressUpdate.foreach(update => self ! update)
   }
 
   private def initTransactionsRetryTimeFromError(err: Throwable): FiniteDuration = {

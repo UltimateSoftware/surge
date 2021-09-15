@@ -27,8 +27,7 @@ import surge.health.domain.EmittableHealthSignal
 import surge.internal.akka.cluster.ActorSystemHostAwareness
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.kafka.KafkaProducerActorImpl.{ AggregateStateRates, KTableProgressUpdate }
-import surge.kafka.streams.{ ExpectedTestException, HealthCheck }
-import surge.kafka.streams.HealthyActor.GetHealth
+import surge.kafka.streams.ExpectedTestException
 import surge.kafka.{ KafkaBytesProducer, KafkaRecordMetadata, LagInfo, PartitionAssignments }
 import surge.metrics.Metrics
 
@@ -92,6 +91,10 @@ class KafkaProducerActorImplSpec
           ArgumentMatchers.any(classOf[surge.health.domain.Error]),
           ArgumentMatchers.any(classOf[Map[String, String]])))
       .thenReturn(mockEmittable)
+
+    // Particular offset doesn't actually matter, we just want no lag
+    val mockMetadata = mockRecordMetadata(assignedPartition)
+    when(mockProducer.putRecord(any[ProducerRecord[String, Array[Byte]]])).thenReturn(Future.successful(mockMetadata))
 
     val actor =
       system.actorOf(
