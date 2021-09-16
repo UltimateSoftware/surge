@@ -5,7 +5,6 @@ package surge.internal.streams
 import akka.actor.ActorSystem
 import akka.kafka.Subscriptions
 import akka.stream.scaladsl.Flow
-
 import akka.testkit.{ TestKit, TestProbe }
 import akka.{ Done, NotUsed }
 import com.typesafe.config.ConfigFactory
@@ -19,6 +18,7 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Millis, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
 import surge.internal.akka.streams.FlowConverter
+import surge.internal.streams.KafkaStreamManagerActor.SuccessfullyStarted
 import surge.internal.tracing.NoopTracerFactory
 import surge.kafka.KafkaTopic
 import surge.kafka.streams.DefaultSerdes
@@ -215,6 +215,33 @@ class StreamManagerSpec
 
         consumer.start()
         probe.expectMsg(20.seconds, record2)
+      }
+    }
+
+    "Be able to replay an empty stream" in {
+      withRunningKafkaOnFoundPort(EmbeddedKafkaConfig(kafkaPort = 0, zooKeeperPort = 0)) { implicit actualConfig =>
+        val topic = KafkaTopic("testTopic4")
+        createCustomTopic(topic.name, partitions = 3)
+        val embeddedBroker = s"localhost:${actualConfig.kafkaPort}"
+        val probe = TestProbe()
+
+        val settings = KafkaForeverReplaySettings(defaultConfig, topic.name).copy(brokers = List(embeddedBroker))
+        val completeProbe = TestProbe()
+        val kafkaForeverReplayStrategy =
+          new KafkaForeverReplayStrategyImpl(defaultConfig, system, settings, () => Future.successful(true), () => completeProbe.ref ! ReplayComplete)
+        val consumer =
+          testStreamManager(topic, kafkaBrokers = embeddedBroker, groupId = "replay-test", sendToTestProbe(probe), kafkaForeverReplayStrategy, settings)
+
+        consumer.start()
+
+        // fix: if we attempt to replay prior to a stream manager being registered for the topic replay will fail.
+        //  we need a to ensure the streamManager is started prior to calling replay.
+        Thread.sleep(5.seconds.toMillis)
+
+        val replayResult = consumer.replay().futureValue(Timeout(settings.entireReplayTimeout))
+        replayResult shouldBe a[ReplaySuccessfullyStarted]
+
+        completeProbe.expectMsg(40.seconds, ReplayComplete)
       }
     }
 
