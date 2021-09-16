@@ -3,12 +3,11 @@
 package surge.core.command
 
 import surge.internal.utils.Logging
-import surge.streams.{ EventSink, EventSinkSupport }
+import surge.streams.EventSink
 
-import scala.concurrent.{ ExecutionContext, Future }
-import scala.reflect.ClassTag
+import scala.concurrent.{ExecutionContext, Future}
 
-trait SurgeMultiCommandServiceSink[AggId, Command, Event] extends EventSink[Event] with EventSinkSupport[Event] with Logging {
+trait SurgeMultiCommandServiceSink[AggId, Command, Event] extends EventSink[Event] with Logging {
 
   def eventToCommands: Event => Seq[Command]
   implicit def executionContext: ExecutionContext

@@ -22,7 +22,7 @@ trait MetaFormatter[K, V] {
   def formatMeta[Meta](epm: EventPlusStreamMeta[K, V, Meta]): String
 
 }
-class DefaultDataSinkExceptionHandlerWithSupport[K, V](
+class DefaultDataSinkExceptionHandler[K, V](
     metrics: Metrics,
     metricTags: Map[String, String],
     metaFormatter: MetaFormatter[K,V])
@@ -38,14 +38,4 @@ class DefaultDataSinkExceptionHandlerWithSupport[K, V](
 
   override def formatMeta[Meta](epm: EventPlusStreamMeta[K, V, Meta]): String = metaFormatter.formatMeta(epm)
 
-}
-
-class DefaultDataSinkExceptionHandler[K, V] extends CommonDataSinkExceptionHandler[K, V] {
-
-  override def handleException[Meta](epm: EventPlusStreamMeta[K, V, Meta], exception: Throwable): Unit = {
-    logMessage(epm, exception)
-    throw exception
-  }
-
-  override def formatMeta[Meta](epm: EventPlusStreamMeta[K, V, Meta]): String = epm.streamMeta.toString
 }
