@@ -64,7 +64,7 @@ class RepeatingSignalMatcherSpec extends TestKit(ActorSystem("RepeatingSignals")
         Range(1, 100),
         Range(1, 100))
 
-      Source(repeatingData.asInstanceOf[immutable.Iterable[Range]])
+      Source(repeatingData)
         .mapAsync(10)(data =>
           Future {
             data.foreach(d => {

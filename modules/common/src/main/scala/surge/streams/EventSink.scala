@@ -41,7 +41,7 @@ trait EventSink[Event] extends EventHandler[Event] {
   def partitionBy(key: String, event: Event, headers: Map[String, Array[Byte]]): String
 
   override def eventHandler[Meta]: Flow[EventPlusStreamMeta[String, Event, Meta], Meta, NotUsed] = {
-    FlowConverter.flowFor(sinkName, handleEvent, partitionBy, createsinkExceptionHandler, parallelism)(ExecutionContext.global)
+    FlowConverter.flowFor(sinkName, handleEvent, partitionBy, createSinkExceptionHandler, parallelism)(ExecutionContext.global)
   }
 }
 

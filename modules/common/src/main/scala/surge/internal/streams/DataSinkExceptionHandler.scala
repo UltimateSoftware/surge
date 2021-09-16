@@ -28,7 +28,7 @@ class DefaultDataSinkExceptionHandlerWithSupport[K, V](
     metaFormatter: MetaFormatter[K,V])
     extends CommonDataSinkExceptionHandler[K, V] {
   private val eventExceptionMetric =
-    metrics.rate(MetricInfo(name = "surge.event.handler.exception.rate", description = "rate of exceptions caught wile handling and event", tags = metricTags))
+    metrics.rate(MetricInfo(name = "surge.event.handler.exception.rate", description = "rate of exceptions caught while handling and event", tags = metricTags))
 
   override def handleException[Meta](epm: EventPlusStreamMeta[K, V, Meta], exception: Throwable): Unit = {
     eventExceptionMetric.mark()
