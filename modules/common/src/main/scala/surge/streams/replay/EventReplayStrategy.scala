@@ -86,7 +86,8 @@ trait ReplayControl {
       val percentComplete = (sumCurrent / sumEnd) * 100.0
       ReplayProgress(percentComplete)
     } else {
-      ReplayProgress.start()
+      // when end offsets are zero; we consider the progress as complete since there is nothing to replay.
+      ReplayProgress.complete()
     }
   }
 
