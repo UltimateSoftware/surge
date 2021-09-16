@@ -5,7 +5,7 @@ package surge.core.command
 import surge.internal.utils.Logging
 import surge.streams.EventSink
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ ExecutionContext, Future }
 
 trait SurgeMultiCommandServiceSink[AggId, Command, Event] extends EventSink[Event] with Logging {
 

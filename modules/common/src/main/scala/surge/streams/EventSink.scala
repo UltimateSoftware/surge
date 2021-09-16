@@ -6,10 +6,10 @@ import akka.NotUsed
 import akka.stream.scaladsl.Flow
 import io.opentelemetry.api.trace.Span
 import surge.internal.akka.streams.FlowConverter
-import surge.internal.streams.{DefaultDataSinkExceptionHandler, MetaFormatter}
+import surge.internal.streams.{ DefaultDataSinkExceptionHandler, MetaFormatter }
 import surge.metrics.Metrics
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ ExecutionContext, Future }
 
 case class EventPlusStreamMeta[Key, Value, +Meta](messageKey: Key, messageBody: Value, streamMeta: Meta, headers: Map[String, Array[Byte]], span: Span)
 
@@ -27,11 +27,12 @@ trait EventHandler[Event] {
   def nullEventFactory(key: String, headers: Map[String, Array[Byte]]): Option[Event] = None
 
   def createSinkExceptionHandler: DataSinkExceptionHandler[String, Event] =
-    new DefaultDataSinkExceptionHandler[String, Event](metrics, metricTags,
+    new DefaultDataSinkExceptionHandler[String, Event](
+      metrics,
+      metricTags,
       new MetaFormatter[String, Event] {
         override def formatMeta[Meta](epm: EventPlusStreamMeta[String, Event, Meta]): String = formatMetaForExceptionHandlerMessage.apply(epm)
-      }
-    )
+      })
 }
 
 trait EventSink[Event] extends EventHandler[Event] {

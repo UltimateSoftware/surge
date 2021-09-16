@@ -2,9 +2,9 @@
 
 package surge.internal.streams
 
-import org.slf4j.{Logger, LoggerFactory}
-import surge.metrics.{MetricInfo, Metrics}
-import surge.streams.{DataSinkExceptionHandler, EventPlusStreamMeta}
+import org.slf4j.{ Logger, LoggerFactory }
+import surge.metrics.{ MetricInfo, Metrics }
+import surge.streams.{ DataSinkExceptionHandler, EventPlusStreamMeta }
 
 abstract class CommonDataSinkExceptionHandler[K, V] extends DataSinkExceptionHandler[K, V] {
   protected val log: Logger = LoggerFactory.getLogger(getClass)
@@ -17,15 +17,11 @@ abstract class CommonDataSinkExceptionHandler[K, V] extends DataSinkExceptionHan
   }
 }
 
-
 trait MetaFormatter[K, V] {
   def formatMeta[Meta](epm: EventPlusStreamMeta[K, V, Meta]): String
 
 }
-class DefaultDataSinkExceptionHandler[K, V](
-    metrics: Metrics,
-    metricTags: Map[String, String],
-    metaFormatter: MetaFormatter[K,V])
+class DefaultDataSinkExceptionHandler[K, V](metrics: Metrics, metricTags: Map[String, String], metaFormatter: MetaFormatter[K, V])
     extends CommonDataSinkExceptionHandler[K, V] {
   private val eventExceptionMetric =
     metrics.rate(MetricInfo(name = "surge.event.handler.exception.rate", description = "rate of exceptions caught while handling and event", tags = metricTags))
