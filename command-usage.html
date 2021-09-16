@@ -466,9 +466,10 @@ public record BankAccountUpdated(UUID accountNumber, double amount) implements B
 <dl>
   <dt>Scala</dt>
   <dd>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/scala/docs/command/BankAccountEngine.scala#L10-L15" target="_blank" title="Go to snippet source"></a><code class="language-scala">object BankAccountEngine {
+  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/scala/docs/command/BankAccountEngine.scala#L10-L16" target="_blank" title="Go to snippet source"></a><code class="language-scala">object BankAccountEngine {
   lazy val surgeEngine: SurgeCommand[UUID, BankAccount, BankAccountCommand, Nothing, BankAccountEvent] = {
     val engine = SurgeCommand(BankAccountSurgeModel)
+    engine.start()
     engine
   }
 }</code></pre></dd>
