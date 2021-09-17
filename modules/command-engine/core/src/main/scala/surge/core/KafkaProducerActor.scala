@@ -14,6 +14,7 @@ import surge.internal.SurgeModel
 import surge.internal.akka.actor.{ ActorLifecycleManagerActor, ManagedActorRef }
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.config.TimeoutConfig
+import surge.internal.kafka.KafkaProducerActorImpl.ShutdownProducer
 import surge.internal.kafka.{ KTableLagCheckerImpl, KafkaProducerActorImpl }
 import surge.kafka.streams._
 import surge.kafka.{ KafkaAdminClient, KafkaBytesProducer }
@@ -51,7 +52,8 @@ object KafkaProducerActor {
         kafkaProducerOverride = kafkaProducerOverride)).withDispatcher(dispatcherName)
 
     new KafkaProducerActor(
-      publisherActor = ActorLifecycleManagerActor.manage(actorSystem, kafkaProducerProps, s"producer-actor-${assignedPartition.toString}"),
+      publisherActor = ActorLifecycleManagerActor
+        .manage(actorSystem, kafkaProducerProps, s"producer-actor-${assignedPartition.toString}", stopMessageAdapter = Some(() => ShutdownProducer)),
       metrics,
       businessLogic.aggregateName,
       assignedPartition,
@@ -82,7 +84,7 @@ object KafkaProducerActor {
  * the knowledge of everything that was published previously.
  *
  * @param publisherActor
- *   The underlying publisher actor used to batch and publish messages to Kafka
+ *   ManagedActorRef holding the underlying publisher actor-ref used to batch and publish messages to Kafka
  * @param metrics
  *   Metrics provider to use for recording internal metrics to
  * @param aggregateName

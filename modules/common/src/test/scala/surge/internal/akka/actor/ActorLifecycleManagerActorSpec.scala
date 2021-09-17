@@ -3,14 +3,12 @@
 package surge.internal.akka.actor
 
 import akka.actor.{ Actor, ActorNotFound, ActorPath, ActorSystem, Props }
-import akka.pattern.ask
-import akka.testkit.TestKit
+import akka.testkit.{ TestKit, TestProbe }
 import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Milliseconds, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
 import surge.core.Ack
-import surge.internal.akka.actor.ActorLifecycleManagerActor.GetManagedActorPath
 
 import scala.concurrent.duration._
 
@@ -24,12 +22,16 @@ class ActorLifecycleManagerActorSpec
     PatienceConfig(timeout = scaled(Span(30, Seconds)), interval = scaled(Span(10, Milliseconds)))
 
   case object StopIt
+  case class Stopped()
+
   "ActorLifecycleManagerActor" should {
-    "manage an actor" in {
+    "start an actor" in {
+      val probe = TestProbe()
       val managed = ActorLifecycleManagerActor.manage(
         system,
         Props(new Actor() {
           override def receive: Receive = { case StopIt =>
+            probe.ref ! Stopped()
             context.stop(self)
           }
         }),
@@ -38,14 +40,15 @@ class ActorLifecycleManagerActorSpec
         componentName = "testComponent")
 
       managed.start().futureValue shouldEqual Ack()
-      managed.stop().futureValue shouldEqual Ack()
     }
 
     "gracefully stop actor" in {
+      val probe = TestProbe()
       val managed = ActorLifecycleManagerActor.manage(
         system,
         Props(new Actor() {
           override def receive: Receive = { case StopIt =>
+            probe.ref ! Stopped()
             context.stop(self)
           }
         }),
@@ -55,12 +58,15 @@ class ActorLifecycleManagerActorSpec
 
       managed.start()
 
-      val managerActorPath: ActorPath = managed.managedPath().futureValue
+      val managerActorPath: Option[ActorPath] = managed.managedPath().futureValue
+      managerActorPath shouldBe defined
       managed.stop()
+
+      probe.expectMsg(Stopped())
 
       // Should be unable to resolve actorSelection after testActor stopped
       eventually {
-        val thrown = the[Throwable] thrownBy system.actorSelection(managerActorPath).resolveOne()(5.seconds).futureValue
+        val thrown = the[Throwable] thrownBy system.actorSelection(managerActorPath.get).resolveOne()(5.seconds).futureValue
         thrown.getCause shouldBe an[ActorNotFound]
       }
     }

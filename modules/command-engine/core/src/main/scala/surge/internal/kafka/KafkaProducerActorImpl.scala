@@ -12,8 +12,7 @@ import org.apache.kafka.clients.producer.{ ProducerConfig, ProducerRecord }
 import org.apache.kafka.common.{ IsolationLevel, TopicPartition }
 import org.apache.kafka.common.errors.{ AuthorizationException, ProducerFencedException }
 import org.slf4j.{ Logger, LoggerFactory }
-import surge.core.KafkaProducerActor
-import surge.health.domain.Warning
+import surge.core.{ Ack, KafkaProducerActor }
 import surge.health.{ HealthSignalBusTrait, HealthyPublisher }
 import surge.internal.akka.ActorWithTracing
 import surge.internal.akka.cluster.ActorHostAwareness
@@ -37,6 +36,7 @@ object KafkaProducerActorImpl {
   sealed trait KafkaProducerActorMessage extends NoSerializationVerificationNeeded
   case class Publish(state: KafkaProducerActor.MessageToPublish, eventsToPublish: Seq[KafkaProducerActor.MessageToPublish]) extends KafkaProducerActorMessage
   case class IsAggregateStateCurrent(aggregateId: String) extends KafkaProducerActorMessage
+  case object ShutdownProducer extends KafkaProducerActorMessage
 
   object AggregateStateRates {
     def apply(aggregateName: String, metrics: Metrics): AggregateStateRates = AggregateStateRates(
@@ -68,7 +68,6 @@ object KafkaProducerActorImpl {
   case class KTableProgressUpdate(topicPartition: TopicPartition, lagInfo: LagInfo) extends InternalMessage
   case class ProducerFenced(exception: ProducerFencedException) extends InternalMessage
   case object RestartProducer extends InternalMessage
-  case object ShutdownProducer extends InternalMessage
 }
 
 class KafkaProducerActorImpl(
@@ -172,6 +171,7 @@ class KafkaProducerActorImpl(
     case FlushMessages                => log.trace("KafkaPublisherActor ignoring FlushMessages message from the uninitialized state")
     case GetHealth                    => doHealthCheck()
     case update: KTableProgressUpdate => context.become(uninitialized(lastProgressUpdate = Some(update)))
+    case ShutdownProducer             => stopPublisher()
     case _: Publish                   => stash()
     case _: IsAggregateStateCurrent   => sender().tell(false, self)
   }
@@ -181,6 +181,7 @@ class KafkaProducerActorImpl(
     case msg: KTableProgressUpdate  => handleFromWaitingForKTableIndexingState(msg)
     case FlushMessages              => log.trace("KafkaPublisherActor ignoring FlushMessages message from the waitingForKTableIndexing state")
     case GetHealth                  => doHealthCheck()
+    case ShutdownProducer           => stopPublisher()
     case _: Publish                 => stash()
     case _: IsAggregateStateCurrent => sender().tell(false, self)
   }
@@ -191,7 +192,7 @@ class KafkaProducerActorImpl(
       context.become(fenced(state.completeTransaction()))
       msg.originalSenders.foreach(_ ! KafkaProducerActor.PublishFailure(msg.reason))
     case RestartProducer              => restartPublisher()
-    case ShutdownProducer             => context.stop(self)
+    case ShutdownProducer             => stopPublisher()
     case CheckKTableProgress          => log.trace("KafkaPublisherActor ignoring CheckKTableProgress message from the fenced state")
     case FlushMessages                => log.trace("KafkaPublisherActor ignoring FlushMessages message from the fenced state")
     case update: KTableProgressUpdate => context.become(fenced(state.processedUpTo(update)))
@@ -202,6 +203,7 @@ class KafkaProducerActorImpl(
     case msg: InternalMessage                                  => handleProcessingInternalMessage(msg, state)
     case msg: KafkaProducerActorImpl.KafkaProducerActorMessage => handleProcessingProducerMessage(msg, state)
     case GetHealth                                             => doHealthCheck(state)
+    case ShutdownProducer                                      => stopPublisher()
     case Status.Failure(e) =>
       log.error(s"Saw unhandled exception in producer for $assignedPartition", e)
   }
@@ -267,11 +269,15 @@ class KafkaProducerActorImpl(
     }
   }
 
-  private def closeAndRecreatePublisher(): Unit = {
+  private def closePublisher(): Unit = {
     if (enableMetrics) {
       metrics.unregisterKafkaMetric(kafkaPublisherMetricsName)
     }
     Try(kafkaPublisher.close())
+  }
+
+  private def closeAndRecreatePublisher(): Unit = {
+    closePublisher()
     kafkaPublisher = getPublisher
   }
 
@@ -392,6 +398,11 @@ class KafkaProducerActorImpl(
       abortTransactionFailed.abortTransactionException)
     abortTransactionFailed.originalSenders.foreach(_ ! KafkaProducerActor.PublishFailure(abortTransactionFailed.originalException))
     restartPublisher()
+  }
+
+  private def stopPublisher(): Unit = {
+    closePublisher()
+    context.stop(self)
   }
 
   private def restartPublisher(): Unit = {

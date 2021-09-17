@@ -2,7 +2,7 @@
 
 package surge.kafka.streams
 
-import akka.actor.{ ActorRef, ActorSystem, Props }
+import akka.actor.{ ActorRef, ActorSystem }
 import akka.pattern.{ ask, BackoffOpts, BackoffSupervisor }
 import akka.util.Timeout
 import com.typesafe.config.{ Config, ConfigFactory }
@@ -138,13 +138,15 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
         .withMaxNrOfRetries(BackoffConfig.StateStoreKafkaStreamActor.maxRetries))
 
     val underlyingCreatedActor =
-      system.actorOf(
-        Props(
-          new ActorLifecycleManagerActor(
-            underlyingActorProps,
-            componentName = s"state-store-kafka-streams-$aggregateName",
-            startMessageAdapter = Some(() => Start),
-            stopMessageAdapter = Some(() => Stop))))
+      ActorLifecycleManagerActor
+        .manage(
+          system,
+          underlyingActorProps,
+          componentName = s"state-store-kafka-streams-$aggregateName",
+          managedActorName = None,
+          startMessageAdapter = Some(() => Start),
+          stopMessageAdapter = Some(() => Stop))
+        .ref
 
     system.actorOf(BackoffChildActorTerminationWatcher.props(underlyingCreatedActor, () => onMaxRetries()))
 

@@ -5,13 +5,12 @@ package surge.internal.core
 import java.util.regex.Pattern
 import akka.actor._
 import akka.pattern.ask
-import akka.util.Timeout
 import com.typesafe.config.Config
 import org.slf4j.LoggerFactory
 import surge.core.{ Ack, Controllable, SurgePartitionRouter }
 import surge.health.HealthSignalBusTrait
 import surge.internal.SurgeModel
-import surge.internal.akka.actor.ActorLifecycleManagerActor
+import surge.internal.akka.actor.{ ActorLifecycleManagerActor, ManagedActorRef }
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.config.TimeoutConfig
 import surge.internal.persistence.RoutableMessage
@@ -44,26 +43,21 @@ private[surge] final class SurgePartitionRouterImpl(
     RoutableMessage.extractEntityId)(businessLogic.tracer)
 
   private val routerActorName = s"${businessLogic.aggregateName}RouterActor"
-  private val lifecycleManager =
-    system.actorOf(
-      Props(
-        new ActorLifecycleManagerActor(
-          shardRouterProps,
-          componentName = routerActorName,
-          managedActorName = Some(routerActorName),
-          stopMessageAdapter = Some(() => KafkaPartitionShardRouterActor.Shutdown))))
-  override val actorRegion: ActorRef = lifecycleManager
+  private val actorRegionManager: ManagedActorRef = ActorLifecycleManagerActor.manage(
+    system,
+    shardRouterProps,
+    componentName = routerActorName,
+    managedActorName = Some(routerActorName),
+    stopMessageAdapter = Some(() => KafkaPartitionShardRouterActor.Shutdown))
+
+  override val actorRegion: ActorRef = actorRegionManager.ref
 
   override def start(): Future[Ack] = {
-    implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PartitionRouter.askTimeout)
-
-    actorRegion.ask(ActorLifecycleManagerActor.Start).mapTo[Ack].andThen(registrationCallback())
+    actorRegionManager.start().andThen(registrationCallback())
   }
 
   override def stop(): Future[Ack] = {
-    implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PartitionRouter.askTimeout)
-
-    actorRegion.ask(ActorLifecycleManagerActor.Stop).mapTo[Ack].andThen(unRegistrationCallback())
+    actorRegionManager.stop()
   }
 
   override def shutdown(): Future[Ack] = stop()

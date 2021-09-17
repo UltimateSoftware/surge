@@ -13,6 +13,7 @@ import surge.internal.config.TimeoutConfig
 
 import scala.concurrent.{ Await, Future }
 import scala.concurrent.duration._
+import scala.util.{ Failure, Success }
 
 case class ManagedActorRef(ref: ActorRef) {
   implicit val timeout: Timeout = TimeoutConfig.LifecycleManagerActor.askTimeout
@@ -24,8 +25,8 @@ case class ManagedActorRef(ref: ActorRef) {
     ref.ask(ActorLifecycleManagerActor.Stop).mapTo[Ack]
   }
 
-  def managedPath(): Future[ActorPath] = {
-    ref.ask(GetManagedActorPath)(30.seconds).mapTo[ActorPath]
+  def managedPath(): Future[Option[ActorPath]] = {
+    ref.ask(GetManagedActorPath)(30.seconds).mapTo[Option[ActorPath]]
   }
 }
 
@@ -77,26 +78,27 @@ class ActorLifecycleManagerActor(
       sender() ! Ack()
     case ActorLifecycleManagerActor.Stop =>
       sender() ! Ack()
+    case ActorLifecycleManagerActor.GetManagedActorPath =>
+      sender() ! None
     case msg =>
       context.system.deadLetters ! msg
   }
 
   private def running(managedActor: ActorRef): Receive = {
     case ActorLifecycleManagerActor.GetManagedActorPath =>
-      sender() ! managedActor.path
+      sender() ! Some(managedActor.path)
     case ActorLifecycleManagerActor.Start =>
       sender() ! Ack()
     case ActorLifecycleManagerActor.Stop =>
       log.info("Lifecycle manager stopping actor named {} for component {}", Seq(managedActor.prettyPrintPath, componentName): _*)
-      val stoppedActor = stopMessageAdapter match {
+      stopMessageAdapter match {
         case Some(fin) =>
           gracefulStop(managedActor, defaultStopTimeout, fin())
         case None =>
           gracefulStop(managedActor, defaultStopTimeout)
       }
-      Await.result(stoppedActor, TimeoutConfig.LifecycleManagerActor.askTimeout)
-      context.become(stopped)
       sender() ! Ack()
+      context.become(stopped)
     case Terminated(actorRef) if actorRef == managedActor =>
       log.info("Lifecycle manager saw actor named {} stop for component {}", Seq(managedActor.prettyPrintPath, componentName): _*)
       context.become(stopped)

@@ -13,7 +13,7 @@ class RetryConfig(config: Config) {
     val fetchStateRetryInterval: FiniteDuration =
       config.getDuration("surge.state-store-actor.fetch-state-retry-interval", TimeUnit.MILLISECONDS).milliseconds
     val initializeStateInterval: FiniteDuration =
-      config.getDuration("surge.state-store-actor.initialize-state-retry-interval", TimeUnit.MILLISECONDS).milliseconds
+      config.getDuration("", TimeUnit.MILLISECONDS).milliseconds
     val maxInitializationAttempts: Int = config.getInt("surge.state-store-actor.max-initialization-attempts")
   }
 }
