@@ -29,8 +29,9 @@ class GenericAggregateCommandModel(bridgeToBusinessApp: BusinessLogicService)(im
       logger.info("Making gRPC call to business app!")
       val call = bridgeToBusinessApp.processCommand(processCommandRequest)
       logger.info("Called business app via gRPC!")
-      val reply = Await.result(call, atMost = 7.seconds)
+      val reply = Await.result(call, atMost = 20.seconds)
       if (reply.rejection == "") {
+        logger.info("Got response from business app!")
         Success(reply.events.map(pbEvent => pbEvent: SurgeEvent))
       } else {
         Failure(new Exception(reply.rejection))

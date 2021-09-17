@@ -10,6 +10,7 @@ import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
 import com.ukg.surge.multilanguage.protobuf._
 import com.ukg.surge.poc.business.{PersonTagged, Photo, TagPerson}
 
+import java.net.InetAddress
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
@@ -79,9 +80,14 @@ object Main {
 
     logger.info("Business logic server has been started")
 
+    val kubernetesNamespace = "kafka"
+    val podAddress = InetAddress.getLocalHost.getHostAddress.replace(".", "-")
+    val podAddressCorrect = s"$podAddress.$kubernetesNamespace.pod.cluster.local"
+
+
     val config = system.settings.config.getConfig("surge-server")
     config.resolve()
-    val host = config.getString("host")
+    val host = podAddressCorrect
     val port = config.getInt("port")
     logger.info(s"Surge host is $host")
     logger.info(s"Surge port is $port")
@@ -109,11 +115,16 @@ object Main {
 
 class BusinessLogicServer(system: ActorSystem) {
   def run(): Future[Http.ServerBinding] = {
+
+    val kubernetesNamespace = "kafka"
+    val podAddress = InetAddress.getLocalHost.getHostAddress.replace(".", "-")
+    val podAddressCorrect = s"$podAddress.$kubernetesNamespace.pod.cluster.local"
+
     implicit val sys: ActorSystem = system
     implicit val ec: ExecutionContext = sys.dispatcher
 
     val serverConfig = system.settings.config.getConfig("business-logic-server")
-    val host = serverConfig.getString("host")
+    val host = podAddressCorrect
     val port = serverConfig.getInt("port")
 
     val service: HttpRequest => Future[HttpResponse] =

@@ -3,13 +3,14 @@
 package com.ukg.surge.multilanguage
 
 import akka.actor.ActorSystem
-import akka.event.{ Logging, LoggingAdapter }
+import akka.event.{Logging, LoggingAdapter}
 import akka.grpc.GrpcClientSettings
 import com.typesafe.config.Config
 import com.ukg.surge.multilanguage.protobuf._
 import surge.scaladsl.command.SurgeCommand
-import surge.scaladsl.common.{ CommandFailure, CommandSuccess }
+import surge.scaladsl.common.{CommandFailure, CommandSuccess}
 
+import java.net.InetAddress
 import java.util.UUID
 import scala.concurrent.Future
 import scala.language.implicitConversions
@@ -23,7 +24,11 @@ class MultilanguageGatewayServiceImpl()(implicit system: ActorSystem) extends Mu
 
   val businessLogicgRPCClientConfig: Config = system.settings.config.getConfig("business-logic-server")
   val businessLogicgRPCPort: Int = businessLogicgRPCClientConfig.getInt("port")
-  val businessLogicgRPCHost: String = businessLogicgRPCClientConfig.getString("host")
+  val kubernetesNamespace = "kafka"
+  val podAddress = InetAddress.getLocalHost.getHostAddress.replace(".", "-")
+  val podAddressCorrect = s"$podAddress.$kubernetesNamespace.pod.cluster.local"
+
+  val businessLogicgRPCHost: String = podAddressCorrect
 
   logger.info(s"Business logic gRPC host and port: ${businessLogicgRPCHost}:${businessLogicgRPCPort}")
 

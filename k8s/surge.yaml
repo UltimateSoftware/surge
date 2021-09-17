@@ -37,16 +37,19 @@ spec:
     spec:
       containers:
       - name: surge-server
-        image: surge-engine-multilanguage:0.5.24-SNAPSHOT
+        image: surge-engine-multilanguage:0.5.26-SNAPSHOT
         imagePullPolicy: Never
         resources:
           requests:
-            cpu: "500m"
-            memory: "1000Mi"
+            cpu: "100m"
+            memory: "250Mi"
           limits:
-            cpu: "500m"
-            memory: "1000Mi"
+            cpu: "100m"
+            memory: "250Mi"
         ports:
+          - containerPort: 25520
+            name: akka-remoting
+            protocol: TCP
           - containerPort: 6667
             name: surge-server
             protocol: TCP
@@ -63,15 +66,15 @@ spec:
             value: "my-cluster-kafka-bootstrap:9092"
 
       - name: business-app
-        image: surge-engine-multilanguage-poc-business-app:0.5.24-SNAPSHOT
+        image: surge-engine-multilanguage-poc-business-app:0.5.26-SNAPSHOT
         imagePullPolicy: Never
         resources:
           requests:
-            cpu: "500m"
-            memory: "1000Mi"
+            cpu: "100m"
+            memory: "250Mi"
           limits:
-            cpu: "500m"
-            memory: "1000Mi"
+            cpu: "100m"
+            memory: "250Mi"
         ports:
           - containerPort: 7777
             name: business-app
