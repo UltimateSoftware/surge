@@ -16,8 +16,6 @@ The Surge Project Repo is broken down into multiple subprojects described below.
 * Base traits
 * Serializers and Deserializers
 * Kafka Consumer Group based Clustering for Akka
-* Akka Streams over Kafka Streams
-    * Data Sinks, Sources and Pipelines
 * Kafka Aggregate State Stores
 * Exceptions
 * Observability

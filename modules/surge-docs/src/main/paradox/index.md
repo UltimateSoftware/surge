@@ -4,7 +4,6 @@
 
 * [Overview](overview.md)
 * [Command Service](command-usage.md)
-* [Consumer Usage](consumer-usage.md)
 * [Open Tracing Integration](tracing-usage.md)
 * [Repository Tour](repository-tour.md)
 
