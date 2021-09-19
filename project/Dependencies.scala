@@ -7,12 +7,16 @@ object Dependencies extends AutoPlugin {
 
     object Akka {
       val version = "2.6.15"
+      val akkaHttpVersion = "10.2.6"
 
       val actor = "com.typesafe.akka" %% "akka-actor" % version
+      val stream = "com.typesafe.akka" %% "akka-stream" % version
       val slf4j = "com.typesafe.akka" %% "akka-slf4j" % version
       val multiNodeTestkit = "com.typesafe.akka" %% "akka-multi-node-testkit" % version % Test
       val remote = "com.typesafe.akka" %% "akka-remote" % version
       val discovery = "com.typesafe.akka" %% "akka-discovery" % version
+      val protobufV3 = "com.typesafe.akka" %% "akka-protobuf-v3" % version
+      val http = "com.typesafe.akka" %% "akka-http" % akkaHttpVersion
       val testKit = "com.typesafe.akka" %% "akka-testkit" % version % Test
       val akkaStreamTestKit = "com.typesafe.akka" %% "akka-stream-testkit" % version % Test
       val jacksonSerialization = "com.typesafe.akka" %% "akka-serialization-jackson" % version

@@ -4,11 +4,14 @@ package com.ukg.surge.multilanguage.scalasdk.sample
 
 import akka.actor.ActorSystem
 import akka.event.Logging
-import com.ukg.surge.multilanguage.scalasdk.{ CQRSModel, ScalaSurge, ScalaSurgeServer, SerDeser }
-
+import akka.http.scaladsl.Http
+import akka.http.scaladsl.model.StatusCodes.InternalServerError
+import akka.http.scaladsl.server.Directives._
+import com.ukg.surge.multilanguage.scalasdk.{CQRSModel, ScalaSurgeServer, SerDeser}
+import org.json4s._
+import org.json4s.native.Serialization._
 import java.util.UUID
-import scala.concurrent.duration.DurationInt
-import scala.util.{ Failure, Success, Try }
+import scala.util.{Failure, Success, Try}
 
 class Main
 object Main extends App {
@@ -37,53 +40,40 @@ object Main extends App {
   val model = CQRSModel[BankAccount, MoneyDeposited, DepositMoney](eventHandler, commandHandler)
 
   val serDeser = {
-    import org.json4s._
-    import org.json4s.native.Serialization._
-    import org.json4s.native.Serialization.read
+
     implicit val formats: DefaultFormats.type = DefaultFormats
 
-    def deserialize[T](bytes: Array[Byte])(implicit m: Manifest[T]): Try[T] = {
-      Try {
-        val jsonString = new String(bytes)
-        read[T](jsonString)
-      }
-    }
+    def deserialize[T](bytes: Array[Byte])(implicit m: Manifest[T]): Try[T] =
+      Try(read[T](new String(bytes)))
 
-    def serialize[T](t: T)(implicit m: Manifest[T]): Try[Array[Byte]] = {
-      Try {
-        write[T](t).getBytes()
-      }
-    }
-
-    def deserializeState(bytes: Array[Byte]): Try[BankAccount] = deserialize[BankAccount](bytes)
-    def deserializeEvent(bytes: Array[Byte]): Try[MoneyDeposited] = deserialize[MoneyDeposited](bytes)
-    def deserializeCommand(bytes: Array[Byte]): Try[DepositMoney] = deserialize[DepositMoney](bytes)
+    def serialize[T](t: T)(implicit m: Manifest[T]): Try[Array[Byte]] =
+      Try(write[T](t).getBytes())
 
     new SerDeser[BankAccount, MoneyDeposited, DepositMoney](
-      deserializeState,
-      deserializeEvent,
-      deserializeCommand,
+      deserialize[BankAccount],
+      deserialize[MoneyDeposited],
+      deserialize[DepositMoney],
       serialize[BankAccount],
       serialize[MoneyDeposited],
       serialize[DepositMoney])
 
   }
 
-  val system = ActorSystem()
+  implicit val system = ActorSystem()
   val logger = Logging(system, classOf[Main])
   val bridgeToSurge = new ScalaSurgeServer[BankAccount, MoneyDeposited, DepositMoney](system, model, serDeser)
   logger.info("Started!")
 
-  import system.dispatcher
-
-  system.scheduler.schedule(initialDelay = 5.seconds, interval = 3.seconds) {
-    logger.info("Sending message to multilanguage server!")
-    bridgeToSurge.forwardCommand(UUID.randomUUID(), DepositMoney(50)).onComplete {
-      case Failure(exception) =>
-        logger.error("Failed!", exception)
-      case Success(value) =>
-        logger.info("Response from Surge: {}", value.toString)
+  val route =
+    path("hello") {
+      get {
+        onComplete(bridgeToSurge.forwardCommand(UUID.randomUUID(), DepositMoney(50))) {
+          case Success(value) => complete(s"The result is $value \n")
+          case Failure(ex)    => complete(InternalServerError, s"An error occurred: ${ex.getMessage}\n")
+        }
+      }
     }
-  }
+
+  val bindingFuture = Http().newServerAt("localhost", 8080).bind(route)
 
 }

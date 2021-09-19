@@ -34,7 +34,7 @@ spec:
     spec:
       containers:
         - name: surge-server
-          image: surge-engine-multilanguage:latest
+          image: surge-engine-multilanguage:0.5.27-SNAPSHOT
           imagePullPolicy: Never
           resources:
             requests:
@@ -49,6 +49,10 @@ spec:
               name: surge-server
               protocol: TCP
           env:
+            - name: "AKKA_REMOTING_HOST"
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
             - name: "BUSINESS_LOGIC_HOST"
               valueFrom:
                 fieldRef:
@@ -64,7 +68,7 @@ spec:
             - name: "KAFKA_BROKERS"
               value: "my-cluster-kafka-bootstrap:9092"
         - name: business-app
-          image: surge-engine-multilanguage-scala-sdk-sample:latest
+          image: surge-engine-multilanguage-scala-sdk-sample:0.5.27-SNAPSHOT
           imagePullPolicy: Never
           resources:
             requests:

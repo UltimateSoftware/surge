@@ -95,7 +95,7 @@ class BusinessServiceImpl[S, E, C](cqrsModel: CQRSModel[S, E, C], serDeser: SerD
       events <- convertEvents(in.events)
       newState <- Future.fromTry(Try(cqrsModel.applyEvents(oldState, events)))
       newStateProtobuf <- newState match {
-        case Some(value: S) =>
+        case Some(value) =>
           Future.fromTry(serDeser.serializeState(value).map(bytes => State(aggregateId = in.aggregateId, ByteString.copyFrom(bytes)))).map(Option(_))
         case None => Future.successful(Option.empty[State])
       }
