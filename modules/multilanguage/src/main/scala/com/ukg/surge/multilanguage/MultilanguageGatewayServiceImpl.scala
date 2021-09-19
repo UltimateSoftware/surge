@@ -13,6 +13,7 @@ import surge.scaladsl.common.{ CommandFailure, CommandSuccess }
 import java.util.UUID
 import scala.concurrent.Future
 import scala.language.implicitConversions
+import scala.util.{ Failure, Success, Try }
 
 class MultilanguageGatewayServiceImpl(aggregateName: String, eventsTopicName: String, stateTopicName: String)(implicit system: ActorSystem)
     extends MultilanguageGatewayService {
@@ -34,7 +35,7 @@ class MultilanguageGatewayServiceImpl(aggregateName: String, eventsTopicName: St
 
   val genericSurgeCommandBusinessLogic = new GenericSurgeCommandBusinessLogic(aggregateName, eventsTopicName, stateTopicName, bridgeToBusinessApp)
 
-  lazy val surgeEngine: SurgeCommand[UUID, SurgeState, SurgeCmd, Nothing, SurgeEvent] = {
+  val surgeEngine: SurgeCommand[UUID, SurgeState, SurgeCmd, Nothing, SurgeEvent] = {
     val engine = SurgeCommand(system, genericSurgeCommandBusinessLogic, system.settings.config)
     engine.start()
     logger.info("Started engine!")
@@ -46,34 +47,43 @@ class MultilanguageGatewayServiceImpl(aggregateName: String, eventsTopicName: St
       case Some(cmd: protobuf.Command) =>
         logger.info(s"Received command for aggregate with id ${cmd.aggregateId}, payload has size ${cmd.payload.size()} (bytes)!")
         val aggIdStr = cmd.aggregateId
-        val aggIdUUID: UUID = UUID.fromString(aggIdStr)
-        val surgeCmd: SurgeCmd = cmd
-        logger.info(s"Forwarding command to aggregate with id ${cmd.aggregateId}!")
-        surgeEngine.aggregateFor(aggIdUUID).sendCommand(surgeCmd).map {
-          case CommandSuccess(aggregateState: Option[SurgeState]) =>
-            val payloadSize: Int = aggregateState.map(_.payload.length).getOrElse(0)
-            logger.info(s"Success! Aggregate state payload has size ${payloadSize} (bytes)")
-            ForwardCommandReply(isSuccess = true, newState = aggregateState.map((item: SurgeState) => item: protobuf.State))
-          case CommandFailure(reason) =>
-            logger.error(reason, "Failure!")
-            ForwardCommandReply(isSuccess = false, rejectionMessage = reason.getMessage, newState = None)
+        Try(UUID.fromString(aggIdStr)) match {
+          case Failure(exception) =>
+            Future.failed(new Exception("Invalid aggregate id (not a UUID)!", exception))
+          case Success(aggIdUUID) =>
+            val surgeCmd: SurgeCmd = cmd
+            logger.info(s"Forwarding command to aggregate with id ${cmd.aggregateId}!")
+            surgeEngine.aggregateFor(aggIdUUID).sendCommand(surgeCmd).map {
+              case CommandSuccess(aggregateState: Option[SurgeState]) =>
+                val payloadSize: Int = aggregateState.map(_.payload.length).getOrElse(0)
+                logger.info(s"Success! Aggregate state payload has size ${payloadSize} (bytes)")
+                ForwardCommandReply(isSuccess = true, newState = aggregateState.map((item: SurgeState) => item: protobuf.State))
+              case CommandFailure(reason) =>
+                logger.error(reason, "Failure!")
+                ForwardCommandReply(isSuccess = false, rejectionMessage = reason.getMessage, newState = None)
+            }
         }
       case None =>
         // this should not happen
         // log warning message
         logger.warning("Requested to forward command but no command included!")
-        Future.successful(ForwardCommandReply(isSuccess = false, rejectionMessage = "No command given to forward", newState = None))
+        Future.failed(new Exception("No command given to forward!"))
     }
   }
 
   override def getState(in: GetStateRequest): Future[GetStateReply] = {
     logger.info(s"Business app asking for state of aggregate with id ${in.aggregateId}!")
-    val adggIdUUID = UUID.fromString(in.aggregateId)
-    surgeEngine.aggregateFor(adggIdUUID).getState.map { maybeS: Option[SurgeState] =>
-      {
-        GetStateReply(in.aggregateId, state = maybeS.map(s => s: protobuf.State))
-      }
+    Try(UUID.fromString(in.aggregateId)) match {
+      case Failure(exception) =>
+        Future.failed(new Exception("Invalid aggregate id (not a UUID)!", exception))
+      case Success(aggIdUUID) =>
+        surgeEngine.aggregateFor(aggIdUUID).getState.map { maybeS: Option[SurgeState] =>
+          {
+            GetStateReply(in.aggregateId, state = maybeS.map(s => s: protobuf.State))
+          }
+        }
     }
+
   }
 
 }
