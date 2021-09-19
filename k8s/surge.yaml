@@ -34,7 +34,7 @@ spec:
     spec:
       containers:
         - name: surge-server
-          image: surge-engine-multilanguage:0.5.27-SNAPSHOT
+          image: surge-engine-multilanguage:latest
           imagePullPolicy: Never
           resources:
             requests:
@@ -63,3 +63,28 @@ spec:
               value: "6667"
             - name: "KAFKA_BROKERS"
               value: "my-cluster-kafka-bootstrap:9092"
+        - name: business-app
+          image: surge-engine-multilanguage-scala-sdk-sample:latest
+          imagePullPolicy: Never
+          resources:
+            requests:
+              memory: "250Mi"
+            limits:
+              memory: "250Mi"
+          ports:
+            - containerPort: 7777
+              name: business-app
+              protocol: TCP
+          env:
+            - name: "SURGE_SERVER_HOST"
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: "SURGE_SERVER_PORT"
+              value: "6667"
+            - name: "LOCAL_SERVER_HOST"
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: "LOCAL_SERVER_PORT"
+              value: "7777"

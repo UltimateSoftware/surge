@@ -6,7 +6,9 @@ import akka.actor.ActorSystem
 import akka.event.Logging
 import com.ukg.surge.multilanguage.scalasdk.{ CQRSModel, ScalaSurge, ScalaSurgeServer, SerDeser }
 
-import scala.util.Try
+import java.util.UUID
+import scala.concurrent.duration.DurationInt
+import scala.util.{ Failure, Success, Try }
 
 class Main
 object Main extends App {
@@ -71,5 +73,17 @@ object Main extends App {
   val logger = Logging(system, classOf[Main])
   val bridgeToSurge = new ScalaSurgeServer[BankAccount, MoneyDeposited, DepositMoney](system, model, serDeser)
   logger.info("Started!")
+
+  import system.dispatcher
+
+  system.scheduler.schedule(initialDelay = 5.seconds, interval = 3.seconds) {
+    logger.info("Sending message to multilanguage server!")
+    bridgeToSurge.forwardCommand(UUID.randomUUID(), DepositMoney(50)).onComplete {
+      case Failure(exception) =>
+        logger.error("Failed!", exception)
+      case Success(value) =>
+        logger.info("Response from Surge: {}", value.toString)
+    }
+  }
 
 }
