@@ -33,14 +33,14 @@ class BusinessServiceImpl[S, E, C](cqrsModel: CQRSModel[S, E, C], serDeser: SerD
     Future.sequence(protobufEvents.map(convertEvent))
   }
 
-  private[scalasdk] def convertState(maybeState: Option[S]): Future[Option[State]] = {
+  private[scalasdk] def convertState(aggregateId: String, maybeState: Option[S]): Future[Option[State]] = {
     maybeState match {
       case Some(state) =>
         Future
           .fromTry(serDeser.serializeState(state))
           .map((byteArray: Array[Byte]) =>
             Some {
-              State(payload = ByteString.copyFrom(byteArray))
+              State(aggregateId, payload = ByteString.copyFrom(byteArray))
             })
       case None =>
         Future.successful(Option.empty[State])
@@ -54,7 +54,7 @@ class BusinessServiceImpl[S, E, C](cqrsModel: CQRSModel[S, E, C], serDeser: SerD
       case Right(result: (Seq[E], Option[S])) =>
         for {
           events <- convertEvents(aggregateId, result._1)
-          state <- convertState(result._2)
+          state <- convertState(aggregateId, result._2)
         } yield ProcessCommandReply(aggregateId, isSuccess = true, events = events, newState = state)
     }
   }

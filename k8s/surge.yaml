@@ -50,11 +50,15 @@ spec:
               protocol: TCP
           env:
             - name: "BUSINESS_LOGIC_HOST"
-              value: "localhost"
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
             - name: "BUSINESS_LOGIC_PORT"
               value: "7777"
             - name: "LOCAL_SERVER_HOST"
-              value: "0.0.0.0"
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
             - name: "LOCAL_SERVER_PORT"
               value: "6667"
             - name: "KAFKA_BROKERS"

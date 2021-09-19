@@ -21,7 +21,8 @@ final case class SerDeser[S, E, C](
     deserializeEvent: Array[Byte] => Try[E],
     deserializeCommand: Array[Byte] => Try[C],
     serializeState: S => Try[Array[Byte]],
-    serializeEvent: E => Try[Array[Byte]]) {
+    serializeEvent: E => Try[Array[Byte]],
+    serializeCommand: C => Try[Array[Byte]]) {
 
   def deserializeState(byteString: ByteString): Try[S] = {
     deserializeState(byteString.toByteArray)
