@@ -12,6 +12,7 @@ object Dependencies extends AutoPlugin {
       val slf4j = "com.typesafe.akka" %% "akka-slf4j" % version
       val multiNodeTestkit = "com.typesafe.akka" %% "akka-multi-node-testkit" % version % Test
       val remote = "com.typesafe.akka" %% "akka-remote" % version
+      val discovery = "com.typesafe.akka" %% "akka-discovery" % version
       val testKit = "com.typesafe.akka" %% "akka-testkit" % version % Test
       val akkaStreamTestKit = "com.typesafe.akka" %% "akka-stream-testkit" % version % Test
       val jacksonSerialization = "com.typesafe.akka" %% "akka-serialization-jackson" % version
