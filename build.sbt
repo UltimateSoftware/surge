@@ -94,7 +94,9 @@ lazy val `surge-engine-multilanguage-scala-sdk` =
 
 lazy val `surge-engine-multilanguage-scala-sdk-sample` =
   (project in file("modules/multilanguage-scala-sdk-sample"))
-    .settings(libraryDependencies ++= Seq(Akka.http, Akka.discovery, Akka.stream, Akka.protobufV3, Akka.slf4j, logback, slf4jApi, json4s), publish / skip := true)
+    .settings(
+      libraryDependencies ++= Seq(Akka.http, Akka.discovery, Akka.stream, Akka.protobufV3, Akka.slf4j, logback, slf4jApi, json4s),
+      publish / skip := true)
     .dependsOn(`surge-engine-multilanguage-scala-sdk`)
     .enablePlugins(JavaServerAppPackaging)
 
