@@ -27,6 +27,7 @@ import surge.health.domain.EmittableHealthSignal
 import surge.internal.akka.cluster.ActorSystemHostAwareness
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.kafka.KafkaProducerActorImpl.{ AggregateStateRates, KTableProgressUpdate }
+import surge.kafka.streams.ExpectedTestException
 import surge.kafka.{ KafkaBytesProducer, KafkaRecordMetadata, LagInfo, PartitionAssignments }
 import surge.metrics.Metrics
 
@@ -90,6 +91,10 @@ class KafkaProducerActorImplSpec
           ArgumentMatchers.any(classOf[surge.health.domain.Error]),
           ArgumentMatchers.any(classOf[Map[String, String]])))
       .thenReturn(mockEmittable)
+
+    // Particular offset doesn't actually matter, we just want no lag
+    val mockMetadata = mockRecordMetadata(assignedPartition)
+    when(mockProducer.putRecord(any[ProducerRecord[String, Array[Byte]]])).thenReturn(Future.successful(mockMetadata))
 
     val actor =
       system.actorOf(
@@ -232,6 +237,39 @@ class KafkaProducerActorImplSpec
       awaitAssert(
         {
           verify(mockProducer, times(3)).initTransactions()(any[ExecutionContext])
+          verify(mockProducer, times(1)).beginTransaction()
+          verify(mockProducer, times(1)).commitTransaction()
+        },
+        11.seconds,
+        10.seconds)
+    }
+
+    "Not crash on failure to check KTable consumer lag" in {
+      val probe = TestProbe()
+      val assignedPartition = new TopicPartition("testTopic", 1)
+      val mockProducer = mock[KafkaBytesProducer]
+      val mockMetadata = mockRecordMetadata(assignedPartition)
+
+      when(mockProducer.initTransactions()(any[ExecutionContext])).thenReturn(Future.unit)
+      when(mockProducer.putRecords(any[Seq[ProducerRecord[String, Array[Byte]]]])).thenReturn(Seq(Future.successful(mockMetadata)))
+
+      var exceptionCount = 0
+      val failsTwiceLagChecker = new KTableLagChecker {
+        override def getConsumerGroupLag(assignedPartition: TopicPartition): Option[LagInfo] = {
+          if (exceptionCount < 2) {
+            exceptionCount = exceptionCount + 1
+            throw new ExpectedTestException
+          }
+          Some(LagInfo(10, 10))
+        }
+      }
+      val actor = testProducerActor(assignedPartition, mockProducer, failsTwiceLagChecker)
+      probe.send(actor, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
+      probe.send(actor, KafkaProducerActorImpl.FlushMessages)
+
+      awaitAssert(
+        {
+          verify(mockProducer, times(1)).initTransactions()(any[ExecutionContext])
           verify(mockProducer, times(1)).beginTransaction()
           verify(mockProducer, times(1)).commitTransaction()
         },

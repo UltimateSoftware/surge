@@ -1,4 +1,5 @@
 // Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
+
 package com.ukg.surge.multilanguage.scalasdk
 
 import com.google.protobuf.ByteString
