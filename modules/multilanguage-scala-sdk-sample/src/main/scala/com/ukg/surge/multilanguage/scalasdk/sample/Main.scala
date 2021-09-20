@@ -7,11 +7,11 @@ import akka.event.Logging
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.StatusCodes.InternalServerError
 import akka.http.scaladsl.server.Directives._
-import com.ukg.surge.multilanguage.scalasdk.{CQRSModel, ScalaSurgeServer, SerDeser}
+import com.ukg.surge.multilanguage.scalasdk.{ CQRSModel, ScalaSurgeServer, SerDeser }
 import org.json4s._
 import org.json4s.native.Serialization._
 import java.util.UUID
-import scala.util.{Failure, Success, Try}
+import scala.util.{ Failure, Success, Try }
 
 class Main
 object Main extends App {

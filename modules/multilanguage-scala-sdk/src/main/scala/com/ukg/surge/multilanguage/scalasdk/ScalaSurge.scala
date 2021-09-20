@@ -38,8 +38,7 @@ class ScalaSurgeServer[S, E, C](system: ActorSystem, CQRSModel: CQRSModel[S, E, 
   // report successful binding
   binding.foreach { binding => logger.info(s"gRPC of business logic server bound to: ${binding.localAddress}") }
 
-  val surgeClientSettings: GrpcClientSettings = GrpcClientSettings.connectToServiceAt(surgeHost, surgePort)
-    .withTls(enabled = false)
+  val surgeClientSettings: GrpcClientSettings = GrpcClientSettings.connectToServiceAt(surgeHost, surgePort).withTls(enabled = false)
   val bridgeToSurge = MultilanguageGatewayServiceClient(surgeClientSettings)
 
   def forwardCommand(aggregateId: UUID, cmd: C): Future[Option[S]] = {

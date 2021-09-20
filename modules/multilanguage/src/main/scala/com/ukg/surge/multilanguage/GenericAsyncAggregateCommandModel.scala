@@ -92,4 +92,3 @@ class GenericAsyncAggregateCommandModel(bridgeToBusinessApp: BusinessLogicServic
   }
 
 }
-
