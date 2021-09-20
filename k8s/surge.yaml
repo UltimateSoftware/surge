@@ -49,6 +49,12 @@ spec:
               name: surge-server
               protocol: TCP
           env:
+            - name: EVENTS_TOPIC
+              value: events
+            - name: STATE_TOPIC
+              value: state
+            - name: AGGREGATE_NAME
+              value: aggregate
             - name: "AKKA_REMOTING_HOST"
               valueFrom:
                 fieldRef:
