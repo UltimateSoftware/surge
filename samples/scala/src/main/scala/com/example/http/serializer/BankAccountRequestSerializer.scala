@@ -1,3 +1,5 @@
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
+
 package com.example.http.serializer
 
 import com.example.http.request.{CreateAccountRequest, CreditAccountRequest, DebitAccountRequest}
