@@ -1,6 +1,6 @@
 #Surge Metrics Integration
 -------------------------------
-if you have access to the micro meter binder (internal UKG project)  then you can use the below example reference code to bind your
+If you have access to the micro meter binder (internal UKG project)  then you can use the below example reference code to bind your
 
 metrics to the InfluxDB else you need to provide your own Micrometer binder implementation 
 
@@ -12,7 +12,7 @@ Follow the below steps for integrating metrics to InfluxDB :-
 
 2 - Create InfluxMeterRegistry
 
-3 - Bind your meter registry to your MicroMeter implementation
+3 - Bind your meter registry to your Micrometer implementation
 
 Below is an example for reference : - 
 ```scala
