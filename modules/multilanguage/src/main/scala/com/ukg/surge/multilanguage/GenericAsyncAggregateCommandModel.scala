@@ -43,8 +43,8 @@ class GenericAsyncAggregateCommandModel(bridgeToBusinessApp: BusinessLogicServic
     }
   }
 
-  val metric: Metrics = Metrics.globalMetricRegistry
-  val processCommandMetric: Timer = metric.timer(MetricInfo("ProcessCommand", "Process Command Metric"))
+  private val metric: Metrics = Metrics.globalMetricRegistry
+  private val processCommandMetric: Timer = metric.timer(MetricInfo("ProcessCommand", "Process Command Metric"))
 
   override def processCommand(aggregate: Option[SurgeState], surgeCommand: SurgeCmd): Future[Seq[SurgeEvent]] =
     processCommandMetric.timeFuture {
@@ -76,7 +76,7 @@ class GenericAsyncAggregateCommandModel(bridgeToBusinessApp: BusinessLogicServic
       }
     }
 
-  val handleEventsMetric: Timer = metric.timer(MetricInfo("HandleEvents", "Handle Events Metric"))
+  private val handleEventsMetric: Timer = metric.timer(MetricInfo("HandleEvents", "Handle Events Metric"))
 
   override def handleEvents(aggregate: Option[SurgeState], surgeEvents: Seq[SurgeEvent]): Future[Option[SurgeState]] =
     handleEventsMetric.timeFuture {

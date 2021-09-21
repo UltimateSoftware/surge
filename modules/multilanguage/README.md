@@ -1,33 +1,34 @@
 #Surge Metrics Integration
 -------------------------------
-In order to integrate the surge metrics to influxDb:
+if you have access to the micro meter binder (internal UKG project)  then you can use the below example reference code to bind your
 
-1 - Provide the influxdb config 
+metrics to the InfluxDB else you need to provide your own Micrometer binder implementation 
 
-2 - create InfluxMeterRegistry
+so that you can bind your metrics to InfluxDB.
 
-3 - Bind your meter registry to your metric binder implementation
+Follow the below steps for integrating metrics to InfluxDB :-
 
-below is an example for reference : - 
+1 - Provide the InfluxDB config 
+
+2 - Create InfluxMeterRegistry
+
+3 - Bind your meter registry to your MicroMeter implementation
+
+Below is an example for reference : - 
 ```scala
-val config: InfluxConfig = new InfluxConfig() {
-    override def org = "ukg"
-    override def bucket = "ukg-bucket"
+    val config: InfluxConfig = new InfluxConfig() {
+    override def org = "Org"
+    override def bucket = "Bucket"
     override def token = "Token"
     // FIXME: This should be securely bound rather than hard-coded, of course.
     override def get(k: String): String = null // accept the rest of the defaults
     }
 
 ```
-    
-if you have access to the micro meter binder (internal UKG project)  then you can use the below line of code to bind your
-
-metrics to the influxdb else you need to provide your own implementation
-
-of metric binder so that you can bind your metrics to influxdb 
+     
 ```scala
- SurgeMetricsMeterBinder.forGlobalRegistry.bindTo(meterRegistry)
     val meterRegistry: MeterRegistry = new InfluxMeterRegistry(config, Clock.SYSTEM)
+    SurgeMetricsMeterBinder.forGlobalRegistry.bindTo(meterRegistry)
     val metric:Metrics = Metrics.globalMetricRegistry
     val timer:Timer = metric.timer(MetricInfo("test","testing timer"))
     val counter1: Counter = metric.counter(MetricInfo(name = "some-custom-counter", description = "Just an example counter"))

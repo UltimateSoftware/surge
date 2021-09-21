@@ -42,8 +42,8 @@ class MultilanguageGatewayServiceImpl(aggregateName: String, eventsTopicName: St
     engine
   }
 
-  val metric: Metrics = Metrics.globalMetricRegistry
-  val forwardCommandMetric: Timer = metric.timer(MetricInfo("ForwardCommand", "Forward Command Metric"))
+  private val metric: Metrics = Metrics.globalMetricRegistry
+  private val forwardCommandMetric: Timer = metric.timer(MetricInfo("ForwardCommand", "Forward Command Metric"))
 
   override def forwardCommand(in: ForwardCommandRequest): Future[ForwardCommandReply] = forwardCommandMetric.timeFuture {
     in.command match {
@@ -74,7 +74,7 @@ class MultilanguageGatewayServiceImpl(aggregateName: String, eventsTopicName: St
     }
   }
 
-  val getStateMetric: Timer = metric.timer(MetricInfo("GetState", "Get State Metric"))
+  private val getStateMetric: Timer = metric.timer(MetricInfo("GetState", "Get State Metric"))
 
   override def getState(in: GetStateRequest): Future[GetStateReply] = getStateMetric.timeFuture {
     logger.info(s"Business app asking for state of aggregate with id ${in.aggregateId}!")
