@@ -65,12 +65,21 @@ message GetStateReply {
   State state = 2;
 }
 
+message HealthCheckRequest {
+
+}
+
+message HealthCheckReply {
+  string status = 1;
+}
+
 service MultilanguageGatewayService {
   rpc ForwardCommand (ForwardCommandRequest) returns (ForwardCommandReply) {}
   rpc GetState (GetStateRequest) returns (GetStateReply) {}
 }
 
 service BusinessLogicService {
+  rpc HealthCheckCommand (HealthCheckRequest) returns (HealthCheckReply) {}
   rpc ProcessCommand (ProcessCommandRequest) returns (ProcessCommandReply) {}
   rpc HandleEvents (HandleEventsRequest) returns (HandleEventsResponse) {}
 }
