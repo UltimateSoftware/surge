@@ -46,12 +46,14 @@ class GenericAsyncAggregateCommandModel(bridgeToBusinessApp: BusinessLogicServic
   val metric: Metrics = Metrics.globalMetricRegistry
   val processCommandMetric: Timer = metric.timer(MetricInfo("ProcessCommand", "Process Command Metric"))
 
-  override def processCommand(aggregate: Option[SurgeState], surgeCommand: SurgeCmd): Future[Seq[SurgeEvent]] = processCommandMetric.timeFuture {
+  override def processCommand(aggregate: Option[SurgeState], surgeCommand: SurgeCmd): Future[Seq[SurgeEvent]] =
+    processCommandMetric.timeFuture {
     if (!validIds(aggregate, surgeCommand)) {
       Future.failed(new Exception("Wrong aggregate ids!"))
     } else {
       logger.info(
-        s"Calling command handler of business app via gRPC. Aggregate id: ${surgeCommand.aggregateId}). State defined: ${aggregate.isDefined}. Command payload size: ${surgeCommand.payload.length} (bytes).")
+        s"Calling command handler of business app via gRPC. Aggregate id: ${surgeCommand.aggregateId})." +
+          s" State defined: ${aggregate.isDefined}. Command payload size: ${surgeCommand.payload.length} (bytes).")
 
       val maybePbState: Option[protobuf.State] = aggregate.map(surgeState => surgeState: protobuf.State)
       val pbCommand: protobuf.Command = surgeCommand: multilanguage.protobuf.Command
@@ -75,29 +77,29 @@ class GenericAsyncAggregateCommandModel(bridgeToBusinessApp: BusinessLogicServic
 
   val handleEventsMetric: Timer = metric.timer(MetricInfo("HandleEvents", "Handle Events Metric"))
 
-  override def handleEvents(aggregate: Option[SurgeState], surgeEvents: Seq[SurgeEvent]): Future[Option[SurgeState]] = handleEventsMetric.time {
-    if (surgeEvents.isEmpty) {
-      logger.warning("handleEvents called but no events provided!")
-      Future.successful(aggregate)
-    } else {
-      if (!validIds(aggregate, surgeEvents)) {
-        Future.failed(new Exception("handleEvents called but wrong aggregate ids!"))
+  override def handleEvents(aggregate: Option[SurgeState], surgeEvents: Seq[SurgeEvent]): Future[Option[SurgeState]] =
+    handleEventsMetric.timeFuture {
+      if (surgeEvents.isEmpty) {
+        logger.warning("handleEvents called but no events provided!")
+        Future.successful(aggregate)
       } else {
-        val aggregateId = aggregate.map(_.aggregateId).orElse(surgeEvents.headOption.map(_.aggregateId)).get
-        logger.info(
-          s"Calling event handler of business app via gRPC. Aggregate id: $aggregateId." +
-            s" State defined: ${aggregate.isDefined}." +
-            s" Num events: ${surgeEvents.size}. " +
+        if (!validIds(aggregate, surgeEvents)) {
+          Future.failed(new Exception("handleEvents called but wrong aggregate ids!"))
+        } else {
+          val aggregateId = aggregate.map(_.aggregateId).orElse(surgeEvents.headOption.map(_.aggregateId)).get
+          logger.info(s"Calling event handler of business app via gRPC. Aggregate id: $aggregateId." +
+            s" State defined: ${aggregate.isDefined}." + s" Num events: ${surgeEvents.size}. " +
             s"Event payload sizes (bytes): ${
               surgeEvents
                 .map(_.payload.length)
                 .mkString(",")
             }.")
-        val maybePbState: Option[protobuf.State] = aggregate.map(surgeState => surgeState: protobuf.State)
-        val handleEventRequest = HandleEventsRequest(aggregateId, maybePbState, surgeEvents.map(surgeEvent => surgeEvent: protobuf.Event))
-        val reply: Future[HandleEventsResponse] = bridgeToBusinessApp.handleEvents(handleEventRequest)
-        reply.map { r => r.state.map(state => state: SurgeState) }
+          val maybePbState: Option[protobuf.State] = aggregate.map(surgeState => surgeState: protobuf.State)
+          val handleEventRequest = HandleEventsRequest(aggregateId, maybePbState,
+            surgeEvents.map(surgeEvent => surgeEvent: protobuf.Event))
+          val reply: Future[HandleEventsResponse] = bridgeToBusinessApp.handleEvents(handleEventRequest)
+          reply.map { r => r.state.map(state => state: SurgeState) }
+        }
       }
     }
-  }
 }
