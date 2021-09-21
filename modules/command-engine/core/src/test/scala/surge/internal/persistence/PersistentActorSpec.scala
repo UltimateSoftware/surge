@@ -477,10 +477,10 @@ class PersistentActorSpec
       import testContext._
 
       val event1 = CountIncremented(baseState.aggregateId, 1, baseState.version + 1)
-      val expectedState1 = BusinessLogic.handleEvent(Some(baseState), event1)
+      val expectedState1: Option[State] = BusinessLogic.handleEvent(Some(baseState), event1)
 
       val event2 = CountIncremented(expectedState1.get.aggregateId, 1, expectedState1.get.version + 1)
-      val expectedState2 = BusinessLogic.handleEvent(expectedState1, event2)
+      val expectedState2: Option[State] = BusinessLogic.handleEvent(expectedState1, event2)
 
       probe.send(actor, PersistentActor.ApplyEvent(testAggregateId, event1))
       probe.send(actor, PersistentActor.ApplyEvent(testAggregateId, event2))

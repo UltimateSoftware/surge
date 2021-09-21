@@ -4,11 +4,12 @@ package surge.scaladsl.command
 
 import surge.core.command.AggregateCommandModelCoreTrait
 import surge.internal
-import surge.internal.domain.CommandHandler
+import surge.internal.domain.{ AsyncCommandHandler, CommandHandler }
 import surge.internal.persistence
+import surge.scaladsl.command.Types.CommandResult
 import surge.scaladsl.common.Context
 
-import scala.concurrent.Future
+import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.Try
 
 trait AggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCoreTrait[Agg, Cmd, Nothing, Evt] {
@@ -20,6 +21,20 @@ trait AggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCoreTrai
       override def processCommand(ctx: persistence.Context, state: Option[Agg], cmd: Cmd): Future[CommandResult] =
         Future.fromTry(AggregateCommandModel.this.processCommand(state, cmd).map(v => Right(v)))
       override def apply(ctx: persistence.Context, state: Option[Agg], event: Evt): Option[Agg] = handleEvent(state, event)
+    }
+}
+
+trait AsyncAggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCoreTrait[Agg, Cmd, Nothing, Evt] {
+  def executionContext: ExecutionContext
+  def processCommand(aggregate: Option[Agg], command: Cmd): Future[Seq[Evt]]
+  def handleEvents(aggregate: Option[Agg], event: Seq[Evt]): Future[Option[Agg]]
+
+  override final def toCore: CommandHandler[Agg, Cmd, Nothing, Evt] =
+    new AsyncCommandHandler[Agg, Cmd, Nothing, Evt] {
+      override def processCommand(ctx: persistence.Context, state: Option[Agg], cmd: Cmd): Future[CommandResult] = {
+        AsyncAggregateCommandModel.this.processCommand(state, cmd).map(r => Right(r))(executionContext)
+      }
+      override def applyAsync(ctx: persistence.Context, initialState: Option[Agg], events: Seq[Evt]): Future[Option[Agg]] = handleEvents(initialState, events)
     }
 }
 

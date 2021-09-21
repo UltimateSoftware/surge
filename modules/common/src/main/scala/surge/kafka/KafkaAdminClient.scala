@@ -37,7 +37,7 @@ class KafkaAdminClient(props: Properties) {
   }
 
   def endOffsets(partitions: List[TopicPartition], options: ListOffsetsOptions = new ListOffsetsOptions()): Map[TopicPartition, ListOffsetsResultInfo] = {
-    client.listOffsets(partitions.map(tp => tp -> OffsetSpec.latest()).toMap.asJava).all().get().asScala.toMap
+    client.listOffsets(partitions.map(tp => tp -> OffsetSpec.latest()).toMap.asJava, options).all().get().asScala.toMap
   }
 
   def consumerLag(
