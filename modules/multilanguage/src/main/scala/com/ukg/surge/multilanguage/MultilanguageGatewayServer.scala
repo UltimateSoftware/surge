@@ -28,10 +28,8 @@ class MultilanguageGatewayServer(system: ActorSystem) {
     val eventsTopicName: String = config.getString("events-topic")
     val stateTopicName: String = config.getString("state-topic")
 
-    logger.info(s"""Binding multilanguage gateway server on $host:$port.
-         |Aggregate name: $aggregateName.
-         |Events topic: $eventsTopicName.
-         |State topic: ${stateTopicName}""".stripMargin)
+    logger.info(
+      s"Binding multilanguage gateway server on $host:$port. Aggregate name: $aggregateName. Events topic: $eventsTopicName. State topic: $stateTopicName")
 
     val service: HttpRequest => Future[HttpResponse] =
       MultilanguageGatewayServiceHandler(new MultilanguageGatewayServiceImpl(aggregateName, eventsTopicName, stateTopicName))
