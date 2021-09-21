@@ -31,7 +31,7 @@ object Settings extends AutoPlugin {
     })
 
   override def buildSettings: Seq[Def.Setting[_]] = Seq(
-    organization in ThisBuild := "com.ukg",
-    scalacOptions ++= Seq("-encoding", "UTF-8", "-unchecked", "-deprecation", "-feature"),
-    testOptions in Test += Tests.Argument(TestFrameworks.ScalaTest, "-oD", "-u", "target/test-reports"))
+    ThisBuild / organization := "com.ukg",
+    scalacOptions ++= Seq("-encoding", "UTF-8", "-unchecked", "-deprecation", "-feature", "-Ywarn-unused"),
+    Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-oD", "-u", "target/test-reports"))
 }
