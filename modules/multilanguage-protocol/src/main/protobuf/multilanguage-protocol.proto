@@ -80,7 +80,7 @@ service MultilanguageGatewayService {
 }
 
 service BusinessLogicService {
-  rpc HealthCheckCommand (HealthCheckRequest) returns (HealthCheckReply) {}
+  rpc HealthCheck (HealthCheckRequest) returns (HealthCheckReply) {}
   rpc ProcessCommand (ProcessCommandRequest) returns (ProcessCommandReply) {}
   rpc HandleEvents (HandleEventsRequest) returns (HandleEventsResponse) {}
 }
