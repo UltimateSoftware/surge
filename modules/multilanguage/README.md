@@ -9,8 +9,8 @@ In order to integrate the surge metrics to influxDb:
 3 - Bind your meter registry to your metric binder implementation
 
 below is an example for reference : - 
-
-    val config: InfluxConfig = new InfluxConfig() {
+```scala
+val config: InfluxConfig = new InfluxConfig() {
     override def org = "ukg"
     override def bucket = "ukg-bucket"
     override def token = "Token"
@@ -18,15 +18,19 @@ below is an example for reference : -
     override def get(k: String): String = null // accept the rest of the defaults
     }
 
+```
+    
 if you have access to the micro meter binder (internal UKG project)  then you can use the below line of code to bind your
 
 metrics to the influxdb else you need to provide your own implementation
 
 of metric binder so that you can bind your metrics to influxdb 
-
-    SurgeMetricsMeterBinder.forGlobalRegistry.bindTo(meterRegistry)
+```scala
+ SurgeMetricsMeterBinder.forGlobalRegistry.bindTo(meterRegistry)
     val meterRegistry: MeterRegistry = new InfluxMeterRegistry(config, Clock.SYSTEM)
     val metric:Metrics = Metrics.globalMetricRegistry
-    val timer:Timer = metric.timer(MetricInfo("test","testing timer",Map("customTag"->"Tag_value")))
+    val timer:Timer = metric.timer(MetricInfo("test","testing timer"))
     val counter1: Counter = metric.counter(MetricInfo(name = "some-custom-counter", description = "Just an example counter"))
     counter1.increment() // Increment the counter
+```
+   
