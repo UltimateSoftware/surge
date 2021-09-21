@@ -18,7 +18,7 @@ below is an example for reference : -
     override def get(k: String): String = null // accept the rest of the defaults
     }
 
-if you have UKG account then you can use the below line of code to bind your
+if you have access to the micro meter binder (internal UKG project)  then you can use the below line of code to bind your
 
 metrics to the influxdb else you need to provide your own implementation
 

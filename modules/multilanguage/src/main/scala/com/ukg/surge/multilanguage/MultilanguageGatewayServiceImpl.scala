@@ -3,13 +3,13 @@
 package com.ukg.surge.multilanguage
 
 import akka.actor.ActorSystem
-import akka.event.{Logging, LoggingAdapter}
+import akka.event.{ Logging, LoggingAdapter }
 import akka.grpc.GrpcClientSettings
 import com.typesafe.config.Config
 import com.ukg.surge.multilanguage.protobuf._
-import surge.metrics.{MetricInfo, Metrics, RecordingLevel, Timer}
+import surge.metrics.{ MetricInfo, Metrics, RecordingLevel, Timer }
 import surge.scaladsl.command.SurgeCommand
-import surge.scaladsl.common.{CommandFailure, CommandSuccess}
+import surge.scaladsl.common.{ CommandFailure, CommandSuccess }
 
 import java.util.UUID
 import scala.concurrent.Future
@@ -42,10 +42,10 @@ class MultilanguageGatewayServiceImpl(aggregateName: String, eventsTopicName: St
     engine
   }
 
-  val metric:Metrics = Metrics.globalMetricRegistry
-  val forwardCommandMetric:Timer = metric.timer(MetricInfo("ForwardCommand","Forward Command Metric"))
+  val metric: Metrics = Metrics.globalMetricRegistry
+  val forwardCommandMetric: Timer = metric.timer(MetricInfo("ForwardCommand", "Forward Command Metric"))
 
-  override def forwardCommand(in: ForwardCommandRequest): Future[ForwardCommandReply] = forwardCommandMetric.timeFuture{
+  override def forwardCommand(in: ForwardCommandRequest): Future[ForwardCommandReply] = forwardCommandMetric.timeFuture {
     in.command match {
       case Some(cmd: protobuf.Command) =>
         logger.info(s"Received command for aggregate with id ${cmd.aggregateId}, payload has size ${cmd.payload.size()} (bytes)!")
@@ -82,9 +82,10 @@ class MultilanguageGatewayServiceImpl(aggregateName: String, eventsTopicName: St
       case Failure(exception) =>
         Future.failed(new Exception("Invalid aggregate id (not a UUID)!", exception))
       case Success(aggIdUUID) =>
-        surgeEngine.aggregateFor(aggIdUUID).getState.map { maybeS: Option[SurgeState] => {
-          GetStateReply(in.aggregateId, state = maybeS.map(s => s: protobuf.State))
-        }
+        surgeEngine.aggregateFor(aggIdUUID).getState.map { maybeS: Option[SurgeState] =>
+          {
+            GetStateReply(in.aggregateId, state = maybeS.map(s => s: protobuf.State))
+          }
         }
     }
 

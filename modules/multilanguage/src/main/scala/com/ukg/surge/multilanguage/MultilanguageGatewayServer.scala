@@ -3,14 +3,15 @@
 package com.ukg.surge.multilanguage
 
 import akka.actor.ActorSystem
-import akka.event.{Logging, LoggingAdapter}
+import akka.event.{ Logging, LoggingAdapter }
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
+import akka.http.scaladsl.model.{ HttpRequest, HttpResponse }
 import com.ukg.surge.multilanguage.protobuf._
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ ExecutionContext, Future }
 import scala.language.implicitConversions
 
 class MultilanguageGatewayServer(system: ActorSystem) {
+
   def run(): Future[Http.ServerBinding] = {
     implicit val sys: ActorSystem = system
     implicit val ec: ExecutionContext = sys.dispatcher
