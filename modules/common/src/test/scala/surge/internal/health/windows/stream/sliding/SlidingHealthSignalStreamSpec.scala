@@ -26,7 +26,6 @@ import surge.internal.health._
 import surge.internal.health.matchers.{ RepeatingSignalMatcher, SignalNameEqualsMatcher }
 import surge.internal.health.windows.stream.WindowingHealthSignalStream
 
-import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.duration._
 
