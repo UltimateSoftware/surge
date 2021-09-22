@@ -137,10 +137,7 @@ lazy val `surge-docs` = (project in file("modules/surge-docs"))
 
 lazy val `surge-scala-sample` = (project in file("samples/scala"))
   .dependsOn(`surge-common`, `surge-engine-command-core`, `surge-engine-command-scaladsl`)
-  .settings(
-    libraryDependencies ++= Seq(Akka.http, akkaHttpPlayJson),
-    publish / skip := true
-  )
+  .settings(libraryDependencies ++= Seq(Akka.http, akkaHttpPlayJson), publish / skip := true)
   .enablePlugins(JavaServerAppPackaging)
 
 lazy val `surge` = project
