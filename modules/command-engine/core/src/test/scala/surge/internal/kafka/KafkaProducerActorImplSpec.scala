@@ -487,7 +487,7 @@ class KafkaProducerActorImplSpec
       verify(mockProducerFenceOnCommit).putRecords(records(assignedPartition, testEvents1, testAggs1))
       verify(mockProducerFenceOnCommit).commitTransaction()
     }
-
+    // fix: flakey
     "Recreate the producer on a ProducerFencedException if the partition is still assigned to this node" in {
       val probe = TestProbe()
       val assignedPartition = new TopicPartition("testTopic", 1)
