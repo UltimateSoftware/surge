@@ -3,16 +3,16 @@
 package surge.javadsl.command
 
 import surge.core.command.AggregateCommandModelCoreTrait
-import surge.internal.domain.CommandHandler
+import surge.internal.domain.{AsyncCommandHandler, CommandHandler}
 import surge.internal.persistence
 import surge.javadsl._
 import surge.javadsl.common.Context
-import java.util.concurrent.CompletableFuture
-import java.util.{ Optional, List => JList }
 
+import java.util.concurrent.CompletableFuture
+import java.util.{Optional, List => JList}
 import scala.compat.java8.FutureConverters
 import scala.compat.java8.OptionConverters._
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 import scala.jdk.CollectionConverters._
 import scala.util.Try
 
@@ -27,6 +27,24 @@ trait AggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCoreTrai
       override def apply(ctx: persistence.Context, state: Option[Agg], event: Evt): Option[Agg] = handleEvent(state.asJava, event).asScala
     }
 }
+
+trait AsyncAggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCoreTrait[Agg, Cmd, Nothing, Evt] {
+  def executionContext: ExecutionContext
+  def processCommand(aggregate: Option[Agg], command: Cmd): CompletableFuture[JList[Evt]]
+  def handleEvents(aggregate: Option[Agg], event: Seq[Evt]): Future[Optional[Agg]]
+
+  override final def toCore: CommandHandler[Agg, Cmd, Nothing, Evt] =
+    new AsyncCommandHandler[Agg, Cmd, Nothing, Evt] {
+      override def processCommand(ctx: persistence.Context, state: Option[Agg], cmd: Cmd): Future[CommandResult] = {
+        FutureConverters
+          .toScala(AsyncAggregateCommandModel.this.processCommand(state, cmd))
+          .map(r => Right(r.asScala.toSeq))(executionContext)
+      }
+      override def applyAsync(ctx: persistence.Context, initialState: Option[Agg], events: Seq[Evt]): Future[Option[Agg]] =
+          handleEvents(initialState, events).map(_.asScala)(executionContext)
+    }
+}
+
 
 trait ContextAwareAggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCoreTrait[Agg, Cmd, Nothing, Evt] {
   def processCommand(ctx: common.Context, aggregate: Optional[Agg], command: Cmd): CompletableFuture[Seq[Evt]]
