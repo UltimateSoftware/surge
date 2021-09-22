@@ -29,6 +29,7 @@ import surge.metrics.Metrics
 import java.util.regex.Pattern
 import scala.concurrent.duration._
 
+// fix: flaky test
 @Ignore
 class SurgeMessagePipelineSpec
     extends TestKit(ActorSystem("SurgeMessagePipelineSpec", ConfigFactory.load("artery-test-config")))
