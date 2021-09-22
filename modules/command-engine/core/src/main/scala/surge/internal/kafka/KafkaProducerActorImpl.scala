@@ -360,40 +360,57 @@ class KafkaProducerActorImpl(
     }
   }
 
+  // scalastyle:off
   private def doFlushRecords(state: KafkaProducerActorState, records: Seq[ProducerRecord[String, Array[Byte]]]): Unit = {
     val senders = state.pendingWrites.map(_.sender)
     val futureMsg = kafkaPublisherTimer.timeFuture {
-      Try(kafkaPublisher.beginTransaction()) match {
-        case Failure(f: ProducerFencedException) =>
-          producerFenced(f)
-          Future.successful(EventsFailedToPublish(senders, f))
-        case Failure(err) =>
-          log.error(s"KafkaPublisherActor partition $assignedPartition there was an error beginning transaction", err)
-          Future.successful(EventsFailedToPublish(senders, err))
-        case _ =>
-          Future
-            .sequence(kafkaPublisher.putRecords(records))
-            .map { recordMeta =>
-              log.debug(s"KafkaPublisherActor partition {} committing transaction", assignedPartition)
-              kafkaPublisher.commitTransaction()
-              EventsPublished(senders, recordMeta.filter(_.wrapped.topic() == stateTopic.name))
-            }
-            .recover {
-              case e: ProducerFencedException =>
-                producerFenced(e)
-                EventsFailedToPublish(senders, e)
-              case e =>
-                log.error(s"KafkaPublisherActor partition $assignedPartition got error while trying to publish to Kafka", e)
-                Try(kafkaPublisher.abortTransaction()) match {
-                  case Success(_) =>
-                    EventsFailedToPublish(senders, e)
-                  case Failure(exception) =>
-                    AbortTransactionFailed(senders, abortTransactionException = exception, originalException = e)
-                }
-            }
+      if (records.size > 1) {
+        Try(kafkaPublisher.beginTransaction()) match {
+          case Failure(f: ProducerFencedException) =>
+            producerFenced(f)
+            Future.successful(EventsFailedToPublish(senders, f))
+          case Failure(err) =>
+            log.error(s"KafkaPublisherActor partition $assignedPartition there was an error beginning transaction", err)
+            Future.successful(EventsFailedToPublish(senders, err))
+          case _ =>
+            Future
+              .sequence(kafkaPublisher.putRecords(records))
+              .map { recordMeta =>
+                log.debug(s"KafkaPublisherActor partition {} committing transaction", assignedPartition)
+                kafkaPublisher.commitTransaction()
+                EventsPublished(senders, recordMeta.filter(_.wrapped.topic() == stateTopic.name))
+              }
+              .recover {
+                case e: ProducerFencedException =>
+                  producerFenced(e)
+                  EventsFailedToPublish(senders, e)
+                case e =>
+                  log.error(s"KafkaPublisherActor partition $assignedPartition got error while trying to publish to Kafka", e)
+                  Try(kafkaPublisher.abortTransaction()) match {
+                    case Success(_) =>
+                      EventsFailedToPublish(senders, e)
+                    case Failure(exception) =>
+                      AbortTransactionFailed(senders, abortTransactionException = exception, originalException = e)
+                  }
+              }
+        }
+      } else {
+        kafkaPublisher
+          .putRecord(records.toVector.head)
+          .map { rm =>
+            log.debug(s"KafkaPublisherActor partition {} wrote single message without a transaction", assignedPartition)
+            EventsPublished(senders, Seq(rm))
+          }
+          .recover { case e =>
+            log.error(s"KafkaPublisherActor partition $assignedPartition got error while trying to publish to Kafka", e)
+            EventsFailedToPublish(senders, e)
+          }
       }
     }
-    context.become(processing(state.flushWrites().startTransaction()))
+    if (records.size > 1)
+      context.become(processing(state.flushWrites().startTransaction()))
+    else
+      context.become(processing(state.flushWrites()))
     futureMsg.pipeTo(self)(sender())
   }
 
