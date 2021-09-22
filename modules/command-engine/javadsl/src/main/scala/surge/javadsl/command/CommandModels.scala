@@ -30,18 +30,20 @@ trait AggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCoreTrai
 
 trait AsyncAggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCoreTrait[Agg, Cmd, Nothing, Evt] {
   def executionContext: ExecutionContext
-  def processCommand(aggregate: Option[Agg], command: Cmd): CompletableFuture[JList[Evt]]
-  def handleEvents(aggregate: Option[Agg], event: Seq[Evt]): Future[Optional[Agg]]
+  def processCommand(aggregate: Optional[Agg], command: Cmd): CompletableFuture[JList[Evt]]
+  def handleEvents(aggregate: Optional[Agg], event: Seq[Evt]): CompletableFuture[Optional[Agg]]
 
   override final def toCore: CommandHandler[Agg, Cmd, Nothing, Evt] =
     new AsyncCommandHandler[Agg, Cmd, Nothing, Evt] {
       override def processCommand(ctx: persistence.Context, state: Option[Agg], cmd: Cmd): Future[CommandResult] = {
         FutureConverters
-          .toScala(AsyncAggregateCommandModel.this.processCommand(state, cmd))
+          .toScala(AsyncAggregateCommandModel.this.processCommand(state.asJava, cmd))
           .map(r => Right(r.asScala.toSeq))(executionContext)
       }
       override def applyAsync(ctx: persistence.Context, initialState: Option[Agg], events: Seq[Evt]): Future[Option[Agg]] =
-          handleEvents(initialState, events).map(_.asScala)(executionContext)
+        FutureConverters
+          .toScala(handleEvents(initialState.asJava, events))
+          .map(_.asScala)(executionContext)
     }
 }
 
