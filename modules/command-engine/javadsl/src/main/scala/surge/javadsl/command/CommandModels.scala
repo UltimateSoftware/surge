@@ -31,7 +31,7 @@ trait AggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCoreTrai
 trait AsyncAggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCoreTrait[Agg, Cmd, Nothing, Evt] {
   def executionContext: ExecutionContext
   def processCommand(aggregate: Optional[Agg], command: Cmd): CompletableFuture[JList[Evt]]
-  def handleEvents(aggregate: Optional[Agg], event: Seq[Evt]): CompletableFuture[Optional[Agg]]
+  def handleEvents(aggregate: Optional[Agg], event: JList[Evt]): CompletableFuture[Optional[Agg]]
 
   override final def toCore: CommandHandler[Agg, Cmd, Nothing, Evt] =
     new AsyncCommandHandler[Agg, Cmd, Nothing, Evt] {
@@ -42,7 +42,7 @@ trait AsyncAggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCor
       }
       override def applyAsync(ctx: persistence.Context, initialState: Option[Agg], events: Seq[Evt]): Future[Option[Agg]] =
         FutureConverters
-          .toScala(handleEvents(initialState.asJava, events))
+          .toScala(handleEvents(initialState.asJava, events.asJava))
           .map(_.asScala)(executionContext)
     }
 }
