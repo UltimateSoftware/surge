@@ -43,9 +43,9 @@ class MultilanguageGatewayServiceImpl(aggregateName: String, eventsTopicName: St
   }
 
   private val metric: Metrics = Metrics.globalMetricRegistry
-  private val forwardCommandMetric: Timer = metric.timer(MetricInfo("ForwardCommand", "Forward Command Metric"))
+  private val forwardCommandTimerMetric: Timer = metric.timer(MetricInfo("surge.grpc.forward-command-timer", "surge gRPC forward command timer metric"))
 
-  override def forwardCommand(in: ForwardCommandRequest): Future[ForwardCommandReply] = forwardCommandMetric.timeFuture {
+  override def forwardCommand(in: ForwardCommandRequest): Future[ForwardCommandReply] = forwardCommandTimerMetric.timeFuture {
     in.command match {
       case Some(cmd: protobuf.Command) =>
         logger.info(s"Received command for aggregate with id ${cmd.aggregateId}, payload has size ${cmd.payload.size()} (bytes)!")
@@ -74,9 +74,10 @@ class MultilanguageGatewayServiceImpl(aggregateName: String, eventsTopicName: St
     }
   }
 
-  private val getStateMetric: Timer = metric.timer(MetricInfo("GetState", "Get State Metric"))
+  private val getAggregateStateTimerMetric: Timer =
+    metric.timer(MetricInfo("surge.grpc.get-aggregate-state-timer", "surge gRPC get aggregate state timer metric"))
 
-  override def getState(in: GetStateRequest): Future[GetStateReply] = getStateMetric.timeFuture {
+  override def getState(in: GetStateRequest): Future[GetStateReply] = getAggregateStateTimerMetric.timeFuture {
     logger.info(s"Business app asking for state of aggregate with id ${in.aggregateId}!")
     Try(UUID.fromString(in.aggregateId)) match {
       case Failure(exception) =>

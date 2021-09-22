@@ -44,10 +44,10 @@ class GenericAsyncAggregateCommandModel(bridgeToBusinessApp: BusinessLogicServic
   }
 
   private val metric: Metrics = Metrics.globalMetricRegistry
-  private val processCommandMetric: Timer = metric.timer(MetricInfo("ProcessCommand", "Process Command Metric"))
+  private val processCommandTimerMetric: Timer = metric.timer(MetricInfo("surge.grpc.process-command-timer", "Surge gRPC process command timer metric"))
 
   override def processCommand(aggregate: Option[SurgeState], surgeCommand: SurgeCmd): Future[Seq[SurgeEvent]] =
-    processCommandMetric.timeFuture {
+    processCommandTimerMetric.timeFuture {
       if (!validIds(aggregate, surgeCommand)) {
         Future.failed(new Exception("Wrong aggregate ids!"))
       } else {
@@ -76,10 +76,10 @@ class GenericAsyncAggregateCommandModel(bridgeToBusinessApp: BusinessLogicServic
       }
     }
 
-  private val handleEventsMetric: Timer = metric.timer(MetricInfo("HandleEvents", "Handle Events Metric"))
+  private val handleEventsTimerMetric: Timer = metric.timer(MetricInfo("surge.grpc.handle-events-timer", "surge gRPC handle events timer metric"))
 
   override def handleEvents(aggregate: Option[SurgeState], surgeEvents: Seq[SurgeEvent]): Future[Option[SurgeState]] =
-    handleEventsMetric.timeFuture {
+    handleEventsTimerMetric.timeFuture {
       if (surgeEvents.isEmpty) {
         logger.warning("handleEvents called but no events provided!")
         Future.successful(aggregate)
