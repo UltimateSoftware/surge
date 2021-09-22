@@ -80,10 +80,10 @@ class SlidingHealthSignalStreamSpec
   override def afterEach(): Unit = {
     Option(bus).foreach(b => {
       b.signalStream().stop()
-      b.unsupervise()
     })
 
     probe.expectMsgClass(classOf[WindowClosed])
+    Option(bus).foreach(b => b.unsupervise())
   }
 
   override def afterAll(): Unit = {
@@ -131,9 +131,6 @@ class SlidingHealthSignalStreamSpec
 
       eventually {
         val maybeWindowAdvanced = sourceAndEvents._2.find(e => e.isInstanceOf[WindowAdvanced])
-//        val msg = probe.fishForMessage(max = 2.second) { case msg =>
-//          msg.isInstanceOf[WindowAdvanced]
-//        }
         maybeWindowAdvanced shouldBe defined
         val msg = maybeWindowAdvanced.get
         msg.asInstanceOf[WindowAdvanced].d.signals.size == 2
@@ -183,8 +180,6 @@ class SlidingHealthSignalStreamSpec
     }
 
     "detect 5 messages in a 10 second window" in {
-      val sourceAndEvents = trackWindowEvents()
-
       bus.signalWithTrace(name = "test.trace", Trace("test.trace")).emit().emit().emit().emit().emit()
 
       eventually {
@@ -198,6 +193,21 @@ class SlidingHealthSignalStreamSpec
     }
   }
 
+  private def trackHealthSignals(): (Source[HealthSignal, NotUsed], ArrayBuffer[HealthSignal]) = {
+    val signalStream: Option[HealthSignalStream] = bus.backingSignalStream()
+    signalStream.isDefined shouldEqual true
+    signalStream.get shouldBe a[WindowingHealthSignalStream]
+
+    val signalSource = signalStream.get.signalSource(10, ThrottleConfig(20, 10.seconds))
+
+    val receivedSignals: ArrayBuffer[HealthSignal] = ArrayBuffer()
+    signalSource.source.runWith(Sink.foreach(signal => {
+      receivedSignals.addOne(signal)
+    }))
+
+    (signalSource.source, receivedSignals)
+  }
+
   private def trackWindowEvents(): (Source[WindowEvent, NotUsed], ArrayBuffer[WindowEvent]) = {
     val signalStream: Option[HealthSignalStream] = bus.backingSignalStream()
 
@@ -207,7 +217,7 @@ class SlidingHealthSignalStreamSpec
     val windowEventSource: Source[WindowEvent, NotUsed] =
       signalStream.get.asInstanceOf[WindowingHealthSignalStream].windowEventSource().source
 
-    val receivedWindowEvents: mutable.ArrayBuffer[WindowEvent] = new mutable.ArrayBuffer[WindowEvent]()
+    val receivedWindowEvents: ArrayBuffer[WindowEvent] = ArrayBuffer[WindowEvent]()
 
     windowEventSource.runWith(Sink.foreach(event => {
       receivedWindowEvents.addOne(event)
