@@ -3,27 +3,27 @@
 package surge.internal.health.windows.stream.sliding
 
 import java.time.Instant
-import java.util.concurrent.{Executors, TimeUnit}
+import java.util.concurrent.{ Executors, TimeUnit }
 import akka.NotUsed
 import akka.actor.ActorSystem
-import akka.stream.scaladsl.{Sink, Source}
-import akka.testkit.{TestKit, TestProbe}
+import akka.stream.scaladsl.{ Sink, Source }
+import akka.testkit.{ TestKit, TestProbe }
 import com.typesafe.config.ConfigFactory
 import org.mockito.Mockito
 import org.mockito.stubbing.Stubber
 import org.scalatest.concurrent.Eventually
 import org.scalatest.matchers.should.Matchers
-import org.scalatest.time.{Milliseconds, Seconds, Span}
+import org.scalatest.time.{ Milliseconds, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
-import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
+import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach }
 import org.scalatestplus.mockito.MockitoSugar
-import surge.health.config.{ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig}
-import surge.health.domain.{Error, HealthSignal, Trace}
+import surge.health.config.{ ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig }
+import surge.health.domain.{ Error, HealthSignal, Trace }
 import surge.health.matchers.SideEffect
 import surge.health.windows._
-import surge.health.{HealthSignalReceived, HealthSignalStream, SignalType}
+import surge.health.{ HealthSignalReceived, HealthSignalStream, SignalType }
 import surge.internal.health._
-import surge.internal.health.matchers.{RepeatingSignalMatcher, SignalNameEqualsMatcher}
+import surge.internal.health.matchers.{ RepeatingSignalMatcher, SignalNameEqualsMatcher }
 import surge.internal.health.windows.stream.WindowingHealthSignalStream
 
 import scala.collection.mutable
