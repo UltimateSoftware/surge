@@ -75,6 +75,7 @@ message HealthCheckReply {
 }
 
 service MultilanguageGatewayService {
+  rpc HealthCheck (HealthCheckRequest) returns (HealthCheckReply) {}
   rpc ForwardCommand (ForwardCommandRequest) returns (ForwardCommandReply) {}
   rpc GetState (GetStateRequest) returns (GetStateReply) {}
 }

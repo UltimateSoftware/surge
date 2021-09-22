@@ -86,4 +86,7 @@ class MultilanguageGatewayServiceImpl(aggregateName: String, eventsTopicName: St
 
   }
 
+  override def healthCheck(in: HealthCheckRequest): Future[HealthCheckReply] =
+    bridgeToBusinessApp.healthCheck(in)
+
 }
