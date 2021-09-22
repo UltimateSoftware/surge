@@ -81,6 +81,7 @@ class SlidingHealthSignalStreamSpec
       b.signalStream().stop()
     })
 
+    // todo: assert window is stopped / closed
     Option(bus).foreach(b => b.unsupervise())
   }
 
@@ -116,7 +117,6 @@ class SlidingHealthSignalStreamSpec
       }
     }
 
-    // fix: flakey (in progress)
     "receive multiple health signals aggregated in one WindowAdvance event" in {
       val sourceAndEvents = trackWindowEvents()
       val scheduledEmit = Executors
@@ -139,22 +139,6 @@ class SlidingHealthSignalStreamSpec
       scheduledEmit.cancel(true)
     }
 
-    // todo: delete - we no longer open on signal but rather open on start of stream
-    "open window when signal emitted" ignore {
-
-      // Send error signal
-      bus.signalWithError(name = "test.error", Error("error to test open-window", None)).emit()
-
-      eventually {
-        val windowOpened = probe.fishForMessage(max = 2.second) { case msg =>
-          msg.isInstanceOf[WindowOpened]
-        }
-
-        windowOpened.asInstanceOf[WindowOpened].window().isDefined shouldEqual true
-      }
-    }
-
-    // fix: flakey (in-progress)
     "add to window when signal emitted" in {
       val sourceAndEvents = trackWindowEvents()
 
@@ -162,20 +146,6 @@ class SlidingHealthSignalStreamSpec
 
       eventually {
         sourceAndEvents._2.exists(e => e.isInstanceOf[AddedToWindow])
-      }
-    }
-
-    // todo: delete
-    "close an opened window" ignore {
-      bus.signalWithError(name = "test.error", Error("error to test close-open-window", None)).emit()
-
-      eventually {
-        val windowClosed = probe.fishForMessage(max = 400.millis) { case msg =>
-          msg.isInstanceOf[WindowClosed]
-        }
-
-        windowClosed.asInstanceOf[WindowClosed].window().isDefined shouldEqual true
-        windowClosed.asInstanceOf[WindowClosed].d.signals.exists(s => s.name == "test.error") shouldEqual true
       }
     }
 
