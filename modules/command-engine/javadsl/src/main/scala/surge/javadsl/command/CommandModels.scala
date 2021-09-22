@@ -3,16 +3,16 @@
 package surge.javadsl.command
 
 import surge.core.command.AggregateCommandModelCoreTrait
-import surge.internal.domain.{AsyncCommandHandler, CommandHandler}
+import surge.internal.domain.{ AsyncCommandHandler, CommandHandler }
 import surge.internal.persistence
 import surge.javadsl._
 import surge.javadsl.common.Context
 
 import java.util.concurrent.CompletableFuture
-import java.util.{Optional, List => JList}
+import java.util.{ Optional, List => JList }
 import scala.compat.java8.FutureConverters
 import scala.compat.java8.OptionConverters._
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ ExecutionContext, Future }
 import scala.jdk.CollectionConverters._
 import scala.util.Try
 
@@ -36,17 +36,12 @@ trait AsyncAggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCor
   override final def toCore: CommandHandler[Agg, Cmd, Nothing, Evt] =
     new AsyncCommandHandler[Agg, Cmd, Nothing, Evt] {
       override def processCommand(ctx: persistence.Context, state: Option[Agg], cmd: Cmd): Future[CommandResult] = {
-        FutureConverters
-          .toScala(AsyncAggregateCommandModel.this.processCommand(state.asJava, cmd))
-          .map(r => Right(r.asScala.toSeq))(executionContext)
+        FutureConverters.toScala(AsyncAggregateCommandModel.this.processCommand(state.asJava, cmd)).map(r => Right(r.asScala.toSeq))(executionContext)
       }
       override def applyAsync(ctx: persistence.Context, initialState: Option[Agg], events: Seq[Evt]): Future[Option[Agg]] =
-        FutureConverters
-          .toScala(handleEvents(initialState.asJava, events.asJava))
-          .map(_.asScala)(executionContext)
+        FutureConverters.toScala(handleEvents(initialState.asJava, events.asJava)).map(_.asScala)(executionContext)
     }
 }
-
 
 trait ContextAwareAggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCoreTrait[Agg, Cmd, Nothing, Evt] {
   def processCommand(ctx: common.Context, aggregate: Optional[Agg], command: Cmd): CompletableFuture[Seq[Evt]]
