@@ -9,8 +9,8 @@ import com.typesafe.config.Config
 import io.opentelemetry.api.trace.Tracer
 import org.apache.kafka.clients.admin.ListOffsetsOptions
 import org.apache.kafka.clients.producer.{ ProducerConfig, ProducerRecord }
-import org.apache.kafka.common.{ IsolationLevel, TopicPartition }
 import org.apache.kafka.common.errors.{ AuthorizationException, ProducerFencedException }
+import org.apache.kafka.common.{ IsolationLevel, TopicPartition }
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.core.KafkaProducerActor
 import surge.health.{ HealthSignalBusTrait, HealthyPublisher }
@@ -104,6 +104,8 @@ class KafkaProducerActorImpl(
   private val initTransactionOtherExceptionRetryDuration =
     config.getDuration("kafka.publisher.init-transactions.other-exception-retry-time").toMillis.millis.toCoarsest
   private val producerFencedStateUnhealthyReportTime = config.getDuration("kafka.publisher.fenced-unhealthy-report-time").toMillis.milliseconds
+
+  private val disableTransactionsExperimental = config.getBoolean("surge.feature-flags.experimental.disable-single-record-transactions")
 
   private val transactionalId = s"$transactionalIdPrefix-${assignedPartition.topic()}-${assignedPartition.partition()}"
   private val kafkaPublisherMetricsName = transactionalId
@@ -360,9 +362,8 @@ class KafkaProducerActorImpl(
     }
   }
 
-  private def doFlushRecords(state: KafkaProducerActorState, records: Seq[ProducerRecord[String, Array[Byte]]]): Unit = {
-    val senders = state.pendingWrites.map(_.sender)
-    val futureMsg = kafkaPublisherTimer.timeFuture {
+  private def publishRecordsWithTransaction(senders: Seq[ActorRef], records: Seq[ProducerRecord[String, Array[Byte]]]): Future[InternalMessage] = {
+    kafkaPublisherTimer.timeFuture {
       Try(kafkaPublisher.beginTransaction()) match {
         case Failure(f: ProducerFencedException) =>
           producerFenced(f)
@@ -393,7 +394,34 @@ class KafkaProducerActorImpl(
             }
       }
     }
-    context.become(processing(state.flushWrites().startTransaction()))
+  }
+
+  private def publishSingleRecord(senders: Seq[ActorRef], record: ProducerRecord[String, Array[Byte]]): Future[InternalMessage] = {
+    kafkaPublisherTimer.timeFuture {
+      kafkaPublisher
+        .putRecord(record)
+        .map { rm =>
+          log.debug(s"KafkaPublisherActor partition {} wrote single message without a transaction", assignedPartition)
+          EventsPublished(senders, Seq(rm))
+        }
+        .recover { case e =>
+          log.error(s"KafkaPublisherActor partition $assignedPartition got error while trying to publish to Kafka", e)
+          EventsFailedToPublish(senders, e)
+        }
+    }
+  }
+
+  private def doFlushRecords(state: KafkaProducerActorState, records: Seq[ProducerRecord[String, Array[Byte]]]): Unit = {
+    val senders = state.pendingWrites.map(_.sender)
+    val futureMsg = if (records.size > 1 || !disableTransactionsExperimental) {
+      val fut = publishRecordsWithTransaction(senders, records)
+      context.become(processing(state.flushWrites().startTransaction()))
+      fut
+    } else {
+      val fut = publishSingleRecord(senders, records.toVector.head)
+      context.become(processing(state.flushWrites()))
+      fut
+    }
     futureMsg.pipeTo(self)(sender())
   }
 
