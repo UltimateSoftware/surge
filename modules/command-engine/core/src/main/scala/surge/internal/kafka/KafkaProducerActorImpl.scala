@@ -13,7 +13,6 @@ import org.apache.kafka.common.errors.{ AuthorizationException, ProducerFencedEx
 import org.apache.kafka.common.{ IsolationLevel, TopicPartition }
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.core.KafkaProducerActor
-import surge.core.KafkaProducerActor.IgnoringPublishFailure
 import surge.health.{ HealthSignalBusTrait, HealthyPublisher }
 import surge.internal.akka.ActorWithTracing
 import surge.internal.akka.cluster.ActorHostAwareness
@@ -172,9 +171,8 @@ class KafkaProducerActorImpl(
     case InitTransactions       => initializeTransactions()
     case InitTransactionSuccess => initTransactionsSuccess(lastProgressUpdate)
     case FlushMessages          => log.trace("KafkaPublisherActor ignoring FlushMessages message from the uninitialized state")
-    case _: EventsFailedToPublish =>
-      log.trace("KafkaPublisherActor ignoring EventsFailedToPublish message from the uninitialized state")
-      sender() ! IgnoringPublishFailure("Ignoring EventsFailedToPublish message from the uninitialized state")
+    case failed: EventsFailedToPublish =>
+      ignoreEventsFailedToPublishWhenUninitialized(failed)
     case GetHealth =>
       sender() ! HealthCheck(
         name = "producer-actor",
@@ -184,6 +182,10 @@ class KafkaProducerActorImpl(
     case update: KTableProgressUpdate => context.become(uninitialized(lastProgressUpdate = Some(update)))
     case _: Publish                   => stash()
     case _: IsAggregateStateCurrent   => sender().tell(false, self)
+  }
+
+  protected def ignoreEventsFailedToPublishWhenUninitialized(failed: EventsFailedToPublish): Unit = {
+    log.trace("KafkaPublisherActor ignoring EventsFailedToPublish message from the uninitialized state", failed.reason)
   }
 
   private def waitingForKTableIndexing(): Receive = {

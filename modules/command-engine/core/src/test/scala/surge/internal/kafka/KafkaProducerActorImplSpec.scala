@@ -20,7 +20,7 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Millis, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
-import surge.core.KafkaProducerActor.{ IgnoringPublishFailure, PublishFailure, PublishResult, PublishSuccess }
+import surge.core.KafkaProducerActor.{ PublishFailure, PublishResult, PublishSuccess }
 import surge.core.{ KafkaProducerActor, TestBoundedContext }
 import surge.health.HealthSignalBusTrait
 import surge.health.domain.EmittableHealthSignal
@@ -36,6 +36,8 @@ import java.time.Instant
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.control.NoStackTrace
+
+case class IgnoringPublishFailure(reason: Throwable) extends KafkaProducerActor.PublishResult
 
 class KafkaProducerActorImplSpec
     extends TestKit(ActorSystem("KafkaProducerActorImplSpec"))
@@ -109,7 +111,11 @@ class KafkaProducerActorImplSpec
             mockPartitionTracker,
             signalBus,
             config,
-            Some(mockProducer))))
+            Some(mockProducer)) {
+            override protected def ignoreEventsFailedToPublishWhenUninitialized(failed: KafkaProducerActorImpl.EventsFailedToPublish): Unit = {
+              sender() ! IgnoringPublishFailure(failed.reason)
+            }
+          }))
     // Blocks the execution to wait until the actor is ready so we know its subscribed to the event bus
     system.actorSelection(actor.path).resolveOne()(Timeout(patienceConfig.timeout)).futureValue
     actor
