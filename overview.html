@@ -30,7 +30,7 @@
 <span class="home-icon">⌂</span>Surge
 </a>
 <div class="version-number">
-0.5.35
+0.5.36*
 </div>
 </div>
 <div class="nav-toc">
@@ -70,7 +70,7 @@ C16.952,7,17,6.553,17,6c0-0.553-0.048-1-0.6-1H3.6C3.048,5,3,5.447,3,6C3,6.553,3.
 <span class="home-icon">⌂</span>Surge
 </a>
 <div class="version-number">
-0.5.35
+0.5.36*
 </div>
 </div>
 <div class="nav-toc">
@@ -127,7 +127,7 @@ C16.952,7,17,6.553,17,6c0-0.553-0.048-1-0.6-1H3.6C3.048,5,3,5.447,3,6C3,6.553,3.
 <p>Surge uses Kafka transactions under the hood to ensure the events topic and aggregate state are in sync, guarantee batches of events are written in an all-or-none way, and preserve the integrity of the event stream by fencing out &ldquo;zombie producers&rdquo;. <a href="https://www.confluent.io/blog/transactions-apache-kafka/">This blog post</a> by Confluent is a great resource to learn about transactions in general.</p>
 <p>Surge uses a stateful Kafka producer per partition to remember what aggregates have recently published data and follow along indexing of the aggregate state topic. Transactional ids are assigned uniquely for each partition of the aggregate state topic by using the name and partition number for the aggregate state topic that the stateful producer is following as a suffix to the transactional id prefix: for example <code>my.transaction.id.prefix-my.state.topic-0</code>. Since the routing for Surge ensures there should only be a single shard responsible for each of these partitions, no two producers should share a transactional id. If two were using the same id, the older of the producers is considered a &ldquo;zombie producer&rdquo; and is prevented from writing data by Kafka and shut down in order to preserve the integrity of the event stream.</p>
 <div class="source-github">
-The source code for this page can be found <a href="https://github.com/UltimateSoftware/surge/tree/v0.5.35/modules/surge-docs/src/main/paradox/overview.md">here</a>.
+The source code for this page can be found <a href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/main/paradox/overview.md">here</a>.
 </div>
 
 <div class="nav-next">
@@ -210,7 +210,7 @@ The source code for this page can be found <a href="https://github.com/UltimateS
 <script type="text/javascript" src="lib/prettify/prettify.js"></script>
 <script type="text/javascript" src="lib/prettify/lang-scala.js"></script>
 <script type="text/javascript">jQuery(function(){window.prettyPrint && prettyPrint()});</script>
-<script type="text/javascript">jQuery(function(jq){initOldVersionWarnings(jq, '0.5.35', '')});</script>
+<script type="text/javascript">jQuery(function(jq){initOldVersionWarnings(jq, '0.5.36-SNAPSHOT', '')});</script>
 
 
 </html>
