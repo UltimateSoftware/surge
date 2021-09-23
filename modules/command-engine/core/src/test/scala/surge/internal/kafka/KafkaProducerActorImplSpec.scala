@@ -2,39 +2,39 @@
 
 package surge.internal.kafka
 
-import akka.actor.{ ActorRef, ActorSystem, Props }
+import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.pattern.ask
-import akka.testkit.{ TestKit, TestProbe }
+import akka.testkit.{TestKit, TestProbe}
 import akka.util.Timeout
-import com.typesafe.config.{ Config, ConfigFactory, ConfigValueFactory }
-import org.apache.kafka.clients.producer.{ ProducerRecord, RecordMetadata }
+import com.typesafe.config.{Config, ConfigFactory, ConfigValueFactory}
+import org.apache.kafka.clients.producer.{ProducerRecord, RecordMetadata}
 import org.apache.kafka.common.TopicPartition
-import org.apache.kafka.common.errors.{ AuthorizationException, ProducerFencedException }
-import org.apache.kafka.common.header.internals.{ RecordHeader, RecordHeaders }
+import org.apache.kafka.common.errors.{AuthorizationException, ProducerFencedException}
+import org.apache.kafka.common.header.internals.{RecordHeader, RecordHeaders}
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito._
-import org.mockito.{ ArgumentMatchers, Mockito }
+import org.mockito.{ArgumentMatchers, Mockito}
 import org.scalatest.BeforeAndAfterAll
-import org.scalatest.concurrent.{ Eventually, PatienceConfiguration, ScalaFutures }
+import org.scalatest.concurrent.{Eventually, PatienceConfiguration, ScalaFutures}
 import org.scalatest.matchers.should.Matchers
-import org.scalatest.time.{ Millis, Seconds, Span }
+import org.scalatest.time.{Millis, Seconds, Span}
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
-import surge.core.KafkaProducerActor.{ PublishFailure, PublishSuccess }
-import surge.core.{ KafkaProducerActor, TestBoundedContext }
+import surge.core.KafkaProducerActor.{IgnoringPublishFailure, PublishFailure, PublishResult, PublishSuccess}
+import surge.core.{KafkaProducerActor, TestBoundedContext}
 import surge.health.HealthSignalBusTrait
 import surge.health.domain.EmittableHealthSignal
 import surge.internal.akka.cluster.ActorSystemHostAwareness
-import surge.internal.akka.kafka.{ KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor }
-import surge.internal.kafka.KafkaProducerActorImpl.{ AggregateStateRates, KTableProgressUpdate }
-import surge.kafka.streams.{ ExpectedTestException, HealthCheck, HealthCheckStatus }
+import surge.internal.akka.kafka.{KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor}
+import surge.internal.kafka.KafkaProducerActorImpl.{AggregateStateRates, KTableProgressUpdate}
+import surge.kafka.streams.{ExpectedTestException, HealthCheck, HealthCheckStatus}
 import surge.kafka.streams.HealthyActor.GetHealth
-import surge.kafka.{ KafkaBytesProducer, KafkaRecordMetadata, LagInfo, PartitionAssignments }
+import surge.kafka.{KafkaBytesProducer, KafkaRecordMetadata, LagInfo, PartitionAssignments}
 import surge.metrics.Metrics
 
 import java.time.Instant
 import scala.concurrent.duration._
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.control.NoStackTrace
 
 class KafkaProducerActorImplSpec
@@ -509,7 +509,10 @@ class KafkaProducerActorImplSpec
       probe.watch(fencedOnCommit)
       probe.send(fencedOnCommit, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
       probe.send(fencedOnCommit, KafkaProducerActorImpl.FlushMessages)
-      probe.expectMsgType[PublishFailure]
+      val result = probe.fishForMessage(10.seconds) { msg => msg.isInstanceOf[PublishResult] }
+      if (!result.isInstanceOf[IgnoringPublishFailure]) {
+        result shouldBe a[PublishFailure]
+      }
       verify(mockProducerFenceOnCommit).beginTransaction()
       verify(mockProducerFenceOnCommit).putRecords(records(assignedPartition, testEvents1, testAggs1))
       verify(mockProducerFenceOnCommit).commitTransaction()

@@ -2,31 +2,32 @@
 
 package surge.internal.kafka
 
-import akka.actor.{ ActorRef, NoSerializationVerificationNeeded, Stash, Status, Timers }
+import akka.actor.{ActorRef, NoSerializationVerificationNeeded, Stash, Status, Timers}
 import akka.pattern._
 import akka.util.Timeout
 import com.typesafe.config.Config
 import io.opentelemetry.api.trace.Tracer
 import org.apache.kafka.clients.admin.ListOffsetsOptions
-import org.apache.kafka.clients.producer.{ ProducerConfig, ProducerRecord }
-import org.apache.kafka.common.{ IsolationLevel, TopicPartition }
-import org.apache.kafka.common.errors.{ AuthorizationException, ProducerFencedException }
-import org.slf4j.{ Logger, LoggerFactory }
+import org.apache.kafka.clients.producer.{ProducerConfig, ProducerRecord}
+import org.apache.kafka.common.{IsolationLevel, TopicPartition}
+import org.apache.kafka.common.errors.{AuthorizationException, ProducerFencedException}
+import org.slf4j.{Logger, LoggerFactory}
 import surge.core.KafkaProducerActor
-import surge.health.{ HealthSignalBusTrait, HealthyPublisher }
+import surge.core.KafkaProducerActor.IgnoringPublishFailure
+import surge.health.{HealthSignalBusTrait, HealthyPublisher}
 import surge.internal.akka.ActorWithTracing
 import surge.internal.akka.cluster.ActorHostAwareness
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.kafka._
 import surge.kafka.streams.HealthyActor.GetHealth
-import surge.kafka.streams.{ HealthCheck, HealthCheckStatus }
-import surge.metrics.{ MetricInfo, Metrics, Rate, Timer }
+import surge.kafka.streams.{HealthCheck, HealthCheckStatus}
+import surge.metrics.{MetricInfo, Metrics, Rate, Timer}
 
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 import scala.concurrent.Future
 import scala.concurrent.duration._
-import scala.util.{ Failure, Success, Try }
+import scala.util.{Failure, Success, Try}
 
 object KafkaProducerActorImpl {
   val KAFKA_PRODUCER_KTABLE_ERROR_SIGNAL_NAME: String = "kafka.producer.actor.ktable.error"
@@ -169,6 +170,9 @@ class KafkaProducerActorImpl(
     case InitTransactions       => initializeTransactions()
     case InitTransactionSuccess => initTransactionsSuccess(lastProgressUpdate)
     case FlushMessages          => log.trace("KafkaPublisherActor ignoring FlushMessages message from the uninitialized state")
+    case _: EventsFailedToPublish
+                                => log.trace("KafkaPublisherActor ignoring EventsFailedToPublish message from the uninitialized state")
+                                   sender() ! IgnoringPublishFailure("Ignoring EventsFailedToPublish message from the uninitialized state")
     case GetHealth =>
       sender() ! HealthCheck(
         name = "producer-actor",
