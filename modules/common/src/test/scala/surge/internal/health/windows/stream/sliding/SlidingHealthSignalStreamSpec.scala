@@ -101,19 +101,15 @@ class SlidingHealthSignalStreamSpec
     }
 
     "not lose signals" in {
+      val sourceAndEvents = trackWindowEvents()
       bus.signalWithTrace(name = "trace.test", Trace("tester")).emit().emit().emit()
 
       eventually {
-        val closed = probe.fishForMessage(max = 1.second) { case msg =>
-          msg.isInstanceOf[WindowClosed]
-        }
+        val maybeWindowClosed = sourceAndEvents._2.find(e => e.isInstanceOf[WindowClosed])
+        maybeWindowClosed shouldBe defined
+        val closed = maybeWindowClosed.get
 
         closed.asInstanceOf[WindowClosed].d.signals.size shouldEqual 3
-
-        val advanced = probe.fishForMessage(max = 1.second) { case msg =>
-          msg.isInstanceOf[WindowAdvanced]
-        }
-        advanced.asInstanceOf[WindowAdvanced].d.signals.size shouldEqual 3
       }
     }
 
