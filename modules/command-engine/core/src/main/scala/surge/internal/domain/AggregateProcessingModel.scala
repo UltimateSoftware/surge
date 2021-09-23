@@ -114,3 +114,12 @@ trait EventHandler[S, E] extends AggregateProcessingModel[S, Nothing, Nothing, E
 
   override final def apply(ctx: Context, state: Option[S], event: E): Option[S] = handleEvent(ctx, state, event)
 }
+
+trait AsyncEventHandler[S, E] extends EventHandler[S, E] {
+  def handleEventAsync(ctx: Context, state: Option[S], event: E): Future[Option[S]]
+
+  override final def handleEvent(ctx: Context, state: Option[S], event: E): Option[S] =
+    throw new Exception("Synchronous event handler called when using AsyncEventHandler. This should never happen")
+
+  override final def applyAsync(ctx: Context, state: Option[S], event: E): Future[Option[S]] = handleEventAsync(ctx, state, event)
+}
