@@ -105,6 +105,8 @@ class KafkaProducerActorImpl(
     config.getDuration("kafka.publisher.init-transactions.other-exception-retry-time").toMillis.millis.toCoarsest
   private val producerFencedStateUnhealthyReportTime = config.getDuration("kafka.publisher.fenced-unhealthy-report-time").toMillis.milliseconds
 
+  private val disableTransactionsExperimental = config.getBoolean("surge.feature-flags.experimental.disable-single-record-transactions")
+
   private val transactionalId = s"$transactionalIdPrefix-${assignedPartition.topic()}-${assignedPartition.partition()}"
   private val kafkaPublisherMetricsName = transactionalId
 
@@ -411,7 +413,7 @@ class KafkaProducerActorImpl(
 
   private def doFlushRecords(state: KafkaProducerActorState, records: Seq[ProducerRecord[String, Array[Byte]]]): Unit = {
     val senders = state.pendingWrites.map(_.sender)
-    val futureMsg = if (records.size > 1) {
+    val futureMsg = if (records.size > 1 || !disableTransactionsExperimental) {
       val fut = publishRecordsWithTransaction(senders, records)
       context.become(processing(state.flushWrites().startTransaction()))
       fut
