@@ -186,6 +186,7 @@ class KafkaProducerActorImpl(
 
   protected def ignoreEventsFailedToPublishWhenUninitialized(failed: EventsFailedToPublish): Unit = {
     log.trace("KafkaPublisherActor ignoring EventsFailedToPublish message from the uninitialized state", failed.reason)
+    unhandled(failed)
   }
 
   private def waitingForKTableIndexing(): Receive = {

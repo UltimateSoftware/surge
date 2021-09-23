@@ -100,19 +100,6 @@ class SlidingHealthSignalStreamSpec
       bus.signalStream().start().start().start()
     }
 
-    "not lose signals" in {
-      val sourceAndEvents = trackWindowEvents()
-      bus.signalWithTrace(name = "trace.test", Trace("tester")).emit().emit().emit()
-
-      eventually {
-        val maybeWindowClosed = sourceAndEvents._2.find(e => e.isInstanceOf[WindowClosed])
-        maybeWindowClosed shouldBe defined
-        val closed = maybeWindowClosed.get
-
-        closed.asInstanceOf[WindowClosed].d.signals.size shouldEqual 3
-      }
-    }
-
     "receive multiple health signals aggregated in one WindowAdvance event" in {
       val sourceAndEvents = trackWindowEvents()
       val scheduledEmit = Executors
