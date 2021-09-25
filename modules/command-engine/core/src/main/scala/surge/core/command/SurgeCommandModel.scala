@@ -2,13 +2,14 @@
 
 package surge.core.command
 
-import io.opentracing.Tracer
+import io.opentelemetry.api.OpenTelemetry
+import io.opentelemetry.api.trace.Tracer
 import surge.core.commondsl.{ SurgeCommandBusinessLogicTrait, SurgeRejectableCommandBusinessLogicTrait }
 import surge.core.{ SurgeAggregateReadFormatting, SurgeAggregateWriteFormatting, SurgeEventWriteFormatting }
 import surge.internal.SurgeModel
 import surge.internal.domain.AggregateProcessingModel
 import surge.internal.kafka.SurgeKafkaConfig
-import surge.kafka.KafkaTopic
+import surge.kafka.{ KafkaPartitioner, KafkaTopic }
 import surge.metrics.Metrics
 
 private[surge] case class SurgeCommandKafkaConfig(
@@ -32,9 +33,10 @@ private[surge] object SurgeCommandModel {
       aggregateWriteFormatting = businessLogic.aggregateWriteFormatting,
       aggregateReadFormatting = businessLogic.aggregateReadFormatting,
       eventWriteFormatting = businessLogic.eventWriteFormatting,
-      aggregateValidator = businessLogic.aggregateValidatorLambda,
       metrics = businessLogic.metrics,
-      tracer = businessLogic.tracer)
+      openTelemetry = businessLogic.openTelemetry,
+      tracer = businessLogic.tracer,
+      partitioner = businessLogic.partitioner)
   }
   def apply[AggId, Agg, Command, Rej, Event](
       businessLogic: SurgeRejectableCommandBusinessLogicTrait[AggId, Agg, Command, Rej, Event]): SurgeCommandModel[Agg, Command, Rej, Event] = {
@@ -45,9 +47,10 @@ private[surge] object SurgeCommandModel {
       aggregateWriteFormatting = businessLogic.aggregateWriteFormatting,
       aggregateReadFormatting = businessLogic.aggregateReadFormatting,
       eventWriteFormatting = businessLogic.eventWriteFormatting,
-      aggregateValidator = businessLogic.aggregateValidatorLambda,
       metrics = businessLogic.metrics,
-      tracer = businessLogic.tracer)
+      openTelemetry = businessLogic.openTelemetry,
+      tracer = businessLogic.tracer,
+      partitioner = businessLogic.partitioner)
   }
 
 }
@@ -56,9 +59,10 @@ private[surge] case class SurgeCommandModel[Agg, Command, +Rej, Event](
     override val kafka: SurgeCommandKafkaConfig,
     override val model: AggregateProcessingModel[Agg, Command, Rej, Event],
     override val aggregateWriteFormatting: SurgeAggregateWriteFormatting[Agg],
-    override val aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) => Boolean,
     override val metrics: Metrics,
+    override val openTelemetry: OpenTelemetry,
     override val tracer: Tracer,
+    override val partitioner: KafkaPartitioner[String],
     override val aggregateReadFormatting: SurgeAggregateReadFormatting[Agg],
     eventWriteFormatting: SurgeEventWriteFormatting[Event])
     extends SurgeModel[Agg, Command, Rej, Event] {

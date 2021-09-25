@@ -2,9 +2,7 @@
 
 package surge.core
 
-import java.util.regex.Pattern
-
-import akka.actor.{ ActorRef, ActorSystem }
+import akka.actor.ActorSystem
 import akka.actor.Status.Failure
 import akka.pattern.AskTimeoutException
 import akka.testkit.{ TestKit, TestProbe }
@@ -23,7 +21,7 @@ import surge.kafka.streams.{ HealthCheck, HealthCheckStatus, HealthyActor }
 import surge.metrics.Metrics
 
 import scala.concurrent.duration._
-import scala.concurrent.{ Await, ExecutionContext }
+import scala.concurrent.ExecutionContext
 
 class KafkaProducerActorSpec
     extends TestKit(ActorSystem("KafkaProducerActorSpec"))
@@ -38,8 +36,7 @@ class KafkaProducerActorSpec
   override implicit val patienceConfig: PatienceConfig = PatienceConfig(timeout = Span(3, Seconds), interval = Span(10, Millis))
 
   override def afterAll(): Unit = {
-    system.terminate()
-    super.afterAll()
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
   }
 
   "KafkaProducerActor" should {
@@ -48,7 +45,7 @@ class KafkaProducerActorSpec
       val invokable: InvokableHealthRegistration = Mockito.mock(classOf[InvokableHealthRegistration])
 
       Mockito
-        .when(signalBus.registration(ArgumentMatchers.any(classOf[ActorRef]), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any()))
+        .when(signalBus.registration(ArgumentMatchers.any(classOf[Controllable]), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any()))
         .thenReturn(invokable)
       new KafkaProducerActor(testProbe.ref, Metrics.globalMetricRegistry, "test-aggregate-name", new TopicPartition("testTopic", 1), signalBus)
     }
@@ -71,14 +68,14 @@ class KafkaProducerActorSpec
       val receivedMsg1 = probe.expectMsgType[KafkaProducerActorImpl.IsAggregateStateCurrent]
       receivedMsg1.aggregateId shouldEqual aggId1
       probe.reply(true)
-      Await.result(futureResponse1, 3.seconds) shouldEqual true
+      futureResponse1.futureValue shouldEqual true
 
       val aggId2 = "testAggId2"
       val futureResponse2 = producer.isAggregateStateCurrent(aggId2)
       val receivedMsg2 = probe.expectMsgType[KafkaProducerActorImpl.IsAggregateStateCurrent]
       receivedMsg2.aggregateId shouldEqual aggId2
       probe.reply(false)
-      Await.result(futureResponse2, 3.seconds) shouldEqual false
+      futureResponse2.futureValue shouldEqual false
     }
 
     "Ask the underlying actor if it's healthy when performing a health check" in {
@@ -89,7 +86,7 @@ class KafkaProducerActorSpec
       val futureResult = producer.healthCheck()
       probe.expectMsg(HealthyActor.GetHealth)
       probe.reply(expectedHealthCheck)
-      Await.result(futureResult, 3.seconds) shouldEqual expectedHealthCheck
+      futureResult.futureValue shouldEqual expectedHealthCheck
     }
 
     "Report unhealthy if theres an error getting health from the underlying actor" in {
@@ -99,8 +96,7 @@ class KafkaProducerActorSpec
       val futureResult = producer.healthCheck()
       probe.expectMsg(HealthyActor.GetHealth)
       probe.reply(Failure(new RuntimeException("This is expected")))
-      val result = Await.result(futureResult, 3.seconds)
-      result.status shouldEqual HealthCheckStatus.DOWN
+      futureResult.futureValue.status shouldEqual HealthCheckStatus.DOWN
     }
 
     "Return a failed future when the ask to the underlying publisher actor times out" in {

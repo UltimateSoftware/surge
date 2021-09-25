@@ -25,8 +25,9 @@ import scala.languageFeature.postfixOps
 class RepeatingSignalMatcherSpec extends TestKit(ActorSystem("RepeatingSignals")) with AnyWordSpecLike with BeforeAndAfterAll with Matchers {
   implicit val postOp: postfixOps = postfixOps
 
-  override def afterAll(): Unit =
-    TestKit.shutdownActorSystem(system)
+  override def afterAll(): Unit = {
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
+  }
 
   private val testTraceSignal = HealthSignal(topic = "topic", name = "test.trace", signalType = SignalType.TRACE, data = Trace("test"))
   private val testSignal1 = HealthSignal(topic = "topic", name = "foo", signalType = SignalType.TRACE, data = Trace("test"))
@@ -49,7 +50,7 @@ class RepeatingSignalMatcherSpec extends TestKit(ActorSystem("RepeatingSignals")
         streamMonitoring = Some(new StreamMonitoringRef(probe.ref)),
         actorSystem = system)
 
-      val bus = slidingHealthSignalStream.busWithSupervision(startStreamOnInit = true)
+      val bus = slidingHealthSignalStream.bus()
 
       val repeatingData = Seq(
         Range(1, 100),
@@ -84,7 +85,7 @@ class RepeatingSignalMatcherSpec extends TestKit(ActorSystem("RepeatingSignals")
       val matcher = RepeatingSignalMatcher(times = 5, atomicMatcher = SignalNameEqualsMatcher(name = "test.trace"), Some(SideEffect(Seq(fiveInARowSignal))))
 
       val result = matcher.searchForMatch(
-        Seq(testTraceSignal, testTraceSignal, testSignal1, testTraceSignal, testSignal2, testTraceSignal, testTraceSignal),
+        Seq(testTraceSignal, testTraceSignal, testSignal1, testTraceSignal, testSignal2, testTraceSignal, testTraceSignal, testSignal2),
         frequency = 10.seconds)
 
       result.matches.size shouldEqual 5

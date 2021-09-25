@@ -1,5 +1,7 @@
 # Surge
 
+[![Build Main](https://github.com/UltimateSoftware/surge/actions/workflows/surge-main.yml/badge.svg)](https://github.com/UltimateSoftware/surge/actions/workflows/surge-main.yml) [![codecov](https://codecov.io/gh/UltimateSoftware/surge/branch/main/graph/badge.svg?token=YTKVQJUMJN)](https://codecov.io/gh/UltimateSoftware/surge) 
+
 **WARNING** Surge is currently in a pre-release state. There are a lot of great ideas and solid components in this repository, but we are still actively working and shaping the libraries as we move towards a more stable and official 1.0 release. For more details, see what you can [currently expect for support and stability](CURRENT_SUPPORT.md).
 
 Many stateful message driven applications today leverage Kafka as a message bus, but tend to keep state stored in a data store outside of Kafka. Keeping

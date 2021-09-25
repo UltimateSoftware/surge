@@ -3,15 +3,18 @@
 package surge.internal.health
 
 import akka.Done
-import akka.actor.{ ActorRef, ActorSystem }
+import akka.actor.ActorSystem
 import akka.testkit.{ TestKit, TestProbe }
 import org.mockito.Mockito._
 import org.mockito.stubbing.Stubber
 import org.mockito.{ ArgumentMatchers, Mockito }
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
-import surge.health.domain.{ EmittableHealthSignal, Error, HealthSignal, Trace, Warning }
+import surge.health.config.HealthSignalBusConfig
+
+import surge.health.domain._
 import surge.health.{ HealthSignalListener, SignalHandler }
 import surge.internal.health.context.TestHealthSignalStream
 import surge.internal.health.supervisor.HealthSupervisorActorRef
@@ -42,7 +45,12 @@ trait MockitoHelper extends MockitoSugar {
   }
 }
 
-class HealthSignalBusSpec extends TestKit(ActorSystem("healthSignalBus")) with AnyWordSpecLike with Matchers with MockitoHelper {
+class HealthSignalBusSpec extends TestKit(ActorSystem("healthSignalBus")) with AnyWordSpecLike with Matchers with MockitoHelper with BeforeAndAfterAll {
+
+  override def afterAll(): Unit = {
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
+  }
+
   import surge.internal.health.context.TestContext._
   val signalStreamProvider: HealthSignalStreamProvider = testHealthSignalStreamProvider(Seq.empty)
 
@@ -58,23 +66,37 @@ class HealthSignalBusSpec extends TestKit(ActorSystem("healthSignalBus")) with A
     }
 
     "have a window stream" in {
-      signalStreamProvider.busWithSupervision().signalStream() shouldBe a[TestHealthSignalStream]
+      signalStreamProvider.bus().signalStream() shouldBe a[TestHealthSignalStream]
     }
 
-    "throw runtime exception when handling registration and supervisor not available" in {
-      val bus = signalStreamProvider.busWithSupervision()
-      val spy = Mockito.spy(bus)
+    "have a null health signal stream when streaming disabled" in {
+      val bus =
+        HealthSignalBus(
+          HealthSignalBusConfig(
+            streamingEnabled = false,
+            signalTopic = "health.signal",
+            registrationTopic = "health.registration",
+            allowedSubscriberCount = 123),
+          signalStreamProvider,
+          startOnInit = false)
 
-      doReturn(None).when(spy).supervisor()
-      a[RuntimeException] should be thrownBy spy.registration(Mockito.mock(classOf[ActorRef]), "foo", Seq.empty, Seq.empty)
+      bus.signalStream() shouldBe a[NullHealthSignalStream]
     }
 
     "not fail on repeated supervise calls" in {
-      signalStreamProvider.busWithSupervision().supervise().supervise().supervisor().isDefined shouldEqual true
+      signalStreamProvider.bus().supervise().supervise().supervisor().isDefined shouldEqual true
     }
 
-    "not fail on repeated unsupervise calls" in {
-      signalStreamProvider.busWithSupervision().supervise().unsupervise().unsupervise().unsupervise().supervisor().isDefined shouldEqual false
+    "not fail on repeated un-supervise calls" in {
+      signalStreamProvider.bus().unsupervise().unsupervise().unsupervise().supervisor().isDefined shouldEqual false
+    }
+
+    "not fail on supervise when not supervised" in {
+      signalStreamProvider.bus().unsupervise().supervise().supervisor().isDefined shouldEqual true
+    }
+
+    "not fail on un-supervise when not supervised" in {
+      signalStreamProvider.bus().unsupervise().supervisor().isDefined shouldEqual false
     }
 
     "create trace signal" in {

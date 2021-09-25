@@ -2,13 +2,14 @@
 
 package surge.core.event
 
-import io.opentracing.Tracer
+import io.opentelemetry.api.OpenTelemetry
+import io.opentelemetry.api.trace.Tracer
 import surge.core.commondsl.SurgeEventBusinessLogicTrait
 import surge.core.{ SurgeAggregateReadFormatting, SurgeAggregateWriteFormatting, SurgeEventWriteFormatting }
 import surge.internal.SurgeModel
 import surge.internal.domain.AggregateProcessingModel
 import surge.internal.kafka.SurgeKafkaConfig
-import surge.kafka.KafkaTopic
+import surge.kafka.{ KafkaPartitioner, KafkaTopic }
 import surge.metrics.Metrics
 
 private[surge] case class SurgeEventKafkaConfig(stateTopic: KafkaTopic, streamsApplicationId: String, clientId: String, transactionalIdPrefix: String)
@@ -24,9 +25,10 @@ object SurgeEventServiceModel {
       model = businessLogic.eventModel.toCore,
       aggregateWriteFormatting = businessLogic.aggregateWriteFormatting,
       aggregateReadFormatting = businessLogic.aggregateReadFormatting,
-      aggregateValidator = businessLogic.aggregateValidatorLambda,
       metrics = businessLogic.metrics,
-      tracer = businessLogic.tracer)
+      openTelemetry = businessLogic.openTelemetry,
+      tracer = businessLogic.tracer,
+      partitioner = businessLogic.partitioner)
   }
 }
 private[surge] case class SurgeEventServiceModel[Agg, Event](
@@ -35,9 +37,10 @@ private[surge] case class SurgeEventServiceModel[Agg, Event](
     override val model: AggregateProcessingModel[Agg, Nothing, Nothing, Event],
     override val aggregateReadFormatting: SurgeAggregateReadFormatting[Agg],
     override val aggregateWriteFormatting: SurgeAggregateWriteFormatting[Agg],
-    override val aggregateValidator: (String, Array[Byte], Option[Array[Byte]]) => Boolean,
     override val metrics: Metrics,
-    override val tracer: Tracer)
+    override val openTelemetry: OpenTelemetry,
+    override val tracer: Tracer,
+    override val partitioner: KafkaPartitioner[String])
     extends SurgeModel[Agg, Nothing, Nothing, Event] {
   override def eventWriteFormattingOpt: Option[SurgeEventWriteFormatting[Event]] = None
 }

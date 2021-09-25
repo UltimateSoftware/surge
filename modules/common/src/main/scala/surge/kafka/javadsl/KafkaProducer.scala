@@ -2,19 +2,19 @@
 
 package surge.kafka.javadsl
 
-import java.util.concurrent.CompletionStage
-import java.util.{ Optional, Properties }
-
+import com.typesafe.config.{ Config, ConfigFactory }
 import org.apache.kafka.clients.producer.{ KafkaProducer, ProducerConfig, ProducerRecord, RecordMetadata }
 import org.apache.kafka.common.serialization.{ ByteArraySerializer, StringSerializer }
-import surge.kafka.{ KafkaPartitionerBase, KafkaProducerHelperCommon, KafkaSecurityConfiguration, KafkaTopic, PartitionStringUpToColon }
+import surge.kafka._
 
+import java.util.concurrent.CompletionStage
+import java.util.{ Optional, Properties }
 import scala.compat.java8.FutureConverters._
 import scala.compat.java8.OptionConverters._
 import scala.concurrent.ExecutionContext
 import scala.jdk.CollectionConverters._
 
-abstract class AbstractKafkaProducer[K, V] extends KafkaSecurityConfiguration with KafkaProducerHelperCommon[K, V] {
+abstract class AbstractKafkaProducer[K, V] extends KafkaProducerHelperCommon[K, V] {
   private implicit val executionContext: ExecutionContext = ExecutionContext.global
 
   def partitionFor(key: K): Optional[Int] = getPartitionFor(key).asJava
@@ -35,28 +35,32 @@ abstract class AbstractKafkaProducer[K, V] extends KafkaSecurityConfiguration wi
 }
 
 object KafkaBytesProducer {
+  private val config = ConfigFactory.load()
   def create(brokers: java.util.Collection[String], topic: KafkaTopic): KafkaBytesProducer = {
-    new KafkaBytesProducer(brokers, topic, PartitionStringUpToColon, Map.empty[String, String].asJava)
+    create(brokers, topic, PartitionStringUpToColon.instance, config, Map.empty[String, String].asJava)
   }
   def create(brokers: java.util.Collection[String], topic: KafkaTopic, kafkaConfig: java.util.Map[String, String]): KafkaBytesProducer = {
-    new KafkaBytesProducer(brokers, topic, PartitionStringUpToColon, kafkaConfig)
+    create(brokers, topic, PartitionStringUpToColon.instance, config, kafkaConfig)
+  }
+
+  def create(
+      brokers: java.util.Collection[String],
+      topic: KafkaTopic,
+      partitioner: KafkaPartitionerBase[String],
+      config: Config,
+      kafkaConfig: java.util.Map[String, String]): KafkaBytesProducer = {
+    new KafkaBytesProducer(brokers, topic, partitioner, KafkaProducerHelper.producerPropsFromConfig(config, kafkaConfig.asScala.toMap))
   }
 }
 class KafkaBytesProducer(
     brokers: java.util.Collection[String],
     override val topic: KafkaTopic,
     override val partitioner: KafkaPartitionerBase[String],
-    kafkaConfig: java.util.Map[String, String])
+    producerProps: Properties)
     extends AbstractKafkaProducer[String, Array[Byte]] {
-  val props: Properties = {
-    val p = new Properties()
-    kafkaConfig.asScala.foreach(propPair => p.put(propPair._1, propPair._2))
-    p.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, brokers.asScala.mkString(","))
-    p.put(ProducerConfig.ACKS_CONFIG, "all")
-    p.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, classOf[StringSerializer].getName)
-    p.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, classOf[ByteArraySerializer].getName)
-    configureSecurityProperties(p)
-    p
-  }
-  override val producer: KafkaProducer[String, Array[Byte]] = new KafkaProducer[String, Array[Byte]](props)
+
+  producerProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, brokers.asScala.mkString(","))
+  producerProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, classOf[StringSerializer].getName)
+  producerProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, classOf[ByteArraySerializer].getName)
+  override val producer: KafkaProducer[String, Array[Byte]] = new KafkaProducer[String, Array[Byte]](producerProps)
 }

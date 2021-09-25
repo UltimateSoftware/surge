@@ -2,43 +2,40 @@
 
 package surge.kafka
 
-import java.time.Instant
-
 import akka.actor._
 import akka.pattern._
-import com.typesafe.config.{ Config, ConfigFactory }
-import io.opentracing.Tracer
+import com.typesafe.config.Config
+import io.opentelemetry.api.trace.Tracer
 import org.apache.kafka.common.TopicPartition
-import org.slf4j.{ Logger, LoggerFactory, MDC }
+import org.slf4j.{ Logger, LoggerFactory }
 import surge.internal.akka.ActorWithTracing
 import surge.internal.akka.cluster.{ ActorHostAwareness, Shard }
-import surge.internal.akka.kafka.{ KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor }
+import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.config.TimeoutConfig
+import surge.internal.tracing.TracedMessage
 import surge.kafka.streams.HealthyActor.GetHealth
 import surge.kafka.streams.{ HealthCheck, HealthCheckStatus, HealthyActor }
-import surge.tracing.TracedMessage
 
+import java.time.Instant
 import scala.concurrent.Future
 import scala.concurrent.duration._
-import scala.util.Try
 
 object KafkaPartitionShardRouterActor {
-  private val config: Config = ConfigFactory.load()
-  private val brokers = config.getString("kafka.brokers").split(",").toVector
-
   def props[Agg, Command, Event](
+      config: Config,
       partitionTracker: KafkaConsumerPartitionAssignmentTracker,
       partitioner: KafkaPartitioner[String],
       trackedTopic: KafkaTopic,
       regionCreator: PersistentActorRegionCreator[String],
-      extractEntityId: PartialFunction[Any, String],
-      tracer: Tracer): Props = {
+      extractEntityId: PartialFunction[Any, String])(tracer: Tracer): Props = {
 
+    val brokers = config.getString("kafka.brokers").split(",").toVector
     // This producer is only used for determining partition assignments, not actually producing
-    val producer = KafkaBytesProducer(brokers, trackedTopic, partitioner)
-    Props(new KafkaPartitionShardRouterActor(partitionTracker, producer, regionCreator, extractEntityId, tracer))
+    val producer = KafkaBytesProducer(config, brokers, trackedTopic, partitioner)
+    Props(new KafkaPartitionShardRouterActor(config, partitionTracker, producer, regionCreator, extractEntityId)(tracer))
   }
   case object GetPartitionRegionAssignments
+
 }
 
 /**
@@ -66,11 +63,11 @@ object KafkaPartitionShardRouterActor {
  *   A partial function to extract an entity id from an incoming message. This actor can only handle routing
  */
 class KafkaPartitionShardRouterActor(
+    config: Config,
     partitionTracker: KafkaConsumerPartitionAssignmentTracker,
     kafkaStateProducer: KafkaProducerTrait[String, _],
     regionCreator: PersistentActorRegionCreator[String],
-    extractEntityId: PartialFunction[Any, String],
-    override val tracer: Tracer)
+    extractEntityId: PartialFunction[Any, String])(implicit val tracer: Tracer)
     extends ActorWithTracing
     with Stash
     with ActorHostAwareness {
@@ -78,7 +75,6 @@ class KafkaPartitionShardRouterActor(
   import KafkaPartitionShardRouterActor._
   import context.dispatcher
 
-  private val config = ConfigFactory.load()
   private val trackedTopic = kafkaStateProducer.topic
   private val enableDRStandbyInitial = config.getBoolean("surge.dr-standby-enabled")
 
@@ -157,7 +153,9 @@ class KafkaPartitionShardRouterActor(
 
   private def uninitialized: Receive = {
     case msg: PartitionAssignments => handle(msg)
-    case _                         => stash()
+    case _ =>
+      activeSpan.log("stashed")
+      stash()
   }
 
   // In standby mode, just follow updates to partition assignments and let Kafka streams index the aggregate state
@@ -166,39 +164,34 @@ class KafkaPartitionShardRouterActor(
     case GetPartitionRegionAssignments => sender() ! state.partitionRegions
     case GetHealth =>
       sender() ! HealthCheck(name = "shard-router-actor", id = s"router-actor-$hashCode", status = HealthCheckStatus.UP)
-    case msg if extractEntityId.isDefinedAt(msg) => becomeActiveAndDeliverMessage(state, msg)
+    case msg if extractEntityId.isDefinedAt(msg) =>
+      becomeActiveAndDeliverMessage(state, msg)
   }
 
   private def initialized(state: ActorState): Receive = healthCheckReceiver(state).orElse {
-    case msg: PartitionAssignments               => handle(state, msg)
-    case msg: Terminated                         => handle(state, msg)
-    case GetPartitionRegionAssignments           => sender() ! state.partitionRegions
-    case msg if extractEntityId.isDefinedAt(msg) => deliverMessage(state, msg)
+    case msg: PartitionAssignments     => handle(state, msg)
+    case msg: Terminated               => handle(state, msg)
+    case GetPartitionRegionAssignments => sender() ! state.partitionRegions
+    case msg if extractEntityId.isDefinedAt(msg) =>
+      val entityId: String = extractEntityId(msg)
+      activeSpan.log("extractEntityId", Map("entityId" -> entityId))
+      deliverMessage(state, entityId, msg)
   }
 
   private def healthCheckReceiver(state: ActorState): Receive = { case GetHealth =>
     getHealthCheck(state).pipeTo(sender())
   }
 
-  private def deliverMessage(state: ActorState, msg: Any): Unit = {
-    Try(extractEntityId(msg)).toOption match {
-      case None =>
-        log.warn("Unsure of how to route message with class [{}], dropping it.", msg.getClass.getName)
-        context.system.deadLetters ! msg
-      case Some(id) =>
-        deliverMessage(state, id, msg)
-    }
-  }
-
   private def deliverMessage(state: ActorState, aggregateId: String, msg: Any): Unit = {
     partitionRegionFor(state, aggregateId) match {
       case Some(responsiblePartitionRegion) =>
-        log.trace(
-          s"RouterActor forwarding command envelope for aggregate $aggregateId to region ${responsiblePartitionRegion.regionManager.pathString}. Msg $msg")
-
-        responsiblePartitionRegion.regionManager.forward(tracedMessage(msg))
+        log.trace(s"Forwarding command envelope for aggregate $aggregateId to region ${responsiblePartitionRegion.regionManager.pathString}.")
+        activeSpan.addEvent("forwarding message")
+        val tracedMsg = TracedMessage(msg, parentSpan = activeSpan)
+        responsiblePartitionRegion.regionManager.forward(tracedMsg)
       case None =>
-        log.error(s"RouterActor could not find a responsible partition region for $aggregateId.")
+        activeSpan.addEvent("failed to forward")
+        log.error(s"Could not find a responsible partition region for $aggregateId.")
     }
   }
 
@@ -238,7 +231,7 @@ class KafkaPartitionShardRouterActor(
           val region = regionCreator.regionFromTopicPartition(topicPartition)
           region.start()
 
-          val shardProps = Shard.props(topicPartition.toString, region, extractEntityId)
+          val shardProps = Shard.props(topicPartition.toString, region, extractEntityId)(tracer)
 
           val newActor = context.system.actorOf(shardProps)
           context.watch(newActor)
@@ -291,7 +284,9 @@ class KafkaPartitionShardRouterActor(
     log.info("Shard router transitioning from standby mode to active mode")
     val newState = state.copy(enableDRStandby = false).initializeNewRegions()
     context.become(initialized(newState))
-    deliverMessage(newState, msg)
+    val entityId = extractEntityId(msg)
+    activeSpan.log("extractEntityId", Map("entityId" -> entityId))
+    deliverMessage(newState, entityId, msg)
   }
 
   private def handle(partitionAssignments: PartitionAssignments): Unit = {
@@ -299,7 +294,6 @@ class KafkaPartitionShardRouterActor(
       scheduledInitialize.cancel()
       unstashAll()
       log.debug(s"RouterActor initializing with partition assignments $partitionAssignments")
-
       val emptyState = ActorState(PartitionAssignments.empty, Map.empty)
       handle(emptyState, partitionAssignments)
     }
@@ -317,7 +311,7 @@ class KafkaPartitionShardRouterActor(
         case err: Throwable =>
           log.error(s"Failed to get partition region health check ${partitionRegion.regionManager.pathString}", err)
           Future.successful(
-            HealthCheck(name = partitionRegion.regionManager.pathString, id = partitionRegion.regionManager.pathString, status = HealthCheckStatus.DOWN))
+            HealthCheck(name = "shard", id = new TopicPartition(trackedTopic.name, partitionRegion.partitionNumber).toString, status = HealthCheckStatus.DOWN))
       }
     }.toSeq
   }

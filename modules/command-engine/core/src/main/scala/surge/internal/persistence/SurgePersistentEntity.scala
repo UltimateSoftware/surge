@@ -3,15 +3,13 @@
 package surge.internal.persistence
 
 import surge.akka.cluster.JacksonSerializable
-import surge.tracing.TracedMessage
 
 trait RoutableMessage extends JacksonSerializable {
   def aggregateId: String
 }
 object RoutableMessage {
-  def extractEntityId: PartialFunction[Any, String] = {
-    case routableMessage: RoutableMessage       => routableMessage.aggregateId
-    case traced: TracedMessage[RoutableMessage] => traced.message.aggregateId
+  def extractEntityId: PartialFunction[Any, String] = { case routableMessage: RoutableMessage =>
+    routableMessage.aggregateId
   }
 }
 

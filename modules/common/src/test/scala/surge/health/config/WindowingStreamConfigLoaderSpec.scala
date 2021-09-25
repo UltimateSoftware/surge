@@ -11,7 +11,7 @@ class WindowingStreamConfigLoaderSpec extends AnyWordSpec with Matchers {
 
   "WindowingStreamConfig" should {
     "load" in {
-      val config = ConfigFactory.load("windowing-stream-config-loader-spec").getConfig("surge.health.window.stream")
+      val config = ConfigFactory.load("windowing-stream-config-loader-spec")
 
       val windowingStreamConfig = WindowingStreamConfigLoader.load(config)
 

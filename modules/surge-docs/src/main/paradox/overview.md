@@ -13,7 +13,12 @@ To determine how commands and events for an aggregate should be handled, the eng
 ### In depth overview
 ![Kafka Streams Command In Depth](images/cqrs-on-kafka-streams.png)
 
-**Note** All of these in depth details are implemented in/provided by the Surge engine out of the box and do not have to be implemented in a domain app.  The details described are for anyone interested in taking a look at how things work.
+#### Command and Event Flow Sequence
+![Kafka Streams Command In Depth](images/surge-sequence.png)
+
+**Note** the Surge engine implements and provides most of these in depth details out of the box and do not have to be implemented in the user application
+The details described are for anyone interested in taking a look at how things work.
+User applications only need to implement business logic like command and event handlers, and configure and create an instance of the Surge Engine.
 
 #### State Tracking
 When an aggregate emits new events, they are accompanied by an update to the aggregate state via a message produced to the aggregate state snapshot topic.  An aggregate id will always send state updates to the same Kafka partition - this is important for being able to compact away older aggregate snapshots and guarantee any updates to a particular aggregate id as well as provide routing (described in more detail later).
