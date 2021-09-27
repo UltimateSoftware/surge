@@ -44,7 +44,7 @@ class GenericAsyncAggregateCommandModel(bridgeToBusinessApp: BusinessLogicServic
 
   override def processCommand(aggregate: Option[SurgeState], surgeCommand: SurgeCmd): Future[Seq[SurgeEvent]] = {
     if (!validIds(aggregate, surgeCommand)) {
-      Future.failed(new Exception("Wrong aggregate ids!"))
+      Future.failed(new Exception(s"Wrong aggregate ids!, aggId: ${aggregate.map(_.aggregateId)} && cmdAggId: ${surgeCommand.aggregateId}"))
     } else {
       logger.info(
         s"Calling command handler of business app via gRPC. Aggregate id: ${surgeCommand.aggregateId}). State defined: ${aggregate.isDefined}. Command payload size: ${surgeCommand.payload.length} (bytes).")

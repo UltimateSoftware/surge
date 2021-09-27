@@ -60,7 +60,10 @@ trait TestBoundedContext {
     import system.dispatcher
 
     private def applyEvent(state: Option[AggregateState], evt: CountIncremented): Option[AggregateState] = {
-      state.map(st => st.copy(count = st.count + evt.incrementBy, version = evt.sequenceNumber))
+      state match {
+        case Some(agg) => Some(agg.copy(count = agg.count + evt.incrementBy, version = evt.sequenceNumber))
+        case None => Some(AggregateState(evt.aggregateId, evt.incrementBy, evt.sequenceNumber))
+      }
     }
 
     private def applyEvents(state: Option[AggregateState], events: Seq[CountIncremented]): Option[AggregateState] = {
@@ -69,35 +72,30 @@ trait TestBoundedContext {
 
     private def applyCommand(state: Option[AggregateState], cmd: Increment) = {
       val newSequenceNumber = state.map(_.version).getOrElse(0) + 1
-      val commandHandlerResult: Either[String, Seq[CountIncremented]] = Right(
+      val events: Either[String, Seq[CountIncremented]] = Right(
         Seq(CountIncremented(cmd.aggregateId, incrementBy = 1, sequenceNumber = newSequenceNumber)))
-      val result = commandHandlerResult.map(events => (events, applyEvents(state, events)))
+      val result = events.map(evts => (evts, applyEvents(state, evts)))
       result
     }
 
-    private def convertEvent(aggregateId: String, e: CountIncremented): Future[Event] = {
+    private def serializeEvent(aggregateId: String, e: CountIncremented): Future[Event] = {
       val tryByteArray = Try(Json.toJson(e).toString().getBytes())
       val result = tryByteArray.map(byteArray => Event(aggregateId).withPayload(ByteString.copyFrom(byteArray)))
       Future.fromTry(result)
     }
 
-    private def convertEvent(e: Event): Future[CountIncremented] = {
-      val result = Json.parse(e.toByteArray).asOpt[CountIncremented].toRight(new Exception("empty")).toTry
+    private def deserializeEvent(e: Event): Future[CountIncremented] = {
+      val result = Try(Json.parse(e.payload.toByteArray).as[CountIncremented])
       Future.fromTry(result)
     }
 
-    private def convertState(aggregateId: String, maybeState: Option[AggregateState]): Future[Option[State]] = {
-      maybeState match {
-        case Some(state) =>
-          Future
-            .fromTry(Try(Json.toJson(state).toString().getBytes()))
-            .map((byteArray: Array[Byte]) =>
-              Some {
-                State(aggregateId, payload = ByteString.copyFrom(byteArray))
-              })
-        case None =>
-          Future.successful(Option.empty[State])
-      }
+    private def serializeState(aggregateId: String, maybeState: Option[AggregateState]): Future[Option[State]] = {
+      Future.successful(
+        maybeState.map { state =>
+          val serializedState = Json.toJson(state).toString().getBytes()
+          State(aggregateId, payload = ByteString.copyFrom(serializedState))
+        }
+      )
     }
 
     private def toProcessCommandReply(
@@ -108,8 +106,8 @@ trait TestBoundedContext {
           Future.successful(ProcessCommandReply(aggregateId, isSuccess = false, rejMsg))
         case Right(result: (Seq[CountIncremented], Option[AggregateState])) =>
           for {
-            events <- Future.sequence(result._1.map(convertEvent(aggregateId, _)))
-            state <- convertState(aggregateId, result._2)
+            events <- Future.sequence(result._1.map(serializeEvent(aggregateId, _)))
+            state <- serializeState(aggregateId, result._2)
           } yield ProcessCommandReply(aggregateId, isSuccess = true, events = events, newState = state)
       }
     }
@@ -119,17 +117,13 @@ trait TestBoundedContext {
       (in.state, in.command) match {
         case (maybePbState, Some(pbCommand)) =>
           val aggregateId: String = pbCommand.aggregateId
-          val tryState: Try[Option[AggregateState]] = maybePbState match {
-            case Some(pbState) =>
-              Try(Json.parse(pbState.payload.toByteArray).asOpt[AggregateState])
-            case None =>
-              Success(Option.empty[AggregateState])
+          val stateOpt = maybePbState.flatMap {pbState =>
+            Json.parse(pbState.payload.toByteArray).asOpt[AggregateState]
           }
-          val tryCommand = Try(Json.parse(pbCommand.payload.toByteArray).as[Increment])
+          val commandT = Try(Json.parse(pbCommand.payload.toByteArray).as[Increment])
           (for {
-            state <- tryState
-            cmd <- tryCommand
-            result <- Try(applyCommand(state, cmd))
+            cmd <- commandT
+            result <- Try(applyCommand(stateOpt, cmd))
           } yield result) match {
             case Failure(exception) => Future.failed(exception)
             case Success(result) =>
@@ -141,75 +135,15 @@ trait TestBoundedContext {
     }
 
     override def handleEvents(in: HandleEventsRequest): Future[HandleEventsResponse] = {
-      val tryState: Try[Option[AggregateState]] = in.state match {
-        case Some(pbState) =>
-          Try(Json.parse(pbState.payload.toByteArray).asOpt[AggregateState])
-        case None =>
-          Success(Option.empty[AggregateState])
+      val stateOpt = in.state.flatMap {pbState =>
+        Json.parse(pbState.payload.toByteArray).asOpt[AggregateState]
       }
       for {
-        oldState <- Future.fromTry(tryState)
-        events <- Future.sequence(in.events.map(convertEvent))
-        newState <- Future.fromTry(Try(applyEvents(oldState, events)))
-        newStateProtobuf <- newState match {
-          case Some(value) =>
-            val state = Try(Json.toJson(value).toString().getBytes())
-            Future.fromTry(state.map(bytes => State(aggregateId = in.aggregateId, ByteString.copyFrom(bytes)))).map(Option(_))
-          case None => Future.successful(Option.empty[State])
-        }
+        events <- Future.sequence(in.events.map(deserializeEvent))
+        newState <- Future.fromTry(Try(applyEvents(stateOpt, events)))
+        newStateProtobuf <- serializeState(in.aggregateId, newState)
         response = HandleEventsResponse(aggregateId = in.aggregateId, state = newStateProtobuf)
       } yield response
     }
   }
-
-//
-//  val consumerGroup: String = "count-aggregate-consumer-group-name"
-//  val stateTopic: KafkaTopic = KafkaTopic("testStateTopic")
-//  val eventTopic: KafkaTopic = KafkaTopic("testEventsTopic")
-//  val aggregateName = "CountAggregate"
-//  val kafkaConfig = SurgeCommandKafkaConfig(
-//    stateTopic = stateTopic,
-//    eventsTopic = eventTopic,
-//    publishStateOnly = false,
-//    streamsApplicationId = consumerGroup,
-//    clientId = "",
-//    transactionalIdPrefix = "test-transaction-id-prefix")
-//
-//  val eventFormat: SurgeEventFormatting[BaseTestEvent] = new SurgeEventFormatting[BaseTestEvent] {
-//    override def readEvent(bytes: Array[Byte]): BaseTestEvent = {
-//      Json.parse(bytes).as[BaseTestEvent]
-//    }
-//
-//    override def writeEvent(evt: BaseTestEvent): SerializedMessage = {
-//      val key = s"${evt.aggregateId}:${evt.sequenceNumber}"
-//      val body = Json.toJson(evt).toString().getBytes()
-//      SerializedMessage(key, body, Map.empty)
-//    }
-//  }
-//
-//  val aggregateFormat: SurgeAggregateFormatting[AggregateState] = new SurgeAggregateFormatting[AggregateState] {
-//    override def readState(bytes: Array[Byte]): Option[AggregateState] = {
-//      Json.parse(bytes).asOpt[AggregateState]
-//    }
-//
-//    override def writeState(agg: AggregateState): SerializedAggregate = SerializedAggregate(Json.toJson(agg).toString().getBytes(), Map.empty)
-//  }
-//  val businessLogic: SurgeCommandBusinessLogic[String, AggregateState, BaseTestCommand, BaseTestEvent] =
-//    new SurgeCommandBusinessLogic[String, AggregateState, BaseTestCommand, BaseTestEvent]() {
-//      val businessLogicTrait: BusinessLogicTrait = new BusinessLogicTrait {}
-//
-//      override def aggregateName: String = "CounterAggregate"
-//
-//      override def stateTopic: KafkaTopic = kafkaConfig.stateTopic
-//
-//      override def eventsTopic: KafkaTopic = kafkaConfig.eventsTopic
-//
-//      override def commandModel: AggregateCommandModel[AggregateState, BaseTestCommand, BaseTestEvent] = businessLogicTrait
-//
-//      override def aggregateReadFormatting: SurgeAggregateReadFormatting[AggregateState] = aggregateFormat
-//
-//      override def aggregateWriteFormatting: SurgeAggregateWriteFormatting[AggregateState] = aggregateFormat
-//
-//      override def eventWriteFormatting: SurgeEventWriteFormatting[BaseTestEvent] = eventFormat
-//    }
 }
