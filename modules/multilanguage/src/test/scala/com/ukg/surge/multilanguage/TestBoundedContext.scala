@@ -1,15 +1,18 @@
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
+
 package com.ukg.surge.multilanguage
 
+import akka.actor.ActorSystem
 import com.google.protobuf.ByteString
 import com.ukg.surge.multilanguage.protobuf._
 import play.api.libs.json._
 import surge.core._
 import surge.core.command.SurgeCommandKafkaConfig
 import surge.kafka.KafkaTopic
-import surge.scaladsl.command.{AggregateCommandModel, SurgeCommandBusinessLogic}
+import surge.scaladsl.command.{ AggregateCommandModel, SurgeCommandBusinessLogic }
 
-import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future}
-import scala.util.{Failure, Success, Try}
+import scala.concurrent.{ ExecutionContext, ExecutionContextExecutor, Future }
+import scala.util.{ Failure, Success, Try }
 
 object TestBoundedContext {
 
@@ -51,24 +54,35 @@ object TestBoundedContext {
 
 trait TestBoundedContext {
   import TestBoundedContext._
-  implicit def ec: ExecutionContext
 
-  trait BusinessLogicTrait extends BusinessLogicService {
+  class TestBusinessLogicService(implicit system: ActorSystem) extends BusinessLogicService {
+
+    import system.dispatcher
 
     private def applyEvent(state: Option[AggregateState], evt: CountIncremented): Option[AggregateState] = {
       state.map(st => st.copy(count = st.count + evt.incrementBy, version = evt.sequenceNumber))
     }
 
+    private def applyEvents(state: Option[AggregateState], events: Seq[CountIncremented]): Option[AggregateState] = {
+      events.foldLeft(state)((s, e) => applyEvent(s, e))
+    }
+
     private def applyCommand(state: Option[AggregateState], cmd: Increment) = {
       val newSequenceNumber = state.map(_.version).getOrElse(0) + 1
-      val commandHandlerResult: Either[String, Seq[CountIncremented]] = Right(Seq(CountIncremented(cmd.aggregateId, incrementBy = 1, sequenceNumber = newSequenceNumber)))
-      val result = commandHandlerResult.map(events => (events, events.foldLeft(state)((state, evt) => applyEvent(state, evt))))
+      val commandHandlerResult: Either[String, Seq[CountIncremented]] = Right(
+        Seq(CountIncremented(cmd.aggregateId, incrementBy = 1, sequenceNumber = newSequenceNumber)))
+      val result = commandHandlerResult.map(events => (events, applyEvents(state, events)))
       result
     }
 
     private def convertEvent(aggregateId: String, e: CountIncremented): Future[Event] = {
       val tryByteArray = Try(Json.toJson(e).toString().getBytes())
       val result = tryByteArray.map(byteArray => Event(aggregateId).withPayload(ByteString.copyFrom(byteArray)))
+      Future.fromTry(result)
+    }
+
+    private def convertEvent(e: Event): Future[CountIncremented] = {
+      val result = Json.parse(e.toByteArray).asOpt[CountIncremented].toRight(new Exception("empty")).toTry
       Future.fromTry(result)
     }
 
@@ -86,7 +100,9 @@ trait TestBoundedContext {
       }
     }
 
-    private def toProcessCommandReply(aggregateId: String, result: Either[String, (Seq[CountIncremented], Option[AggregateState])]): Future[ProcessCommandReply] = {
+    private def toProcessCommandReply(
+        aggregateId: String,
+        result: Either[String, (Seq[CountIncremented], Option[AggregateState])]): Future[ProcessCommandReply] = {
       result match {
         case Left(rejMsg: String) =>
           Future.successful(ProcessCommandReply(aggregateId, isSuccess = false, rejMsg))
@@ -110,24 +126,42 @@ trait TestBoundedContext {
               Success(Option.empty[AggregateState])
           }
           val tryCommand = Try(Json.parse(pbCommand.payload.toByteArray).as[Increment])
-            (for {
-              state <- tryState
-              cmd <- tryCommand
-              result <- Try(applyCommand(state, cmd))
-            } yield result) match {
-              case Failure(exception) => Future.failed(exception)
-              case Success(result) =>
-                toProcessCommandReply(aggregateId, result)
-            }
+          (for {
+            state <- tryState
+            cmd <- tryCommand
+            result <- Try(applyCommand(state, cmd))
+          } yield result) match {
+            case Failure(exception) => Future.failed(exception)
+            case Success(result) =>
+              toProcessCommandReply(aggregateId, result)
+          }
         case (_, None) =>
           Future.failed(new Exception("No command provided in ProcessCommandRequest"))
       }
     }
 
-    override def handleEvents(in: HandleEventsRequest): Future[HandleEventsResponse] = ???
+    override def handleEvents(in: HandleEventsRequest): Future[HandleEventsResponse] = {
+      val tryState: Try[Option[AggregateState]] = in.state match {
+        case Some(pbState) =>
+          Try(Json.parse(pbState.payload.toByteArray).asOpt[AggregateState])
+        case None =>
+          Success(Option.empty[AggregateState])
+      }
+      for {
+        oldState <- Future.fromTry(tryState)
+        events <- Future.sequence(in.events.map(convertEvent))
+        newState <- Future.fromTry(Try(applyEvents(oldState, events)))
+        newStateProtobuf <- newState match {
+          case Some(value) =>
+            val state = Try(Json.toJson(value).toString().getBytes())
+            Future.fromTry(state.map(bytes => State(aggregateId = in.aggregateId, ByteString.copyFrom(bytes)))).map(Option(_))
+          case None => Future.successful(Option.empty[State])
+        }
+        response = HandleEventsResponse(aggregateId = in.aggregateId, state = newStateProtobuf)
+      } yield response
+    }
   }
 
-  object BusinessLogic extends BusinessLogicTrait
 //
 //  val consumerGroup: String = "count-aggregate-consumer-group-name"
 //  val stateTopic: KafkaTopic = KafkaTopic("testStateTopic")
