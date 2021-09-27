@@ -12,7 +12,7 @@ import scala.concurrent.Future
 class MdcFuturePropagationSpec extends AnyFlatSpec with ScalaFutures {
   val logger: Logger = LoggerFactory.getLogger(getClass.getSimpleName)
 
-  "Child thread context for logging" should "be null when parent thread does not contain context for logging" in {
+  "Child thread MDC context" should "be null when parent thread does not contain MDC context" in {
     val futureRequestId = Future {
       logger.info(s"future requestId propagated: ${MDC.get("requestId")}")
       MDC.get("requestId")
@@ -23,7 +23,7 @@ class MdcFuturePropagationSpec extends AnyFlatSpec with ScalaFutures {
 
   }
 
-  "Child thread context for logging" should "equal to tne parent thread context for logging" in {
+  "Child thread MDC context" should "equal to the parent thread MDC context" in {
     val id: String = UUID.randomUUID().toString
     MDC.put("requestId", id)
     val futureRequestId = Future {
