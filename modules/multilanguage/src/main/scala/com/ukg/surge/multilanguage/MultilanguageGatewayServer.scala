@@ -6,9 +6,7 @@ import akka.actor.ActorSystem
 import akka.event.{ Logging, LoggingAdapter }
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.{ HttpRequest, HttpResponse }
-import com.typesafe.config.Config
 import com.ukg.surge.multilanguage.protobuf._
-
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.language.implicitConversions
 

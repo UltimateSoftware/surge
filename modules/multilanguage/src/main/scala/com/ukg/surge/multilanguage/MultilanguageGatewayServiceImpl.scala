@@ -7,12 +7,12 @@ import akka.event.{ Logging, LoggingAdapter }
 import akka.grpc.GrpcClientSettings
 import com.typesafe.config.Config
 import com.ukg.surge.multilanguage.protobuf._
+import surge.metrics.{ MetricInfo, Metrics, RecordingLevel, Timer }
 import surge.scaladsl.command.SurgeCommand
 import surge.scaladsl.common.{ CommandFailure, CommandSuccess }
 
 import java.util.UUID
 import scala.concurrent.Future
-import scala.language.implicitConversions
 import scala.util.{ Failure, Success, Try }
 
 class MultilanguageGatewayServiceImpl(aggregateName: String, eventsTopicName: String, stateTopicName: String)(implicit system: ActorSystem)
@@ -42,7 +42,11 @@ class MultilanguageGatewayServiceImpl(aggregateName: String, eventsTopicName: St
     engine
   }
 
-  override def forwardCommand(in: ForwardCommandRequest): Future[ForwardCommandReply] = {
+  private val metric: Metrics = Metrics.globalMetricRegistry
+  private val forwardCommandTimerMetric: Timer =
+    metric.timer(MetricInfo("surge.grpc.forward-command-timer", "The time taken by gRPC forwardCommand to forward the command to the aggregate"))
+
+  override def forwardCommand(in: ForwardCommandRequest): Future[ForwardCommandReply] = forwardCommandTimerMetric.timeFuture {
     in.command match {
       case Some(cmd: protobuf.Command) =>
         logger.info(s"Received command for aggregate with id ${cmd.aggregateId}, payload has size ${cmd.payload.size()} (bytes)!")
@@ -71,7 +75,10 @@ class MultilanguageGatewayServiceImpl(aggregateName: String, eventsTopicName: St
     }
   }
 
-  override def getState(in: GetStateRequest): Future[GetStateReply] = {
+  private val getAggregateStateTimerMetric: Timer =
+    metric.timer(MetricInfo("surge.grpc.get-aggregate-state-timer", "The time taken by gRPC getState to get the state of the aggregate"))
+
+  override def getState(in: GetStateRequest): Future[GetStateReply] = getAggregateStateTimerMetric.timeFuture {
     logger.info(s"Business app asking for state of aggregate with id ${in.aggregateId}!")
     Try(UUID.fromString(in.aggregateId)) match {
       case Failure(exception) =>
@@ -85,5 +92,4 @@ class MultilanguageGatewayServiceImpl(aggregateName: String, eventsTopicName: St
     }
 
   }
-
 }
