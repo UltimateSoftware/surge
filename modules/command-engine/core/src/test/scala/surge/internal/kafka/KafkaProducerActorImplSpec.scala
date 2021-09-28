@@ -37,8 +37,6 @@ import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.control.NoStackTrace
 
-case class IgnoringPublishFailure(reason: Throwable) extends KafkaProducerActor.PublishResult
-
 class KafkaProducerActorImplSpec
     extends TestKit(ActorSystem("KafkaProducerActorImplSpec"))
     with AnyWordSpecLike
@@ -111,11 +109,7 @@ class KafkaProducerActorImplSpec
             mockPartitionTracker,
             signalBus,
             config,
-            Some(mockProducer)) {
-            override protected def ignoreEventsFailedToPublishWhenUninitialized(failed: KafkaProducerActorImpl.EventsFailedToPublish): Unit = {
-              sender() ! IgnoringPublishFailure(failed.reason)
-            }
-          }))
+            Some(mockProducer))))
     // Blocks the execution to wait until the actor is ready so we know its subscribed to the event bus
     system.actorSelection(actor.path).resolveOne()(Timeout(patienceConfig.timeout)).futureValue
     actor
@@ -516,9 +510,8 @@ class KafkaProducerActorImplSpec
       probe.send(fencedOnCommit, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
       probe.send(fencedOnCommit, KafkaProducerActorImpl.FlushMessages)
       val result = probe.fishForMessage(10.seconds) { msg => msg.isInstanceOf[PublishResult] }
-      if (!result.isInstanceOf[IgnoringPublishFailure]) {
-        result shouldBe a[PublishFailure]
-      }
+      result shouldBe a[PublishFailure]
+
       verify(mockProducerFenceOnCommit).beginTransaction()
       verify(mockProducerFenceOnCommit).putRecords(records(assignedPartition, testEvents1, testAggs1))
       verify(mockProducerFenceOnCommit).commitTransaction()
