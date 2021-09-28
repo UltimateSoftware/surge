@@ -34,7 +34,7 @@ spec:
     spec:
       containers:
         - name: surge-server
-          image: surge-engine-multilanguage:0.5.27-SNAPSHOT
+          image: surge-engine-multilanguage:0.5.33-SNAPSHOT
           imagePullPolicy: Never
           resources:
             requests:
@@ -74,7 +74,7 @@ spec:
             - name: "KAFKA_BROKERS"
               value: "my-cluster-kafka-bootstrap:9092"
         - name: business-app
-          image: surge-engine-multilanguage-scala-sdk-sample:0.5.27-SNAPSHOT
+          image: surge-engine-multilanguage-scala-sdk-sample:0.5.33-SNAPSHOT
           imagePullPolicy: Never
           resources:
             requests:
