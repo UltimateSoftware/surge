@@ -73,7 +73,6 @@ class MultilanguageGatewayServiceImplSpec
               Option.empty[AggregateState]
           }
         case reply =>
-          logger.error(reply.rejectionMessage)
           reply.newState
       }
 

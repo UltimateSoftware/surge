@@ -134,7 +134,6 @@ trait TestBoundedContext {
     }
 
     override def processCommand(in: ProcessCommandRequest): Future[ProcessCommandReply] = {
-      // mock will receive only one type of command
       (in.state, in.command) match {
         case (maybePbState, Some(pbCommand)) =>
           val aggregateId: String = pbCommand.aggregateId
