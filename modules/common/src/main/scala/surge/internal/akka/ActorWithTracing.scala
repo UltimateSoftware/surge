@@ -5,6 +5,7 @@ package surge.internal.akka
 import akka.AroundReceiveActor
 import akka.actor.ActorRef
 import io.opentelemetry.api.trace.{ Span, Tracer }
+import org.slf4j.MDC
 import surge.internal.tracing.{ TracePropagation, TracedMessage, TracingHelper }
 
 trait ActorWithTracing extends AroundReceiveActor with ActorOps with TracingHelper {
@@ -53,6 +54,7 @@ trait ActorWithTracing extends AroundReceiveActor with ActorOps with TracingHelp
         val (messageName: String, operationName: String) = getNames(tracedMsg.message)
         activeSpan = TracePropagation.childFrom(tracedMsg, operationName)
         activeSpan.log("receive", getFields(messageName, tracedMsg.message))
+        tracedMsg.mdcContextMap.foreach(MDC.setContextMap)
         superAroundReceive(receive, tracedMsg.message)
       case other =>
         val (messageName: String, operationName: String) = getNames(other)
@@ -65,6 +67,7 @@ trait ActorWithTracing extends AroundReceiveActor with ActorOps with TracingHelp
   override def afterReceive(receive: Receive, msg: Any): Unit = {
     activeSpan.log("done")
     activeSpan.finish()
+    MDC.clear()
   }
 
 }
