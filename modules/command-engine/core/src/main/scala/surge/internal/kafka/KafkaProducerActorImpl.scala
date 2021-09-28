@@ -171,8 +171,8 @@ class KafkaProducerActorImpl(
     case InitTransactions       => initializeTransactions()
     case InitTransactionSuccess => initTransactionsSuccess(lastProgressUpdate)
     case FlushMessages          => log.trace("KafkaProducerActor ignoring FlushMessages message from the uninitialized state")
-    case failed: EventsFailedToPublish =>
-      sender() ! KafkaProducerActor.PublishFailure(failed.reason)
+    case failedToPublish: EventsFailedToPublish =>
+      sender() ! KafkaProducerActor.PublishFailure(failedToPublish.reason)
     case GetHealth =>
       sender() ! HealthCheck(
         name = "producer-actor",
@@ -188,6 +188,8 @@ class KafkaProducerActorImpl(
     case CheckKTableProgress       => checkKTableProgress()
     case msg: KTableProgressUpdate => handleFromWaitingForKTableIndexingState(msg)
     case FlushMessages             => log.trace("KafkaProducerActor ignoring FlushMessages message from the waitingForKTableIndexing state")
+    case failedToPublish: EventsFailedToPublish =>
+      sender() ! KafkaProducerActor.PublishFailure(failedToPublish.reason)
     case GetHealth =>
       sender() ! HealthCheck(
         name = "producer-actor",
