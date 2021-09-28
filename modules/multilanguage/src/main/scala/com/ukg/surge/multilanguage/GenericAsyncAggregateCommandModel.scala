@@ -25,8 +25,8 @@ class GenericAsyncAggregateCommandModel(bridgeToBusinessApp: BusinessLogicServic
    */
   def validIds(aggregate: Option[SurgeState], surgeCmd: SurgeCmd): Boolean = {
     aggregate.map(_.aggregateId) match {
-      case Some(value) => surgeCmd.aggregateId == value
-      case None        => true
+      case Some(value: String) => surgeCmd.aggregateId == value
+      case None                => true
     }
   }
 

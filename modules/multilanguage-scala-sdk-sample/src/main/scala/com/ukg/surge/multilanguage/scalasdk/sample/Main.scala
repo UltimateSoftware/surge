@@ -65,9 +65,16 @@ object Main extends App {
   logger.info("Started!")
 
   val route =
-    path("hello") {
+    path("deposit" / JavaUUID / IntNumber) { (uuid: UUID, amount: Int) =>
       get {
-        onComplete(bridgeToSurge.forwardCommand(UUID.randomUUID(), DepositMoney(50))) {
+        onComplete(bridgeToSurge.forwardCommand(uuid, DepositMoney(amount))) {
+          case Success(value) => complete(s"The result is $value \n")
+          case Failure(ex)    => complete(InternalServerError, s"An error occurred: ${ex.getMessage}\n")
+        }
+      }
+    } ~ path("state" / JavaUUID) { uuid =>
+      {
+        onComplete(bridgeToSurge.getState(uuid)) {
           case Success(value) => complete(s"The result is $value \n")
           case Failure(ex)    => complete(InternalServerError, s"An error occurred: ${ex.getMessage}\n")
         }
