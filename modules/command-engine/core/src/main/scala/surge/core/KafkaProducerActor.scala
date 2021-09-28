@@ -58,7 +58,7 @@ object KafkaProducerActor {
       signalBus)
   }
 
-  trait PublishResult
+  sealed trait PublishResult
   case object PublishSuccess extends PublishResult
   case class PublishFailure(t: Throwable) extends PublishResult
   case class MessageToPublish(key: String, value: Array[Byte], headers: Headers)
