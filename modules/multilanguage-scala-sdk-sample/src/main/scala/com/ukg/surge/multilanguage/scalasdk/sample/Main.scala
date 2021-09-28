@@ -72,8 +72,8 @@ object Main extends App {
           case Failure(ex)    => complete(InternalServerError, s"An error occurred: ${ex.getMessage}\n")
         }
       }
-    } ~ path("state" / JavaUUID) {
-      uuid => {
+    } ~ path("state" / JavaUUID) { uuid =>
+      {
         onComplete(bridgeToSurge.getState(uuid)) {
           case Success(value) => complete(s"The result is $value \n")
           case Failure(ex)    => complete(InternalServerError, s"An error occurred: ${ex.getMessage}\n")

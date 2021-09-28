@@ -3,26 +3,22 @@
 package com.ukg.surge.multilanguage
 
 import akka.actor.ActorSystem
-import akka.event.{Logging, LoggingAdapter}
+import akka.event.{ Logging, LoggingAdapter }
 import akka.testkit.TestKit
 import com.google.protobuf.ByteString
 import com.typesafe.config.ConfigFactory
-import com.ukg.surge.multilanguage.TestBoundedContext.{AggregateState, Increment}
-import com.ukg.surge.multilanguage.protobuf.{BusinessLogicService, Command, ForwardCommandReply, ForwardCommandRequest, HandleEventsRequest, HandleEventsResponse, ProcessCommandReply, ProcessCommandRequest}
-import net.manub.embeddedkafka.{EmbeddedKafka, EmbeddedKafkaConfig}
+import com.ukg.surge.multilanguage.TestBoundedContext._
+import com.ukg.surge.multilanguage.protobuf.{ Command, ForwardCommandReply, ForwardCommandRequest, GetStateRequest }
+import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.common.config.TopicConfig
-import org.mockito.Mockito.when
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
-import org.scalatest.time.{Milliseconds, Seconds, Span}
-import org.scalatest.wordspec.{AnyWordSpec, AsyncWordSpecLike}
-import org.scalatestplus.mockito.MockitoSugar.mock
+import org.scalatest.time.{ Milliseconds, Seconds, Span }
+import org.scalatest.wordspec.AsyncWordSpecLike
 import play.api.libs.json.Json
 
 import java.util.UUID
-import scala.concurrent.Future
-import scala.util.{Failure, Success, Try}
 
 class MultilanguageGatewayServiceImplSpec
     extends TestKit(ActorSystem("MultilanguageGatewayServiceImplSpec"))
@@ -49,7 +45,7 @@ class MultilanguageGatewayServiceImplSpec
   override implicit val patienceConfig: PatienceConfig = PatienceConfig(timeout = Span(15, Seconds), interval = Span(50, Milliseconds))
 
   private val config = ConfigFactory.load()
-  implicit val kafkaConfig: EmbeddedKafkaConfig = EmbeddedKafkaConfig(kafkaPort = config.getInt("kafka.port"), zooKeeperPort = config.getInt("zookeeper.port"))
+  implicit val kafkaConfig: EmbeddedKafkaConfig = EmbeddedKafkaConfig(kafkaPort = config.getInt("kafka.port"))
   private val logger: LoggingAdapter = Logging(system, classOf[MultilanguageGatewayServiceImplSpec])
 
   val aggregateName: String = config.getString("surge-server.aggregate-name")
@@ -60,10 +56,13 @@ class MultilanguageGatewayServiceImplSpec
 
   "MultilanguageGatewayServiceImpl" should {
     val aggregateId = UUID.randomUUID().toString
-    "return new state" in {
-        val cmd = Json.toJson(Increment(aggregateId)).toString().getBytes()
-        val pbCmd = Command(aggregateId, payload = ByteString.copyFrom(cmd))
-        val request = ForwardCommandRequest(aggregateId, Some(pbCmd))
+    val initialState = AggregateState(aggregateId, 1, 1)
+    val lastState = AggregateState(aggregateId, 1, 3)
+    "create new aggregate and return a state" in {
+      val cmd: BaseTestCommand = Increment(aggregateId)
+      val serializedCmd = Json.toJson(cmd).toString().getBytes()
+      val pbCmd = Command(aggregateId, payload = ByteString.copyFrom(serializedCmd))
+      val request = ForwardCommandRequest(aggregateId, Some(pbCmd))
 
       val response = multilanguageGatewayService.forwardCommand(request).map {
         case reply: ForwardCommandReply if reply.isSuccess =>
@@ -78,9 +77,77 @@ class MultilanguageGatewayServiceImplSpec
           reply.newState
       }
 
-        response.futureValue shouldEqual Some(AggregateState(aggregateId, 1, 1))
+      response.futureValue shouldEqual Some(initialState)
     }
 
+    "handle increment command and fetch updated state for an existing aggregate" in {
+      val cmd: BaseTestCommand = Increment(aggregateId)
+      val serializedCmd = Json.toJson(cmd).toString().getBytes()
+      val pbCmd = Command(aggregateId, payload = ByteString.copyFrom(serializedCmd))
+      val request = ForwardCommandRequest(aggregateId, Some(pbCmd))
+
+      val response = multilanguageGatewayService.forwardCommand(request).map {
+        case reply: ForwardCommandReply if reply.isSuccess =>
+          reply.newState match {
+            case Some(pbState) =>
+              Json.parse(pbState.payload.toByteArray).asOpt[AggregateState]
+            case None =>
+              Option.empty[AggregateState]
+          }
+        case reply =>
+          reply.newState
+      }
+
+      val expectedSecondState = AggregateState(aggregateId, 2, 2)
+      response.futureValue shouldEqual Some(expectedSecondState)
+    }
+
+    "handle decrement command and fetch updated state for an existing aggregate" in {
+      val cmd: BaseTestCommand = Decrement(aggregateId)
+      val serializedCmd = Json.toJson(cmd).toString().getBytes()
+      val pbCmd = Command(aggregateId, payload = ByteString.copyFrom(serializedCmd))
+      val request = ForwardCommandRequest(aggregateId, Some(pbCmd))
+
+      val response = multilanguageGatewayService.forwardCommand(request).map {
+        case reply: ForwardCommandReply if reply.isSuccess =>
+          reply.newState match {
+            case Some(pbState) =>
+              Json.parse(pbState.payload.toByteArray).asOpt[AggregateState]
+            case None =>
+              Option.empty[AggregateState]
+          }
+        case reply =>
+          reply.newState
+      }
+
+      response.futureValue shouldEqual Some(lastState)
+    }
+
+    "fail to process the incorrect command" in {
+      val cmd: BaseTestCommand = ExceptionThrowingCommand(aggregateId)
+      val serializedCmd = Json.toJson(cmd).toString().getBytes()
+      val pbCmd = Command(aggregateId, payload = ByteString.copyFrom(serializedCmd))
+      val request = ForwardCommandRequest(aggregateId, Some(pbCmd))
+
+      val response = multilanguageGatewayService.forwardCommand(request).map(_.isSuccess)
+
+      response.futureValue shouldEqual false
+    }
+
+    "fetch the state of existing aggregate" in {
+      val request = GetStateRequest(aggregateId)
+
+      val response = multilanguageGatewayService.getState(request).map { reply =>
+        reply.state match {
+          case Some(pbState) =>
+            Json.parse(pbState.payload.toByteArray).asOpt[AggregateState]
+          case None =>
+            Option.empty[AggregateState]
+        }
+      }
+
+      response.futureValue shouldEqual Some(lastState)
+    }
   }
 
 }

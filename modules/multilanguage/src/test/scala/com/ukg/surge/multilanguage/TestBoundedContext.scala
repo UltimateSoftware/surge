@@ -6,12 +6,8 @@ import akka.actor.ActorSystem
 import com.google.protobuf.ByteString
 import com.ukg.surge.multilanguage.protobuf._
 import play.api.libs.json._
-import surge.core._
-import surge.core.command.SurgeCommandKafkaConfig
-import surge.kafka.KafkaTopic
-import surge.scaladsl.command.{ AggregateCommandModel, SurgeCommandBusinessLogic }
 
-import scala.concurrent.{ ExecutionContext, ExecutionContextExecutor, Future }
+import scala.concurrent.Future
 import scala.util.{ Failure, Success, Try }
 
 object TestBoundedContext {
@@ -24,18 +20,37 @@ object TestBoundedContext {
     def expectedVersion: Int = 0
   }
 
-  case class Increment(incrementAggregateId: String) extends BaseTestCommand {
-    val aggregateId: String = incrementAggregateId
+  object BaseTestCommand {
+    implicit val incrementFormat: Format[Increment] = Json.format
+    implicit val decrementFormat: Format[Decrement] = Json.format
+    implicit val exceptionThrowingCommandFormat: Format[ExceptionThrowingCommand] = Json.format
+    implicit val format: Format[BaseTestCommand] = Format[BaseTestCommand](
+      Reads { js =>
+        val commandType = (JsPath \ "commandType").read[String].reads(js)
+        commandType.fold(
+          errors => JsError("undefined commandType"),
+          {
+            case "increment" => (JsPath \ "data").read[Increment].reads(js)
+            case "decrement" => (JsPath \ "data").read[Decrement].reads(js)
+          })
+      },
+      Writes {
+        case i: Increment => JsObject(Seq("commandType" -> JsString("increment"), "data" -> incrementFormat.writes(i)))
+        case d: Decrement => JsObject(Seq("commandType" -> JsString("decrement"), "data" -> decrementFormat.writes(d)))
+        case e: ExceptionThrowingCommand =>
+          JsObject(Seq("commandType" -> JsString("exceptionThrowingCommand"), "data" -> exceptionThrowingCommandFormat.writes(e)))
+      })
   }
-  implicit val incrementFormat: Format[Increment] = Json.format
 
-  case class CreateExceptionThrowingEvent(aggregateId: String, throwable: Throwable) extends BaseTestCommand
+  case class Increment(aggregateId: String) extends BaseTestCommand
+
+  case class Decrement(aggregateId: String) extends BaseTestCommand
+
+  case class ExceptionThrowingCommand(aggregateId: String) extends BaseTestCommand
 
   implicit val countIncrementedFormat: Format[CountIncremented] = Json.format
-  implicit val exceptionThrowingFormat: Format[ExceptionThrowingEvent] = new Format[ExceptionThrowingEvent] {
-    override def writes(o: ExceptionThrowingEvent): JsValue = JsNull
-    override def reads(json: JsValue): JsResult[ExceptionThrowingEvent] = JsError("Exception throwing event should never be serialized")
-  }
+  implicit val countDecrementedFormat: Format[CountDecremented] = Json.format
+
   implicit val baseEventFormat: Format[BaseTestEvent] = Json.format
   sealed trait BaseTestEvent {
     def aggregateId: String
@@ -43,12 +58,16 @@ object TestBoundedContext {
     def eventName: String
   }
 
+  object BaseTestEvent {
+    implicit val format: OFormat[BaseTestEvent] = Json.format[BaseTestEvent]
+  }
+
   case class CountIncremented(aggregateId: String, incrementBy: Int, sequenceNumber: Int) extends BaseTestEvent {
     val eventName: String = "countIncremented"
   }
 
-  case class ExceptionThrowingEvent(aggregateId: String, sequenceNumber: Int, throwable: Throwable) extends BaseTestEvent {
-    val eventName: String = "exception-throwing"
+  case class CountDecremented(aggregateId: String, decrementBy: Int, sequenceNumber: Int) extends BaseTestEvent {
+    val eventName: String = "countDecremented"
   }
 }
 
@@ -59,52 +78,54 @@ trait TestBoundedContext {
 
     import system.dispatcher
 
-    private def applyEvent(state: Option[AggregateState], evt: CountIncremented): Option[AggregateState] = {
-      state match {
-        case Some(agg) => Some(agg.copy(count = agg.count + evt.incrementBy, version = evt.sequenceNumber))
-        case None => Some(AggregateState(evt.aggregateId, evt.incrementBy, evt.sequenceNumber))
+    private def applyEvent(state: Option[AggregateState], evt: BaseTestEvent): Option[AggregateState] = {
+      val currentState = state.getOrElse(AggregateState(evt.aggregateId, 0, 0))
+      val newState = evt match {
+        case CountIncremented(_, incrementBy, sequenceNumber) => currentState.copy(count = currentState.count + incrementBy, version = sequenceNumber)
+        case CountDecremented(_, decrementBy, sequenceNumber) => currentState.copy(count = currentState.count - decrementBy, version = sequenceNumber)
       }
+      Some(newState)
     }
 
-    private def applyEvents(state: Option[AggregateState], events: Seq[CountIncremented]): Option[AggregateState] = {
+    private def applyEvents(state: Option[AggregateState], events: Seq[BaseTestEvent]): Option[AggregateState] = {
       events.foldLeft(state)((s, e) => applyEvent(s, e))
     }
 
-    private def applyCommand(state: Option[AggregateState], cmd: Increment) = {
+    private def applyCommand(state: Option[AggregateState], cmd: BaseTestCommand) = {
       val newSequenceNumber = state.map(_.version).getOrElse(0) + 1
-      val events: Either[String, Seq[CountIncremented]] = Right(
-        Seq(CountIncremented(cmd.aggregateId, incrementBy = 1, sequenceNumber = newSequenceNumber)))
+      val events: Either[String, Seq[BaseTestEvent]] = Right(cmd match {
+        case Increment(aggregateId) => Seq(CountIncremented(aggregateId, incrementBy = 1, sequenceNumber = newSequenceNumber))
+        case Decrement(aggregateId) => Seq(CountDecremented(aggregateId, decrementBy = 1, sequenceNumber = newSequenceNumber))
+      })
       val result = events.map(evts => (evts, applyEvents(state, evts)))
       result
     }
 
-    private def serializeEvent(aggregateId: String, e: CountIncremented): Future[Event] = {
+    private def serializeEvent(aggregateId: String, e: BaseTestEvent): Future[Event] = {
       val tryByteArray = Try(Json.toJson(e).toString().getBytes())
       val result = tryByteArray.map(byteArray => Event(aggregateId).withPayload(ByteString.copyFrom(byteArray)))
       Future.fromTry(result)
     }
 
-    private def deserializeEvent(e: Event): Future[CountIncremented] = {
-      val result = Try(Json.parse(e.payload.toByteArray).as[CountIncremented])
+    private def deserializeEvent(e: Event): Future[BaseTestEvent] = {
+      val result = Try(Json.parse(e.payload.toByteArray).as[BaseTestEvent])
       Future.fromTry(result)
     }
 
     private def serializeState(aggregateId: String, maybeState: Option[AggregateState]): Future[Option[State]] = {
-      Future.successful(
-        maybeState.map { state =>
-          val serializedState = Json.toJson(state).toString().getBytes()
-          State(aggregateId, payload = ByteString.copyFrom(serializedState))
-        }
-      )
+      Future.successful(maybeState.map { state =>
+        val serializedState = Json.toJson(state).toString().getBytes()
+        State(aggregateId, payload = ByteString.copyFrom(serializedState))
+      })
     }
 
     private def toProcessCommandReply(
         aggregateId: String,
-        result: Either[String, (Seq[CountIncremented], Option[AggregateState])]): Future[ProcessCommandReply] = {
+        result: Either[String, (Seq[BaseTestEvent], Option[AggregateState])]): Future[ProcessCommandReply] = {
       result match {
         case Left(rejMsg: String) =>
           Future.successful(ProcessCommandReply(aggregateId, isSuccess = false, rejMsg))
-        case Right(result: (Seq[CountIncremented], Option[AggregateState])) =>
+        case Right(result: (Seq[BaseTestEvent], Option[AggregateState])) =>
           for {
             events <- Future.sequence(result._1.map(serializeEvent(aggregateId, _)))
             state <- serializeState(aggregateId, result._2)
@@ -117,10 +138,10 @@ trait TestBoundedContext {
       (in.state, in.command) match {
         case (maybePbState, Some(pbCommand)) =>
           val aggregateId: String = pbCommand.aggregateId
-          val stateOpt = maybePbState.flatMap {pbState =>
+          val stateOpt = maybePbState.flatMap { pbState =>
             Json.parse(pbState.payload.toByteArray).asOpt[AggregateState]
           }
-          val commandT = Try(Json.parse(pbCommand.payload.toByteArray).as[Increment])
+          val commandT = Try(Json.parse(pbCommand.payload.toByteArray).as[BaseTestCommand])
           (for {
             cmd <- commandT
             result <- Try(applyCommand(stateOpt, cmd))
@@ -135,7 +156,7 @@ trait TestBoundedContext {
     }
 
     override def handleEvents(in: HandleEventsRequest): Future[HandleEventsResponse] = {
-      val stateOpt = in.state.flatMap {pbState =>
+      val stateOpt = in.state.flatMap { pbState =>
         Json.parse(pbState.payload.toByteArray).asOpt[AggregateState]
       }
       for {
