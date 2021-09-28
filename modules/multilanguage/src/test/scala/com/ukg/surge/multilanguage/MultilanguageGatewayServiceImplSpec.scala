@@ -39,7 +39,7 @@ class MultilanguageGatewayServiceImplSpec
 
   override def afterAll(): Unit = {
     EmbeddedKafka.stop()
-    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
+    TestKit.shutdownActorSystem(system)
   }
 
   override implicit val patienceConfig: PatienceConfig = PatienceConfig(timeout = Span(15, Seconds), interval = Span(50, Milliseconds))
