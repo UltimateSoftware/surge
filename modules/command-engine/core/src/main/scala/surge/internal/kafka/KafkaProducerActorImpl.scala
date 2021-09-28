@@ -172,7 +172,7 @@ class KafkaProducerActorImpl(
     case InitTransactionSuccess => initTransactionsSuccess(lastProgressUpdate)
     case FlushMessages          => log.trace("KafkaProducerActor ignoring FlushMessages message from the uninitialized state")
     case failedToPublish: EventsFailedToPublish =>
-      sender() ! KafkaProducerActor.PublishFailure(failedToPublish.reason)
+      failedToPublish.originalSenders.foreach(_ ! KafkaProducerActor.PublishFailure(failedToPublish.reason))
     case GetHealth =>
       sender() ! HealthCheck(
         name = "producer-actor",
