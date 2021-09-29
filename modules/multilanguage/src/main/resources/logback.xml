@@ -17,4 +17,7 @@
     <root level="INFO">
         <appender-ref ref="ASYNC"/>
     </root>
+
+    <logger name="org.apache.kafka" level="WARN"/>
+
 </configuration>
