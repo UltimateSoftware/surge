@@ -23,7 +23,7 @@ object Implicits {
   }
 
   implicit def surgeStateToPbState(state: SurgeState): protobuf.State = {
-    protobuf.State(payload = state.payload)
+    protobuf.State(aggregateId = state.aggregateId, payload = state.payload)
   }
 
   implicit def surgeEventToPbEvent(event: SurgeEvent): protobuf.Event = {

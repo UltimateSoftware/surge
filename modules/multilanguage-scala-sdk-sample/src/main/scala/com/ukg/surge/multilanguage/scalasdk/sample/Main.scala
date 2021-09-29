@@ -60,6 +60,7 @@ object Main extends App {
   }
 
   implicit val system = ActorSystem()
+  val host = system.settings.config.getString("host")
   val logger = Logging(system, classOf[Main])
   val bridgeToSurge = new ScalaSurgeServer[BankAccount, MoneyDeposited, DepositMoney](system, model, serDeser)
   logger.info("Started!")
@@ -81,6 +82,6 @@ object Main extends App {
       }
     }
 
-  val bindingFuture = Http().newServerAt("localhost", 8080).bind(route)
+  val bindingFuture = Http().newServerAt(host, 8080).bind(route)
 
 }
