@@ -38,6 +38,7 @@ class TimerSpec extends TestKit(ActorSystem("TimerSpec")) with MetricsSpecLike w
       metricValue(testTimerName) shouldEqual 95.5
     }
 
+    // fixme - flaky
     "properly time scala Future completion time" in {
 
       import system.dispatcher

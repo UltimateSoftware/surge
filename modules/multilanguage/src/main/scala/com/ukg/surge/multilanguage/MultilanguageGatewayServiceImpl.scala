@@ -5,7 +5,6 @@ package com.ukg.surge.multilanguage
 import akka.actor.ActorSystem
 import akka.event.{ Logging, LoggingAdapter }
 import akka.grpc.GrpcClientSettings
-import com.typesafe.config.Config
 import com.ukg.surge.multilanguage.protobuf._
 import surge.metrics.{ MetricInfo, Metrics, RecordingLevel, Timer }
 import surge.scaladsl.command.SurgeCommand
@@ -15,23 +14,14 @@ import java.util.UUID
 import scala.concurrent.Future
 import scala.util.{ Failure, Success, Try }
 
-class MultilanguageGatewayServiceImpl(aggregateName: String, eventsTopicName: String, stateTopicName: String)(implicit system: ActorSystem)
+class MultilanguageGatewayServiceImpl(bridgeToBusinessApp: BusinessLogicService, aggregateName: String, eventsTopicName: String, stateTopicName: String)(
+    implicit system: ActorSystem)
     extends MultilanguageGatewayService {
 
   import Implicits._
   import system.dispatcher
 
   val logger: LoggingAdapter = Logging(system, classOf[MultilanguageGatewayServiceImpl])
-
-  val businessLogicgRPCClientConfig: Config = system.settings.config.getConfig("business-logic-server")
-  val businessLogicgRPCPort: Int = businessLogicgRPCClientConfig.getInt("port")
-  val businessLogicgRPCHost: String = businessLogicgRPCClientConfig.getString("host")
-
-  logger.info(s"Business logic gRPC host and port: ${businessLogicgRPCHost}:${businessLogicgRPCPort}")
-
-  val businessLogicgRPCClientSettings: GrpcClientSettings = GrpcClientSettings.connectToServiceAt(businessLogicgRPCHost, businessLogicgRPCPort).withTls(false)
-
-  val bridgeToBusinessApp: BusinessLogicService = BusinessLogicServiceClient(businessLogicgRPCClientSettings)
 
   val genericSurgeCommandBusinessLogic = new GenericSurgeCommandBusinessLogic(aggregateName, eventsTopicName, stateTopicName, bridgeToBusinessApp)
 
