@@ -4,9 +4,9 @@ Surge Multilanguage Sample Application
 How to run
 -----------
 
-1. Install and start minikube. Note: you'll need VirtualBox and Docker too.
+1. Install and start minikube. Note: you'll Docker too.
     ```
-    minikube start --driver=virtualbox --memory=10240 
+    minikube start --driver=virtualbox --memory=10240 # this can also work without virtualbox
     ```
 2. Install Strimzi. Strimzi is just one of the multiple ways of running a Kafka cluster on K8s.
    ```
