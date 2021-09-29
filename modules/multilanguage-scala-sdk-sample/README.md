@@ -4,7 +4,7 @@ Surge Multilanguage Sample Application
 How to run
 -----------
 
-1. Install and start minikube. Note: you'll Docker too.
+1. Install and start minikube. Note: you'll need Docker too.
     ```
     minikube start --driver=virtualbox --memory=10240 # this can also work without virtualbox
     ```
