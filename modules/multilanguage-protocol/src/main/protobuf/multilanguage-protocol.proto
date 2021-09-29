@@ -71,7 +71,14 @@ message HealthCheckRequest {
 }
 
 message HealthCheckReply {
-  string status = 1;
+  enum Status {
+    UP = 0;
+    DOWN = 1;
+  }
+  string id = 1;
+  string serviceName = 2;
+  Status status = 3;
+  bool isHealthy = 4;
 }
 
 service MultilanguageGatewayService {

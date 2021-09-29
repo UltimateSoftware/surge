@@ -20,7 +20,7 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Millis, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
-import surge.core.KafkaProducerActor.{ PublishFailure, PublishSuccess }
+import surge.core.KafkaProducerActor.{ PublishFailure, PublishResult, PublishSuccess }
 import surge.core.{ KafkaProducerActor, TestBoundedContext }
 import surge.health.HealthSignalBusTrait
 import surge.health.domain.EmittableHealthSignal
@@ -509,7 +509,9 @@ class KafkaProducerActorImplSpec
       probe.watch(fencedOnCommit)
       probe.send(fencedOnCommit, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
       probe.send(fencedOnCommit, KafkaProducerActorImpl.FlushMessages)
-      probe.expectMsgType[PublishFailure]
+      val result = probe.fishForMessage(10.seconds) { msg => msg.isInstanceOf[PublishResult] }
+      result shouldBe a[PublishFailure]
+
       verify(mockProducerFenceOnCommit).beginTransaction()
       verify(mockProducerFenceOnCommit).putRecords(records(assignedPartition, testEvents1, testAggs1))
       verify(mockProducerFenceOnCommit).commitTransaction()

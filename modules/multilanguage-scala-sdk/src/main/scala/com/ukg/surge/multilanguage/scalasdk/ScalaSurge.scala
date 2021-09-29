@@ -8,7 +8,7 @@ import akka.grpc.GrpcClientSettings
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.{ HttpRequest, HttpResponse }
 import com.google.protobuf.ByteString
-import com.ukg.surge.multilanguage.protobuf.{ BusinessLogicServiceHandler, Command, ForwardCommandRequest, MultilanguageGatewayServiceClient }
+import com.ukg.surge.multilanguage.protobuf.{ BusinessLogicServiceHandler, Command, ForwardCommandRequest, GetStateRequest, MultilanguageGatewayServiceClient }
 
 import java.util.UUID
 import scala.concurrent.{ ExecutionContext, Future }
@@ -53,6 +53,18 @@ class ScalaSurgeServer[S, E, C](system: ActorSystem, CQRSModel: CQRSModel[S, E, 
         case None          => Future.successful(Option.empty[S])
       } if response.isSuccess
     } yield state)
+  }
+
+  def getState(aggregateId: UUID): Future[Option[S]] = {
+    val getStateRequest = GetStateRequest(aggregateId = aggregateId.toString)
+    bridgeToSurge.getState(getStateRequest).flatMap { getStateReply =>
+      getStateReply.state match {
+        case Some(value) =>
+          Future.fromTry(serDeser.deserializeState(value.payload)).map(Some(_))
+        case None =>
+          Future.successful(Option.empty[S])
+      }
+    }
   }
 
 }

@@ -6,7 +6,7 @@ import com.google.protobuf.ByteString
 
 import scala.language.implicitConversions
 
-final case class SurgeState(payload: Array[Byte])
+final case class SurgeState(aggregateId: String, payload: Array[Byte])
 
 final case class SurgeEvent(aggregateId: String, payload: Array[Byte])
 
@@ -39,7 +39,7 @@ object Implicits {
   }
 
   implicit def pbStateToSurgeState(state: protobuf.State): SurgeState = {
-    SurgeState(state.payload.toByteArray)
+    SurgeState(state.aggregateId, state.payload.toByteArray)
   }
 
   implicit def pbCommandToSurgeCmd(command: protobuf.Command): SurgeCmd = {

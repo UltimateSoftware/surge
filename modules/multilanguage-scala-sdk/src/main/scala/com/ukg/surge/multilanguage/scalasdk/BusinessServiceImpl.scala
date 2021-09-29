@@ -5,6 +5,7 @@ package com.ukg.surge.multilanguage.scalasdk
 import akka.actor.ActorSystem
 import akka.event.Logging
 import com.google.protobuf.ByteString
+import com.ukg.surge.multilanguage.protobuf.HealthCheckReply.Status
 import com.ukg.surge.multilanguage.protobuf._
 
 import scala.concurrent.Future
@@ -105,6 +106,6 @@ class BusinessServiceImpl[S, E, C](cqrsModel: CQRSModel[S, E, C], serDeser: SerD
   }
 
   override def healthCheck(in: HealthCheckRequest): Future[HealthCheckReply] =
-    Future.successful(HealthCheckReply("OK"))
+    Future.successful(HealthCheckReply(serviceName = "business-service", status = Status.UP, isHealthy = true))
 
 }
