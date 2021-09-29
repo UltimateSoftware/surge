@@ -42,7 +42,7 @@ How to Run
 Does it work ?
 --------------
 
-Make several calls to the service (i.e. multiple bank accounts).
+Make several calls to the service (i.e. create multiple bank accounts).
 
 Watch the logs using:
 ```
@@ -51,17 +51,3 @@ kubectl logs -f POD_ID -c surge-server -n kafka # open several terminals - one f
 ```
 
 Look at the logs coming from the logger "com.ukg.surge.multilanguage.GenericAsyncAggregateCommandModel". You should see bank account entities evenly distributed across containers (i.e. each container owns a bunch of accounts) because of cluster sharding.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
