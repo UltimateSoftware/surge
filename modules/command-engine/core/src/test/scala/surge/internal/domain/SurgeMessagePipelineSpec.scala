@@ -11,7 +11,7 @@ import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Milliseconds, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
-import org.scalatest.{ BeforeAndAfterAll, Ignore, PrivateMethodTester }
+import org.scalatest.{ BeforeAndAfterAll, PrivateMethodTester }
 import play.api.libs.json.JsValue
 import surge.core.{ Ack, TestBoundedContext }
 import surge.health.config.{ ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig }
@@ -42,7 +42,7 @@ class SurgeMessagePipelineSpec
   import TestBoundedContext._
 
   implicit override val patienceConfig: PatienceConfig =
-    PatienceConfig(timeout = scaled(Span(30, Seconds)), interval = scaled(Span(10, Milliseconds)))
+    PatienceConfig(timeout = scaled(Span(1, Seconds)), interval = scaled(Span(10, Milliseconds)))
 
   private val config: EmbeddedKafkaConfig = EmbeddedKafkaConfig(kafkaPort = 6001)
   private val defaultConfig = ConfigFactory.load()
