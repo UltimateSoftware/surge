@@ -12,8 +12,7 @@ How to Run
    ```
    open https://strimzi.io/quickstarts/
    ```
-
-
+   
 3. Publish docker images.
    ```
    $ eval $(minikube docker-env)
@@ -38,7 +37,7 @@ How to Run
    $ curl http://192.168.99.109:31516/deposit/22805c58-f9f6-4f81-9ec8-1d8cf819e1ef/20
    # replace 192.168.99.109 with the IP you got from the minikube service --url command 
    ```
-
+   
 Does it work ?
 --------------
 
