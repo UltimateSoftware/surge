@@ -1,7 +1,7 @@
 Surge Multilanguage Sample Application
 ======================================
 
-How to run
+How to Run
 -----------
 
 1. Install and start minikube. Note: you'll need Docker too.
@@ -36,6 +36,32 @@ How to run
    ```
    $ minikube service --url business-app-service -n kafka
    $ curl http://192.168.99.109:31516/deposit/22805c58-f9f6-4f81-9ec8-1d8cf819e1ef/20
-   # replace 192.168.99.109 with the IP you get from the minikube service --url command 
+   # replace 192.168.99.109 with the IP you got from the minikube service --url command 
    ```
-   
+
+Does it work ?
+--------------
+
+Make several calls to the service (i.e. multiple bank accounts).
+
+Watch the logs using:
+```
+kubectl get pods -n kafka
+kubectl logs -f POD_ID -c surge-server -n kafka # open several terminals - one for each pod 
+```
+
+Look at the logs coming from the logger "com.ukg.surge.multilanguage.GenericAsyncAggregateCommandModel". You should see bank account entities evenly distributed across containers (i.e. each container owns a bunch of accounts) because of cluster sharding.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
