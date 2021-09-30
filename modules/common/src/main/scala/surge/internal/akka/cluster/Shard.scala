@@ -63,6 +63,7 @@ class Shard[IdType](shardId: String, regionLogicProvider: PerShardLogicProvider[
         log.error("Failed to stop PersistentRegionLogicProvider", exception)
         super.aroundPostStop()
       case Success(_) =>
+        log.debug("Successfully stopped PersistentRegionLogicProvider")
         super.aroundPostStop()
     }
     super.aroundPostStop()
