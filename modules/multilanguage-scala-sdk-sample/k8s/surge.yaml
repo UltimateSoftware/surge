@@ -23,7 +23,7 @@ spec:
     rollingUpdate:
       maxUnavailable: 0
       maxSurge: 1
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels:
       app: surge
@@ -69,8 +69,10 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: status.podIP
-            - name: "LOCAL_SERVER_PORT"
+            - name: "LOCAL_GRPC_SERVER_PORT"
               value: "6667"
+            - name: "LOCAL_HTTP_SERVER_PORT"
+              value: "8080"
             - name: "KAFKA_BROKERS"
               value: "my-cluster-kafka-bootstrap:9092"
         - name: business-app

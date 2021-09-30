@@ -75,10 +75,8 @@ message HealthCheckReply {
     UP = 0;
     DOWN = 1;
   }
-  string id = 1;
-  string serviceName = 2;
-  Status status = 3;
-  bool isHealthy = 4;
+  string serviceName = 1;
+  Status status = 2;
 }
 
 service MultilanguageGatewayService {

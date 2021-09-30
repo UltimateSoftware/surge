@@ -168,7 +168,7 @@ trait TestBoundedContext {
     }
 
     override def healthCheck(in: HealthCheckRequest): Future[HealthCheckReply] =
-      Future.successful(HealthCheckReply(serviceName = "test-service", status = Status.UP, isHealthy = true))
+      Future.successful(HealthCheckReply(serviceName = "test-service", status = Status.UP))
 
   }
 }

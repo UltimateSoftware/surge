@@ -18,6 +18,7 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Milliseconds, Seconds, Span }
 import org.scalatest.wordspec.AsyncWordSpecLike
 import play.api.libs.json.Json
+import surge.scaladsl.command.SurgeCommand
 
 import java.util.UUID
 
@@ -34,12 +35,13 @@ class MultilanguageGatewayServiceImplSpec
 
   override def beforeAll(): Unit = {
     EmbeddedKafka.start()
-    createCustomTopic(eventsTopicName, partitions = 2)
-    createCustomTopic(stateTopicName, partitions = 2, topicConfig = Map(TopicConfig.CLEANUP_POLICY_CONFIG -> TopicConfig.CLEANUP_POLICY_COMPACT))
+    createCustomTopic(eventsTopicName, partitions = 3)
+    createCustomTopic(stateTopicName, partitions = 3, topicConfig = Map(TopicConfig.CLEANUP_POLICY_CONFIG -> TopicConfig.CLEANUP_POLICY_COMPACT))
   }
 
   override def afterAll(): Unit = {
     EmbeddedKafka.stop()
+    testSurgeEngine.stop()
     TestKit.shutdownActorSystem(system)
   }
 
@@ -53,7 +55,16 @@ class MultilanguageGatewayServiceImplSpec
   val eventsTopicName: String = config.getString("surge-server.events-topic")
   val stateTopicName: String = config.getString("surge-server.state-topic")
   val testBusinessLogicService = new TestBusinessLogicService()
-  val multilanguageGatewayService = new MultilanguageGatewayServiceImpl(testBusinessLogicService, aggregateName, eventsTopicName, stateTopicName)
+  val genericSurgeCommandBusinessLogic = new GenericSurgeCommandBusinessLogic(aggregateName, eventsTopicName, stateTopicName, testBusinessLogicService)
+
+  val testSurgeEngine: SurgeCommand[UUID, SurgeState, SurgeCmd, Nothing, SurgeEvent] = {
+    val engine = SurgeCommand(system, genericSurgeCommandBusinessLogic, system.settings.config)
+    engine.start()
+    logger.info("Started engine!")
+    engine
+  }
+
+  val multilanguageGatewayService = new MultilanguageGatewayServiceImpl(testSurgeEngine)
 
   "MultilanguageGatewayServiceImpl" should {
     val aggregateId = UUID.randomUUID().toString
@@ -154,7 +165,7 @@ class MultilanguageGatewayServiceImplSpec
 
       val response = multilanguageGatewayService.healthCheck(request)
 
-      response.futureValue shouldEqual HealthCheckReply(id = "aggregate", serviceName = "surge", status = Status.UP, isHealthy = true)
+      response.futureValue shouldEqual HealthCheckReply(status = Status.UP)
     }
   }
 

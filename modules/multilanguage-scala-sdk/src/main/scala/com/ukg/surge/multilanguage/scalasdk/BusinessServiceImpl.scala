@@ -106,6 +106,6 @@ class BusinessServiceImpl[S, E, C](cqrsModel: CQRSModel[S, E, C], serDeser: SerD
   }
 
   override def healthCheck(in: HealthCheckRequest): Future[HealthCheckReply] =
-    Future.successful(HealthCheckReply(serviceName = "business-service", status = Status.UP, isHealthy = true))
+    Future.successful(HealthCheckReply(serviceName = "business-service", status = Status.UP))
 
 }

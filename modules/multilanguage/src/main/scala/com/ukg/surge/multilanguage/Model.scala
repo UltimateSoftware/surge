@@ -3,6 +3,7 @@
 package com.ukg.surge.multilanguage
 
 import com.google.protobuf.ByteString
+import play.api.libs.json.{ Format, Json }
 
 import scala.language.implicitConversions
 
@@ -12,7 +13,11 @@ final case class SurgeEvent(aggregateId: String, payload: Array[Byte])
 
 final case class SurgeCmd(aggregateId: String, payload: Array[Byte])
 
+final case class HealthCheckResponse(status: String, serviceName: String = "multilanguage-server")
+
 object Implicits {
+
+  implicit val format: Format[HealthCheckResponse] = Json.format
 
   implicit def byteArrayToByteString(byteArray: Array[Byte]): ByteString = {
     ByteString.copyFrom(byteArray)
