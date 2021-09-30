@@ -64,6 +64,11 @@ final case class Metrics(config: MetricsConfig) {
     val fifteenMinuteAverage =
       metricInfo.copy(name = s"${metricInfo.name}.fifteen-minute-average", description = s"${metricInfo.description} averaged over the past 15 minutes")
     rateSensor.addMetric(fifteenMinuteAverage, new RateHistogram(15.minutes.toSeconds), recordingLevel)
+
+    val count =
+      metricInfo.copy(name = s"${metricInfo.name}.count", description = s"${metricInfo.description}")
+    rateSensor.addMetric(count, new Count, recordingLevel)
+
     new RateImpl(rateSensor)
   }
 
