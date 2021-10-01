@@ -14,9 +14,6 @@ object ReleaseSettings {
       setReleaseVersion,
       commitReleaseVersion,
       tagRelease,
-      // Push once here to trigger a GH Actions workflow for the new version since if we push
-      // this commit and the new snapshot version it just picks up the latest commit
-      pushChanges,
       setNextVersion,
       commitNextVersion,
       pushChanges))
