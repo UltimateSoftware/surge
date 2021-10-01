@@ -195,7 +195,7 @@ class PersistentActor[S, M, R, E](
 
   private val publishStateOnly: Boolean = businessLogic.kafka.eventsTopicOpt.isEmpty
 
-  assert(!publishStateOnly || businessLogic.eventWriteFormattingOpt.nonEmpty, "businessLogic.eventWriteFormattingOpt may not be none when publishing events")
+  assert(publishStateOnly || businessLogic.eventWriteFormattingOpt.nonEmpty, "businessLogic.eventWriteFormattingOpt may not be none when publishing events")
 
   override def messageNameForTracedMessages: MessageNameExtractor = { case t: ProcessMessage[_] =>
     s"ProcessMessage[${t.message.getClass.getSimpleName}]"
