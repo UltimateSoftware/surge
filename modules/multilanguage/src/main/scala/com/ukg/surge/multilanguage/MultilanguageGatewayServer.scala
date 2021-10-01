@@ -42,16 +42,12 @@ class MultilanguageGatewayServer(system: ActorSystem) {
     engine
   }
 
-  def doHealthCheck(): Future[HealthCheckResponse] = {
-    (for {
+  def doHealthCheck(): Future[HealthCheckReply] = {
+    for {
       surgeHealth <- surgeEngine.healthCheck
       businessAppHealth <- bridgeToBusinessApp.healthCheck(HealthCheckRequest()) if surgeHealth.isHealthy.getOrElse(false)
-    } yield businessAppHealth.copy("multilanguage-server"))
-      .recover { case _: Exception =>
-        logger.warning("Multilanguage server is in DOWN state")
-        HealthCheckReply(serviceName = "multilanguage-server", status = Status.DOWN)
-      }
-      .map(reply => HealthCheckResponse(reply.status.toString()))
+      multilanguageServerHealth = businessAppHealth.copy(serviceName = "multilanguage-server") if businessAppHealth.status == Status.UP
+    } yield multilanguageServerHealth
   }
 
   def run(): Future[Http.ServerBinding] = {

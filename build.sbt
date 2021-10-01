@@ -84,17 +84,7 @@ lazy val `surge-engine-multilanguage` =
   (project in file("modules/multilanguage"))
     .dependsOn(`surge-engine-command-scaladsl`, `surge-engine-multilanguage-protocol`)
     .settings(
-      libraryDependencies ++= Seq(
-        Akka.discovery,
-        Akka.slf4j,
-        Akka.http,
-        PlayFramework.json,
-        akkaHttpPlayJson,
-        logback,
-        slf4jApi,
-        Akka.testKit,
-        scalatest,
-        embeddedKafka),
+      libraryDependencies ++= Seq(Akka.discovery, Akka.slf4j, Akka.http, logback, slf4jApi, Akka.testKit, scalatest, embeddedKafka),
       publish / skip := true)
     .enablePlugins(JavaServerAppPackaging)
 

@@ -5,20 +5,15 @@ package com.ukg.surge.multilanguage
 import akka.actor.ActorSystem
 import akka.event.Logging
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.StatusCodes.InternalServerError
+import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
-import com.ukg.surge.multilanguage.protobuf.HealthCheckReply
-import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport
-import play.api.libs.json.{ Format, Json }
 
 import scala.concurrent.ExecutionContext
 import scala.util.{ Failure, Success }
 
 class MultilanguageSidecarMain
 
-object MultilanguageSidecarMain extends App with PlayJsonSupport {
-
-  import Implicits._
+object MultilanguageSidecarMain extends App {
 
   implicit val system = ActorSystem("multilanguage")
   implicit val ec: ExecutionContext = system.dispatcher
@@ -26,11 +21,11 @@ object MultilanguageSidecarMain extends App with PlayJsonSupport {
   val logger = Logging(system, classOf[MultilanguageSidecarMain])
   val multilanguageServer = new MultilanguageGatewayServer(system)
 
-  val route = path("healthcheck") {
+  val route = path("healthz") {
     get {
       onComplete(multilanguageServer.doHealthCheck()) {
-        case Success(value) => complete(value)
-        case Failure(ex)    => complete(InternalServerError, s"An error occurred: ${ex.getMessage}\n")
+        case Success(_)  => complete(StatusCodes.OK)
+        case Failure(ex) => complete(StatusCodes.ServiceUnavailable, s"An error occurred: ${ex.getMessage}\n")
       }
     }
   }
