@@ -7,6 +7,7 @@ import akka.event.Logging
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
+import com.ukg.surge.multilanguage.protobuf.HealthCheckReply.Status
 
 import scala.concurrent.ExecutionContext
 import scala.util.{ Failure, Success }
@@ -24,8 +25,9 @@ object MultilanguageSidecarMain extends App {
   val route = path("healthz") {
     get {
       onComplete(multilanguageServer.doHealthCheck()) {
-        case Success(_)  => complete(StatusCodes.OK)
-        case Failure(ex) => complete(StatusCodes.ServiceUnavailable, s"An error occurred: ${ex.getMessage}\n")
+        case Success(value) if value.status == Status.UP => complete(StatusCodes.OK)
+        case Success(_)                                  => complete(StatusCodes.ServiceUnavailable)
+        case Failure(ex)                                 => complete(StatusCodes.InternalServerError, s"An error occurred: ${ex.getMessage}")
       }
     }
   }

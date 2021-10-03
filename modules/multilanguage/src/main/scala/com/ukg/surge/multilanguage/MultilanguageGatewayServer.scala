@@ -46,8 +46,7 @@ class MultilanguageGatewayServer(system: ActorSystem) {
     for {
       surgeHealth <- surgeEngine.healthCheck
       businessAppHealth <- bridgeToBusinessApp.healthCheck(HealthCheckRequest()) if surgeHealth.isHealthy.getOrElse(false)
-      multilanguageServerHealth = businessAppHealth.copy(serviceName = "multilanguage-server") if businessAppHealth.status == Status.UP
-    } yield multilanguageServerHealth
+    } yield businessAppHealth
   }
 
   def run(): Future[Http.ServerBinding] = {
