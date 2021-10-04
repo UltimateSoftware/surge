@@ -13,6 +13,21 @@ spec:
     app: surge
   type: NodePort
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: surge-health-service
+  labels:
+    app: surge
+spec:
+  ports:
+    - port: 8888
+      name: health-server
+      targetPort: 8888
+  selector:
+    app: surge
+  type: NodePort
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
