@@ -4,6 +4,7 @@ package com.ukg.surge.multilanguage
 
 import akka.actor.ActorSystem
 import com.google.protobuf.ByteString
+import com.ukg.surge.multilanguage.protobuf.HealthCheckReply.Status
 import com.ukg.surge.multilanguage.protobuf._
 import play.api.libs.json._
 
@@ -165,5 +166,9 @@ trait TestBoundedContext {
         response = HandleEventsResponse(aggregateId = in.aggregateId, state = newStateProtobuf)
       } yield response
     }
+
+    override def healthCheck(in: HealthCheckRequest): Future[HealthCheckReply] =
+      Future.successful(HealthCheckReply(serviceName = "test-service", status = Status.UP))
+
   }
 }
