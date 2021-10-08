@@ -6,7 +6,7 @@ import akka.actor.NoSerializationVerificationNeeded
 
 import java.nio.ByteBuffer
 import org.apache.kafka.common.TopicPartition
-import play.api.libs.json.{Format, Json}
+import play.api.libs.json.{ Format, Json }
 
 object HostPort {
   implicit val format: Format[HostPort] = Json.format

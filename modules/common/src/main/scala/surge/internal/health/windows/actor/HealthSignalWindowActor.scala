@@ -3,11 +3,11 @@
 package surge.internal.health.windows.actor
 
 import java.time.Instant
-import akka.actor.{Actor, ActorRef, ActorSystem, Cancellable, NoSerializationVerificationNeeded, PoisonPill, Props, Stash}
-import akka.pattern.{BackoffOpts, BackoffSupervisor}
-import org.slf4j.{Logger, LoggerFactory}
+import akka.actor.{ Actor, ActorRef, ActorSystem, Cancellable, NoSerializationVerificationNeeded, PoisonPill, Props, Stash }
+import akka.pattern.{ BackoffOpts, BackoffSupervisor }
+import org.slf4j.{ Logger, LoggerFactory }
 import surge.health.domain.HealthSignal
-import surge.health.windows.{AddedToWindow, Advancer, Window, WindowAdvanced, WindowClosed, WindowData, WindowOpened, WindowStopped}
+import surge.health.windows.{ AddedToWindow, Advancer, Window, WindowAdvanced, WindowClosed, WindowData, WindowOpened, WindowStopped }
 import surge.internal.config.BackoffConfig
 import surge.internal.health.windows._
 

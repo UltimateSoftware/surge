@@ -6,7 +6,7 @@ import akka.actor.NoSerializationVerificationNeeded
 
 import java.time.Instant
 import java.util.UUID
-import surge.health.{HealthMessage, SignalType}
+import surge.health.{ HealthMessage, SignalType }
 
 case class HealthSignal(
     topic: String,

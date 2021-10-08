@@ -2,9 +2,9 @@
 
 package surge.internal.health.windows.stream.actor
 
-import akka.actor.{Actor, NoSerializationVerificationNeeded}
+import akka.actor.{ Actor, NoSerializationVerificationNeeded }
 import surge.health.domain.HealthSignal
-import surge.health.windows.{AddedToWindow, Window, WindowAdvanced, WindowClosed, WindowOpened, WindowStopped, WindowStreamListener}
+import surge.health.windows.{ AddedToWindow, Window, WindowAdvanced, WindowClosed, WindowOpened, WindowStopped, WindowStreamListener }
 
 object HealthSignalStreamActor {
   def apply(windowListener: Option[WindowStreamListener] = None): HealthSignalStreamActor = {

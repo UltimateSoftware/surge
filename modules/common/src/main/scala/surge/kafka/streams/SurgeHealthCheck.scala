@@ -6,10 +6,10 @@ import akka.actor.NoSerializationVerificationNeeded
 
 import java.util.regex.Pattern
 import org.slf4j.LoggerFactory
-import play.api.libs.json.{Format, Json}
+import play.api.libs.json.{ Format, Json }
 import surge.core.Controllable
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ ExecutionContext, Future }
 
 class SurgeHealthCheck(healthCheckId: String, components: HealthyComponent*)(implicit executionContext: ExecutionContext) {
 
@@ -61,7 +61,8 @@ case class HealthCheck(
     status: String,
     isHealthy: Option[Boolean] = None,
     components: Option[Seq[HealthCheck]] = None,
-    details: Option[Map[String, String]] = None) extends NoSerializationVerificationNeeded {
+    details: Option[Map[String, String]] = None)
+    extends NoSerializationVerificationNeeded {
   require(HealthCheckStatus.validStatuses.contains(status))
 }
 

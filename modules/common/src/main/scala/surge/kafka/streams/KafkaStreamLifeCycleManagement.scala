@@ -2,16 +2,16 @@
 
 package surge.kafka.streams
 
-import akka.actor.{Actor, NoSerializationVerificationNeeded, Stash}
-import org.apache.kafka.streams.{KafkaStreams, StreamsConfig}
-import surge.internal.utils.{InlineReceive, Logging}
+import akka.actor.{ Actor, NoSerializationVerificationNeeded, Stash }
+import org.apache.kafka.streams.{ KafkaStreams, StreamsConfig }
+import surge.internal.utils.{ InlineReceive, Logging }
 import surge.kafka.streams.HealthyActor.GetHealth
 import surge.kafka.streams.KafkaStreamLifeCycleManagement._
 import surge.kafka.streams.KafkaStreamsUncaughtExceptionHandler.KafkaStreamsUncaughtException
 import surge.kafka.streams.KafkaStreamsUpdatePartitionsOnStateChangeListener.KafkaStateChange
 import surge.metrics.Metrics
 
-import scala.util.{Failure, Success, Try}
+import scala.util.{ Failure, Success, Try }
 
 trait KafkaStreamLifeCycleManagement[K, V, T <: KafkaStreamsConsumer[K, V], SV] extends Actor with Stash with Logging {
   val settings: KafkaStreamSettings
