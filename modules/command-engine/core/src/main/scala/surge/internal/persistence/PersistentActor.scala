@@ -59,7 +59,7 @@ object PersistentActor {
       @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "rejectionType", visible = true) rejection: R)
       extends ACK
 
-  case object Stop extends ActorMessage
+  case object Stop extends ActorMessage with JacksonSerializable
 
   case class MetricsQuiver(
       stateInitializationTimer: Timer,

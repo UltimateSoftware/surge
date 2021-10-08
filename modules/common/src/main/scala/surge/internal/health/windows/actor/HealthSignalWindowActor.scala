@@ -3,8 +3,7 @@
 package surge.internal.health.windows.actor
 
 import java.time.Instant
-
-import akka.actor.{ Actor, ActorRef, ActorSystem, Cancellable, PoisonPill, Props, Stash }
+import akka.actor.{ Actor, ActorRef, ActorSystem, Cancellable, NoSerializationVerificationNeeded, PoisonPill, Props, Stash }
 import akka.pattern.{ BackoffOpts, BackoffSupervisor }
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.health.domain.HealthSignal
@@ -21,10 +20,10 @@ case class WindowState(window: Option[Window] = None, replyTo: Option[ActorRef] 
 object HealthSignalWindowActor {
   val log: Logger = LoggerFactory.getLogger(getClass)
 
-  case class Start(window: Window, replyTo: ActorRef)
-  case class Tick()
+  case class Start(window: Window, replyTo: ActorRef) extends NoSerializationVerificationNeeded
+  case class Tick() extends NoSerializationVerificationNeeded
 
-  case class Stop()
+  case class Stop() extends NoSerializationVerificationNeeded
 
   def apply(
       actorSystem: ActorSystem,

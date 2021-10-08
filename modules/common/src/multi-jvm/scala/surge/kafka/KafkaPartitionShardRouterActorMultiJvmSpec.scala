@@ -27,8 +27,8 @@ object KafkaPartitionShardRouterActorSpecConfig extends MultiNodeConfig {
   val node1: RoleName = role("node1")
   val node2: RoleName = role("node2")
   val nodesConfig: Config = ConfigFactory.parseString("""
-    akka.actor.allow-java-serialization=on
-    akka.actor.warn-about-java-serializer-usage=off
+    akka.actor.allow-java-serialization=off
+    akka.actor.warn-about-java-serializer-usage=on
     """)
   commonConfig(nodesConfig)
 }
