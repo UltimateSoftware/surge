@@ -182,8 +182,8 @@ case class RegisterSupervisedComponentRequest(
   def asSupervisedComponentRegistration(): SupervisedComponentRegistration =
     SupervisedComponentRegistration(componentName, controlProxyRef, restartSignalPatterns, shutdownSignalPatterns)
 }
-case class HealthRegistrationDetailsRequest() extends NoSerializationVerificationNeeded
-case class Stop()
+case object HealthRegistrationDetailsRequest extends NoSerializationVerificationNeeded
+case object Stop
     extends NoSerializationVerificationNeeded
 
 // State
