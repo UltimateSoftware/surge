@@ -2,14 +2,14 @@
 
 package surge.internal.akka.actor
 
-import akka.actor.{ Actor, ActorRef, Props, Terminated }
+import akka.actor.{Actor, ActorRef, NoSerializationVerificationNeeded, Props, Terminated}
 import org.slf4j.LoggerFactory
 import surge.core.Ack
 import surge.internal.akka.ActorOps
 
 object ActorLifecycleManagerActor {
-  case object Start
-  case object Stop
+  case object Start extends NoSerializationVerificationNeeded
+  case object Stop extends NoSerializationVerificationNeeded
 }
 
 class ActorLifecycleManagerActor(

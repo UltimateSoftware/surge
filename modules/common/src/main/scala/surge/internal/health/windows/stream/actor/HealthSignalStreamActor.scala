@@ -2,9 +2,9 @@
 
 package surge.internal.health.windows.stream.actor
 
-import akka.actor.Actor
+import akka.actor.{Actor, NoSerializationVerificationNeeded}
 import surge.health.domain.HealthSignal
-import surge.health.windows.{ AddedToWindow, Window, WindowAdvanced, WindowClosed, WindowOpened, WindowStopped, WindowStreamListener }
+import surge.health.windows.{AddedToWindow, Window, WindowAdvanced, WindowClosed, WindowOpened, WindowStopped, WindowStreamListener}
 
 object HealthSignalStreamActor {
   def apply(windowListener: Option[WindowStreamListener] = None): HealthSignalStreamActor = {
@@ -12,7 +12,8 @@ object HealthSignalStreamActor {
   }
 }
 
-case object Stop
+case object Stop extends NoSerializationVerificationNeeded
+
 protected class HealthSignalStreamActor(val windowListener: Option[WindowStreamListener] = None) extends Actor with WindowStreamListener {
   override def receive: Receive = {
     case WindowAdvanced(w, data) => slide(w, data.signals)

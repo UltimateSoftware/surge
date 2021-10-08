@@ -2,25 +2,25 @@
 
 package surge.core
 
-import akka.actor.{ ActorRef, ActorSystem, PoisonPill, Props }
+import akka.actor.{ActorRef, ActorSystem, NoSerializationVerificationNeeded, PoisonPill, Props}
 import akka.pattern._
 import akka.util.Timeout
 import com.typesafe.config.Config
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.header.Headers
 import org.slf4j.LoggerFactory
-import surge.health.{ HealthSignalBusAware, HealthSignalBusTrait }
+import surge.health.{HealthSignalBusAware, HealthSignalBusTrait}
 import surge.internal.SurgeModel
 import surge.internal.akka.actor.ActorLifecycleManagerActor
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.config.TimeoutConfig
-import surge.internal.kafka.{ KTableLagCheckerImpl, KafkaProducerActorImpl }
-import surge.kafka.{ KafkaAdminClient, KafkaBytesProducer }
+import surge.internal.kafka.{KTableLagCheckerImpl, KafkaProducerActorImpl}
+import surge.kafka.{KafkaAdminClient, KafkaBytesProducer}
 import surge.kafka.streams._
-import surge.metrics.{ MetricInfo, Metrics, Timer }
+import surge.metrics.{MetricInfo, Metrics, Timer}
 
-import scala.concurrent.{ ExecutionContext, Future }
-import scala.util.{ Failure, Success, Try }
+import scala.concurrent.{ExecutionContext, Future}
+import scala.util.{Failure, Success, Try}
 
 object KafkaProducerActor {
   private val dispatcherName: String = "kafka-publisher-actor-dispatcher"
@@ -58,7 +58,7 @@ object KafkaProducerActor {
       signalBus)
   }
 
-  sealed trait PublishResult
+  sealed trait PublishResult extends NoSerializationVerificationNeeded
   case object PublishSuccess extends PublishResult
   case class PublishFailure(t: Throwable) extends PublishResult
   case class MessageToPublish(key: String, value: Array[Byte], headers: Headers)

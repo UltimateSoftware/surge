@@ -2,7 +2,9 @@
 
 package surge.akka.cluster
 
-sealed trait PartitionRegionCommand
+import akka.actor.NoSerializationVerificationNeeded
+
+sealed trait PartitionRegionCommand extends NoSerializationVerificationNeeded
 
 /**
  * A Passivate message is used to coordinate graceful shutdown of a shard's child actors with the shard.

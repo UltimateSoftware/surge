@@ -2,10 +2,11 @@
 
 package surge.health.domain
 
+import akka.actor.NoSerializationVerificationNeeded
+
 import java.time.Instant
 import java.util.UUID
-
-import surge.health.{ HealthMessage, SignalType }
+import surge.health.{HealthMessage, SignalType}
 
 case class HealthSignal(
     topic: String,
@@ -17,4 +18,5 @@ case class HealthSignal(
     id: UUID = UUID.randomUUID(),
     timestamp: Instant = Instant.now())
     extends HealthMessage
+    with NoSerializationVerificationNeeded
     with Timed

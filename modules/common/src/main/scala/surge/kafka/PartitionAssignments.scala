@@ -2,10 +2,11 @@
 
 package surge.kafka
 
-import java.nio.ByteBuffer
+import akka.actor.NoSerializationVerificationNeeded
 
+import java.nio.ByteBuffer
 import org.apache.kafka.common.TopicPartition
-import play.api.libs.json.{ Format, Json }
+import play.api.libs.json.{Format, Json}
 
 object HostPort {
   implicit val format: Format[HostPort] = Json.format
@@ -47,7 +48,7 @@ final case class PartitionAssignmentsWithChanges(assignments: PartitionAssignmen
 object PartitionAssignments {
   def empty: PartitionAssignments = PartitionAssignments(Map.empty)
 }
-final case class PartitionAssignments(partitionAssignments: Map[HostPort, List[TopicPartition]]) {
+final case class PartitionAssignments(partitionAssignments: Map[HostPort, List[TopicPartition]]) extends NoSerializationVerificationNeeded {
   def topicPartitionsToHosts: Map[TopicPartition, HostPort] = {
     partitionAssignments.flatMap { case (hostPort, topicPartitions) =>
       topicPartitions.map(tp => tp -> hostPort)

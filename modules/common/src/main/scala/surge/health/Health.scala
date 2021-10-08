@@ -5,19 +5,18 @@ package surge.health
 import java.time.Instant
 import java.util.UUID
 import java.util.regex.Pattern
-
-import akka.actor.{ ActorRef, ActorSystem }
+import akka.actor.{ActorRef, ActorSystem, NoSerializationVerificationNeeded}
 import akka.event.EventBus
-import akka.stream.scaladsl.{ Source, SourceQueueWithComplete }
-import akka.stream.{ Materializer, OverflowStrategy }
-import akka.{ Done, NotUsed }
+import akka.stream.scaladsl.{Source, SourceQueueWithComplete}
+import akka.stream.{Materializer, OverflowStrategy}
+import akka.{Done, NotUsed}
 import org.slf4j.LoggerFactory
-import surge.core.{ Ack, Controllable }
+import surge.core.{Ack, Controllable}
 import surge.health.config.ThrottleConfig
-import surge.health.domain.{ EmittableHealthSignal, Error, HealthSignal, Timed, Trace, Warning }
+import surge.health.domain.{EmittableHealthSignal, Error, HealthSignal, Timed, Trace, Warning}
 import surge.health.matchers.SignalPatternMatcher
 import surge.internal.health.RegistrationHandler
-import surge.internal.health.supervisor.{ RegisterSupervisedComponentRequest, RestartComponent, ShutdownComponent, SupervisedComponentRegistration }
+import surge.internal.health.supervisor.{RegisterSupervisedComponentRequest, RestartComponent, ShutdownComponent, SupervisedComponentRegistration}
 
 import scala.concurrent.Future
 import scala.util.Try
@@ -106,7 +105,7 @@ trait HealthRegistrationListener extends HealthListener {
 
 }
 
-sealed trait HealthSupervisionEvent {}
+sealed trait HealthSupervisionEvent extends NoSerializationVerificationNeeded {}
 case class HealthRegistrationReceived(registration: RegisterSupervisedComponentRequest) extends HealthSupervisionEvent
 case class HealthSignalReceived(signal: HealthSignal) extends HealthSupervisionEvent
 case class HealthSignalStreamAdvanced() extends HealthSupervisionEvent
