@@ -2,9 +2,10 @@
 
 package surge.health.windows
 
+import akka.actor.NoSerializationVerificationNeeded
 import surge.health.domain.HealthSignal
 
-sealed trait WindowEvent {
+sealed trait WindowEvent extends NoSerializationVerificationNeeded {
   def window(): Option[Window]
 }
 

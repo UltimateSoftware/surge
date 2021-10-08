@@ -2,7 +2,7 @@
 
 package surge.kafka.streams
 
-import akka.actor.{ Actor, Stash }
+import akka.actor.{ Actor, NoSerializationVerificationNeeded, Stash }
 import org.apache.kafka.streams.{ KafkaStreams, StreamsConfig }
 import surge.internal.utils.{ InlineReceive, Logging }
 import surge.kafka.streams.HealthyActor.GetHealth
@@ -209,7 +209,7 @@ trait KafkaStreamLifeCycleManagement[K, V, T <: KafkaStreamsConsumer[K, V], SV] 
 }
 
 private[streams] object KafkaStreamLifeCycleManagement {
-  sealed private[streams] trait KafkaStreamLifeCycleCommand
+  sealed private[streams] trait KafkaStreamLifeCycleCommand extends NoSerializationVerificationNeeded
 
   case object Start extends KafkaStreamLifeCycleCommand
   case object Restart extends KafkaStreamLifeCycleCommand
