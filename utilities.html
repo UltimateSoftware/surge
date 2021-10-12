@@ -2,7 +2,7 @@
 <html class="no-js" lang="en">
 
 <head>
-<title>Surge</title>
+<title>Utilities · Surge</title>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <meta name="description" content='surge-docs'/>
@@ -26,7 +26,7 @@
 <div class="off-canvas position-left" id="off-canvas-menu" data-off-canvas>
 <nav class="off-canvas-nav">
 <div class="nav-home">
-<a href="index.html" class="active">
+<a href="index.html" >
 <span class="home-icon">⌂</span>Surge
 </a>
 <div class="version-number">
@@ -39,7 +39,7 @@
   <li><a href="command-usage.html" class="page">Command Side Usage</a></li>
   <li><a href="tracing-usage.html" class="page">Open Telemetry Integration</a></li>
   <li><a href="repository-tour.html" class="page">Repository Tour</a></li>
-  <li><a href="utilities.html" class="page">Utilities</a></li>
+  <li><a href="utilities.html" class="active page">Utilities</a></li>
 </ul>
 </div>
 
@@ -54,7 +54,7 @@
 H3.6C3.048,13,3,13.447,3,14c0,0.553,0.048,1,0.6,1H16.4c0.552,0,0.6-0.447,0.6-1C17,13.447,16.952,13,16.4,13z M3.6,7H16.4
 C16.952,7,17,6.553,17,6c0-0.553-0.048-1-0.6-1H3.6C3.048,5,3,5.447,3,6C3,6.553,3.048,7,3.6,7z"/></svg>
 </a>
-<div class="title"><a href="index.html" class="active">Surge</a></div>
+<div class="title"><a href="index.html">Surge</a></div>
 
 <!--
 <a href="https://www.example.com" class="logo show-for-medium">logo</a>
@@ -67,7 +67,7 @@ C16.952,7,17,6.553,17,6c0-0.553-0.048-1-0.6-1H3.6C3.048,5,3,5.447,3,6C3,6.553,3.
 <div class="medium-3 large-2 show-for-medium column">
 <nav class="site-nav">
 <div class="nav-home">
-<a href="index.html" class="active">
+<a href="index.html" >
 <span class="home-icon">⌂</span>Surge
 </a>
 <div class="version-number">
@@ -80,7 +80,7 @@ C16.952,7,17,6.553,17,6c0-0.553-0.048-1-0.6-1H3.6C3.048,5,3,5.447,3,6C3,6.553,3.
   <li><a href="command-usage.html" class="page">Command Side Usage</a></li>
   <li><a href="tracing-usage.html" class="page">Open Telemetry Integration</a></li>
   <li><a href="repository-tour.html" class="page">Repository Tour</a></li>
-  <li><a href="utilities.html" class="page">Utilities</a></li>
+  <li><a href="utilities.html" class="active page">Utilities</a></li>
 </ul>
 </div>
 
@@ -94,23 +94,58 @@ C16.952,7,17,6.553,17,6c0-0.553-0.048-1-0.6-1H3.6C3.048,5,3,5.447,3,6C3,6.553,3.
 
 <div class="page-header row">
 <div class="medium-12 show-for-medium column">
+<div class="nav-breadcrumbs">
+<ul>
+  <li><a href="index.html">Surge</a></li>
+  <li>Utilities</li>
+</ul>
+</div>
 </div>
 </div>
 
 <div class="page-content row">
 <div class="small-12 large-9 column" id="docs">
-<h1><a href="#surge" name="surge" class="anchor"><span class="anchor-link"></span></a>Surge</h1>
-<p>Surge is a persistence engine for stateful streaming and CQRS applications that leverages Kafka exclusively for storage.</p>
-<p>Check out the <a href="overview.html">Overview</a> section for more details on how Surge works!</p>
+<h1><a href="#utilities" name="utilities" class="anchor"><span class="anchor-link"></span></a>Utilities</h1>
+<p>The following utilities may be useful when developing Surge applications.</p>
+<h2><a href="#mdc-logging" name="mdc-logging" class="anchor"><span class="anchor-link"></span></a>MDC Logging</h2>
+<ul>
+  <li>The Mapped Diagnostic Context(MDC) allows us to put context to all log statements for a single thread.</li>
+  <li>It is exposed via <strong>org.slf4j.MDC</strong> if you are using slf4j but other logging systems (such as log4j and logback) have similar concepts that slf4j wraps.</li>
+</ul>
+<h2><a href="#mdc-propagation-across-futures" name="mdc-propagation-across-futures" class="anchor"><span class="anchor-link"></span></a>MDC Propagation Across Futures</h2>
+<ul>
+  <li>
+  <p>To propagate MDC across Futures, first we need to import the <strong>mdcExecutionContext</strong> which copies the MDC to any new thread that is being used giving us multi-thread MDC logging.</p>
+  <pre class="prettyprint"><code class="language-scala">import surge.internal.utils.MdcExecutionContext.mdcExecutionContext
+</code></pre>
+  <p>By default, <strong>mdcExecutionContext</strong> wraps the default <strong>global</strong> ExecutionContext and adds MDC propagation support to it. But if you want to use your own <strong>ExecutionContext</strong>, then you can do so by passing it in as an argument to the <strong>MdcFuturePropagation</strong> constructor:</p>
+  <pre class="prettyprint"><code class="language-scala">  implicit lazy val mdcExecutionContext: MdcFuturePropagation = new MdcFuturePropagation(yourOwnExecutionContext)
+</code></pre><strong>Note:</strong> MdcFuturePropagation is exposed via <strong>surge.internal.utils.MdcFuturePropagation</strong></li>
+  <li>
+  <p>Next, we need to put the context in our log statements:</p>
+  <pre class="prettyprint"><code class="language-scala">MDC.put(&quot;requestId&quot;, UUID.randomUUID().toString())
+</code></pre>That&rsquo;s all. Using these two simple steps, we can propagate our MDC from the caller thread to the execution thread.</li>
+</ul>
 <div class="source-github">
-The source code for this page can be found <a href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/main/paradox/index.md">here</a>.
+The source code for this page can be found <a href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/main/paradox/utilities.md">here</a>.
 </div>
 
-<div class="nav-next">
-<p><strong>Next:</strong> <a href="overview.html">Overview</a></p>
-</div>
 </div>
 <div class="large-3 show-for-large column" data-sticky-container>
+<nav class="sidebar sticky" data-sticky data-anchor="docs" data-sticky-on="large">
+<div class="page-nav">
+<div class="nav-title">On this page:</div>
+<div class="nav-toc">
+<ul>
+  <li><a href="utilities.html#utilities" class="header">Utilities</a>
+  <ul>
+    <li><a href="utilities.html#mdc-logging" class="header">MDC Logging</a></li>
+    <li><a href="utilities.html#mdc-propagation-across-futures" class="header">MDC Propagation Across Futures</a></li>
+  </ul></li>
+</ul>
+</div>
+</div>
+</nav>
 </div>
 </div>
 
