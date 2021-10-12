@@ -78,7 +78,7 @@ class KafkaProducerActorImpl(
     partitionTracker: KafkaConsumerPartitionAssignmentTracker,
     override val signalBus: HealthSignalBusTrait,
     config: Config,
-    kafkaProducerOverride: Option[KafkaProducer[String, Array[Byte]]] = None)
+    kafkaProducerOverride: Option[KafkaProducerTrait[String, Array[Byte]]] = None)
     extends ActorWithTracing
     with ActorHostAwareness
     with Stash
@@ -135,11 +135,11 @@ class KafkaProducerActorImpl(
     super.postStop()
   }
 
-  private def getPublisher: KafkaProducer[String, Array[Byte]] = {
+  private def getPublisher: KafkaProducerTrait[String, Array[Byte]] = {
     kafkaProducerOverride.getOrElse(newPublisher())
   }
 
-  private def newPublisher(): KafkaProducer[String, Array[Byte]] = {
+  private def newPublisher(): KafkaProducerTrait[String, Array[Byte]] = {
 
     object PoisonTopic extends KafkaTopicTrait {
       def name = throw new IllegalStateException("there is no topic")
