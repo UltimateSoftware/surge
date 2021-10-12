@@ -5,11 +5,17 @@ using Grpc.Core;
 
 namespace Surge
 {
+    // ReSharper disable once ClassNeverInstantiated.Global
     public class BusinessLogicServiceImpl: BusinessLogicService.BusinessLogicServiceBase
     {
         public override Task<HealthCheckReply> HealthCheck(HealthCheckRequest request, ServerCallContext context)
         {
-            throw new NotImplementedException();
+            var reply = new HealthCheckReply
+            {
+                Status = HealthCheckReply.Types.Status.Up,
+                ServiceName = "BusinessLogicService"
+            };
+            return Task<HealthCheckReply>.Factory.StartNew(() => reply);
         }
 
         public override Task<ProcessCommandReply> ProcessCommand(ProcessCommandRequest request, ServerCallContext context)

@@ -3,18 +3,15 @@ using LanguageExt;
 
 namespace Surge
 {
-    public class CqrsModel<S, E, C>
+    public class CqrsModel<TS, TE, TC>
     {
-        private Func<Tuple<Option<S>, E>, Option<S>> eventHandler;
-
-        private Func<Tuple<Option<S>, C>, Either<String, Lst<E>>> commandHandler;
-
-
-        public CqrsModel(Func<Tuple<Option<S>, E>, Option<S>> eventHandler,
-            Func<Tuple<Option<S>, C>, Either<string, Lst<E>>> commandHandler)
+        public CqrsModel()
         {
-            this.eventHandler = eventHandler ?? throw new ArgumentNullException(nameof(eventHandler));
-            this.commandHandler = commandHandler ?? throw new ArgumentNullException(nameof(commandHandler));
+            // empty constructor
         }
+
+        private Func<Tuple<Option<TS>, TE>, Option<TS>> EventHandler { get; set; }
+
+        private Func<Tuple<Option<TS>, TC>, Either<string, Lst<TE>>> CommandHandler { get; set; }
     }
 }
