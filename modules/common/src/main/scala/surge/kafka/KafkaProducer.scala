@@ -155,7 +155,7 @@ object KafkaProducer {
       topic: KafkaTopicTrait,
       partitioner: KafkaPartitionerBase[String] = NoPartitioner[String],
       kafkaConfig: Map[String, String] = Map.empty): KafkaProducerTrait[String, Array[Byte]] = {
-    SurgeKafkaProducer[String, Array[Byte]](
+    GenericKafkaProducer[String, Array[Byte]](
       brokers,
       topic,
       new StringSerializer(),
@@ -170,7 +170,7 @@ object KafkaProducer {
       topic: KafkaTopicTrait,
       partitioner: KafkaPartitionerBase[String] = NoPartitioner[String],
       kafkaConfig: Map[String, String] = Map.empty): KafkaProducerTrait[String, String] = {
-    SurgeKafkaProducer[String, String](
+    GenericKafkaProducer[String, String](
       brokers,
       topic,
       new StringSerializer(),
@@ -180,7 +180,7 @@ object KafkaProducer {
   }
 }
 
-case class SurgeKafkaProducer[K, V](
+case class GenericKafkaProducer[K, V](
     brokers: Seq[String],
     override val topic: KafkaTopicTrait,
     keySerializer: Serializer[K],
@@ -208,7 +208,7 @@ object KafkaBytesProducer {
       topic: KafkaTopic,
       partitioner: KafkaPartitionerBase[String] = NoPartitioner[String],
       kafkaConfig: Map[String, String] = Map.empty): KafkaProducerTrait[String, Array[Byte]] = {
-    SurgeKafkaProducer[String, Array[Byte]](
+    GenericKafkaProducer[String, Array[Byte]](
       brokers,
       topic,
       new StringSerializer(),
@@ -217,18 +217,12 @@ object KafkaBytesProducer {
       KafkaProducerHelper.producerPropsFromConfig(config, kafkaConfig))
   }
 
-  def apply(brokers: Seq[String],
-    topic: KafkaTopicTrait,
-    partitioner: KafkaPartitionerBase[String],
-    producerProps: Properties): KafkaProducerTrait[String, Array[Byte]] = {
-    SurgeKafkaProducer[String, Array[Byte]](
-      brokers,
-      topic,
-      new StringSerializer(),
-      new ByteArraySerializer(),
-      partitioner,
-      producerProps
-    )
+  def apply(
+      brokers: Seq[String],
+      topic: KafkaTopicTrait,
+      partitioner: KafkaPartitionerBase[String],
+      producerProps: Properties): KafkaProducerTrait[String, Array[Byte]] = {
+    GenericKafkaProducer[String, Array[Byte]](brokers, topic, new StringSerializer(), new ByteArraySerializer(), partitioner, producerProps)
   }
 }
 
@@ -243,12 +237,20 @@ object KafkaStringProducer {
       topic: KafkaTopic,
       partitioner: KafkaPartitionerBase[String] = NoPartitioner[String],
       kafkaConfig: Map[String, String] = Map.empty): KafkaProducerTrait[String, String] = {
-    SurgeKafkaProducer[String, String](
+    GenericKafkaProducer[String, String](
       brokers,
       topic,
       new StringSerializer(),
       new StringSerializer(),
       partitioner,
       KafkaProducerHelper.producerPropsFromConfig(config, kafkaConfig))
+  }
+
+  def apply(
+      brokers: Seq[String],
+      topic: KafkaTopicTrait,
+      partitioner: KafkaPartitionerBase[String],
+      producerProps: Properties): KafkaProducerTrait[String, String] = {
+    GenericKafkaProducer[String, String](brokers, topic, new StringSerializer(), new StringSerializer(), partitioner, producerProps)
   }
 }
