@@ -190,7 +190,23 @@ object KafkaProducer {
       partitioner,
       KafkaProducerHelper.producerPropsFromConfig(config, kafkaConfig))
   }
+
+  def stringProducer(
+      config: Config,
+      brokers: Seq[String],
+      topic: KafkaTopicTrait,
+      partitioner: KafkaPartitionerBase[String] = NoPartitioner[String],
+      kafkaConfig: Map[String, String] = Map.empty): KafkaProducer[String, String] = {
+    KafkaProducer[String, String](
+      brokers,
+      topic,
+      new StringSerializer(),
+      new StringSerializer(),
+      partitioner,
+      KafkaProducerHelper.producerPropsFromConfig(config, kafkaConfig))
+  }
 }
+
 case class KafkaProducer[K, V](
     brokers: Seq[String],
     override val topic: KafkaTopicTrait,
@@ -201,8 +217,8 @@ case class KafkaProducer[K, V](
     extends KafkaProducerTrait[K, V] {
 
   producerProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, brokers.mkString(","))
-  producerProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, classOf[StringSerializer].getName)
-  producerProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, classOf[ByteArraySerializer].getName)
+  producerProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, keySerializer.getClass.getName)
+  producerProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, valueSerializer.getClass.getName)
 
   override val producer: org.apache.kafka.clients.producer.KafkaProducer[K, V] =
     new org.apache.kafka.clients.producer.KafkaProducer[K, V](producerProps)
