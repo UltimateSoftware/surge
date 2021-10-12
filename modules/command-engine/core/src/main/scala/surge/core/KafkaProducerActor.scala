@@ -2,7 +2,7 @@
 
 package surge.core
 
-import akka.actor.{ ActorRef, ActorSystem, PoisonPill, Props }
+import akka.actor.{ ActorRef, ActorSystem, NoSerializationVerificationNeeded, PoisonPill, Props }
 import akka.pattern._
 import akka.util.Timeout
 import com.typesafe.config.Config
@@ -58,7 +58,7 @@ object KafkaProducerActor {
       signalBus)
   }
 
-  sealed trait PublishResult
+  sealed trait PublishResult extends NoSerializationVerificationNeeded
   case object PublishSuccess extends PublishResult
   case class PublishFailure(t: Throwable) extends PublishResult
   case class MessageToPublish(key: String, value: Array[Byte], headers: Headers)
