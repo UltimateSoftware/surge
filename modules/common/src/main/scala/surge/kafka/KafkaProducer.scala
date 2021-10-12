@@ -216,6 +216,20 @@ object KafkaBytesProducer {
       partitioner,
       KafkaProducerHelper.producerPropsFromConfig(config, kafkaConfig))
   }
+
+  def apply(brokers: Seq[String],
+    topic: KafkaTopicTrait,
+    partitioner: KafkaPartitionerBase[String],
+    producerProps: Properties): KafkaProducerTrait[String, Array[Byte]] = {
+    SurgeKafkaProducer[String, Array[Byte]](
+      brokers,
+      topic,
+      new StringSerializer(),
+      new ByteArraySerializer(),
+      partitioner,
+      producerProps
+    )
+  }
 }
 
 object KafkaStringProducer {
