@@ -2,10 +2,7 @@
 
 package surge.kafka
 
-import com.typesafe.config.{ Config, ConfigFactory }
-
-import java.time.Instant
-import java.util.concurrent.CompletableFuture
+import com.typesafe.config.ConfigFactory
 import org.apache.kafka.clients.producer._
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.header.internals.{ RecordHeader, RecordHeaders }
@@ -14,6 +11,9 @@ import org.mockito.ArgumentMatchers._
 import org.mockito.Mockito._
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
+
+import java.time.Instant
+import java.util.concurrent.CompletableFuture
 
 class KafkaProducerSpec extends AnyWordSpec with Matchers {
   private val defaultConfig = ConfigFactory.load()
@@ -28,7 +28,7 @@ class KafkaProducerSpec extends AnyWordSpec with Matchers {
   "KafkaProducer" should {
     "Configure correctly" in {
       val acksConfigOverride = Map(ProducerConfig.ACKS_CONFIG -> "1")
-      val producer = KafkaBytesProducer(defaultConfig, Seq("localhost:9092"), KafkaTopic("test"), kafkaConfig = acksConfigOverride)
+      val producer = surge.kafka.KafkaProducer.bytesProducer(defaultConfig, Seq("localhost:9092"), KafkaTopic("test"), kafkaConfig = acksConfigOverride)
 
       val props = producer.producerProps
       props.getProperty(ProducerConfig.ACKS_CONFIG) shouldEqual "1"

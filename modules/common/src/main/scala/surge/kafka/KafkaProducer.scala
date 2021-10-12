@@ -9,7 +9,7 @@ import org.apache.kafka.clients.consumer.OffsetAndMetadata
 import org.apache.kafka.clients.producer._
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.header.Headers
-import org.apache.kafka.common.serialization.{ ByteArraySerializer, StringSerializer }
+import org.apache.kafka.common.serialization.{ ByteArraySerializer, Serializer, StringSerializer }
 
 import scala.concurrent.{ ExecutionContext, Future, Promise }
 import scala.jdk.CollectionConverters._
@@ -40,7 +40,7 @@ private[surge] object KafkaProducerHelper {
 trait KafkaProducerHelperCommon[K, V] {
   def topic: KafkaTopicTrait
   def partitioner: KafkaPartitionerBase[K]
-  def producer: KafkaProducer[K, V]
+  def producer: org.apache.kafka.clients.producer.KafkaProducer[K, V]
 
   lazy val numberPartitions: Int = producer.partitionsFor(topic.name).size
 
@@ -171,29 +171,39 @@ case class KafkaStringProducer(
   producerProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, classOf[StringSerializer].getName)
   producerProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, classOf[StringSerializer].getName)
 
-  override val producer: KafkaProducer[String, String] = new KafkaProducer[String, String](producerProps)
+  override val producer: org.apache.kafka.clients.producer.KafkaProducer[String, String] =
+    new org.apache.kafka.clients.producer.KafkaProducer[String, String](producerProps)
 }
 
-object KafkaBytesProducer {
-  def apply(
+object KafkaProducer {
+  def bytesProducer(
       config: Config,
       brokers: Seq[String],
       topic: KafkaTopicTrait,
       partitioner: KafkaPartitionerBase[String] = NoPartitioner[String],
-      kafkaConfig: Map[String, String] = Map.empty): KafkaBytesProducer = {
-    KafkaBytesProducer(brokers, topic, partitioner, KafkaProducerHelper.producerPropsFromConfig(config, kafkaConfig))
+      kafkaConfig: Map[String, String] = Map.empty): KafkaProducer[String, Array[Byte]] = {
+    KafkaProducer[String, Array[Byte]](
+      brokers,
+      topic,
+      new StringSerializer(),
+      new ByteArraySerializer(),
+      partitioner,
+      KafkaProducerHelper.producerPropsFromConfig(config, kafkaConfig))
   }
 }
-case class KafkaBytesProducer(
+case class KafkaProducer[K, V](
     brokers: Seq[String],
     override val topic: KafkaTopicTrait,
-    override val partitioner: KafkaPartitionerBase[String],
+    keySerializer: Serializer[K],
+    valueSerializer: Serializer[V],
+    override val partitioner: KafkaPartitionerBase[K],
     producerProps: Properties)
-    extends KafkaProducerTrait[String, Array[Byte]] {
+    extends KafkaProducerTrait[K, V] {
 
   producerProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, brokers.mkString(","))
   producerProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, classOf[StringSerializer].getName)
   producerProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, classOf[ByteArraySerializer].getName)
 
-  override val producer: KafkaProducer[String, Array[Byte]] = new KafkaProducer[String, Array[Byte]](producerProps)
+  override val producer: org.apache.kafka.clients.producer.KafkaProducer[K, V] =
+    new org.apache.kafka.clients.producer.KafkaProducer[K, V](producerProps)
 }
