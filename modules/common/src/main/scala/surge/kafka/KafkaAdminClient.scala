@@ -53,4 +53,8 @@ class KafkaAdminClient(props: Properties) {
       topicPartition -> lagInfo
     }
   }
+
+  def close(): Unit = {
+    client.close()
+  }
 }
