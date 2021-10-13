@@ -4,9 +4,9 @@ package javadocs.commandapp.format;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import javadocs.commandapp.account.BankAccount;
-import scala.collection.immutable.HashMap$;
 import surge.core.SerializedAggregate;
 import surge.core.SurgeAggregateWriteFormatting;
+import surge.serialization.Serializer;
 
 // #surge_format
 public class SurgeAggregateWriteFormattingBankAccount implements SurgeAggregateWriteFormatting<BankAccount> {
@@ -20,6 +20,17 @@ public class SurgeAggregateWriteFormattingBankAccount implements SurgeAggregateW
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    @Override
+    public Serializer<BankAccount> stateSerializer() {
+        return bankAccount -> {
+            try {
+                return objectMapper.writeValueAsBytes(bankAccount);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        };
     }
 }
 // #surge_format

@@ -10,6 +10,7 @@ import surge.internal.persistence.Context
 import surge.internal.tracing.NoopTracerFactory
 import surge.kafka.{ KafkaTopic, PartitionStringUpToColon }
 import surge.metrics.Metrics
+import surge.serialization.{ Deserializer, Serializer }
 
 import scala.concurrent.Future
 
@@ -133,14 +134,22 @@ trait TestBoundedContext {
     transactionalIdPrefix = "test-transaction-id-prefix")
 
   val aggregateFormatting: SurgeAggregateFormatting[State] = new SurgeAggregateFormatting[State] {
-    override def readState(bytes: Array[Byte]): Option[State] = Json.parse(bytes).asOpt[State]
+    override def readState(bytes: Array[Byte]): Option[State] = Some(stateDeserializer().deserialize(bytes))
     override def writeState(agg: State): SerializedAggregate = SerializedAggregate(Json.toJson(agg).toString().getBytes(), Map.empty)
+
+    override def stateDeserializer(): Deserializer[State] = (body: Array[Byte]) => Json.parse(body).as[State]
+    override def stateSerializer(): Serializer[State] = (agg: State) => Json.toJson(agg).toString().getBytes()
   }
 
-  val eventWriter: SurgeEventWriteFormatting[BaseTestEvent] = (evt: BaseTestEvent) => {
-    val key = s"${evt.aggregateId}:${evt.sequenceNumber}"
-    val body = Json.toJson(evt).toString().getBytes()
-    SerializedMessage(key, body, Map.empty)
+  val eventWriter: SurgeEventWriteFormatting[BaseTestEvent] = new SurgeEventWriteFormatting[BaseTestEvent] {
+    override def writeEvent(evt: BaseTestEvent): SerializedMessage = {
+      val key = s"${evt.aggregateId}:${evt.sequenceNumber}"
+      SerializedMessage(key, eventSerializer().serialize(evt))
+    }
+
+    override def eventSerializer(): Serializer[BaseTestEvent] = (event: BaseTestEvent) => {
+      Json.toJson(event).toString().getBytes()
+    }
   }
 
   val businessLogic: SurgeCommandModel[State, BaseTestCommand, Nothing, BaseTestEvent] =

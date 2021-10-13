@@ -7,6 +7,7 @@ import surge.core.command.SurgeCommandKafkaConfig
 import surge.core._
 import surge.kafka.KafkaTopic
 import surge.scaladsl.command.{ AggregateCommandModel, SurgeCommandBusinessLogic }
+import surge.serialization.{ Deserializer, Serializer }
 
 import scala.util.{ Failure, Success, Try }
 
@@ -121,23 +122,33 @@ trait TestBoundedContext {
 
   val eventFormat: SurgeEventFormatting[BaseTestEvent] = new SurgeEventFormatting[BaseTestEvent] {
     override def readEvent(bytes: Array[Byte]): BaseTestEvent = {
-      Json.parse(bytes).as[BaseTestEvent]
+      eventDeserializer().deserialize(bytes)
     }
 
     override def writeEvent(evt: BaseTestEvent): SerializedMessage = {
       val key = s"${evt.aggregateId}:${evt.sequenceNumber}"
-      val body = Json.toJson(evt).toString().getBytes()
+      val body = eventSerializer().serialize(evt)
       SerializedMessage(key, body, Map.empty)
     }
+
+    override def eventSerializer(): Serializer[BaseTestEvent] = (event: BaseTestEvent) => {
+      Json.toJson(event).toString().getBytes()
+    }
+    override def eventDeserializer(): Deserializer[BaseTestEvent] = (body: Array[Byte]) => Json.parse(body).as[BaseTestEvent]
   }
 
   val aggregateFormat: SurgeAggregateFormatting[State] = new SurgeAggregateFormatting[State] {
     override def readState(bytes: Array[Byte]): Option[State] = {
-      Json.parse(bytes).asOpt[State]
+      Some(stateDeserializer().deserialize(bytes))
     }
 
-    override def writeState(agg: State): SerializedAggregate = SerializedAggregate(Json.toJson(agg).toString().getBytes(), Map.empty)
+    override def writeState(agg: State): SerializedAggregate = SerializedAggregate(stateSerializer().serialize(agg), Map.empty)
+
+    override def stateDeserializer(): Deserializer[State] = (body: Array[Byte]) => Json.parse(body).as[State]
+
+    override def stateSerializer(): Serializer[State] = (agg: State) => Json.toJson(agg).toString().getBytes()
   }
+
   val businessLogic: SurgeCommandBusinessLogic[String, State, BaseTestCommand, BaseTestEvent] =
     new SurgeCommandBusinessLogic[String, State, BaseTestCommand, BaseTestEvent]() {
       val businessLogicTrait: BusinessLogicTrait = new BusinessLogicTrait {}
