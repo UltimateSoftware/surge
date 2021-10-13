@@ -4,7 +4,7 @@ package surge.internal.health.supervisor
 
 import java.util.regex.Pattern
 import akka.Done
-import akka.actor.{ Actor, ActorContext, ActorRef, ActorSystem, PoisonPill, Props, Terminated }
+import akka.actor.{ Actor, ActorContext, ActorRef, ActorSystem, NoSerializationVerificationNeeded, PoisonPill, Props, Terminated }
 import akka.pattern.{ ask, BackoffOpts, BackoffSupervisor }
 import akka.util.Timeout
 import org.slf4j.{ Logger, LoggerFactory }
@@ -169,20 +169,22 @@ class HealthSupervisorActorRef(val actor: ActorRef, askTimeout: FiniteDuration, 
 }
 
 // Commands
-case class Start(replyTo: Option[ActorRef] = None)
-case class RestartComponent(name: String, replyTo: ActorRef)
-case class ShutdownComponent(name: String, replyTo: ActorRef)
-case class UnregisterSupervisedComponentRequest(componentName: String)
+case class Start(replyTo: Option[ActorRef] = None) extends NoSerializationVerificationNeeded
+case class RestartComponent(name: String, replyTo: ActorRef) extends NoSerializationVerificationNeeded
+case class ShutdownComponent(name: String, replyTo: ActorRef) extends NoSerializationVerificationNeeded
+case class UnregisterSupervisedComponentRequest(componentName: String) extends NoSerializationVerificationNeeded
 case class RegisterSupervisedComponentRequest(
     componentName: String,
     controlProxyRef: ActorRef,
     restartSignalPatterns: Seq[Pattern],
-    shutdownSignalPatterns: Seq[Pattern]) {
+    shutdownSignalPatterns: Seq[Pattern])
+    extends NoSerializationVerificationNeeded {
   def asSupervisedComponentRegistration(): SupervisedComponentRegistration =
     SupervisedComponentRegistration(componentName, controlProxyRef, restartSignalPatterns, shutdownSignalPatterns)
 }
-case class HealthRegistrationDetailsRequest()
-case class Stop()
+case object HealthRegistrationDetailsRequest extends NoSerializationVerificationNeeded
+case object Stop
+    extends NoSerializationVerificationNeeded
 
 // State
 case class SupervisedComponentRegistration(

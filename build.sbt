@@ -83,7 +83,9 @@ lazy val `surge-engine-multilanguage-protocol` =
 lazy val `surge-engine-multilanguage` =
   (project in file("modules/multilanguage"))
     .dependsOn(`surge-engine-command-scaladsl`, `surge-engine-multilanguage-protocol`)
-    .settings(libraryDependencies ++= Seq(Akka.discovery, Akka.slf4j, logback, slf4jApi), publish / skip := true)
+    .settings(
+      libraryDependencies ++= Seq(Akka.discovery, Akka.slf4j, Akka.http, logback, slf4jApi, Akka.testKit, scalatest, embeddedKafka),
+      publish / skip := true)
     .enablePlugins(JavaServerAppPackaging)
 
 lazy val `surge-engine-multilanguage-scala-sdk` =
@@ -134,11 +136,6 @@ lazy val `surge-docs` = (project in file("modules/surge-docs"))
       JaegerSample.sdk,
       JaegerSample.exporter,
       JaegerSample.grpc))
-
-lazy val `surge-scala-sample` = (project in file("samples/scala"))
-  .dependsOn(`surge-common`, `surge-engine-command-core`, `surge-engine-command-scaladsl`)
-  .settings(libraryDependencies ++= Seq(Akka.http, akkaHttpPlayJson), publish / skip := true)
-  .enablePlugins(JavaServerAppPackaging)
 
 lazy val `surge` = project
   .in(file("."))

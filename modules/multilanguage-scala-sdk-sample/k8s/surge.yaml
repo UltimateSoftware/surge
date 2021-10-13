@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: surge
+  name: business-app-service
   labels:
     app: surge
 spec:
@@ -9,6 +9,21 @@ spec:
     - port: 8080
       name: business-app
       targetPort: 8080
+  selector:
+    app: surge
+  type: NodePort
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: surge-health-service
+  labels:
+    app: surge
+spec:
+  ports:
+    - port: 8888
+      name: health-server
+      targetPort: 8888
   selector:
     app: surge
   type: NodePort
@@ -34,13 +49,13 @@ spec:
     spec:
       containers:
         - name: surge-server
-          image: surge-engine-multilanguage:0.5.33-SNAPSHOT
+          image: surge-engine-multilanguage:0.5.37-SNAPSHOT
           imagePullPolicy: Never
           resources:
             requests:
-              memory: "250Mi"
+              memory: "650Mi"
             limits:
-              memory: "250Mi"
+              memory: "650Mi"
           ports:
             - containerPort: 25520
               name: akka-remoting
@@ -48,6 +63,21 @@ spec:
             - containerPort: 6667
               name: surge-server
               protocol: TCP
+            - containerPort: 8888
+              name: health-server
+              protocol: TCP
+          readinessProbe:
+            tcpSocket:
+              port: surge-server
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health-server
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
           env:
             - name: EVENTS_TOPIC
               value: events
@@ -69,12 +99,14 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: status.podIP
-            - name: "LOCAL_SERVER_PORT"
+            - name: "LOCAL_GRPC_SERVER_PORT"
               value: "6667"
+            - name: "LOCAL_HTTP_SERVER_PORT"
+              value: "8888"
             - name: "KAFKA_BROKERS"
               value: "my-cluster-kafka-bootstrap:9092"
         - name: business-app
-          image: surge-engine-multilanguage-scala-sdk-sample:0.5.33-SNAPSHOT
+          image: surge-engine-multilanguage-scala-sdk-sample:0.5.37-SNAPSHOT
           imagePullPolicy: Never
           resources:
             requests:
@@ -83,6 +115,9 @@ spec:
               memory: "250Mi"
           ports:
             - containerPort: 7777
+              name: surge-scala-sdk
+              protocol: TCP
+            - containerPort: 8080
               name: business-app
               protocol: TCP
           env:

@@ -5,8 +5,7 @@ package surge.health
 import java.time.Instant
 import java.util.UUID
 import java.util.regex.Pattern
-
-import akka.actor.{ ActorRef, ActorSystem }
+import akka.actor.{ ActorRef, ActorSystem, NoSerializationVerificationNeeded }
 import akka.event.EventBus
 import akka.stream.scaladsl.{ Source, SourceQueueWithComplete }
 import akka.stream.{ Materializer, OverflowStrategy }
@@ -106,7 +105,7 @@ trait HealthRegistrationListener extends HealthListener {
 
 }
 
-sealed trait HealthSupervisionEvent {}
+sealed trait HealthSupervisionEvent extends NoSerializationVerificationNeeded {}
 case class HealthRegistrationReceived(registration: RegisterSupervisedComponentRequest) extends HealthSupervisionEvent
 case class HealthSignalReceived(signal: HealthSignal) extends HealthSupervisionEvent
 case class HealthSignalStreamAdvanced() extends HealthSupervisionEvent

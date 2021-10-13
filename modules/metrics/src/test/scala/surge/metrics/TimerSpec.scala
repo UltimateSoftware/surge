@@ -38,6 +38,7 @@ class TimerSpec extends TestKit(ActorSystem("TimerSpec")) with MetricsSpecLike w
       metricValue(testTimerName) shouldEqual 95.5
     }
 
+    // fixme - flaky
     "properly time scala Future completion time" in {
 
       import system.dispatcher
@@ -46,7 +47,7 @@ class TimerSpec extends TestKit(ActorSystem("TimerSpec")) with MetricsSpecLike w
 
       timer.timeFuture { akka.pattern.after(200.millis)(Future.successful(())) }
 
-      val marginErr = 50.0
+      val marginErr = 60.0
 
       eventually(timeout = Timeout(Span(500, Millis))) {
         // The timing for the future is a little flaky and can sometimes be 10+ ms off in these tests.
