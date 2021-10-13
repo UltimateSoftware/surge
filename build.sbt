@@ -24,15 +24,8 @@ val multiJvmTestSettings = Seq(
     // (MultiJvm / test).value
   })
 
-lazy val `surge-serialization` = (project in file("modules/serialization"))
-  .settings(
-    multiJvmTestSettings,
-    libraryDependencies ++= Seq(
-      scalatest,
-      scalatestPlusMockito,
-      mockitoCore
-    )
-  )
+lazy val `surge-serialization` =
+  (project in file("modules/serialization")).settings(multiJvmTestSettings, libraryDependencies ++= Seq(scalatest, scalatestPlusMockito, mockitoCore))
 
 lazy val `surge-common` = (project in file("modules/common"))
   .settings(
