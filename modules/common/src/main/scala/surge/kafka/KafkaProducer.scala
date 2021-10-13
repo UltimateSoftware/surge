@@ -194,8 +194,8 @@ case class GenericKafkaProducer[K, V](
   producerProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, keySerializer.getClass.getName)
   producerProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, valueSerializer.getClass.getName)
 
-  override val producer: org.apache.kafka.clients.producer.KafkaProducer[K, V] =
-    new org.apache.kafka.clients.producer.KafkaProducer[K, V](producerProps)
+  override val producer: KafkaProducer[K, V] =
+    new KafkaProducer[K, V](producerProps)
 }
 
 object KafkaBytesProducer {
