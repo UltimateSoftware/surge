@@ -47,6 +47,7 @@ trait KafkaProducerHelperCommon[K, V] {
   protected def getPartitionFor(key: K): Option[Int] = {
     partitioner.optionalPartitionBy.flatMap(partitionFun => getPartitionFor(key, numberPartitions, partitionFun))
   }
+
   protected def getPartitionFor(key: K, numPartitions: Int, keyToPartitionString: K => String): Option[Int] = {
     val partitionByString = keyToPartitionString(key)
     if (partitionByString.isEmpty) {
