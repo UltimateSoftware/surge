@@ -2,12 +2,16 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 
 namespace Surge
 {
-    public class Startup
+    public class Startup<TS, TE, TC>
     {
+
+        public CqrsModel<TS, TE, TC> CqrsModel { get; set; }
+        
+        public SerDeser<TS, TE, TC> SerDeser { get; set; }
+
         // This method gets called by the runtime. Use this method to add services to the container.
         // For more information on how to configure your application, visit https://go.microsoft.com/fwlink/?LinkID=398940
         public void ConfigureServices(IServiceCollection services)
@@ -22,7 +26,11 @@ namespace Surge
 
             app.UseEndpoints(endpoints =>
             {
-                endpoints.MapGrpcService<BusinessLogicServiceImpl>();
+                var service = new BusinessLogicServiceImpl<TS, TE, TC>
+                {
+                    CqrsModel = this.CqrsModel,
+                    SerDeser = this.SerDeser
+                };
 
                 endpoints.MapGet("/", async context =>
                 {
