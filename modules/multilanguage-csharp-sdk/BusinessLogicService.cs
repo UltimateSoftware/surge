@@ -11,9 +11,10 @@ namespace Surge
     // ReSharper disable once ClassNeverInstantiated.Global
     public class BusinessLogicServiceImpl<TS, TE, TC>: BusinessLogicService.BusinessLogicServiceBase
     {
-        public BusinessLogicServiceImpl()
+        public BusinessLogicServiceImpl(CqrsModel<TS, TE, TC> cqrsModel, SerDeser<TS, TE, TC> serDeser)
         {
-            // empty constructor
+            CqrsModel = cqrsModel;
+            SerDeser = serDeser;
         }
 
         public CqrsModel<TS, TE, TC> CqrsModel { get; set;  }

@@ -12,25 +12,5 @@
         <PackageReference Include="Grpc.AspNetCore" Version="2.25.0" />
         <PackageReference Include="LanguageExt.Core" Version="3.5.64-beta" />
     </ItemGroup>
-
-    <ItemGroup>
-      <Compile Remove="Sdk\**" />
-      <Compile Remove="Services\**" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <EmbeddedResource Remove="Sdk\**" />
-      <EmbeddedResource Remove="Services\**" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <None Remove="Sdk\**" />
-      <None Remove="Services\**" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <Content Remove="Sdk\**" />
-      <Content Remove="Services\**" />
-    </ItemGroup>
     
 </Project>
