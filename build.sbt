@@ -25,7 +25,8 @@ val multiJvmTestSettings = Seq(
   })
 
 lazy val `surge-serialization` =
-  (project in file("modules/serialization")).settings(multiJvmTestSettings, libraryDependencies ++= Seq(scalatest, scalatestPlusMockito, mockitoCore))
+  (project in file("modules/serialization"))
+    .settings(multiJvmTestSettings, libraryDependencies ++= Seq(scalatest, scalatestPlusMockito, mockitoCore, PlayFramework.json))
 
 lazy val `surge-common` = (project in file("modules/common"))
   .settings(
