@@ -110,8 +110,7 @@ class NullHealthSignalStream(bus: HealthSignalBusTrait, override val actorSystem
   override def id(): String = "null-health-signal-stream"
 }
 
-class DisabledHealthSignalStreamProvider(bus: HealthSignalBusTrait, override val actorSystem: ActorSystem)
-    extends HealthSignalStreamProvider {
+class DisabledHealthSignalStreamProvider(bus: HealthSignalBusTrait, override val actorSystem: ActorSystem) extends HealthSignalStreamProvider {
   private lazy val nullStream: HealthSignalStream = new NullHealthSignalStream(bus, actorSystem)
 
   override def provide(bus: HealthSignalBusInternal): HealthSignalStream = nullStream
