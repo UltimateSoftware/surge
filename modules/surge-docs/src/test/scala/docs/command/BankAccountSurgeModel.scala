@@ -2,12 +2,13 @@
 
 package docs.command
 
-import java.util.UUID
-import play.api.libs.json.Json
-import surge.core.{ SerializedAggregate, SerializedMessage, SurgeAggregateReadFormatting, SurgeAggregateWriteFormatting, SurgeEventWriteFormatting }
+import play.api.libs.json._
+import surge.core._
 import surge.kafka.KafkaTopic
-import surge.scaladsl.command.{ AggregateCommandModel, SurgeCommandBusinessLogic }
-import surge.serialization.{ Deserializer, Serializer }
+import surge.scaladsl.command.{AggregateCommandModel, SurgeCommandBusinessLogic}
+import surge.serialization.{Deserializer, PlayJsonSerializer, Serializer}
+
+import java.util.UUID
 
 // #surge_model_class
 object BankAccountSurgeModel extends SurgeCommandBusinessLogic[UUID, BankAccount, BankAccountCommand, BankAccountEvent] {
@@ -29,13 +30,13 @@ object BankAccountSurgeModel extends SurgeCommandBusinessLogic[UUID, BankAccount
 
   override def aggregateWriteFormatting: SurgeAggregateWriteFormatting[BankAccount] = new SurgeAggregateWriteFormatting[BankAccount] {
     override def writeState(agg: BankAccount): SerializedAggregate = {
-      val aggBytes = stateSerializer().serialize(agg)
+      val bytesPlusHeaders = stateSerializer().serialize(agg)
       val messageHeaders = Map("aggregate_id" -> agg.accountNumber.toString)
-      SerializedAggregate(aggBytes, messageHeaders)
+      SerializedAggregate(bytesPlusHeaders.bytes, bytesPlusHeaders.headers)
     }
 
     override def stateSerializer(): Serializer[BankAccount] =
-      (agg: BankAccount) => Json.toJson(agg).toString().getBytes()
+      new PlayJsonSerializer[BankAccount]()
   }
 
   override def eventWriteFormatting: SurgeEventWriteFormatting[BankAccountEvent] = new SurgeEventWriteFormatting[BankAccountEvent] {
@@ -47,7 +48,7 @@ object BankAccountSurgeModel extends SurgeCommandBusinessLogic[UUID, BankAccount
     }
 
     override def eventSerializer(): Serializer[BankAccountEvent] =
-      (event: BankAccountEvent) => event.toJson.toString().getBytes()
+      new PlayJsonSerializer[BankAccountEvent]()(Json.format[BankAccountEvent])
   }
 }
 // #surge_model_class

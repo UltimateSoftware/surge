@@ -4,13 +4,13 @@ package surge.core
 
 import io.opentelemetry.api.OpenTelemetry
 import play.api.libs.json._
-import surge.core.command.{ SurgeCommandKafkaConfig, SurgeCommandModel }
+import surge.core.command.{SurgeCommandKafkaConfig, SurgeCommandModel}
 import surge.internal.domain.CommandHandler
 import surge.internal.persistence.Context
 import surge.internal.tracing.NoopTracerFactory
-import surge.kafka.{ KafkaTopic, PartitionStringUpToColon }
+import surge.kafka.{KafkaTopic, PartitionStringUpToColon}
 import surge.metrics.Metrics
-import surge.serialization.{ Deserializer, Serializer }
+import surge.serialization.{BytesPlusHeaders, Deserializer, Serializer}
 
 import scala.concurrent.Future
 
@@ -135,20 +135,24 @@ trait TestBoundedContext {
 
   val aggregateFormatting: SurgeAggregateFormatting[State] = new SurgeAggregateFormatting[State] {
     override def readState(bytes: Array[Byte]): Option[State] = Some(stateDeserializer().deserialize(bytes))
-    override def writeState(agg: State): SerializedAggregate = SerializedAggregate(Json.toJson(agg).toString().getBytes(), Map.empty)
+    override def writeState(agg: State): SerializedAggregate = {
+      val bytesPlusHeaders = stateSerializer().serialize(agg)
+      SerializedAggregate(bytesPlusHeaders.bytes, bytesPlusHeaders.headers)
+    }
 
     override def stateDeserializer(): Deserializer[State] = (body: Array[Byte]) => Json.parse(body).as[State]
-    override def stateSerializer(): Serializer[State] = (agg: State) => Json.toJson(agg).toString().getBytes()
+    override def stateSerializer(): Serializer[State] = (agg: State) => BytesPlusHeaders(Json.toJson(agg).toString().getBytes())
   }
 
   val eventWriter: SurgeEventWriteFormatting[BaseTestEvent] = new SurgeEventWriteFormatting[BaseTestEvent] {
     override def writeEvent(evt: BaseTestEvent): SerializedMessage = {
       val key = s"${evt.aggregateId}:${evt.sequenceNumber}"
-      SerializedMessage(key, eventSerializer().serialize(evt))
+      val bytesPlusHeaders = eventSerializer().serialize(evt)
+      SerializedMessage(key, bytesPlusHeaders.bytes, bytesPlusHeaders.headers)
     }
 
     override def eventSerializer(): Serializer[BaseTestEvent] = (event: BaseTestEvent) => {
-      Json.toJson(event).toString().getBytes()
+      BytesPlusHeaders(Json.toJson(event).toString().getBytes())
     }
   }
 

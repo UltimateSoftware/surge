@@ -4,7 +4,6 @@ package surge.internal.health
 
 import akka.Done
 import akka.actor.{ ActorRef, ActorSystem }
-import surge.health.config.HealthSignalBusConfig
 import surge.health.domain.HealthSignal
 import surge.health.matchers.SignalPatternMatcher
 import surge.health.windows.{ WindowStreamListener, _ }

@@ -144,6 +144,7 @@ lazy val `surge-docs` = (project in file("modules/surge-docs"))
 lazy val `surge` = project
   .in(file("."))
   .aggregate(
+    `surge-serialization`,
     `surge-common`,
     `surge-engine-command-core`,
     `surge-engine-command-javadsl`,

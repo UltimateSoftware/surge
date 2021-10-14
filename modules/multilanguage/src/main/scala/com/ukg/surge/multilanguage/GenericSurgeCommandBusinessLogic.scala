@@ -4,11 +4,11 @@ package com.ukg.surge.multilanguage
 
 import akka.actor.ActorSystem
 import com.ukg.surge.multilanguage.protobuf.BusinessLogicService
-import surge.core.{ SerializedAggregate, SerializedMessage, SurgeAggregateReadFormatting, SurgeAggregateWriteFormatting, SurgeEventWriteFormatting }
+import surge.core.{SerializedAggregate, SerializedMessage, SurgeAggregateReadFormatting, SurgeAggregateWriteFormatting, SurgeEventWriteFormatting}
 import surge.core.command.AggregateCommandModelCoreTrait
 import surge.kafka.KafkaTopic
 import surge.scaladsl.command.SurgeCommandBusinessLogic
-import surge.serialization.{ Deserializer, Serializer }
+import surge.serialization.{BytesPlusHeaders, Deserializer, Serializer}
 
 import java.util.UUID
 
@@ -34,22 +34,26 @@ class GenericSurgeCommandBusinessLogic(aggregName: String, eventsTopicName: Stri
   }
 
   override def eventWriteFormatting: SurgeEventWriteFormatting[SurgeEvent] = new SurgeEventWriteFormatting[SurgeEvent] {
-    override def writeEvent(evt: SurgeEvent): SerializedMessage =
-      SerializedMessage(key = evt.aggregateId, value = eventSerializer().serialize(evt), headers = Map.empty)
+    override def writeEvent(evt: SurgeEvent): SerializedMessage = {
+      val bytesPlusHeaders = eventSerializer().serialize(evt)
+      SerializedMessage(key = evt.aggregateId, value = bytesPlusHeaders.bytes, headers = bytesPlusHeaders.headers)
+    }
 
     override def eventSerializer(): Serializer[SurgeEvent] = (event: SurgeEvent) => {
       val pbEvent: protobuf.Event = event
-      pbEvent.toByteArray
+      BytesPlusHeaders(pbEvent.toByteArray)
     }
   }
 
   override def aggregateWriteFormatting: SurgeAggregateWriteFormatting[SurgeState] = new SurgeAggregateWriteFormatting[SurgeState] {
-    override def writeState(agg: SurgeState): SerializedAggregate =
-      SerializedAggregate(stateSerializer().serialize(agg), Map.empty)
+    override def writeState(agg: SurgeState): SerializedAggregate = {
+      val bytesPlusHeaders = stateSerializer().serialize(agg)
+      SerializedAggregate(bytesPlusHeaders.bytes, bytesPlusHeaders.headers)
+    }
 
     override def stateSerializer(): Serializer[SurgeState] = (state: SurgeState) => {
       val pbState: protobuf.State = state
-      pbState.toByteArray
+      BytesPlusHeaders(pbState.toByteArray)
     }
   }
 
