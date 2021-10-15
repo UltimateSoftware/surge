@@ -6,10 +6,10 @@ import play.api.libs.json._
 import surge.core.command.SurgeCommandKafkaConfig
 import surge.core._
 import surge.kafka.KafkaTopic
-import surge.scaladsl.command.{AggregateCommandModel, SurgeCommandBusinessLogic}
-import surge.serialization.{Deserializer, PlayJsonDeserializer, PlayJsonSerializer, Serializer}
+import surge.scaladsl.command.{ AggregateCommandModel, SurgeCommandBusinessLogic }
+import surge.serialization.{ Deserializer, PlayJsonDeserializer, PlayJsonSerializer, Serializer }
 
-import scala.util.{Failure, Success, Try}
+import scala.util.{ Failure, Success, Try }
 
 object TestBoundedContext {
 

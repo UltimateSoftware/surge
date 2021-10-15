@@ -5,8 +5,8 @@ package docs.command
 import play.api.libs.json._
 import surge.core._
 import surge.kafka.KafkaTopic
-import surge.scaladsl.command.{AggregateCommandModel, SurgeCommandBusinessLogic}
-import surge.serialization.{Deserializer, PlayJsonSerializer, Serializer}
+import surge.scaladsl.command.{ AggregateCommandModel, SurgeCommandBusinessLogic }
+import surge.serialization.{ Deserializer, PlayJsonSerializer, Serializer }
 
 import java.util.UUID
 

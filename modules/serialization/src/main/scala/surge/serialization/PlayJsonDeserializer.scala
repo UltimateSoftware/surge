@@ -2,7 +2,7 @@
 
 package surge.serialization
 
-import play.api.libs.json.{Format, Json}
+import play.api.libs.json.{ Format, Json }
 
 class PlayJsonDeserializer[TYPE]()(implicit format: Format[TYPE]) extends Deserializer[TYPE] {
   override def deserialize(body: Array[Byte]): TYPE = Json.parse(body).as[TYPE]

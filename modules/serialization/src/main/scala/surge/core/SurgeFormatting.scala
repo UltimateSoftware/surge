@@ -2,7 +2,7 @@
 
 package surge.core
 
-import surge.serialization.{Deserializer, Serializer}
+import surge.serialization.{ Deserializer, Serializer }
 
 trait SurgeEventReadFormatting[Event] {
   def readEvent(bytes: Array[Byte]): Event

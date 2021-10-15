@@ -4,13 +4,13 @@ package surge.core
 
 import io.opentelemetry.api.OpenTelemetry
 import play.api.libs.json._
-import surge.core.command.{SurgeCommandKafkaConfig, SurgeCommandModel}
+import surge.core.command.{ SurgeCommandKafkaConfig, SurgeCommandModel }
 import surge.internal.domain.CommandHandler
 import surge.internal.persistence.Context
 import surge.internal.tracing.NoopTracerFactory
-import surge.kafka.{KafkaTopic, PartitionStringUpToColon}
+import surge.kafka.{ KafkaTopic, PartitionStringUpToColon }
 import surge.metrics.Metrics
-import surge.serialization.{BytesPlusHeaders, Deserializer, Serializer}
+import surge.serialization.{ BytesPlusHeaders, Deserializer, Serializer }
 
 import scala.concurrent.Future
 
