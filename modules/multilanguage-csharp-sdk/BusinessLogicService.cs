@@ -1,15 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using surge.multilanguage.protobuf;
 using Google.Protobuf;
 using Grpc.Core;
 using LanguageExt;
+using surge.multilanguage.protobuf;
 
 namespace Surge
 {
     // ReSharper disable once ClassNeverInstantiated.Global
-    public class BusinessLogicServiceImpl<TS, TE, TC>: BusinessLogicService.BusinessLogicServiceBase
+    public class BusinessLogicServiceImpl<TS, TE, TC> : BusinessLogicService.BusinessLogicServiceBase
     {
         public BusinessLogicServiceImpl(CqrsModel<TS, TE, TC> cqrsModel, SerDeser<TS, TE, TC> serDeser)
         {
@@ -17,8 +17,8 @@ namespace Surge
             SerDeser = serDeser;
         }
 
-        public CqrsModel<TS, TE, TC> CqrsModel { get; set;  }
-        
+        public CqrsModel<TS, TE, TC> CqrsModel { get; set; }
+
         public SerDeser<TS, TE, TC> SerDeser { get; set; }
 
         public override Task<HealthCheckReply> HealthCheck(HealthCheckRequest request, ServerCallContext context)
@@ -34,13 +34,13 @@ namespace Surge
         private ProcessCommandReply doProcessCommand(ProcessCommandRequest request)
         {
             Option<TS> maybeState = Option<TS>.None;
-            if (!request.State.IsNull()) 
+            if (!request.State.IsNull())
             {
                 // deserialize state
-                var state = SerDeser.DeserializeState.Invoke(request.State.Payload.ToByteArray()); 
+                var state = SerDeser.DeserializeState.Invoke(request.State.Payload.ToByteArray());
                 maybeState = new Some<TS>(state);
             }
-            
+
             // deserialize command
             // TODO: log some warning if command is not present (should never happen)
             TC command = SerDeser.DeserializeCommand.Invoke(request.Command.Payload.ToByteArray());
@@ -62,7 +62,7 @@ namespace Surge
                 default:
                 {
                     Lst<TE> events = result.RightToSeq().Head;
-                    Option<TS>  zeroState = Option<TS>.None;
+                    Option<TS> zeroState = Option<TS>.None;
                     // calculate the new state by doing a left over the events 
                     Option<TS> newState = events.Fold(zeroState, (ses, e) =>
                         CqrsModel.EventHandler.Invoke(Tuple.Create(ses, e)));
@@ -87,7 +87,7 @@ namespace Surge
                     };
                     return reply;
                 }
-            } 
+            }
         }
 
         public HandleEventsResponse doHandleEvents(HandleEventsRequest handleEventsRequest)
@@ -96,14 +96,16 @@ namespace Surge
             if (!handleEventsRequest.State.IsNull())
             {
                 // deserialize the state (from protocol buffers) if it's there
-               state = Option<TS>.Some(SerDeser.DeserializeState.Invoke(handleEventsRequest.State.Payload.ToByteArray())); 
+                state = Option<TS>.Some(
+                    SerDeser.DeserializeState.Invoke(handleEventsRequest.State.Payload.ToByteArray()));
             }
+
             // deserialize all events (from protocol buffers)
             IEnumerable<TE> events =
                 handleEventsRequest.Events.Map(e => SerDeser.DeserializeEvent(e.Payload.ToByteArray()));
             // calculate new state
-            Option<TS> newState = events.Fold(state, (ses, e) => CqrsModel.EventHandler.Invoke(Tuple.Create(ses, e))); 
-            
+            Option<TS> newState = events.Fold(state, (ses, e) => CqrsModel.EventHandler.Invoke(Tuple.Create(ses, e)));
+
             // serialize new state to protocol buffers
             State resultingStatePb = null;
             if (newState.IsSome)
@@ -114,7 +116,7 @@ namespace Surge
                     Payload = ByteString.CopyFrom(SerDeser.SerializeState.Invoke(newState.ToList().Head()))
                 };
             }
-            
+
             var result = new HandleEventsResponse
             {
                 AggregateId = handleEventsRequest.AggregateId,
@@ -123,7 +125,8 @@ namespace Surge
             return result;
         }
 
-        public override Task<ProcessCommandReply> ProcessCommand(ProcessCommandRequest request, ServerCallContext context)
+        public override Task<ProcessCommandReply> ProcessCommand(ProcessCommandRequest request,
+            ServerCallContext context)
         {
             return Task<ProcessCommandReply>.Factory.StartNew(() => doProcessCommand(request));
         }
