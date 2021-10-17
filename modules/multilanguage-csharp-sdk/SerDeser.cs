@@ -2,10 +2,13 @@ using System;
 
 namespace Surge
 {
+    // ReSharper disable once ClassNeverInstantiated.Global
+    // ReSharper disable once IdentifierTypo
     public class SerDeser<TS, TE, TC>
     {
         // TODO: the following functions should probably return some Try<T> type
 
+        // ReSharper disable once IdentifierTypo
         public SerDeser()
         {
             // empty constructor

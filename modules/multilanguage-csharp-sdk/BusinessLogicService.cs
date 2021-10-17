@@ -17,9 +17,9 @@ namespace Surge
             SerDeser = serDeser;
         }
 
-        public CqrsModel<TS, TE, TC> CqrsModel { get; set; }
+        private CqrsModel<TS, TE, TC> CqrsModel { get; }
 
-        public SerDeser<TS, TE, TC> SerDeser { get; set; }
+        private SerDeser<TS, TE, TC> SerDeser { get; }
 
         public override Task<HealthCheckReply> HealthCheck(HealthCheckRequest request, ServerCallContext context)
         {
@@ -31,7 +31,7 @@ namespace Surge
             return Task<HealthCheckReply>.Factory.StartNew(() => reply);
         }
 
-        private ProcessCommandReply doProcessCommand(ProcessCommandRequest request)
+        private ProcessCommandReply DoProcessCommand(ProcessCommandRequest request)
         {
             Option<TS> maybeState = Option<TS>.None;
             if (!request.State.IsNull())
@@ -43,8 +43,10 @@ namespace Surge
 
             // deserialize command
             // TODO: log some warning if command is not present (should never happen)
+            // ReSharper disable once SuggestVarOrType_SimpleTypes
             TC command = SerDeser.DeserializeCommand.Invoke(request.Command.Payload.ToByteArray());
 
+            // ReSharper disable once SuggestVarOrType_Elsewhere
             Either<string, Lst<TE>> result = CqrsModel.CommandHandler.Invoke(Tuple.Create(maybeState, command));
 
             switch (result.IsLeft)
@@ -90,7 +92,7 @@ namespace Surge
             }
         }
 
-        public HandleEventsResponse doHandleEvents(HandleEventsRequest handleEventsRequest)
+        private HandleEventsResponse DoHandleEvents(HandleEventsRequest handleEventsRequest)
         {
             Option<TS> state = Option<TS>.None;
             if (!handleEventsRequest.State.IsNull())
@@ -101,6 +103,7 @@ namespace Surge
             }
 
             // deserialize all events (from protocol buffers)
+            // ReSharper disable once SuggestVarOrType_Elsewhere
             IEnumerable<TE> events =
                 handleEventsRequest.Events.Map(e => SerDeser.DeserializeEvent(e.Payload.ToByteArray()));
             // calculate new state
@@ -128,12 +131,12 @@ namespace Surge
         public override Task<ProcessCommandReply> ProcessCommand(ProcessCommandRequest request,
             ServerCallContext context)
         {
-            return Task<ProcessCommandReply>.Factory.StartNew(() => doProcessCommand(request));
+            return Task<ProcessCommandReply>.Factory.StartNew(() => DoProcessCommand(request));
         }
 
         public override Task<HandleEventsResponse> HandleEvents(HandleEventsRequest request, ServerCallContext context)
         {
-            return Task<HandleEventsResponse>.Factory.StartNew(() => doHandleEvents(request));
+            return Task<HandleEventsResponse>.Factory.StartNew(() => DoHandleEvents(request));
         }
     }
 }

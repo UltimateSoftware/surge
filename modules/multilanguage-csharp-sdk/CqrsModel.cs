@@ -3,6 +3,7 @@ using LanguageExt;
 
 namespace Surge
 {
+    // ReSharper disable once ClassNeverInstantiated.Global
     public class CqrsModel<TS, TE, TC>
     {
         public CqrsModel()

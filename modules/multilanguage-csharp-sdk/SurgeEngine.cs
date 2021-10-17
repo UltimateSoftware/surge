@@ -10,9 +10,11 @@ namespace Surge
     public class SurgeEngine<TS, TE, TC>
     {
         private readonly MultilanguageGatewayService.MultilanguageGatewayServiceClient _client;
+        // ReSharper disable once IdentifierTypo
         private readonly SerDeser<TS, TE, TC> _serDeser;
         private readonly CqrsModel<TS, TE, TC> _cqrsModel;
 
+        // ReSharper disable once IdentifierTypo
         public SurgeEngine(SerDeser<TS, TE, TC> serDeser, CqrsModel<TS, TE, TC> cqrsModel)
         {
             this._serDeser = serDeser;
@@ -89,6 +91,7 @@ namespace Surge
                 Option<TS> result;
                 if (!reply.IsSuccess)
                 {
+                    // ReSharper disable once SuggestVarOrType_Elsewhere
                     Task<Option<TS>> failedTask =
                         Task<Option<TS>>.Factory.StartNew(() => throw new Exception(reply.RejectionMessage));
                     return failedTask;
