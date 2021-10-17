@@ -1,6 +1,5 @@
 using System;
 using Grpc.Core;
-using Grpc.Net.Client;
 using surge.multilanguage.protobuf;
 using System.Threading.Tasks;
 using Google.Protobuf;
@@ -9,34 +8,43 @@ using LanguageExt;
 
 namespace Surge 
 {
-    public class BridgeToSurge<TS, TE, TC>
+    public class SurgeEngine<TS, TE, TC>
     {
         private readonly MultilanguageGatewayService.MultilanguageGatewayServiceClient _client;
-        private readonly SerDeser<TS, TE, TC> _serDeser; 
+        private readonly SerDeser<TS, TE, TC> _serDeser;
+        private readonly CqrsModel<TS, TE, TC> _cqrsModel;
 
-        public BridgeToSurge(SerDeser<TS, TE, TC> serDeser)
+        public SurgeEngine(SerDeser<TS, TE, TC> serDeser, CqrsModel<TS, TE, TC> cqrsModel)
         {
             this._serDeser= serDeser;
+            this._cqrsModel = cqrsModel;
+            
+            string localServerHost = Environment.GetEnvironmentVariable("LOCAL_SERVER_HOST") ?? "127.0.0.1";
+            int localServerPort = int.Parse(Environment.GetEnvironmentVariable("LOCAL_SERVER_PORT") ?? "7777");
             string surgeServerHost = Environment.GetEnvironmentVariable("SURGE_SERVER_HOST") ?? "127.0.0.1";
-            int surgeServerPort = Int32.Parse((Environment.GetEnvironmentVariable("SURGE_SERVER_PORT") ?? "6667"));
+            int surgeServerPort = int.Parse((Environment.GetEnvironmentVariable("SURGE_SERVER_PORT") ?? "6667"));
 
-            var uriBuilder = new UriBuilder
-            {
-                Host = surgeServerHost,
-                Port = surgeServerPort,
-                Scheme = "http"
-            };
-            var uri = uriBuilder.Uri;
+            Console.WriteLine($"Surge side car accessible via gRPC: {surgeServerHost}:{surgeServerPort}!");
+            Console.WriteLine($"Local gRPC business logic server going to be bound on: {localServerHost}:{localServerPort}!");
 
-            var grpcChannelOptions = new GrpcChannelOptions
-            {
-                Credentials = ChannelCredentials.Insecure
-            };
-
-            var grpcChannel = GrpcChannel.ForAddress(uri, grpcChannelOptions);
+            var grpcChannel = new Channel(surgeServerHost, surgeServerPort, ChannelCredentials.Insecure); 
 
             _client = new MultilanguageGatewayService.MultilanguageGatewayServiceClient(grpcChannel);
-            
+                
+            Console.WriteLine("Starting gRPC business logic server!");
+            var server = new Grpc.Core.Server
+            {
+                Services =
+                {
+                    BusinessLogicService.BindService(new BusinessLogicServiceImpl<TS, TE, TC>(cqrsModel, serDeser))
+                },
+                Ports =
+                {
+                    new ServerPort(localServerHost, localServerPort, ServerCredentials.Insecure)
+                }
+            };
+            server.Start();
+
         }
 
         private Task<Option<TS>> GetState(Guid aggregateId)

@@ -3,6 +3,9 @@
     <PropertyGroup>
         <TargetFramework>net5.0</TargetFramework>
         <OutputType>Library</OutputType>
+        <PackageId>Surge</PackageId>
+        <Version>0.0.1</Version>
+        <IsPackable>true</IsPackable>
     </PropertyGroup>
 
     <ItemGroup>
@@ -10,7 +13,10 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Grpc.AspNetCore" Version="2.25.0" />
+        <PackageReference Include="Google.Protobuf" Version="3.19.0-rc1" />
+        <PackageReference Include="Google.Protobuf.Tools" Version="3.18.1" />
+        <PackageReference Include="Grpc" Version="2.41.0" />
+        <PackageReference Include="Grpc.Tools" Version="2.41.0" />
         <PackageReference Include="LanguageExt.Core" Version="3.5.64-beta" />
     </ItemGroup>
     
