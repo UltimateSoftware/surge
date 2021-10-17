@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using com.ukg.surge.multilanguage.protobuf;
+using surge.multilanguage.protobuf;
 using Google.Protobuf;
 using Grpc.Core;
 using LanguageExt;

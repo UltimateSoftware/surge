@@ -6,7 +6,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <Protobuf Include="Protos\multilanguage-protocol.proto" GrpcServices="Server" />
+        <Protobuf Include="Protos\multilanguage-protocol.proto" />
     </ItemGroup>
 
     <ItemGroup>
