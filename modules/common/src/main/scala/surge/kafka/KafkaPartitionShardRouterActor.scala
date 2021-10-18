@@ -339,4 +339,9 @@ class KafkaPartitionShardRouterActor(
         components = Some(shardHealthChecks))
     }
   }
+
+  override def preRestart(reason: Throwable, message: Option[Any]): Unit = {
+    log.error(s"RouterActor saw an uncaught exception while handling message with class [${message.getClass.getName}]", reason)
+    super.preRestart(reason, message)
+  }
 }
