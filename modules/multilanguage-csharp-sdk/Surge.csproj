@@ -13,11 +13,16 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Google.Protobuf" Version="3.19.0-rc1" />
+        <PackageReference Include="Google.Protobuf" Version="3.18.1" />
         <PackageReference Include="Google.Protobuf.Tools" Version="3.18.1" />
         <PackageReference Include="Grpc" Version="2.41.0" />
         <PackageReference Include="Grpc.Tools" Version="2.41.0" />
-        <PackageReference Include="LanguageExt.Core" Version="3.5.64-beta" />
+        <PackageReference Include="JsonSubTypes" Version="1.8.0" />
+        <PackageReference Include="LanguageExt.Core" Version="3.4.11" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Remove="Protos\sample-application.proto" />
     </ItemGroup>
     
     
