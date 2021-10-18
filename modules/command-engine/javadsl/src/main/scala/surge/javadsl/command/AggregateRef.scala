@@ -28,11 +28,10 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event](val aggregateId: AggId, pro
 
   def sendCommand(command: Cmd): CompletionStage[CommandResult[Agg]] = {
     val envelope = PersistentActor.ProcessMessage[Cmd](aggregateId.toString, command)
-    val result = sendCommandWithRetries(envelope).map {
-      case Left(error) =>
+    val result = sendCommand(envelope).map(aggOpt =>
+      CommandSuccess[Agg](aggOpt.asJava)).recover {
+      case error =>
         CommandFailure[Agg](error)
-      case Right(aggOpt) =>
-        CommandSuccess[Agg](aggOpt.asJava)
     }
     FutureConverters.toJava(result)
   }

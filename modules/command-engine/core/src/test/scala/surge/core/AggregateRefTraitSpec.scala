@@ -34,13 +34,13 @@ class AggregateRefTraitSpec
     override val region: ActorRef = system.actorOf(Props(new ProbeWithTraceSupport(regionTestProbe, noopTracer)))
     override val tracer: Tracer = noopTracer
 
-    def sendCommand(command: String, retries: Int = 0): Future[Either[Throwable, Option[Person]]] = {
+    def sendCommand(command: String): Future[Option[Person]] = {
       val envelope = PersistentActor.ProcessMessage(aggregateId, command)
-      sendCommandWithRetries(envelope, retries)
+      sendCommand(envelope)
     }
     def applyEvent(event: String, retries: Int = 0): Future[Option[Person]] = {
       val envelope = PersistentActor.ApplyEvent(aggregateId, event)
-      applyEventsWithRetries(envelope, retries)
+      applyEventsWithRetries(envelope)
     }
     def getState: Future[Option[Person]] = queryState
   }
