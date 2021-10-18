@@ -1,3 +1,5 @@
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
+
 using System;
 using JsonSubTypes;
 using Newtonsoft.Json;
