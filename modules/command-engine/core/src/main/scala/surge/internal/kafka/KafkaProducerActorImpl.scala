@@ -78,7 +78,7 @@ class KafkaProducerActorImpl(
     partitionTracker: KafkaConsumerPartitionAssignmentTracker,
     override val signalBus: HealthSignalBusTrait,
     config: Config,
-    kafkaProducerOverride: Option[KafkaBytesProducer] = None)
+    kafkaProducerOverride: Option[KafkaProducerTrait[String, Array[Byte]]] = None)
     extends ActorWithTracing
     with ActorHostAwareness
     with Stash
@@ -113,7 +113,8 @@ class KafkaProducerActorImpl(
   //noinspection ActorMutableStateInspection
   private var kafkaPublisher = getPublisher
 
-  private val nonTransactionalStatePublisher = kafkaProducerOverride.getOrElse(KafkaBytesProducer(config, brokers, stateTopic, partitioner = partitioner))
+  private val nonTransactionalStatePublisher =
+    kafkaProducerOverride.getOrElse(KafkaProducer.bytesProducer(config, brokers, stateTopic, partitioner = partitioner))
 
   override val tracer: Tracer = producerContext.tracer
 
@@ -134,11 +135,11 @@ class KafkaProducerActorImpl(
     super.postStop()
   }
 
-  private def getPublisher: KafkaBytesProducer = {
+  private def getPublisher: KafkaProducerTrait[String, Array[Byte]] = {
     kafkaProducerOverride.getOrElse(newPublisher())
   }
 
-  private def newPublisher(): KafkaBytesProducer = {
+  private def newPublisher(): KafkaProducerTrait[String, Array[Byte]] = {
 
     object PoisonTopic extends KafkaTopicTrait {
       def name = throw new IllegalStateException("there is no topic")
@@ -153,7 +154,7 @@ class KafkaProducerActorImpl(
 
     // Set up the producer on the events topic so the partitioner can partition automatically on the events topic since we manually set the partition for the
     // aggregate state topic record and the events topic could have a different number of partitions
-    val producer = KafkaBytesProducer(config, brokers, eventsTopicOpt.getOrElse(PoisonTopic), partitioner, kafkaConfig)
+    val producer = KafkaProducer.bytesProducer(config, brokers, eventsTopicOpt.getOrElse(PoisonTopic), partitioner, kafkaConfig)
     if (enableMetrics) {
       metrics.registerKafkaMetrics(kafkaPublisherMetricsName, () => producer.producer.metrics)
     }

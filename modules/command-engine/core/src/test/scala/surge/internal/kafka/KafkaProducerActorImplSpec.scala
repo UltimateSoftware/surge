@@ -27,9 +27,9 @@ import surge.health.domain.EmittableHealthSignal
 import surge.internal.akka.cluster.ActorSystemHostAwareness
 import surge.internal.akka.kafka.{ KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor }
 import surge.internal.kafka.KafkaProducerActorImpl.{ AggregateStateRates, KTableProgressUpdate }
-import surge.kafka.streams.{ ExpectedTestException, HealthCheck, HealthCheckStatus }
 import surge.kafka.streams.HealthyActor.GetHealth
-import surge.kafka.{ KafkaBytesProducer, KafkaRecordMetadata, LagInfo, PartitionAssignments }
+import surge.kafka.streams.{ ExpectedTestException, HealthCheck, HealthCheckStatus }
+import surge.kafka._
 import surge.metrics.Metrics
 
 import java.time.Instant
@@ -77,7 +77,7 @@ class KafkaProducerActorImplSpec
 
   private def testProducerActor(
       assignedPartition: TopicPartition,
-      mockProducer: KafkaBytesProducer,
+      mockProducer: KafkaProducerTrait[String, Array[Byte]],
       mockLagChecker: KTableLagChecker,
       mockPartitionTracker: KafkaConsumerPartitionAssignmentTracker = defaultMockPartitionTracker,
       config: Config = ConfigFactory.load()): ActorRef = {
@@ -137,7 +137,7 @@ class KafkaProducerActorImplSpec
     eventRecords :+ stateRecord
   }
 
-  private def setupTransactions(mockProducer: KafkaBytesProducer): Unit = {
+  private def setupTransactions(mockProducer: KafkaProducerTrait[String, Array[Byte]]): Unit = {
     when(mockProducer.initTransactions()(any[ExecutionContext])).thenReturn(Future.unit)
     doNothing().when(mockProducer).beginTransaction()
     doNothing().when(mockProducer).abortTransaction()
@@ -156,7 +156,7 @@ class KafkaProducerActorImplSpec
     "Recovers from beginTransaction failure" in {
       val probe = TestProbe()
       val assignedPartition = new TopicPartition("testTopic", 1)
-      val mockProducer = mock[KafkaBytesProducer]
+      val mockProducer = mock[GenericKafkaProducer[String, Array[Byte]]]
       val mockMetadata = mockRecordMetadata(assignedPartition)
       when(mockProducer.initTransactions()(any[ExecutionContext])).thenReturn(Future.unit)
       // Fail first transaction and then succeed always
@@ -188,7 +188,7 @@ class KafkaProducerActorImplSpec
     "Recovers from abortTransaction failure" in {
       val probe = TestProbe()
       val assignedPartition = new TopicPartition("testTopic", 1)
-      val mockProducer = mock[KafkaBytesProducer]
+      val mockProducer = mock[GenericKafkaProducer[String, Array[Byte]]]
       val mockMetadata = mockRecordMetadata(assignedPartition)
       when(mockProducer.initTransactions()(any[ExecutionContext])).thenReturn(Future.unit)
       // Fail first transaction and then succeed always
@@ -220,7 +220,7 @@ class KafkaProducerActorImplSpec
     "Gets to initialize the state if initializing kafka transactions fails with any error" in {
       val probe = TestProbe()
       val assignedPartition = new TopicPartition("testTopic", 1)
-      val mockProducer = mock[KafkaBytesProducer]
+      val mockProducer = mock[GenericKafkaProducer[String, Array[Byte]]]
       val mockMetadata = mockRecordMetadata(assignedPartition)
 
       when(mockProducer.initTransactions()(any[ExecutionContext]))
@@ -249,7 +249,7 @@ class KafkaProducerActorImplSpec
     "Not crash on failure to check KTable consumer lag" in {
       val probe = TestProbe()
       val assignedPartition = new TopicPartition("testTopic", 1)
-      val mockProducer = mock[KafkaBytesProducer]
+      val mockProducer = mock[GenericKafkaProducer[String, Array[Byte]]]
       val mockMetadata = mockRecordMetadata(assignedPartition)
 
       when(mockProducer.initTransactions()(any[ExecutionContext])).thenReturn(Future.unit)
@@ -282,7 +282,7 @@ class KafkaProducerActorImplSpec
     "Reply with false to IsAggregateStateCurrent messages when uninitialized" in {
       val probe = TestProbe()
       val assignedPartition = new TopicPartition("testTopic", 1)
-      val mockProducer = mock[KafkaBytesProducer]
+      val mockProducer = mock[GenericKafkaProducer[String, Array[Byte]]]
 
       // Always fail initTransactions() so we never make it out of the uninitialized() state
       when(mockProducer.initTransactions()(any[ExecutionContext])).thenReturn(Future.failed(illegalStateException))
@@ -304,7 +304,7 @@ class KafkaProducerActorImplSpec
     "Reply with false to IsAggregateStateCurrent messages when waiting for KTable indexing" in {
       val probe = TestProbe()
       val assignedPartition = new TopicPartition("testTopic", 1)
-      val mockProducer = mock[KafkaBytesProducer]
+      val mockProducer = mock[GenericKafkaProducer[String, Array[Byte]]]
       setupTransactions(mockProducer)
 
       val mockLagChecker = mock[KTableLagChecker]
@@ -326,7 +326,7 @@ class KafkaProducerActorImplSpec
     "Determine if an aggregate state is up to date in the KTable based on recently published messages" in {
       val probe = TestProbe()
       val assignedPartition = new TopicPartition("testTopic", 1)
-      val mockProducer = mock[KafkaBytesProducer]
+      val mockProducer = mock[GenericKafkaProducer[String, Array[Byte]]]
       val mockMetadata = mockRecordMetadata(assignedPartition)
       setupTransactions(mockProducer)
       when(mockProducer.putRecords(any[Seq[ProducerRecord[String, Array[Byte]]]])).thenReturn(Seq(Future.successful(mockMetadata)))
@@ -353,7 +353,7 @@ class KafkaProducerActorImplSpec
     "Stash Publish messages and publish them when fully initialized" in {
       val probe = TestProbe()
       val assignedPartition = new TopicPartition("testTopic", 1)
-      val mockProducer = mock[KafkaBytesProducer]
+      val mockProducer = mock[GenericKafkaProducer[String, Array[Byte]]]
       val mockMetadata = mockRecordMetadata(assignedPartition)
       setupTransactions(mockProducer)
       when(mockProducer.putRecords(any[Seq[ProducerRecord[String, Array[Byte]]]])).thenReturn(Seq(Future.successful(mockMetadata)))
@@ -375,7 +375,7 @@ class KafkaProducerActorImplSpec
     "Try to publish new incoming messages to Kafka if publishing to Kafka fails" in {
       val probe = TestProbe()
       val assignedPartition = new TopicPartition("testTopic", 1)
-      val mockProducerFailsPutRecords = mock[KafkaBytesProducer]
+      val mockProducerFailsPutRecords = mock[GenericKafkaProducer[String, Array[Byte]]]
       val mockLagChecker = mockKTableLagChecker(assignedPartition, 100L, 100L)
       val failingPut = testProducerActor(assignedPartition, mockProducerFailsPutRecords, mockLagChecker)
 
@@ -401,7 +401,7 @@ class KafkaProducerActorImplSpec
     "Try to publish new incoming messages to Kafka if committing to Kafka fails" in {
       val probe = TestProbe()
       val assignedPartition = new TopicPartition("testTopic", 1)
-      val mockProducerFailsCommit = mock[KafkaBytesProducer]
+      val mockProducerFailsCommit = mock[GenericKafkaProducer[String, Array[Byte]]]
       val mockLagChecker = mockKTableLagChecker(assignedPartition, 100L, 100L)
       val failingCommit = testProducerActor(assignedPartition, mockProducerFailsCommit, mockLagChecker)
 
@@ -433,8 +433,8 @@ class KafkaProducerActorImplSpec
       val partitionTrackerProbe = TestProbe()
       val terminateWatcherProbe = TestProbe()
       val assignedPartition = new TopicPartition("testTopic", 1)
-      val mockProducerFenceOnBegin = mock[KafkaBytesProducer]
-      val mockProducerFenceOnCommit = mock[KafkaBytesProducer]
+      val mockProducerFenceOnBegin = mock[GenericKafkaProducer[String, Array[Byte]]]
+      val mockProducerFenceOnCommit = mock[GenericKafkaProducer[String, Array[Byte]]]
       val mockMetadata = mockRecordMetadata(assignedPartition)
       val mockPartitionTracker = new KafkaConsumerPartitionAssignmentTracker(partitionTrackerProbe.ref)
 
@@ -493,7 +493,7 @@ class KafkaProducerActorImplSpec
       val assignedPartition = new TopicPartition("testTopic", 1)
       val mockPartitionTracker = mock[KafkaConsumerPartitionAssignmentTracker]
       val assignmentMap = Map(localHostPort -> List(assignedPartition))
-      val mockProducerFenceOnCommit = mock[KafkaBytesProducer]
+      val mockProducerFenceOnCommit = mock[GenericKafkaProducer[String, Array[Byte]]]
       val mockMetadata = mockRecordMetadata(assignedPartition)
 
       when(mockPartitionTracker.getPartitionAssignments(any[Timeout])).thenReturn(Future.successful(PartitionAssignments(assignmentMap)))
