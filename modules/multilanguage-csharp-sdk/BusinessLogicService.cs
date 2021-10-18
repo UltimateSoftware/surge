@@ -71,16 +71,16 @@ namespace Surge
                     Option<TS> newState = events.Fold(zeroState, (ses, e) =>
                         CqrsModel.EventHandler.Invoke(Tuple.Create(ses, e)));
 
-                    State newStatePb = null;
-                    if (newState.IsSome)
+                    State newStatePb = newState.IsSome switch
                     {
-                        newStatePb = new State
+                        true => new State
                         {
                             AggregateId = request.AggregateId,
                             // Serialize the calculated state to protocol buffers
                             Payload = ByteString.CopyFrom(SerDeser.SerializeState.Invoke(newState.ToList().Head()))
-                        };
-                    }
+                        },
+                        _ => null
+                    };
 
                     var reply = new ProcessCommandReply
                     {
@@ -112,15 +112,15 @@ namespace Surge
             Option<TS> newState = events.Fold(state, (ses, e) => CqrsModel.EventHandler.Invoke(Tuple.Create(ses, e)));
 
             // serialize new state to protocol buffers
-            State resultingStatePb = null;
-            if (newState.IsSome)
+            State resultingStatePb = newState.IsSome switch
             {
-                resultingStatePb = new State
+                true => new State
                 {
                     AggregateId = handleEventsRequest.AggregateId,
                     Payload = ByteString.CopyFrom(SerDeser.SerializeState.Invoke(newState.ToList().Head()))
-                };
-            }
+                },
+                _ => null
+            };
 
             var result = new HandleEventsResponse
             {

@@ -7,14 +7,12 @@ namespace Surge.Sample
     
     public class Account
     {
-        public Account(Guid id, int amount)
+        public Account(int amount)
         {
-            this.id = id;
             this.amount = amount;
         }
-
-        public Guid id { get; set; }
-        public int amount { get; set; }
+        
+        public int amount { get; }
         
     }
     

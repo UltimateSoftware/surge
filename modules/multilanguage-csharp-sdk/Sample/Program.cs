@@ -16,6 +16,28 @@ namespace Surge.Sample
         {
 
             var cqrsModel = new CqrsModel<Account, BankEvent, BankCommand>();
+
+            cqrsModel.EventHandler = input =>
+            {
+                Option<Account> state;
+                BankEvent bankEvent;
+                // ReSharper disable once SuggestVarOrType_Elsewhere
+                (state, bankEvent) = input;
+                var balance = state.IsSome switch
+                {
+                    true => state.ToList().Head().amount,
+                    _ => 0
+                };
+
+                return bankEvent switch
+                {
+                    MoneyWithdrawn m1 => Option<Account>.Some(new Account(balance - m1.Amount)),
+                    MoneyDeposited m3 => Option<Account>.Some(new Account(balance + m3.Amount)),
+                    _ => Option<Account>.None
+                };
+            };
+            
+            
             cqrsModel.CommandHandler = input =>
             {
                 Option<Account> state;
@@ -23,6 +45,7 @@ namespace Surge.Sample
                 (state, command) = input;
                 
                 Lst<BankEvent> eventList;
+                // ReSharper disable once SuggestVarOrType_Elsewhere
                 Either<string, Lst<BankEvent>> result = Either<string, Lst<BankEvent>>.Bottom;
                 switch (state.IsNone)
                 {
