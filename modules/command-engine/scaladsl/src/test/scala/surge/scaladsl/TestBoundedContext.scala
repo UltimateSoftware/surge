@@ -121,25 +121,13 @@ trait TestBoundedContext {
     transactionalIdPrefix = "test-transaction-id-prefix")
 
   val eventFormat: SurgeEventFormatting[BaseTestEvent] = new SurgeEventFormatting[BaseTestEvent] {
-    override def readEvent(bytes: Array[Byte]): BaseTestEvent = {
-      eventDeserializer().deserialize(bytes)
-    }
 
-    override def writeEvent(evt: BaseTestEvent): SerializedMessage = {
-      val key = s"${evt.aggregateId}:${evt.sequenceNumber}"
-      val bytesPlusHeaders = eventSerializer().serialize(evt)
-      SerializedMessage(key, bytesPlusHeaders.bytes, bytesPlusHeaders.headers)
-    }
-
+    override def key(evt: BaseTestEvent): String = s"${evt.aggregateId}:${evt.sequenceNumber}"
     override def eventSerializer(): Serializer[BaseTestEvent] = new PlayJsonSerializer[BaseTestEvent]()
     override def eventDeserializer(): Deserializer[BaseTestEvent] = new PlayJsonDeserializer[BaseTestEvent]()
   }
 
   val aggregateFormat: SurgeAggregateFormatting[State] = new SurgeAggregateFormatting[State] {
-    override def readState(bytes: Array[Byte]): Option[State] = {
-      Some(stateDeserializer().deserialize(bytes))
-    }
-
     override def writeState(agg: State): SerializedAggregate = {
       val bytesPlusHeaders = stateSerializer().serialize(agg)
       SerializedAggregate(bytesPlusHeaders.bytes, bytesPlusHeaders.headers)

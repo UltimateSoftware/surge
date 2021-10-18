@@ -23,4 +23,8 @@ case class BytesPlusHeaders(bytes: Array[Byte], headers: Map[String, String] = M
 
 trait Serializer[TYPE] {
   def serialize(value: TYPE): BytesPlusHeaders
+
+  final def serialize(value: TYPE, withHeaders: Map[String, String]): BytesPlusHeaders = {
+    serialize(value).copy(headers = withHeaders)
+  }
 }

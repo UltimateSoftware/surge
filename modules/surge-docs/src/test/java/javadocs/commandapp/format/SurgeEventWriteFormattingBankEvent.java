@@ -5,7 +5,6 @@ package javadocs.commandapp.format;
 import javadocs.commandapp.event.BankAccountEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import scala.collection.immutable.HashMap;
-import surge.core.SerializedMessage;
 import surge.core.SurgeEventWriteFormatting;
 import surge.serialization.*;
 
@@ -14,15 +13,8 @@ public class SurgeEventWriteFormattingBankEvent implements SurgeEventWriteFormat
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
-    public SerializedMessage writeEvent(BankAccountEvent evt) {
-        try {
-            String key = evt.getAccountNumber().toString();
-            byte[] evtByte = eventSerializer().serialize(evt).bytes();
-            return SerializedMessage.create(key, evtByte);
-        } catch (Exception e) {
-            e.printStackTrace();
-            throw new RuntimeException(e);
-        }
+    public String key(BankAccountEvent evt) {
+        return evt.getAccountNumber().toString();
     }
 
     @Override
