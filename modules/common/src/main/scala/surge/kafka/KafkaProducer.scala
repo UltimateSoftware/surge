@@ -156,7 +156,7 @@ object KafkaProducer {
       topic: KafkaTopicTrait,
       partitioner: KafkaPartitionerBase[String] = NoPartitioner[String],
       kafkaConfig: Map[String, String] = Map.empty): KafkaProducerTrait[String, Array[Byte]] = {
-    GenericKafkaProducer[String, Array[Byte]](
+    new KafkaBytesProducer(
       brokers,
       topic,
       new StringSerializer(),
@@ -171,7 +171,7 @@ object KafkaProducer {
       topic: KafkaTopicTrait,
       partitioner: KafkaPartitionerBase[String] = NoPartitioner[String],
       kafkaConfig: Map[String, String] = Map.empty): KafkaProducerTrait[String, String] = {
-    GenericKafkaProducer[String, String](
+    new KafkaStringProducer(
       brokers,
       topic,
       new StringSerializer(),
@@ -181,7 +181,7 @@ object KafkaProducer {
   }
 }
 
-case class GenericKafkaProducer[K, V](
+class GenericKafkaProducer[K, V](
     brokers: Seq[String],
     override val topic: KafkaTopicTrait,
     keySerializer: Serializer[K],
@@ -209,7 +209,7 @@ object KafkaBytesProducer {
       topic: KafkaTopic,
       partitioner: KafkaPartitionerBase[String] = NoPartitioner[String],
       kafkaConfig: Map[String, String] = Map.empty): KafkaProducerTrait[String, Array[Byte]] = {
-    GenericKafkaProducer[String, Array[Byte]](
+    new KafkaBytesProducer(
       brokers,
       topic,
       new StringSerializer(),
@@ -223,9 +223,18 @@ object KafkaBytesProducer {
       topic: KafkaTopicTrait,
       partitioner: KafkaPartitionerBase[String],
       producerProps: Properties): KafkaProducerTrait[String, Array[Byte]] = {
-    GenericKafkaProducer[String, Array[Byte]](brokers, topic, new StringSerializer(), new ByteArraySerializer(), partitioner, producerProps)
+    new KafkaBytesProducer(brokers, topic, new StringSerializer(), new ByteArraySerializer(), partitioner, producerProps)
   }
 }
+
+class KafkaBytesProducer(
+    brokers: Seq[String],
+    override val topic: KafkaTopicTrait,
+    keySerializer: Serializer[String],
+    valueSerializer: Serializer[Array[Byte]],
+    override val partitioner: KafkaPartitionerBase[String],
+    override val producerProps: Properties)
+    extends GenericKafkaProducer[String, Array[Byte]](brokers, topic, keySerializer, valueSerializer, partitioner, producerProps)
 
 object KafkaStringProducer {
   def create(brokers: java.util.Collection[String], topic: KafkaTopic): KafkaProducerTrait[String, String] = {
@@ -238,7 +247,7 @@ object KafkaStringProducer {
       topic: KafkaTopic,
       partitioner: KafkaPartitionerBase[String] = NoPartitioner[String],
       kafkaConfig: Map[String, String] = Map.empty): KafkaProducerTrait[String, String] = {
-    GenericKafkaProducer[String, String](
+    new KafkaStringProducer(
       brokers,
       topic,
       new StringSerializer(),
@@ -252,6 +261,15 @@ object KafkaStringProducer {
       topic: KafkaTopicTrait,
       partitioner: KafkaPartitionerBase[String],
       producerProps: Properties): KafkaProducerTrait[String, String] = {
-    GenericKafkaProducer[String, String](brokers, topic, new StringSerializer(), new StringSerializer(), partitioner, producerProps)
+    new KafkaStringProducer(brokers, topic, new StringSerializer(), new StringSerializer(), partitioner, producerProps)
   }
 }
+
+class KafkaStringProducer(
+    brokers: Seq[String],
+    override val topic: KafkaTopicTrait,
+    keySerializer: Serializer[String],
+    valueSerializer: Serializer[String],
+    override val partitioner: KafkaPartitionerBase[String],
+    override val producerProps: Properties)
+    extends GenericKafkaProducer[String, String](brokers, topic, keySerializer, valueSerializer, partitioner, producerProps)
