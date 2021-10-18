@@ -2,5 +2,5 @@
 package surge.serialization
 
 trait Deserializer[TYPE] {
-  def deserialize(body: Array[Byte]): TYPE
+  def deserialize(bytes: Array[Byte]): TYPE
 }
