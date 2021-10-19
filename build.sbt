@@ -24,6 +24,10 @@ val multiJvmTestSettings = Seq(
     // (MultiJvm / test).value
   })
 
+lazy val `surge-serialization` =
+  (project in file("modules/serialization"))
+    .settings(multiJvmTestSettings, libraryDependencies ++= Seq(scalaCollectionCompat, scalatest, scalatestPlusMockito, mockitoCore, PlayFramework.json))
+
 lazy val `surge-common` = (project in file("modules/common"))
   .settings(
     multiJvmTestSettings,
@@ -52,7 +56,7 @@ lazy val `surge-common` = (project in file("modules/common"))
       mockitoCore))
   .enablePlugins(MultiJvmPlugin)
   .configs(MultiJvm)
-  .dependsOn(`surge-metrics`)
+  .dependsOn(`surge-metrics`, `surge-serialization`)
 
 lazy val `surge-engine-command-core` = (project in file("modules/command-engine/core"))
   .settings(libraryDependencies ++= Seq(
@@ -140,6 +144,7 @@ lazy val `surge-docs` = (project in file("modules/surge-docs"))
 lazy val `surge` = project
   .in(file("."))
   .aggregate(
+    `surge-serialization`,
     `surge-common`,
     `surge-engine-command-core`,
     `surge-engine-command-javadsl`,

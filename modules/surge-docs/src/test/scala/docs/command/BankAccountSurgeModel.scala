@@ -2,13 +2,12 @@
 
 package docs.command
 
-import com.typesafe.config.ConfigFactory
-
-import java.util.UUID
-import play.api.libs.json.Json
-import surge.core.{ SerializedAggregate, SerializedMessage, SurgeAggregateReadFormatting, SurgeAggregateWriteFormatting, SurgeEventWriteFormatting }
+import play.api.libs.json._
+import surge.core._
 import surge.kafka.KafkaTopic
 import surge.scaladsl.command.{ AggregateCommandModel, SurgeCommandBusinessLogic }
+
+import java.util.UUID
 
 // #surge_model_class
 object BankAccountSurgeModel extends SurgeCommandBusinessLogic[UUID, BankAccount, BankAccountCommand, BankAccountEvent] {
@@ -20,24 +19,16 @@ object BankAccountSurgeModel extends SurgeCommandBusinessLogic[UUID, BankAccount
 
   override def eventsTopic: KafkaTopic = KafkaTopic("bank-account-events")
 
-  override def aggregateReadFormatting: SurgeAggregateReadFormatting[BankAccount] = (bytes: Array[Byte]) => Json.parse(bytes).asOpt[BankAccount]
-
-  override def aggregateWriteFormatting: SurgeAggregateWriteFormatting[BankAccount] = new SurgeAggregateWriteFormatting[BankAccount] {
-    override def writeState(agg: BankAccount): SerializedAggregate = {
-      val aggBytes = Json.toJson(agg).toString().getBytes()
-      val messageHeaders = Map("aggregate_id" -> agg.accountNumber.toString)
-      SerializedAggregate(aggBytes, messageHeaders)
-    }
+  override def aggregateReadFormatting: SurgeAggregateReadFormatting[BankAccount] = { (bytes: Array[Byte]) =>
+    Json.parse(bytes).asOpt[BankAccount]
   }
 
-  override def eventWriteFormatting: SurgeEventWriteFormatting[BankAccountEvent] = new SurgeEventWriteFormatting[BankAccountEvent] {
-    override def writeEvent(evt: BankAccountEvent): SerializedMessage = {
-      val evtKey = evt.accountNumber.toString
-      val evtBytes = evt.toJson.toString().getBytes()
-      val messageHeaders = Map("aggregate_id" -> evt.accountNumber.toString)
-      SerializedMessage(evtKey, evtBytes, messageHeaders)
-    }
+  override def aggregateWriteFormatting: SurgeAggregateWriteFormatting[BankAccount] = (agg: BankAccount) => {
+    SerializedAggregate(Json.toJson(agg).toString().getBytes(), Map("aggregate_id" -> agg.accountNumber.toString))
+  }
 
+  override def eventWriteFormatting: SurgeEventWriteFormatting[BankAccountEvent] = (evt: BankAccountEvent) => {
+    SerializedMessage(evt.accountNumber.toString, Json.toJson(evt)(Json.format[BankAccountEvent]).toString().getBytes())
   }
 }
 // #surge_model_class
