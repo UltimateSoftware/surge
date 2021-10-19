@@ -7,7 +7,6 @@ import surge.core.command.SurgeCommandKafkaConfig
 import surge.core._
 import surge.kafka.KafkaTopic
 import surge.scaladsl.command.{ AggregateCommandModel, SurgeCommandBusinessLogic }
-import surge.serialization.{ Deserializer, PlayJsonDeserializer, PlayJsonSerializer, Serializer }
 
 import scala.util.{ Failure, Success, Try }
 
@@ -121,22 +120,23 @@ trait TestBoundedContext {
     transactionalIdPrefix = "test-transaction-id-prefix")
 
   val eventFormat: SurgeEventFormatting[BaseTestEvent] = new SurgeEventFormatting[BaseTestEvent] {
+    override def writeEvent(evt: BaseTestEvent): SerializedMessage = {
+      SerializedMessage(s"${evt.aggregateId}:${evt.sequenceNumber}", Json.toJson(evt).toString().getBytes())
+    }
 
-    override def key(evt: BaseTestEvent): String = s"${evt.aggregateId}:${evt.sequenceNumber}"
-    override def eventSerializer(): Serializer[BaseTestEvent] =
-      new PlayJsonSerializer[BaseTestEvent]()
-    override def eventDeserializer(): Deserializer[BaseTestEvent] = new PlayJsonDeserializer[BaseTestEvent]()
+    override def readEvent(bytes: Array[Byte]): BaseTestEvent = {
+      Json.parse(bytes).as[BaseTestEvent]
+    }
   }
 
   val aggregateFormat: SurgeAggregateFormatting[State] = new SurgeAggregateFormatting[State] {
     override def writeState(agg: State): SerializedAggregate = {
-      val bytesPlusHeaders = stateSerializer().serialize(agg)
-      SerializedAggregate(bytesPlusHeaders.bytes, bytesPlusHeaders.headers)
+      SerializedAggregate(Json.toJson(agg).toString().getBytes())
     }
 
-    override def stateDeserializer(): Deserializer[State] = new PlayJsonDeserializer[State]()
-
-    override def stateSerializer(): Serializer[State] = new PlayJsonSerializer[State]()
+    override def readState(bytes: Array[Byte]): Option[State] = {
+      Json.parse(bytes).asOpt[State]
+    }
   }
 
   val businessLogic: SurgeCommandBusinessLogic[String, State, BaseTestCommand, BaseTestEvent] =

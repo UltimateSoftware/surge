@@ -10,7 +10,6 @@ import surge.internal.persistence.Context
 import surge.internal.tracing.NoopTracerFactory
 import surge.kafka.{ KafkaTopic, PartitionStringUpToColon }
 import surge.metrics.Metrics
-import surge.serialization.{ BytesPlusHeaders, Deserializer, Serializer }
 
 import scala.concurrent.Future
 
@@ -135,21 +134,14 @@ trait TestBoundedContext {
 
   val aggregateFormatting: SurgeAggregateFormatting[State] = new SurgeAggregateFormatting[State] {
     override def writeState(agg: State): SerializedAggregate = {
-      val bytesPlusHeaders = stateSerializer().serialize(agg)
-      SerializedAggregate(bytesPlusHeaders.bytes, bytesPlusHeaders.headers)
+      SerializedAggregate(Json.toJson(agg).toString().getBytes())
     }
 
-    override def stateDeserializer(): Deserializer[State] = (body: Array[Byte]) => Json.parse(body).as[State]
-    override def stateSerializer(): Serializer[State] = (agg: State) => BytesPlusHeaders(Json.toJson(agg).toString().getBytes())
+    override def readState(bytes: Array[Byte]): Option[State] = Json.parse(bytes).asOpt[State]
   }
 
-  val eventWriter: SurgeEventWriteFormatting[BaseTestEvent] = new SurgeEventWriteFormatting[BaseTestEvent] {
-    override def key(evt: BaseTestEvent): String = {
-      s"${evt.aggregateId}:${evt.sequenceNumber}"
-    }
-    override def eventSerializer(): Serializer[BaseTestEvent] = (event: BaseTestEvent) => {
-      BytesPlusHeaders(Json.toJson(event).toString().getBytes())
-    }
+  val eventWriter: SurgeEventWriteFormatting[BaseTestEvent] = (evt: BaseTestEvent) => {
+    SerializedMessage(s"${evt.aggregateId}:${evt.sequenceNumber}", Json.toJson(evt).toString().getBytes())
   }
 
   val businessLogic: SurgeCommandModel[State, BaseTestCommand, Nothing, BaseTestEvent] =

@@ -6,7 +6,6 @@ import play.api.libs.json._
 import surge.core._
 import surge.kafka.KafkaTopic
 import surge.scaladsl.command.{ AggregateCommandModel, SurgeCommandBusinessLogic }
-import surge.serialization.{ PlayJsonSerializer, Serializer }
 
 import java.util.UUID
 
@@ -20,27 +19,16 @@ object BankAccountSurgeModel extends SurgeCommandBusinessLogic[UUID, BankAccount
 
   override def eventsTopic: KafkaTopic = KafkaTopic("bank-account-events")
 
-  override def aggregateReadFormatting: SurgeAggregateReadFormatting[BankAccount] =
-    () => (body: Array[Byte]) => Json.parse(body).as[BankAccount]
-
-  override def aggregateWriteFormatting: SurgeAggregateWriteFormatting[BankAccount] = new SurgeAggregateWriteFormatting[BankAccount] {
-    override def writeState(agg: BankAccount): SerializedAggregate = {
-      val bytesPlusHeaders = stateSerializer().serialize(agg)
-      val messageHeaders = Map("aggregate_id" -> agg.accountNumber.toString)
-      SerializedAggregate(bytesPlusHeaders.bytes, messageHeaders)
-    }
-
-    override def stateSerializer(): Serializer[BankAccount] =
-      new PlayJsonSerializer[BankAccount]()
+  override def aggregateReadFormatting: SurgeAggregateReadFormatting[BankAccount] = { (bytes: Array[Byte]) =>
+    Json.parse(bytes).asOpt[BankAccount]
   }
 
-  override def eventWriteFormatting: SurgeEventWriteFormatting[BankAccountEvent] = new SurgeEventWriteFormatting[BankAccountEvent] {
-    override def key(evt: BankAccountEvent): String = {
-      evt.accountNumber.toString
-    }
+  override def aggregateWriteFormatting: SurgeAggregateWriteFormatting[BankAccount] = (agg: BankAccount) => {
+    SerializedAggregate(Json.toJson(agg).toString().getBytes(), Map("aggregate_id" -> agg.accountNumber.toString))
+  }
 
-    override def eventSerializer(): Serializer[BankAccountEvent] =
-      new PlayJsonSerializer[BankAccountEvent]()(Json.format[BankAccountEvent])
+  override def eventWriteFormatting: SurgeEventWriteFormatting[BankAccountEvent] = (evt: BankAccountEvent) => {
+    SerializedMessage(evt.accountNumber.toString, Json.toJson(evt)(Json.format[BankAccountEvent]).toString().getBytes())
   }
 }
 // #surge_model_class
