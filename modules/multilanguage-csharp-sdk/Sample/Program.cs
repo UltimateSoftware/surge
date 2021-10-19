@@ -1,21 +1,57 @@
 // Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 using System;
-using System.Collections.Generic;
-using System.Linq;
+using System.Text;
 using LanguageExt;
-using LanguageExt.TypeClasses;
+using Newtonsoft.Json;
 using static LanguageExt.Prelude;
-using static LanguageExt.TypeClass;
-using LanguageExt.ClassInstances;
 
 namespace Surge.Sample
 {
     public class Program
     {
-        
         static void Main(string[] args)
         {
+            var serDer = new SerDeser<Account, BankEvent, BankCommand>
+            {
+                DeserializeCommand = bytes =>
+                {
+                    var bytesAsString = Encoding.UTF8.GetString(bytes);
+                    var result = JsonConvert.DeserializeObject<BankCommand>(bytesAsString);
+                    return result;
+                },
+                DeserializeEvent = bytes =>
+                {
+                    var bytesAsString = Encoding.UTF8.GetString(bytes);
+                    var result = JsonConvert.DeserializeObject<BankEvent>(bytesAsString);
+                    return result;
+                },
+                DeserializeState = bytes =>
+                {
+                    var bytesAsString = Encoding.UTF8.GetString(bytes);
+                    var result = JsonConvert.DeserializeObject<Account>(bytesAsString);
+                    return result;
+                },
+                SerializeCommand = command =>
+                {
+                    // ReSharper disable once BuiltInTypeReferenceStyle
+                    String jsonString = JsonConvert.SerializeObject(command);
+                    var result = Encoding.UTF8.GetBytes(jsonString);
+                    return result;
+                },
+                SerializeEvent = bankEvent =>
+                {
+                    String jsonString = JsonConvert.SerializeObject(bankEvent);
+                    var result = Encoding.UTF8.GetBytes(jsonString);
+                    return result;
+                },
+                SerializeState = state =>
+                {
+                    String jsonString = JsonConvert.SerializeObject(state);
+                    var result = Encoding.UTF8.GetBytes(jsonString);
+                    return result;
+                }
+            };
 
             var cqrsModel = new CqrsModel<Account, BankEvent, BankCommand>
             {
@@ -43,7 +79,7 @@ namespace Surge.Sample
                     Option<Account> state;
                     BankCommand command;
                     (state, command) = input;
-                
+
                     Lst<BankEvent> eventList;
                     // ReSharper disable once SuggestVarOrType_Elsewhere
                     Either<string, Lst<BankEvent>> result = Either<string, Lst<BankEvent>>.Bottom;
@@ -63,9 +99,11 @@ namespace Surge.Sample
                                     result = Right<string, Lst<BankEvent>>(eventList);
                                     break;
                                 case Withdraw w:
-                                    result = Left<string, Lst<BankEvent>>("You don't have an account so you can't withdraw money!");
+                                    result = Left<string, Lst<BankEvent>>(
+                                        "You don't have an account so you can't withdraw money!");
                                     break;
                             }
+
                             break;
                         case false:
                             var actualState = state.ToList().Head();
@@ -86,7 +124,7 @@ namespace Surge.Sample
                                     {
                                         eventList = new Lst<BankEvent>
                                         {
-                                            new MoneyWithdrawn() 
+                                            new MoneyWithdrawn()
                                             {
                                                 Amount = w.Amount
                                             }
@@ -97,8 +135,10 @@ namespace Surge.Sample
                                     {
                                         result = Left<string, Lst<BankEvent>>("You don't have enough money!");
                                     }
+
                                     break;
                             }
+
                             break;
                     }
 
@@ -106,6 +146,5 @@ namespace Surge.Sample
                 }
             };
         }
-        
     }
 }

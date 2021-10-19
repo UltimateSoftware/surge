@@ -12,6 +12,7 @@ namespace Surge
     public class SurgeEngine<TS, TE, TC>
     {
         private readonly MultilanguageGatewayService.MultilanguageGatewayServiceClient _client;
+
         // ReSharper disable once IdentifierTypo
         private readonly SerDeser<TS, TE, TC> _serDeser;
         private readonly CqrsModel<TS, TE, TC> _cqrsModel;
