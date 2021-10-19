@@ -199,7 +199,7 @@ class GenericKafkaProducer[K, V](
 }
 
 object KafkaBytesProducer {
-  def create(brokers: java.util.Collection[String], topic: KafkaTopic): KafkaProducerTrait[String, Array[Byte]] = {
+  def create(brokers: java.util.Collection[String], topic: KafkaTopic): KafkaBytesProducer = {
     KafkaBytesProducer(ConfigFactory.load(), brokers.asScala.toSeq, topic)
   }
 
@@ -208,7 +208,7 @@ object KafkaBytesProducer {
       brokers: Seq[String],
       topic: KafkaTopic,
       partitioner: KafkaPartitionerBase[String] = NoPartitioner[String],
-      kafkaConfig: Map[String, String] = Map.empty): KafkaProducerTrait[String, Array[Byte]] = {
+      kafkaConfig: Map[String, String] = Map.empty): KafkaBytesProducer = {
     new KafkaBytesProducer(
       brokers,
       topic,
@@ -218,11 +218,7 @@ object KafkaBytesProducer {
       KafkaProducerHelper.producerPropsFromConfig(config, kafkaConfig))
   }
 
-  def apply(
-      brokers: Seq[String],
-      topic: KafkaTopicTrait,
-      partitioner: KafkaPartitionerBase[String],
-      producerProps: Properties): KafkaProducerTrait[String, Array[Byte]] = {
+  def apply(brokers: Seq[String], topic: KafkaTopicTrait, partitioner: KafkaPartitionerBase[String], producerProps: Properties): KafkaBytesProducer = {
     new KafkaBytesProducer(brokers, topic, new StringSerializer(), new ByteArraySerializer(), partitioner, producerProps)
   }
 }
@@ -237,7 +233,7 @@ class KafkaBytesProducer(
     extends GenericKafkaProducer[String, Array[Byte]](brokers, topic, keySerializer, valueSerializer, partitioner, producerProps)
 
 object KafkaStringProducer {
-  def create(brokers: java.util.Collection[String], topic: KafkaTopic): KafkaProducerTrait[String, String] = {
+  def create(brokers: java.util.Collection[String], topic: KafkaTopic): KafkaStringProducer = {
     KafkaStringProducer(ConfigFactory.load(), brokers.asScala.toSeq, topic)
   }
 
@@ -246,7 +242,7 @@ object KafkaStringProducer {
       brokers: Seq[String],
       topic: KafkaTopic,
       partitioner: KafkaPartitionerBase[String] = NoPartitioner[String],
-      kafkaConfig: Map[String, String] = Map.empty): KafkaProducerTrait[String, String] = {
+      kafkaConfig: Map[String, String] = Map.empty): KafkaStringProducer = {
     new KafkaStringProducer(
       brokers,
       topic,
@@ -256,11 +252,7 @@ object KafkaStringProducer {
       KafkaProducerHelper.producerPropsFromConfig(config, kafkaConfig))
   }
 
-  def apply(
-      brokers: Seq[String],
-      topic: KafkaTopicTrait,
-      partitioner: KafkaPartitionerBase[String],
-      producerProps: Properties): KafkaProducerTrait[String, String] = {
+  def apply(brokers: Seq[String], topic: KafkaTopicTrait, partitioner: KafkaPartitionerBase[String], producerProps: Properties): KafkaStringProducer = {
     new KafkaStringProducer(brokers, topic, new StringSerializer(), new StringSerializer(), partitioner, producerProps)
   }
 }

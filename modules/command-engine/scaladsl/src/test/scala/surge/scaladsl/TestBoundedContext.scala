@@ -123,7 +123,8 @@ trait TestBoundedContext {
   val eventFormat: SurgeEventFormatting[BaseTestEvent] = new SurgeEventFormatting[BaseTestEvent] {
 
     override def key(evt: BaseTestEvent): String = s"${evt.aggregateId}:${evt.sequenceNumber}"
-    override def eventSerializer(): Serializer[BaseTestEvent] = new PlayJsonSerializer[BaseTestEvent]()
+    override def eventSerializer(): Serializer[BaseTestEvent] =
+      new PlayJsonSerializer[BaseTestEvent]()
     override def eventDeserializer(): Deserializer[BaseTestEvent] = new PlayJsonDeserializer[BaseTestEvent]()
   }
 
