@@ -350,7 +350,7 @@ public record BankAccountUpdated(UUID accountNumber, double amount) implements B
 <dl>
   <dt>Scala</dt>
   <dd>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/scala/docs/command/BankAccountSurgeModel.scala#L14-L42" target="_blank" title="Go to snippet source"></a><code class="language-scala">object BankAccountSurgeModel extends SurgeCommandBusinessLogic[UUID, BankAccount, BankAccountCommand, BankAccountEvent] {
+  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/scala/docs/command/BankAccountSurgeModel.scala#L13-L33" target="_blank" title="Go to snippet source"></a><code class="language-scala">object BankAccountSurgeModel extends SurgeCommandBusinessLogic[UUID, BankAccount, BankAccountCommand, BankAccountEvent] {
   override def commandModel: AggregateCommandModel[BankAccount, BankAccountCommand, BankAccountEvent] = BankAccountCommandModel
 
   override def aggregateName: String = &quot;bank-account&quot;
@@ -359,24 +359,16 @@ public record BankAccountUpdated(UUID accountNumber, double amount) implements B
 
   override def eventsTopic: KafkaTopic = KafkaTopic(&quot;bank-account-events&quot;)
 
-  override def aggregateReadFormatting: SurgeAggregateReadFormatting[BankAccount] = (bytes: Array[Byte]) =&gt; Json.parse(bytes).asOpt[BankAccount]
-
-  override def aggregateWriteFormatting: SurgeAggregateWriteFormatting[BankAccount] = new SurgeAggregateWriteFormatting[BankAccount] {
-    override def writeState(agg: BankAccount): SerializedAggregate = {
-      val aggBytes = Json.toJson(agg).toString().getBytes()
-      val messageHeaders = Map(&quot;aggregate_id&quot; -&gt; agg.accountNumber.toString)
-      SerializedAggregate(aggBytes, messageHeaders)
-    }
+  override def aggregateReadFormatting: SurgeAggregateReadFormatting[BankAccount] = { (bytes: Array[Byte]) =&gt;
+    Json.parse(bytes).asOpt[BankAccount]
   }
 
-  override def eventWriteFormatting: SurgeEventWriteFormatting[BankAccountEvent] = new SurgeEventWriteFormatting[BankAccountEvent] {
-    override def writeEvent(evt: BankAccountEvent): SerializedMessage = {
-      val evtKey = evt.accountNumber.toString
-      val evtBytes = evt.toJson.toString().getBytes()
-      val messageHeaders = Map(&quot;aggregate_id&quot; -&gt; evt.accountNumber.toString)
-      SerializedMessage(evtKey, evtBytes, messageHeaders)
-    }
+  override def aggregateWriteFormatting: SurgeAggregateWriteFormatting[BankAccount] = (agg: BankAccount) =&gt; {
+    SerializedAggregate(Json.toJson(agg).toString().getBytes(), Map(&quot;aggregate_id&quot; -&gt; agg.accountNumber.toString))
+  }
 
+  override def eventWriteFormatting: SurgeEventWriteFormatting[BankAccountEvent] = (evt: BankAccountEvent) =&gt; {
+    SerializedMessage(evt.accountNumber.toString, Json.toJson(evt)(Json.format[BankAccountEvent]).toString().getBytes())
   }
 }</code></pre></dd>
   <dt>Java</dt>
@@ -418,19 +410,16 @@ public record BankAccountUpdated(UUID accountNumber, double amount) implements B
         return new SurgeAggregateWriteFormattingBankAccount();
     }
 }</code></pre>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/format/SurgeAggregateReadFormattingBankAccount.java#L13-L26" target="_blank" title="Go to snippet source"></a><code class="language-java">public class SurgeAggregateReadFormattingBankAccount implements SurgeAggregateReadFormatting&lt;BankAccount&gt; {
+  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/format/SurgeAggregateReadFormattingBankAccount.java#L13-L23" target="_blank" title="Go to snippet source"></a><code class="language-java">public class SurgeAggregateReadFormattingBankAccount implements SurgeAggregateReadFormatting&lt;BankAccount&gt; {
     @Override
     public Option&lt;BankAccount&gt; readState(byte[] bytes) {
         ObjectMapper objectMapper = new ObjectMapper();
-        BankAccount bankAccount;
         try {
-            bankAccount = objectMapper.readValue(bytes, BankAccount.class);
-            return Option.apply(bankAccount);
+            return Option.apply(objectMapper.readValue(bytes, BankAccount.class));
         } catch (IOException e) {
             return Option.empty();
         }
     }
-
 }</code></pre>
   <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/format/SurgeAggregateWriteFormattingBankAccount.java#L12-L24" target="_blank" title="Go to snippet source"></a><code class="language-java">public class SurgeAggregateWriteFormattingBankAccount implements SurgeAggregateWriteFormatting&lt;BankAccount&gt; {
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -445,15 +434,13 @@ public record BankAccountUpdated(UUID accountNumber, double amount) implements B
         }
     }
 }</code></pre>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/format/SurgeEventWriteFormattingBankEvent.java#L12-L26" target="_blank" title="Go to snippet source"></a><code class="language-java">public class SurgeEventWriteFormattingBankEvent implements SurgeEventWriteFormatting&lt;BankAccountEvent&gt; {
+  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/format/SurgeEventWriteFormattingBankEvent.java#L11-L23" target="_blank" title="Go to snippet source"></a><code class="language-java">public class SurgeEventWriteFormattingBankEvent implements SurgeEventWriteFormatting&lt;BankAccountEvent&gt; {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     public SerializedMessage writeEvent(BankAccountEvent evt) {
         try {
-            String key = evt.getAccountNumber().toString();
-            byte[] evtByte = objectMapper.writeValueAsBytes(evt);
-            return SerializedMessage.create(key, evtByte);
+            return SerializedMessage.create(evt.getAccountNumber().toString(), objectMapper.writeValueAsBytes(evt));
         } catch (Exception e) {
             e.printStackTrace();
             throw new RuntimeException(e);
