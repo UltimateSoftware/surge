@@ -52,7 +52,7 @@ namespace Surge.Sample
                     return result;
                 }
             };
-
+            
             var cqrsModel = new CqrsModel<Account, BankEvent, BankCommand>
             {
                 EventHandler = input =>
@@ -145,6 +145,8 @@ namespace Surge.Sample
                     return result;
                 }
             };
+
+            var surge = new SurgeEngine<Account, BankEvent, BankCommand>(serDer, cqrsModel);
         }
     }
 }

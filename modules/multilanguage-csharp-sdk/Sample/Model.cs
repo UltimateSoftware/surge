@@ -16,8 +16,8 @@ namespace Surge.Sample
     }
 
     [JsonConverter(typeof(JsonSubtypes), "Type")]
-    [JsonSubtypes.KnownSubTypeAttribute(typeof(MoneyWithdrawn), "Withdraw")]
-    [JsonSubtypes.KnownSubTypeAttribute(typeof(MoneyDeposited), "Deposit")]
+    [JsonSubtypes.KnownSubTypeAttribute(typeof(Withdraw), "Withdraw")]
+    [JsonSubtypes.KnownSubTypeAttribute(typeof(Deposit), "Deposit")]
     public class BankCommand
     {
         public virtual string Type { get; }

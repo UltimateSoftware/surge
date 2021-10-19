@@ -49,9 +49,12 @@ namespace Surge
                 }
             };
             server.Start();
+            Console.WriteLine("Press any key to finish!");
+            Console.ReadKey();
+
         }
 
-        private Task<Option<TS>> GetState(Guid aggregateId)
+        public Task<Option<TS>> GetState(Guid aggregateId)
         {
             var getStateRequest = new GetStateRequest
             {
@@ -76,7 +79,7 @@ namespace Surge
             return result.ResponseAsync.Map((Func<GetStateReply, Option<TS>>) ParseReply);
         }
 
-        private Task<Option<TS>> ForwardCommand(Guid aggregateId, TC cmd)
+        public Task<Option<TS>> ForwardCommand(Guid aggregateId, TC cmd)
         {
             var command = new Command
             {
