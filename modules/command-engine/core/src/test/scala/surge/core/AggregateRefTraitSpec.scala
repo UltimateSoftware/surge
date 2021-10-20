@@ -2,21 +2,21 @@
 
 package surge.core
 
-import akka.actor.{ActorRef, ActorSystem, Props}
-import akka.testkit.{TestKit, TestProbe}
+import akka.actor.{ ActorRef, ActorSystem, Props }
+import akka.testkit.{ TestKit, TestProbe }
 import io.opentelemetry.api.trace.Tracer
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AsyncWordSpecLike
 import surge.exceptions.SurgeUnexpectedException
-import surge.internal.persistence.{AggregateRefTrait, PersistentActor}
-import surge.internal.tracing.{NoopTracerFactory, ProbeWithTraceSupport}
+import surge.internal.persistence.{ AggregateRefTrait, PersistentActor }
+import surge.internal.tracing.{ NoopTracerFactory, ProbeWithTraceSupport }
 
 import scala.concurrent.Future
 
 class AggregateRefTraitSpec
-  extends TestKit(ActorSystem("AggregateRefTraitSpec"))
+    extends TestKit(ActorSystem("AggregateRefTraitSpec"))
     with AsyncWordSpecLike
     with Matchers
     with ScalaFutures
@@ -41,7 +41,7 @@ class AggregateRefTraitSpec
 
     def applyEvent(event: String, retries: Int = 0): Future[Option[Person]] = {
       val envelope = PersistentActor.ApplyEvent(aggregateId, event)
-      applyEventsWithRetries(envelope)
+      applyEvents(envelope)
     }
 
     def getState: Future[Option[Person]] = queryState

@@ -4,8 +4,8 @@ package surge.javadsl.command
 
 import akka.actor.ActorRef
 import io.opentelemetry.api.trace.Tracer
-import surge.internal.persistence.{AggregateRefTrait, PersistentActor}
-import surge.javadsl.common.{AggregateRefBaseTrait, _}
+import surge.internal.persistence.{ AggregateRefTrait, PersistentActor }
+import surge.javadsl.common.{ AggregateRefBaseTrait, _ }
 
 import java.util.Optional
 import java.util.concurrent.CompletionStage
@@ -22,7 +22,7 @@ trait AggregateRef[Agg, Cmd, Event] {
 }
 
 final class AggregateRefImpl[AggId, Agg, Cmd, Event](val aggregateId: AggId, protected val region: ActorRef, protected val tracer: Tracer)
-  extends AggregateRef[Agg, Cmd, Event]
+    extends AggregateRef[Agg, Cmd, Event]
     with AggregateRefBaseTrait[AggId, Agg, Cmd, Event]
     with AggregateRefTrait[AggId, Agg, Cmd, Event] {
 
@@ -30,9 +30,8 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event](val aggregateId: AggId, pro
 
   def sendCommand(command: Cmd): CompletionStage[CommandResult[Agg]] = {
     val envelope = PersistentActor.ProcessMessage[Cmd](aggregateId.toString, command)
-    val result = sendCommand(envelope).map(aggOpt => CommandSuccess[Agg](aggOpt.asJava)).recover {
-      case error =>
-        CommandFailure[Agg](error)
+    val result = sendCommand(envelope).map(aggOpt => CommandSuccess[Agg](aggOpt.asJava)).recover { case error =>
+      CommandFailure[Agg](error)
     }
     FutureConverters.toJava(result)
   }
