@@ -118,9 +118,9 @@ C16.952,7,17,6.553,17,6c0-0.553-0.048-1-0.6-1H3.6C3.048,5,3,5.447,3,6C3,6.553,3.
   <p>To propagate MDC across Futures, first we need to import the <strong>mdcExecutionContext</strong> which copies the MDC to any new thread that is being used giving us multi-thread MDC logging.</p>
   <pre class="prettyprint"><code class="language-scala">import surge.internal.utils.MdcExecutionContext.mdcExecutionContext
 </code></pre>
-  <p>By default, <strong>mdcExecutionContext</strong> wraps the default <strong>global</strong> ExecutionContext and adds MDC propagation support to it. But if you want to use your own <strong>ExecutionContext</strong>, then you can do so by passing it in as an argument to the <strong>MdcFuturePropagation</strong> constructor:</p>
-  <pre class="prettyprint"><code class="language-scala">  implicit lazy val mdcExecutionContext: MdcFuturePropagation = new MdcFuturePropagation(yourOwnExecutionContext)
-</code></pre><strong>Note:</strong> MdcFuturePropagation is exposed via <strong>surge.internal.utils.MdcFuturePropagation</strong></li>
+  <p>By default, <strong>mdcExecutionContext</strong> wraps the default <strong>global</strong> ExecutionContext and adds MDC propagation support to it. But if you want to use your own <strong>ExecutionContext</strong>, then you can do so by passing it in as an argument to the <strong>DiagnosticContextFuturePropagation</strong> constructor:</p>
+  <pre class="prettyprint"><code class="language-scala">  implicit lazy val mdcExecutionContext: ExecutionContext = new DiagnosticContextFuturePropagation(yourOwnExecutionContext)
+</code></pre><strong>Note:</strong> DiagnosticContextFuturePropagation is exposed via <strong>surge.internal.utils.DiagnosticContextFuturePropagation</strong></li>
   <li>
   <p>Next, we need to put the context in our log statements:</p>
   <pre class="prettyprint"><code class="language-scala">MDC.put(&quot;requestId&quot;, UUID.randomUUID().toString())
