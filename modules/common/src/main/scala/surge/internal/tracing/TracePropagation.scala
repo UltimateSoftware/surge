@@ -53,7 +53,9 @@ object TracePropagation {
    */
   def childFrom(message: TracedMessage[_], operationName: String)(implicit tracer: Tracer): Span = {
     val context: Context = openTelemetry.getPropagators.getTextMapPropagator.extract(Context.root(), toMutableMap(message.headers), getter)
-    tracer.spanBuilder(operationName).setParent(context).startSpan()
+    val span = tracer.spanBuilder(operationName).setParent(context).startSpan()
+    span.makeCurrent()
+    span
   }
 
 }

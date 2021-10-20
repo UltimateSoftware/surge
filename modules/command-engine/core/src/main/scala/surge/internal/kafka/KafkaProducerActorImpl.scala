@@ -2,11 +2,10 @@
 
 package surge.internal.kafka
 
-import akka.actor.{ ActorRef, NoSerializationVerificationNeeded, Stash, Status, Timers }
+import akka.actor.{ Actor, ActorRef, NoSerializationVerificationNeeded, Stash, Status, Timers }
 import akka.pattern._
 import akka.util.Timeout
 import com.typesafe.config.Config
-import io.opentelemetry.api.trace.Tracer
 import org.apache.kafka.clients.admin.ListOffsetsOptions
 import org.apache.kafka.clients.producer.{ ProducerConfig, ProducerRecord }
 import org.apache.kafka.common.errors.{ AuthorizationException, ProducerFencedException }
@@ -14,7 +13,6 @@ import org.apache.kafka.common.{ IsolationLevel, TopicPartition }
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.core.KafkaProducerActor
 import surge.health.{ HealthSignalBusTrait, HealthyPublisher }
-import surge.internal.akka.ActorWithTracing
 import surge.internal.akka.cluster.ActorHostAwareness
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.kafka._
@@ -79,7 +77,7 @@ class KafkaProducerActorImpl(
     override val signalBus: HealthSignalBusTrait,
     config: Config,
     kafkaProducerOverride: Option[KafkaProducerTrait[String, Array[Byte]]] = None)
-    extends ActorWithTracing
+    extends Actor
     with ActorHostAwareness
     with Stash
     with Timers
@@ -115,8 +113,6 @@ class KafkaProducerActorImpl(
 
   private val nonTransactionalStatePublisher =
     kafkaProducerOverride.getOrElse(KafkaProducer.bytesProducer(config, brokers, stateTopic, partitioner = partitioner))
-
-  override val tracer: Tracer = producerContext.tracer
 
   private val kafkaPublisherTimer: Timer = metrics.timer(
     MetricInfo(

@@ -2,6 +2,8 @@
 
 package surge.internal.utils
 
+import scala.concurrent.ExecutionContext
+
 object MdcExecutionContext {
-  implicit lazy val mdcExecutionContext: MdcFuturePropagation = new MdcFuturePropagation(scala.concurrent.ExecutionContext.Implicits.global)
+  implicit lazy val mdcExecutionContext: ExecutionContext = new DiagnosticContextFuturePropagation(scala.concurrent.ExecutionContext.Implicits.global)
 }

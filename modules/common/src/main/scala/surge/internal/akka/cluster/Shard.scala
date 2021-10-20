@@ -80,7 +80,7 @@ class Shard[IdType](shardId: String, regionLogicProvider: PerShardLogicProvider[
   private def deliverMessage(msg: Any, send: ActorRef): Unit = {
     val id: IdType = extractEntityId(msg)
     activeSpan.log("extractEntityId", Map("entityId" -> id.toString))
-    if (id == null || id == "") {
+    if (id == null || id.toString == "") {
       log.warn("Unsure of how to route message with class [{}], dropping it.", msg.getClass.getName)
       context.system.deadLetters ! msg
     } else {

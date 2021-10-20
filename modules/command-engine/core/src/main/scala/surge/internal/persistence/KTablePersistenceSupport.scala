@@ -6,6 +6,7 @@ import akka.actor.Actor.Receive
 import akka.actor.{ ActorContext, ActorRef, NoSerializationVerificationNeeded }
 import akka.pattern._
 import com.typesafe.config.ConfigFactory
+import io.opentelemetry.api.trace.Span
 import org.slf4j.LoggerFactory
 import surge.core.KafkaProducerActor
 import surge.exceptions.KafkaPublishTimeoutException
