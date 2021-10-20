@@ -14,14 +14,11 @@ public class SurgeAggregateReadFormattingBankAccount implements SurgeAggregateRe
     @Override
     public Option<BankAccount> readState(byte[] bytes) {
         ObjectMapper objectMapper = new ObjectMapper();
-        BankAccount bankAccount;
         try {
-            bankAccount = objectMapper.readValue(bytes, BankAccount.class);
-            return Option.apply(bankAccount);
+            return Option.apply(objectMapper.readValue(bytes, BankAccount.class));
         } catch (IOException e) {
             return Option.empty();
         }
     }
-
 }
 // #surge_format
