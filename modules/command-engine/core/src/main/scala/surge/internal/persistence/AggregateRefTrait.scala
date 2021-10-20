@@ -41,14 +41,18 @@ private[surge] trait AggregateRefTrait[AggId, Agg, Cmd, Event] extends SpanSuppo
 
   private val log: Logger = LoggerFactory.getLogger(getClass)
 
-  private def interpretActorResponse(span: Span): Any => Future[Option[Agg]] = {
+  private def interpretActorResponse(span: Span): Any => Either[Throwable, Option[Agg]] = {
     case success: PersistentActor.ACKSuccess[Agg] =>
       span.finish()
-      Future.successful(success.aggregateState)
-    case failure: Throwable =>
-      val errorMsg = s"Unable to interpret response from aggregate - this should not happen: $failure"
+      Right(success.aggregateState)
+    case error: PersistentActor.ACKError =>
+      span.error(error.exception)
+      span.finish()
+      Left(error.exception)
+    case other =>
+      val errorMsg = s"Unable to interpret response from aggregate - this should not happen: $other"
       log.error(errorMsg)
-      Future.failed(SurgeUnexpectedException(new IllegalStateException(errorMsg)))
+      Left(SurgeUnexpectedException(new IllegalStateException(errorMsg)))
   }
   /**
    * Asynchronously fetch the current state of the aggregate that this reference is proxying to.
@@ -75,7 +79,10 @@ private[surge] trait AggregateRefTrait[AggId, Agg, Cmd, Event] extends SpanSuppo
     implicit ec: ExecutionContext): Future[Option[Agg]] = {
     val askSpan = createSpan(envelope.message.getClass.getSimpleName).setTag("aggregateId", aggregateId.toString)
     askSpan.log("actor ask", Map("timeout" -> timeout.duration.toString()))
-    (region ? TracedMessage(envelope, askSpan)(tracer)).flatMap(interpretActorResponse(askSpan)).recoverWith {
+    (region ? TracedMessage(envelope, askSpan)(tracer)).map(interpretActorResponse(askSpan)).flatMap {
+      case Left(exception) => Future.failed(exception)
+      case Right(state) => Future.successful(state)
+    }.recoverWith {
       case a: AskTimeoutException =>
         val msg = s"Ask timed out after $askTimeoutDuration to aggregate actor with id ${envelope.aggregateId} executing command " +
           s"${envelope.message.getClass.getName}. This is typically a result of other parts of the engine performing incorrectly or " +
@@ -83,18 +90,15 @@ private[surge] trait AggregateRefTrait[AggId, Agg, Cmd, Event] extends SpanSuppo
         askSpan.error(a)
         askSpan.finish()
         Future.failed(SurgeTimeoutException(msg))
-      case e: Throwable =>
-        askSpan.error(e)
-        askSpan.finish()
-        Future.failed(SurgeUnexpectedException(e))
     }
   }
 
   protected def applyEventsWithRetries(envelope: PersistentActor.ApplyEvent[Event])(
       implicit ec: ExecutionContext): Future[Option[Agg]] = {
     val askSpan = createSpan("send_events_to_aggregate").setTag("aggregateId", aggregateId.toString)
-    (region ? TracedMessage(envelope, askSpan)(tracer)).flatMap(interpretActorResponse(askSpan)).flatMap(state => Future.successful(state)).recoverWith{
-      case exception => Future.failed(exception)
+    (region ? TracedMessage(envelope, askSpan)(tracer)).map(interpretActorResponse(askSpan)).flatMap {
+      case Left(exception) => Future.failed(exception)
+      case Right(state)    => Future.successful(state)
     }
   }
 }

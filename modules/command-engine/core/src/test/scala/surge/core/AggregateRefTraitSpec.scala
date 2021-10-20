@@ -2,19 +2,18 @@
 
 package surge.core
 
-import akka.actor.{ ActorRef, ActorSystem, Props }
-import akka.testkit.{ TestKit, TestProbe }
+import akka.actor.{ActorRef, ActorSystem, Props}
+import akka.testkit.{TestKit, TestProbe}
 import io.opentelemetry.api.trace.Tracer
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AsyncWordSpecLike
 import surge.exceptions.SurgeUnexpectedException
-import surge.internal.persistence.{ AggregateRefTrait, PersistentActor }
-import surge.internal.tracing.{ NoopTracerFactory, ProbeWithTraceSupport }
+import surge.internal.persistence.{AggregateRefTrait, PersistentActor}
+import surge.internal.tracing.{NoopTracerFactory, ProbeWithTraceSupport}
 
 import scala.concurrent.Future
-import scala.concurrent.duration.DurationInt
 
 class AggregateRefTraitSpec
     extends TestKit(ActorSystem("AggregateRefTraitSpec"))
@@ -99,13 +98,13 @@ class AggregateRefTraitSpec
       for {
         testPerson1State <- testPerson1StateFut
         testPerson2State <- testPerson2StateFut
-        testErrorResponse <- testErrorResponseFut
-        testGarbageResponse <- testGarbageResponseFut
+        testErrorResponse <- testErrorResponseFut.failed
+        testGarbageResponse <- testGarbageResponseFut.failed
       } yield {
-        testPerson1State shouldEqual Right(Some(testPerson1))
-        testPerson2State shouldEqual Right(None)
-        testErrorResponse shouldEqual Left(expectedException)
-        testGarbageResponse shouldBe a[Left[Throwable, _]]
+        testPerson1State shouldEqual Some(testPerson1)
+        testPerson2State shouldEqual None
+        testErrorResponse shouldEqual expectedException
+        testGarbageResponse shouldBe a[SurgeUnexpectedException]
       }
     }
 
