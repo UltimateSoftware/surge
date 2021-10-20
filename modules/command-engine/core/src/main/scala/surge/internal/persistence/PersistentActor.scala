@@ -6,7 +6,7 @@ import akka.actor.{ NoSerializationVerificationNeeded, Props, ReceiveTimeout, St
 import akka.pattern.pipe
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import com.typesafe.config.{ Config, ConfigFactory }
-import io.opentelemetry.api.trace.Tracer
+import io.opentelemetry.api.trace.{ Span, Tracer }
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.akka.cluster.{ JacksonSerializable, Passivate }
 import surge.core._
@@ -16,6 +16,7 @@ import surge.internal.akka.ActorWithTracing
 import surge.internal.config.{ RetryConfig, TimeoutConfig }
 import surge.internal.domain.HandledMessageResult
 import surge.internal.kafka.HeadersHelper
+import surge.internal.utils.DiagnosticContextFuturePropagation
 import surge.kafka.streams.AggregateStateStoreKafkaStreams
 import surge.metrics.{ MetricInfo, Metrics, Timer }
 
@@ -23,7 +24,6 @@ import java.time.Instant
 import java.util.concurrent.Executors
 import scala.concurrent.duration.{ Duration, DurationInt, FiniteDuration }
 import scala.concurrent.{ ExecutionContext, Future }
-import scala.util.{ Failure, Success, Try }
 
 object PersistentActor {
 
@@ -128,7 +128,8 @@ object PersistentActor {
   }
 
   val serializationThreadPoolSize: Int = ConfigFactory.load().getInt("surge.serialization.thread-pool-size")
-  val serializationExecutionContext: ExecutionContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(serializationThreadPoolSize))
+  val serializationExecutionContext: ExecutionContext = new DiagnosticContextFuturePropagation(
+    ExecutionContext.fromExecutor(Executors.newFixedThreadPool(serializationThreadPoolSize)))
 
 }
 
@@ -365,6 +366,7 @@ class PersistentActor[S, M, R, E](
   }
 
   override def onPersistenceSuccess(newState: InternalActorState): Unit = {
+    activeSpan.log("Successfully persisted events + state")
     context.setReceiveTimeout(receiveTimeout)
     context.become(freeToProcess(newState))
 
@@ -375,6 +377,8 @@ class PersistentActor[S, M, R, E](
 
   override def onPersistenceFailure(state: InternalActorState, cause: Throwable): Unit = {
     log.error(s"Error while trying to publish to Kafka, crashing actor for $aggregateName $aggregateId", cause)
+    activeSpan.log("Failed to persist events + state")
+    activeSpan.error(cause)
     sender() ! ACKError(cause)
     context.stop(self)
   }
@@ -391,6 +395,7 @@ class PersistentActor[S, M, R, E](
         value = serializedMessage.value,
         headers = HeadersHelper.createHeaders(serializedMessage.headers))
     }
+
   }(serializationExecutionContext)
 
   private def serializeState(stateValueOpt: Option[S]): Future[KafkaProducerActor.MessageToPublish] = Future {

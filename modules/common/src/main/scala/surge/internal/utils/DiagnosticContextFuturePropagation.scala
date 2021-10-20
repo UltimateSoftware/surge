@@ -2,20 +2,22 @@
 
 package surge.internal.utils
 
+import io.opentelemetry.api.trace.Span
 import org.slf4j.MDC
+
 import scala.concurrent.ExecutionContext
 
 /**
- * Execution context proxy for propagating SLF4J diagnostic context from caller thread to execution thread.
+ * Execution context proxy for propagating SLF4J diagnostic context and the current span from caller thread to execution thread.
  */
-
-class MdcFuturePropagation(executionContext: ExecutionContext) extends ExecutionContext {
+class DiagnosticContextFuturePropagation(executionContext: ExecutionContext) extends ExecutionContext {
   override def execute(runnable: Runnable): Unit = {
-    val callerMdc = MDC.getCopyOfContextMap // get a copy of the MDC context data
+    val callerMdc = Option(MDC.getCopyOfContextMap) // get a copy of the MDC context data
+    val callerSpan = Span.current()
     executionContext.execute(new Runnable {
       def run(): Unit = {
-        // copy caller thread MDC context data to the new execution thread
-        if (callerMdc != null) MDC.setContextMap(callerMdc)
+        callerMdc.foreach(MDC.setContextMap)
+        callerSpan.makeCurrent()
         try {
           runnable.run()
         } finally {

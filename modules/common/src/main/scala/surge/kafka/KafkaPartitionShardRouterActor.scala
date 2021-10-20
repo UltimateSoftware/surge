@@ -187,7 +187,13 @@ class KafkaPartitionShardRouterActor(
     partitionRegionFor(state, aggregateId) match {
       case Some(responsiblePartitionRegion) =>
         log.trace(s"Forwarding command envelope for aggregate $aggregateId to region ${responsiblePartitionRegion.regionManager.pathString}.")
-        activeSpan.addEvent("forwarding message")
+
+        if (responsiblePartitionRegion.isLocal) {
+          activeSpan.addEvent("routing locally")
+        } else {
+          activeSpan.addEvent("routing remotely")
+        }
+
         val tracedMsg = TracedMessage(msg, parentSpan = activeSpan)
         responsiblePartitionRegion.regionManager.forward(tracedMsg)
       case None =>
