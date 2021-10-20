@@ -16,7 +16,7 @@ import surge.internal.tracing.{NoopTracerFactory, ProbeWithTraceSupport}
 import scala.concurrent.Future
 
 class AggregateRefTraitSpec
-    extends TestKit(ActorSystem("AggregateRefTraitSpec"))
+  extends TestKit(ActorSystem("AggregateRefTraitSpec"))
     with AsyncWordSpecLike
     with Matchers
     with ScalaFutures
@@ -29,6 +29,7 @@ class AggregateRefTraitSpec
   case class Person(name: String, favoriteColor: String)
 
   private val noopTracer = NoopTracerFactory.create()
+
   case class TestAggregateRef(aggregateId: String, regionTestProbe: TestProbe) extends AggregateRefTrait[String, Person, String, String] {
     override val region: ActorRef = system.actorOf(Props(new ProbeWithTraceSupport(regionTestProbe, noopTracer)))
     override val tracer: Tracer = noopTracer
@@ -37,12 +38,15 @@ class AggregateRefTraitSpec
       val envelope = PersistentActor.ProcessMessage(aggregateId, command)
       sendCommand(envelope)
     }
+
     def applyEvent(event: String, retries: Int = 0): Future[Option[Person]] = {
       val envelope = PersistentActor.ApplyEvent(aggregateId, event)
       applyEventsWithRetries(envelope)
     }
+
     def getState: Future[Option[Person]] = queryState
   }
+
   private val testPerson1 = Person("Timmy", "Red")
   private val testPerson2 = Person("Joyce", "Green")
 

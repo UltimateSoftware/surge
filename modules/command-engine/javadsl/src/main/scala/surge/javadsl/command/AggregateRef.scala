@@ -4,8 +4,8 @@ package surge.javadsl.command
 
 import akka.actor.ActorRef
 import io.opentelemetry.api.trace.Tracer
-import surge.internal.persistence.{ AggregateRefTrait, PersistentActor }
-import surge.javadsl.common.{ AggregateRefBaseTrait, _ }
+import surge.internal.persistence.{AggregateRefTrait, PersistentActor}
+import surge.javadsl.common.{AggregateRefBaseTrait, _}
 
 import java.util.Optional
 import java.util.concurrent.CompletionStage
@@ -15,12 +15,14 @@ import scala.concurrent.ExecutionContext
 
 trait AggregateRef[Agg, Cmd, Event] {
   def getState: CompletionStage[Optional[Agg]]
+
   def sendCommand(command: Cmd): CompletionStage[CommandResult[Agg]]
+
   def applyEvent(event: Event): CompletionStage[ApplyEventResult[Agg]]
 }
 
 final class AggregateRefImpl[AggId, Agg, Cmd, Event](val aggregateId: AggId, protected val region: ActorRef, protected val tracer: Tracer)
-    extends AggregateRef[Agg, Cmd, Event]
+  extends AggregateRef[Agg, Cmd, Event]
     with AggregateRefBaseTrait[AggId, Agg, Cmd, Event]
     with AggregateRefTrait[AggId, Agg, Cmd, Event] {
 
