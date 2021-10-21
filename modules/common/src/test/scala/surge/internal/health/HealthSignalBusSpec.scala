@@ -80,7 +80,8 @@ class HealthSignalBusSpec extends TestKit(ActorSystem("healthSignalBus")) with A
           signalStreamProvider,
           startOnInit = false)
 
-      bus.signalStream() shouldBe a[NullHealthSignalStream]
+      val stream = bus.signalStream()
+      stream shouldBe a[NullHealthSignalStream]
     }
 
     "not fail on repeated supervise calls" in {

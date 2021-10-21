@@ -31,7 +31,7 @@ object KafkaPartitionShardRouterActor {
 
     val brokers = config.getString("kafka.brokers").split(",").toVector
     // This producer is only used for determining partition assignments, not actually producing
-    val producer = KafkaBytesProducer(config, brokers, trackedTopic, partitioner)
+    val producer = KafkaProducer.bytesProducer(config, brokers, trackedTopic, partitioner)
     Props(new KafkaPartitionShardRouterActor(config, partitionTracker, producer, regionCreator, extractEntityId)(tracer))
   }
   case object GetPartitionRegionAssignments
@@ -102,6 +102,7 @@ class KafkaPartitionShardRouterActor(
     def updatePartitionAssignments(partitionAssignments: PartitionAssignments): ActorState = {
       updatePartitionAssignments(partitionAssignments.partitionAssignments)
     }
+
     def updatePartitionAssignments(newAssignments: Map[HostPort, List[TopicPartition]]): ActorState = {
       val assignmentsForEventsTopic = newAssignments.map { case (hostPort, assignments) =>
         hostPort -> assignments.filter(_.topic() == trackedTopic.name)
@@ -186,7 +187,13 @@ class KafkaPartitionShardRouterActor(
     partitionRegionFor(state, aggregateId) match {
       case Some(responsiblePartitionRegion) =>
         log.trace(s"Forwarding command envelope for aggregate $aggregateId to region ${responsiblePartitionRegion.regionManager.pathString}.")
-        activeSpan.addEvent("forwarding message")
+
+        if (responsiblePartitionRegion.isLocal) {
+          activeSpan.addEvent("routing locally")
+        } else {
+          activeSpan.addEvent("routing remotely")
+        }
+
         val tracedMsg = TracedMessage(msg, parentSpan = activeSpan)
         responsiblePartitionRegion.regionManager.forward(tracedMsg)
       case None =>
@@ -271,7 +278,7 @@ class KafkaPartitionShardRouterActor(
 
   private def handle(state: ActorState, partitionAssignments: PartitionAssignments): Unit = {
     log.info("RouterActor received new partition assignments")
-    val newState = state.updatePartitionAssignments(partitionAssignments.partitionAssignments).initializeNewRegions()
+    val newState = state.updatePartitionAssignments(partitionAssignments).initializeNewRegions()
 
     if (newState.enableDRStandby) {
       context.become(standbyMode(newState))

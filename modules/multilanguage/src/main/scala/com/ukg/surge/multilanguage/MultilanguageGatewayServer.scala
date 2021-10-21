@@ -8,7 +8,6 @@ import akka.grpc.GrpcClientSettings
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.{ HttpRequest, HttpResponse }
 import com.typesafe.config.ConfigFactory
-import com.ukg.surge.multilanguage.protobuf.HealthCheckReply.Status
 import com.ukg.surge.multilanguage.protobuf._
 import surge.scaladsl.command.SurgeCommand
 

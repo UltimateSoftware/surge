@@ -4,7 +4,6 @@ package surge.internal.health
 
 import akka.Done
 import akka.actor.{ ActorRef, ActorSystem }
-import surge.health.config.HealthSignalBusConfig
 import surge.health.domain.HealthSignal
 import surge.health.matchers.SignalPatternMatcher
 import surge.health.windows.{ WindowStreamListener, _ }
@@ -92,7 +91,7 @@ trait HealthSignalStreamProvider {
   def bus(): HealthSignalBusInternal = signalBus
 }
 
-class NullHealthSignalStream(config: HealthSignalBusConfig, bus: HealthSignalBusTrait, override val actorSystem: ActorSystem) extends HealthSignalStream {
+class NullHealthSignalStream(bus: HealthSignalBusTrait, override val actorSystem: ActorSystem) extends HealthSignalStream {
 
   override def signalHandler: SignalHandler = (_: HealthSignal) => Success(Done)
 
@@ -100,10 +99,8 @@ class NullHealthSignalStream(config: HealthSignalBusConfig, bus: HealthSignalBus
 
   override def signalBus(): HealthSignalBusTrait = bus
 
-  override def subscribe(signalHandler: SignalHandler): HealthSignalListener = {
-    bus.subscribe(subscriber = this, config.signalTopic)
-    this
-  }
+  // no need to subscribe
+  override def subscribe(signalHandler: SignalHandler): HealthSignalListener = this
 
   override def start(maybeSideEffect: Option[() => Unit]): HealthSignalListener = this
 
@@ -112,9 +109,8 @@ class NullHealthSignalStream(config: HealthSignalBusConfig, bus: HealthSignalBus
   override def id(): String = "null-health-signal-stream"
 }
 
-class DisabledHealthSignalStreamProvider(config: HealthSignalBusConfig, bus: HealthSignalBusTrait, override val actorSystem: ActorSystem)
-    extends HealthSignalStreamProvider {
-  private lazy val nullStream: HealthSignalStream = new NullHealthSignalStream(config, bus, actorSystem)
+class DisabledHealthSignalStreamProvider(bus: HealthSignalBusTrait, override val actorSystem: ActorSystem) extends HealthSignalStreamProvider {
+  private lazy val nullStream: HealthSignalStream = new NullHealthSignalStream(bus, actorSystem)
 
   override def provide(bus: HealthSignalBusInternal): HealthSignalStream = nullStream
 

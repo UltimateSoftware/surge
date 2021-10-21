@@ -2,10 +2,7 @@
 
 package surge.kafka
 
-import com.typesafe.config.{ Config, ConfigFactory }
-
-import java.time.Instant
-import java.util.concurrent.CompletableFuture
+import com.typesafe.config.ConfigFactory
 import org.apache.kafka.clients.producer._
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.header.internals.{ RecordHeader, RecordHeaders }
@@ -15,12 +12,18 @@ import org.mockito.Mockito._
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 
+import java.time.Instant
+import java.util.Properties
+import java.util.concurrent.CompletableFuture
+
 class KafkaProducerSpec extends AnyWordSpec with Matchers {
   private val defaultConfig = ConfigFactory.load()
 
   class MockProducer(val producer: KafkaProducer[String, String]) extends KafkaProducerTrait[String, String] {
     override def topic: KafkaTopic = KafkaTopic("")
     override def partitioner: KafkaPartitionerBase[String] = NoPartitioner[String]
+
+    override def producerProps(): Properties = new Properties()
   }
   private def createRecordMeta(topic: String, partition: Int, offset: Int): RecordMetadata = {
     new RecordMetadata(new TopicPartition(topic, partition), 0, offset, Instant.now.toEpochMilli, 0L, 0, 0)
@@ -28,9 +31,9 @@ class KafkaProducerSpec extends AnyWordSpec with Matchers {
   "KafkaProducer" should {
     "Configure correctly" in {
       val acksConfigOverride = Map(ProducerConfig.ACKS_CONFIG -> "1")
-      val producer = KafkaBytesProducer(defaultConfig, Seq("localhost:9092"), KafkaTopic("test"), kafkaConfig = acksConfigOverride)
+      val producer = surge.kafka.KafkaProducer.bytesProducer(defaultConfig, Seq("localhost:9092"), KafkaTopic("test"), kafkaConfig = acksConfigOverride)
 
-      val props = producer.producerProps
+      val props = producer.producerProps()
       props.getProperty(ProducerConfig.ACKS_CONFIG) shouldEqual "1"
     }
 

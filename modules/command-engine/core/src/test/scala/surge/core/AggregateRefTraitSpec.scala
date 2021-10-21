@@ -14,7 +14,6 @@ import surge.internal.persistence.{ AggregateRefTrait, PersistentActor }
 import surge.internal.tracing.{ NoopTracerFactory, ProbeWithTraceSupport }
 
 import scala.concurrent.Future
-import scala.concurrent.duration.DurationInt
 
 class AggregateRefTraitSpec
     extends TestKit(ActorSystem("AggregateRefTraitSpec"))
@@ -30,20 +29,24 @@ class AggregateRefTraitSpec
   case class Person(name: String, favoriteColor: String)
 
   private val noopTracer = NoopTracerFactory.create()
+
   case class TestAggregateRef(aggregateId: String, regionTestProbe: TestProbe) extends AggregateRefTrait[String, Person, String, String] {
     override val region: ActorRef = system.actorOf(Props(new ProbeWithTraceSupport(regionTestProbe, noopTracer)))
     override val tracer: Tracer = noopTracer
 
-    def sendCommand(command: String, retries: Int = 0): Future[Either[Throwable, Option[Person]]] = {
+    def sendCommand(command: String): Future[Option[Person]] = {
       val envelope = PersistentActor.ProcessMessage(aggregateId, command)
-      sendCommandWithRetries(envelope, retries)
+      sendCommand(envelope)
     }
+
     def applyEvent(event: String, retries: Int = 0): Future[Option[Person]] = {
       val envelope = PersistentActor.ApplyEvent(aggregateId, event)
-      applyEventsWithRetries(envelope, retries)
+      applyEvents(envelope)
     }
+
     def getState: Future[Option[Person]] = queryState
   }
+
   private val testPerson1 = Person("Timmy", "Red")
   private val testPerson2 = Person("Joyce", "Green")
 
@@ -99,13 +102,13 @@ class AggregateRefTraitSpec
       for {
         testPerson1State <- testPerson1StateFut
         testPerson2State <- testPerson2StateFut
-        testErrorResponse <- testErrorResponseFut
-        testGarbageResponse <- testGarbageResponseFut
+        testErrorResponse <- testErrorResponseFut.failed
+        testGarbageResponse <- testGarbageResponseFut.failed
       } yield {
-        testPerson1State shouldEqual Right(Some(testPerson1))
-        testPerson2State shouldEqual Right(None)
-        testErrorResponse shouldEqual Left(expectedException)
-        testGarbageResponse shouldBe a[Left[Throwable, _]]
+        testPerson1State shouldEqual Some(testPerson1)
+        testPerson2State shouldEqual None
+        testErrorResponse shouldEqual expectedException
+        testGarbageResponse shouldBe a[SurgeUnexpectedException]
       }
     }
 
