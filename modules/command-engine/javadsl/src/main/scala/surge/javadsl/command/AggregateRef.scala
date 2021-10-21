@@ -15,7 +15,9 @@ import scala.concurrent.ExecutionContext
 
 trait AggregateRef[Agg, Cmd, Event] {
   def getState: CompletionStage[Optional[Agg]]
+
   def sendCommand(command: Cmd): CompletionStage[CommandResult[Agg]]
+
   def applyEvent(event: Event): CompletionStage[ApplyEventResult[Agg]]
 }
 
@@ -28,11 +30,8 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event](val aggregateId: AggId, pro
 
   def sendCommand(command: Cmd): CompletionStage[CommandResult[Agg]] = {
     val envelope = PersistentActor.ProcessMessage[Cmd](aggregateId.toString, command)
-    val result = sendCommandWithRetries(envelope).map {
-      case Left(error) =>
-        CommandFailure[Agg](error)
-      case Right(aggOpt) =>
-        CommandSuccess[Agg](aggOpt.asJava)
+    val result = sendCommand(envelope).map(aggOpt => CommandSuccess[Agg](aggOpt.asJava)).recover { case error =>
+      CommandFailure[Agg](error)
     }
     FutureConverters.toJava(result)
   }

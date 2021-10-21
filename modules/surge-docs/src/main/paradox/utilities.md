@@ -10,11 +10,11 @@ The following utilities may be useful when developing Surge applications.
 ```scala
 import surge.internal.utils.MdcExecutionContext.mdcExecutionContext
 ```
-By default, **mdcExecutionContext** wraps the default **global** ExecutionContext and adds MDC propagation support to it. But if you want to use your own **ExecutionContext**, then you can do so by passing it in as an argument to the **MdcFuturePropagation** constructor:
+By default, **mdcExecutionContext** wraps the default **global** ExecutionContext and adds MDC propagation support to it. But if you want to use your own **ExecutionContext**, then you can do so by passing it in as an argument to the **DiagnosticContextFuturePropagation** constructor:
 ```scala
-  implicit lazy val mdcExecutionContext: MdcFuturePropagation = new MdcFuturePropagation(yourOwnExecutionContext)
+  implicit lazy val mdcExecutionContext: ExecutionContext = new DiagnosticContextFuturePropagation(yourOwnExecutionContext)
 ```
-**Note:** MdcFuturePropagation is exposed via **surge.internal.utils.MdcFuturePropagation**
+**Note:** DiagnosticContextFuturePropagation is exposed via **surge.internal.utils.DiagnosticContextFuturePropagation**
 - Next, we need to put the context in our log statements:
 ```scala
 MDC.put("requestId", UUID.randomUUID().toString())
