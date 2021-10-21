@@ -49,8 +49,6 @@ namespace Surge
                 }
             };
             server.Start();
-            Console.WriteLine("Press any key to finish!");
-            Console.ReadKey();
 
         }
 

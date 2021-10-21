@@ -2,6 +2,8 @@
 
 using System;
 using System.Text;
+using System.Threading;
+using Akka.Actor;
 using LanguageExt;
 using Newtonsoft.Json;
 using static LanguageExt.Prelude;
@@ -147,6 +149,24 @@ namespace Surge.Sample
             };
 
             var surge = new SurgeEngine<Account, BankEvent, BankCommand>(serDer, cqrsModel);
+            
+            var randomGuid = Guid.NewGuid();
+            var result = surge.ForwardCommand(randomGuid, new Deposit()
+            {
+                Amount = 50
+            });
+            result.Map
+            (
+                item =>
+                {
+                    Console.WriteLine("Option<Account> ..is defined ? " + item.IsSome);
+                    return item;
+                }
+            );
+
+            ManualResetEvent manualResetEvent = new ManualResetEvent(false);
+            manualResetEvent.WaitOne();
+
         }
     }
 }
