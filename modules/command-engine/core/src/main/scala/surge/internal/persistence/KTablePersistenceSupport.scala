@@ -10,6 +10,7 @@ import io.opentelemetry.api.trace.Span
 import org.slf4j.LoggerFactory
 import surge.core.KafkaProducerActor
 import surge.exceptions.KafkaPublishTimeoutException
+import surge.internal.utils.DiagnosticContextFuturePropagation
 import surge.metrics.Timer
 
 import java.time.Instant
@@ -86,7 +87,7 @@ trait KTablePersistenceSupport[Agg, Event] {
   }
 
   private def handleFailedToPersist(state: ActorState, eventsFailedToPersist: PersistenceFailure): Unit = {
-    implicit val ec: ExecutionContext = context.dispatcher
+    implicit val ec: ExecutionContext = new DiagnosticContextFuturePropagation(context.dispatcher)
 
     if (eventsFailedToPersist.numberOfFailures > maxProducerFailureRetries) {
       ktablePersistenceMetrics.eventPublishTimer.recordTime(publishTimeInMillis(eventsFailedToPersist.startTime))

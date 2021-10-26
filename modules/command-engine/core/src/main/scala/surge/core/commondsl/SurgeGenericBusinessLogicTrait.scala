@@ -7,6 +7,7 @@ import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.trace.Tracer
 import surge.core.{ SurgeAggregateReadFormatting, SurgeAggregateWriteFormatting }
 import surge.internal.tracing.OpenTelemetryInstrumentation
+import surge.internal.utils.DiagnosticContextFuturePropagation
 import surge.kafka.{ KafkaPartitioner, KafkaTopic, PartitionStringUpToColon }
 import surge.metrics.Metrics
 
@@ -58,5 +59,5 @@ trait SurgeGenericBusinessLogicTrait[AggId, Agg, Command, Rej, Event] {
 
   def transactionalIdPrefix: String = "surge-transactional-event-producer-partition"
 
-  val executionContext: ExecutionContext = global
+  val executionContext: ExecutionContext = new DiagnosticContextFuturePropagation(global)
 }

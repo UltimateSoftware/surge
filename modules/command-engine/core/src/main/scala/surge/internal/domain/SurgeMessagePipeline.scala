@@ -13,6 +13,7 @@ import surge.internal.akka.cluster.ActorSystemHostAwareness
 import surge.internal.akka.kafka.{ CustomConsumerGroupRebalanceListener, KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor }
 import surge.internal.health.HealthSignalStreamProvider
 import surge.internal.persistence.PersistentActorRegionCreator
+import surge.internal.utils.DiagnosticContextFuturePropagation
 import surge.kafka.PartitionAssignments
 import surge.kafka.streams._
 
@@ -65,7 +66,8 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
 
   protected val actorRouter: SurgePartitionRouter = SurgePartitionRouter(config, actorSystem, partitionTracker, businessLogic, cqrsRegionCreator, signalBus)
 
-  protected val surgeHealthCheck: SurgeHealthCheck = new SurgeHealthCheck(businessLogic.aggregateName, kafkaStreamsImpl, actorRouter)(ExecutionContext.global)
+  protected val surgeHealthCheck: SurgeHealthCheck = new SurgeHealthCheck(businessLogic.aggregateName, kafkaStreamsImpl, actorRouter)(
+    new DiagnosticContextFuturePropagation(ExecutionContext.global))
 
   override def healthCheck(): Future[HealthCheck] = {
     surgeHealthCheck.healthCheck()

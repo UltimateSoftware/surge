@@ -15,8 +15,7 @@ import surge.kafka.streams.HealthyActor.GetHealth
 import surge.kafka.streams.{ HealthCheck, HealthCheckStatus }
 import surge.internal.tracing.TracedMessage
 
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Future
+import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.{ Failure, Success }
 
 /**
@@ -43,6 +42,8 @@ object Shard {
 class Shard[IdType](shardId: String, regionLogicProvider: PerShardLogicProvider[IdType], extractEntityId: PartialFunction[Any, IdType])(
     implicit val tracer: Tracer)
     extends ActorWithTracing {
+
+  implicit val ec: ExecutionContext = context.dispatcher
 
   private val log: Logger = LoggerFactory.getLogger(getClass)
   private val bufferSize = 1000

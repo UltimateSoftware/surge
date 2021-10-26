@@ -13,6 +13,7 @@ import surge.internal.SurgeModel
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.config.TimeoutConfig
 import surge.internal.persistence.RoutableMessage
+import surge.internal.utils.DiagnosticContextFuturePropagation
 import surge.kafka.streams.{ HealthCheck, HealthCheckStatus, HealthyActor, HealthyComponent }
 import surge.kafka.{ KafkaPartitionShardRouterActor, PersistentActorRegionCreator }
 
@@ -29,7 +30,7 @@ private[surge] final class SurgePartitionRouterImpl(
     extends SurgePartitionRouter
     with HealthyComponent
     with Controllable {
-  implicit val executionContext: ExecutionContext = system.dispatcher
+  implicit val executionContext: ExecutionContext = new DiagnosticContextFuturePropagation(system.dispatcher)
   private val log = LoggerFactory.getLogger(getClass)
 
   private val shardRouterProps = KafkaPartitionShardRouterActor.props(

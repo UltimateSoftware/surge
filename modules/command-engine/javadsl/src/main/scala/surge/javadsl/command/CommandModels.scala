@@ -5,6 +5,7 @@ package surge.javadsl.command
 import surge.core.command.AggregateCommandModelCoreTrait
 import surge.internal.domain.CommandHandler
 import surge.internal.persistence
+import surge.internal.utils.DiagnosticContextFuturePropagation
 import surge.javadsl._
 import surge.javadsl.common.Context
 
@@ -29,21 +30,21 @@ trait AggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCoreTrai
 }
 
 trait AsyncAggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCoreTrait[Agg, Cmd, Nothing, Evt] {
+  private implicit val executionContext: ExecutionContext = new DiagnosticContextFuturePropagation(ExecutionContext.global)
+
   def processCommand(aggregate: Optional[Agg], command: Cmd): CompletableFuture[JList[Evt]]
   def handleEvent(aggregate: Optional[Agg], event: Evt): CompletableFuture[Optional[Agg]]
 
   final def toCore: CommandHandler[Agg, Cmd, Nothing, Evt] =
     new CommandHandler[Agg, Cmd, Nothing, Evt] {
       override def processCommand(ctx: persistence.Context, state: Option[Agg], cmd: Cmd): Future[CommandResult] =
-        FutureConverters
-          .toScala(AsyncAggregateCommandModel.this.processCommand(state.asJava, cmd))
-          .map(evts => Right(evts.asScala.toSeq))(ExecutionContext.global)
+        FutureConverters.toScala(AsyncAggregateCommandModel.this.processCommand(state.asJava, cmd)).map(evts => Right(evts.asScala.toSeq))
 
       override def apply(ctx: persistence.Context, state: Option[Agg], event: Evt): Option[Agg] =
         throw new Exception("Synchronous event handler called when using AsyncCommandHandler. This should never happen")
 
       override def applyAsync(ctx: persistence.Context, state: Option[Agg], event: Evt): Future[Option[Agg]] = {
-        FutureConverters.toScala(handleEvent(state.asJava, event)).map(_.asScala)(ExecutionContext.global)
+        FutureConverters.toScala(handleEvent(state.asJava, event)).map(_.asScala)
       }
     }
 }

@@ -6,8 +6,8 @@ import akka.actor.{ NoSerializationVerificationNeeded, Props, ReceiveTimeout, St
 import akka.pattern.pipe
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import com.typesafe.config.{ Config, ConfigFactory }
-import io.opentelemetry.api.trace.{ Span, Tracer }
-import org.slf4j.{ Logger, LoggerFactory }
+import io.opentelemetry.api.trace.Tracer
+import org.slf4j.{ Logger, LoggerFactory, MDC }
 import surge.akka.cluster.{ JacksonSerializable, Passivate }
 import surge.core._
 import surge.health.HealthSignalBusTrait
@@ -130,7 +130,6 @@ object PersistentActor {
   val serializationThreadPoolSize: Int = ConfigFactory.load().getInt("surge.serialization.thread-pool-size")
   val serializationExecutionContext: ExecutionContext = new DiagnosticContextFuturePropagation(
     ExecutionContext.fromExecutor(Executors.newFixedThreadPool(serializationThreadPoolSize)))
-
 }
 
 class PersistentActor[S, M, R, E](
@@ -145,7 +144,8 @@ class PersistentActor[S, M, R, E](
     with KTableInitializationSupport[S] {
 
   import PersistentActor._
-  import context.dispatcher
+
+  private implicit val ec: ExecutionContext = new DiagnosticContextFuturePropagation(context.dispatcher)
 
   private sealed trait Internal extends NoSerializationVerificationNeeded
 
@@ -242,6 +242,8 @@ class PersistentActor[S, M, R, E](
       .flatMap {
         case Left(r) => Future.successful(ACKRejection(r))
         case Right(handled) =>
+          println(s"JEFF --- before serializingEvents current context = ${io.opentelemetry.context.Context.current()}")
+          println(s"JEFF --- MDC = ${MDC.getCopyOfContextMap}")
           val serializingFut = if (publishStateOnly) {
             Future.successful(Seq.empty)
           } else {
@@ -257,6 +259,8 @@ class PersistentActor[S, M, R, E](
               startTime = Instant.now,
               didStateChange = state.stateOpt != handled.resultingState)
           } yield {
+            println(s"JEFF --- after publish current context = ${io.opentelemetry.context.Context.current()}")
+            println(s"JEFF --- MDC = ${MDC.getCopyOfContextMap}")
             publishResult
           }
       }
@@ -267,7 +271,9 @@ class PersistentActor[S, M, R, E](
   }
 
   private def processMessage(state: InternalActorState, ProcessMessage: ProcessMessage[M]): Future[Either[R, HandledMessageResult[S, E]]] = {
-    metrics.messageHandlingTimer.timeFuture { businessLogic.model.handle(surgeContext(), state.stateOpt, ProcessMessage.message) }
+    println(s"JEFF --- processMessage currentContext = ${io.opentelemetry.context.Context.current()}")
+    println(s"JEFF --- MDC = ${MDC.getCopyOfContextMap}")
+    businessLogic.model.handle(surgeContext(), state.stateOpt, ProcessMessage.message)
   }
 
   private def callEventHandler(state: InternalActorState, evt: E): Future[HandleEventResult] = {
@@ -378,6 +384,7 @@ class PersistentActor[S, M, R, E](
   }
 
   private def serializeEvents(events: Seq[E]): Future[Seq[KafkaProducerActor.MessageToPublish]] = Future {
+    println(s"JEFF --- serializeEvents currentContext = ${io.opentelemetry.context.Context.current()}")
     val eventWriteFormatting = businessLogic.eventWriteFormattingOpt.getOrElse {
       throw new IllegalStateException("businessLogic.eventWriteFormattingOpt must not be None")
     }

@@ -2,6 +2,7 @@
 
 package surge.internal.domain
 
+import org.slf4j.MDC
 import surge.internal.persistence.Context
 
 import scala.concurrent.{ ExecutionContext, Future }
@@ -60,14 +61,22 @@ trait CommandHandler[S, M, R, E] extends AggregateProcessingModel[S, M, R, E] {
   //       Perhaps it could implement AggregateProcessingModel directly
   def applyAsync(ctx: Context, state: Option[S], event: E): Future[Option[S]] = Future.fromTry(Try(apply(ctx, state, event)))
 
-  override def handle(ctx: Context, state: Option[S], cmd: M)(implicit ec: ExecutionContext): Future[Either[R, HandledMessageResult[S, E]]] =
+  override def handle(ctx: Context, state: Option[S], cmd: M)(implicit ec: ExecutionContext): Future[Either[R, HandledMessageResult[S, E]]] = {
+    println(s"JEFF --- EXECUTION_CONTEXT = ${ec.getClass}")
+    println(s"JEFF --- before processCommand currentContext = ${io.opentelemetry.context.Context.current()}")
+    println(s"JEFF --- MDC = ${MDC.getCopyOfContextMap}")
     processCommand(ctx, state, cmd).flatMap {
       case Left(rejected) => Future.successful(Left(rejected))
       case Right(events) =>
+        println(s"JEFF --- after processCommand currentContext = ${io.opentelemetry.context.Context.current()}")
+        println(s"JEFF --- MDC = ${MDC.getCopyOfContextMap}")
         events.foldLeft(Future.successful(state))((s: Future[Option[S]], e: E) => s.flatMap(prev => applyAsync(ctx, prev, e))).map { resultingState =>
+          println(s"JEFF --- after events.foldLeft currentContext = ${io.opentelemetry.context.Context.current()}")
+          println(s"JEFF --- MDC = ${MDC.getCopyOfContextMap}")
           Right(HandledMessageResult(resultingState = resultingState, eventsToLog = events))
         }
     }
+  }
 }
 
 trait AsyncCommandHandler[S, M, R, E] extends CommandHandler[S, M, R, E] {

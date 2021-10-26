@@ -102,7 +102,7 @@ class KafkaProducerActor(
     override val signalBus: HealthSignalBusTrait)
     extends HealthyComponent
     with HealthSignalBusAware {
-  private implicit val executionContext: ExecutionContext = ExecutionContext.global
+  private implicit val executionContext: ExecutionContext = new DiagnosticContextFuturePropagation(ExecutionContext.global)
   private val log = LoggerFactory.getLogger(getClass)
 
   def publish(
@@ -110,7 +110,7 @@ class KafkaProducerActor(
       state: KafkaProducerActor.MessageToPublish,
       events: Seq[KafkaProducerActor.MessageToPublish]): Future[KafkaProducerActor.PublishResult] = {
     log.trace(s"Publishing state for {} {}", Seq(aggregateName, state.key): _*)
-    implicit val ec: ExecutionContext = ExecutionContext.global
+    implicit val ec: ExecutionContext = new DiagnosticContextFuturePropagation(ExecutionContext.global)
     implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PublisherActor.publishTimeout)
     (publisherActor.ref ? KafkaProducerActorImpl.Publish(eventsToPublish = events, state = state)).mapTo[KafkaProducerActor.PublishResult]
   }

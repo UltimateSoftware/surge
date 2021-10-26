@@ -2,11 +2,13 @@
 
 package surge.kafka.streams
 
-import java.util.concurrent.Executors
+import surge.internal.utils.DiagnosticContextFuturePropagation
 
-import scala.concurrent.{ ExecutionContext, ExecutionContextExecutor }
+import java.util.concurrent.Executors
+import scala.concurrent.ExecutionContext
 
 object ThreadPools {
   private val ioBoundThreadPoolSize: Int = 32
-  val ioBoundContext: ExecutionContextExecutor = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(ioBoundThreadPoolSize))
+  val ioBoundContext: ExecutionContext = new DiagnosticContextFuturePropagation(
+    ExecutionContext.fromExecutor(Executors.newFixedThreadPool(ioBoundThreadPoolSize)))
 }
