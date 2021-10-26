@@ -4,16 +4,16 @@ package surge.javadsl.command
 
 import akka.actor.ActorRef
 import io.opentelemetry.api.trace.Tracer
-import org.slf4j.{Logger, LoggerFactory}
-import surge.internal.persistence.{AggregateRefTrait, PersistentActor}
-import surge.javadsl.common.{AggregateRefBaseTrait, _}
+import org.slf4j.{ Logger, LoggerFactory }
+import surge.internal.persistence.{ AggregateRefTrait, PersistentActor }
+import surge.javadsl.common.{ AggregateRefBaseTrait, _ }
 import surge.kafka.streams.SurgeHealthCheck
 
 import java.util.Optional
 import java.util.concurrent.CompletionStage
 import scala.compat.java8.FutureConverters
 import scala.compat.java8.OptionConverters._
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ ExecutionContext, Future }
 
 trait AggregateRef[Agg, Cmd, Event] {
   def getState: CompletionStage[Optional[Agg]]
@@ -24,8 +24,10 @@ trait AggregateRef[Agg, Cmd, Event] {
 }
 
 final class AggregateRefImpl[AggId, Agg, Cmd, Event](
-    val aggregateId: AggId, protected val region: ActorRef,
-    protected val tracer: Tracer, surgeHealthCheck: SurgeHealthCheck)
+    val aggregateId: AggId,
+    protected val region: ActorRef,
+    protected val tracer: Tracer,
+    surgeHealthCheck: SurgeHealthCheck)
     extends AggregateRef[Agg, Cmd, Event]
     with AggregateRefBaseTrait[AggId, Agg, Cmd, Event]
     with AggregateRefTrait[AggId, Agg, Cmd, Event] {
