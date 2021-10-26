@@ -6,7 +6,7 @@ import akka.actor.ActorSystem
 import com.typesafe.config.Config
 import surge.core
 import surge.core.command.SurgeCommandModel
-import surge.core.commondsl.{ SurgeCommandBusinessLogicTrait, SurgeRejectableCommandBusinessLogicTrait }
+import surge.core.commondsl.{SurgeCommandBusinessLogicTrait, SurgeRejectableCommandBusinessLogicTrait}
 import surge.health.config.WindowingStreamConfigLoader
 import surge.health.matchers.SignalPatternMatcherRegistry
 import surge.internal.domain
@@ -62,7 +62,7 @@ private[scaladsl] class SurgeCommandImpl[AggId, Agg, Command, Rej, Event](
     with SurgeCommand[AggId, Agg, Command, Rej, Event] {
 
   def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Command, Event] = {
-    new AggregateRefImpl(aggIdToString(aggregateId), actorRouter.actorRegion, businessLogic.tracer)
+    new AggregateRefImpl(aggIdToString(aggregateId), actorRouter.actorRegion, businessLogic.tracer, surgeHealthCheck)
   }
 
   override def getMetrics: Seq[Metric] = businessLogic.metrics.getMetrics
