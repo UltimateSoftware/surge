@@ -42,7 +42,7 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event](
           queryState
         case None =>
           log.error(s"The engine is not running")
-          Future.failed(new RuntimeException("The engine is not running"))
+          Future.failed(new Exception("The engine is not running"))
       }
     }
   }
@@ -61,7 +61,7 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event](
           }
         case None =>
           log.error(s"The engine is not running")
-          Future.failed(new RuntimeException("The engine is not running"))
+          Future.failed(new Exception("The engine is not running"))
       }
     }
   }
