@@ -8,6 +8,11 @@ object Dependencies extends AutoPlugin {
     object Akka {
       val version = "2.6.15"
       val akkaHttpVersion = "10.2.6"
+      val alpakkaVersion = "2.1.1"
+
+      val kafkaStream = "com.typesafe.akka" %% "akka-stream-kafka" % alpakkaVersion
+      val kafkaClusterSharding = "com.typesafe.akka" %% "akka-stream-kafka-cluster-sharding" % alpakkaVersion
+      val clusterSharding = "com.typesafe.akka" %% "akka-cluster-sharding" % version
 
       val actor = "com.typesafe.akka" %% "akka-actor" % version
       val stream = "com.typesafe.akka" %% "akka-stream" % version

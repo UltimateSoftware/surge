@@ -70,7 +70,8 @@ class PersistentActorRegion[M](
     val aggregateMetrics = PersistentActor.createMetrics(metrics, businessLogic.aggregateName)
     val sharedResources = persistence.PersistentEntitySharedResources(kafkaProducerActor, aggregateMetrics, aggregateKafkaStreamsImpl)
 
-    actorId: String => PersistentActor.props(actorId, businessLogic, signalBus, sharedResources, config)
+    val fix = (n: Int) => sharedResources.kafkaProducerActor
+    actorId: String => PersistentActor.props(fix, businessLogic, signalBus, sharedResources.stateStore, config)
   }
 
   override def restart(): Future[Ack] = {

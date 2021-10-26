@@ -4,6 +4,7 @@ package surge.core
 
 import akka.actor._
 import com.typesafe.config.Config
+import play.api.libs.json.JsValue
 import surge.health.HealthSignalBusTrait
 import surge.internal.SurgeModel
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
@@ -21,8 +22,9 @@ object SurgePartitionRouter {
       system: ActorSystem,
       partitionTracker: KafkaConsumerPartitionAssignmentTracker,
       businessLogic: SurgeModel[_, _, _, _],
+      kafkaStreamsCommand: AggregateStateStoreKafkaStreams[JsValue],
       regionCreator: PersistentActorRegionCreator[String],
       signalBus: HealthSignalBusTrait): SurgePartitionRouter = {
-    new SurgePartitionRouterImpl(config, system, partitionTracker, businessLogic, regionCreator, signalBus)
+    new SurgePartitionRouterImpl(config, system, partitionTracker, businessLogic, kafkaStreamsCommand, regionCreator, signalBus)
   }
 }

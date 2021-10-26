@@ -58,6 +58,39 @@ object KafkaProducerActor {
       signalBus)
   }
 
+  def create(
+             actorSystem: ActorSystem,
+             metrics: Metrics,
+             businessLogic: SurgeModel[_, _, _, _],
+             kStreams: AggregateStateStoreKafkaStreams[_],
+             partitionTracker: KafkaConsumerPartitionAssignmentTracker,
+             signalBus: HealthSignalBusTrait,
+             config: Config,
+             kafkaProducerOverride: Option[KafkaProducerTrait[String, Array[Byte]]] = None): (Int => KafkaProducerActor) = partition => {
+
+    val brokers = config.getString("kafka.brokers").split(",").toVector
+    val adminClient = KafkaAdminClient(config, brokers)
+
+    val assignedPartition = new TopicPartition(businessLogic.kafka.stateTopic.name, partition)
+    val kafkaProducerProps = Props(
+      new KafkaProducerActorImpl(
+        assignedPartition = assignedPartition,
+        metrics = metrics,
+        businessLogic,
+        lagChecker = new KTableLagCheckerImpl(kStreams.applicationId, adminClient),
+        partitionTracker = partitionTracker,
+        signalBus = signalBus,
+        config = config,
+        kafkaProducerOverride = kafkaProducerOverride)).withDispatcher(dispatcherName)
+
+    new KafkaProducerActor(
+      actorSystem.actorOf(Props(new ActorLifecycleManagerActor(kafkaProducerProps, s"producer-actor-${assignedPartition.toString}"))),
+      metrics,
+      businessLogic.aggregateName,
+      assignedPartition,
+      signalBus)
+  }
+
   sealed trait PublishResult extends NoSerializationVerificationNeeded
   case object PublishSuccess extends PublishResult
   case class PublishFailure(t: Throwable) extends PublishResult
