@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
         - name: surge-server
-          image: surge-engine-multilanguage:0.5.41-SNAPSHOT
+          image: surge-engine-multilanguage:0.5.42-SNAPSHOT
           imagePullPolicy: Never
           resources:
             requests:

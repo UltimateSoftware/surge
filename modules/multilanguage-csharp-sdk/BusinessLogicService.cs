@@ -49,7 +49,7 @@ namespace Surge
             TC command = SerDeser.DeserializeCommand.Invoke(request.Command.Payload.ToByteArray());
 
             // ReSharper disable once SuggestVarOrType_Elsewhere
-            Either<string, Lst<TE>> result = CqrsModel.CommandHandler.Invoke(Tuple.Create(maybeState, command));
+            Either<string, List<TE>> result = CqrsModel.CommandHandler.Invoke(Tuple.Create(maybeState, command));
 
             switch (result.IsLeft)
             {
@@ -65,11 +65,17 @@ namespace Surge
                 }
                 default:
                 {
-                    Lst<TE> events = result.RightToSeq().Head;
+                    List<TE> events = result.RightToSeq().Head;
                     Option<TS> zeroState = Option<TS>.None;
                     // calculate the new state by doing a left over the events 
                     Option<TS> newState = events.Fold(zeroState, (ses, e) =>
                         CqrsModel.EventHandler.Invoke(Tuple.Create(ses, e)));
+
+                    IEnumerable<Event> eventsPb = events.Map(item => new Event()
+                    {
+                        AggregateId = request.AggregateId,
+                        Payload = ByteString.CopyFrom(SerDeser.SerializeEvent.Invoke(item))
+                    });
 
                     State newStatePb = newState.IsSome switch
                     {
@@ -82,13 +88,20 @@ namespace Surge
                         _ => null
                     };
 
-                    var reply = new ProcessCommandReply
+                    ProcessCommandReply reply;
+                    reply = new ProcessCommandReply
                     {
                         NewState = newStatePb,
                         AggregateId = request.AggregateId,
                         IsSuccess = true,
-                        RejectionMessage = null,
+                        RejectionMessage = string.Empty,
                     };
+                    foreach (var @event in eventsPb)
+                    {
+                        reply.Events.Add(@event);
+                    }
+
+
                     return reply;
                 }
             }

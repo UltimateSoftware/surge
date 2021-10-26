@@ -1,8 +1,10 @@
 // Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
 using System;
+using System.Collections.Generic;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using Akka.Actor;
 using LanguageExt;
 using Newtonsoft.Json;
@@ -82,26 +84,25 @@ namespace Surge.Sample
                     BankCommand command;
                     (state, command) = input;
 
-                    Lst<BankEvent> eventList;
+                    List<BankEvent> eventList = new List<BankEvent>();
                     // ReSharper disable once SuggestVarOrType_Elsewhere
-                    Either<string, Lst<BankEvent>> result = Either<string, Lst<BankEvent>>.Bottom;
+                    Either<string, List<BankEvent>> result = Either<string, List<BankEvent>>.Bottom;
                     switch (state.IsNone)
                     {
                         case true:
                             switch (command)
                             {
                                 case Deposit d:
-                                    eventList = new Lst<BankEvent>
-                                    {
+                                    eventList.Add(
                                         new MoneyDeposited
                                         {
                                             Amount = d.Amount
                                         }
-                                    };
-                                    result = Right<string, Lst<BankEvent>>(eventList);
+                                    );
+                                    result = Right<string, List<BankEvent>>(eventList);
                                     break;
                                 case Withdraw w:
-                                    result = Left<string, Lst<BankEvent>>(
+                                    result = Left<string, List<BankEvent>>(
                                         "You don't have an account so you can't withdraw money!");
                                     break;
                             }
@@ -112,30 +113,29 @@ namespace Surge.Sample
                             switch (command)
                             {
                                 case Deposit d:
-                                    eventList = new Lst<BankEvent>
-                                    {
+                                    eventList.Add( 
+                                    
                                         new MoneyDeposited
                                         {
                                             Amount = d.Amount
                                         }
-                                    };
-                                    result = Right<string, Lst<BankEvent>>(eventList);
+                                    );
+                                    result = Right<string, List<BankEvent>>(eventList);
                                     break;
                                 case Withdraw w:
                                     if (w.Amount <= actualState.amount)
                                     {
-                                        eventList = new Lst<BankEvent>
-                                        {
+                                        eventList.Add(
                                             new MoneyWithdrawn()
                                             {
                                                 Amount = w.Amount
                                             }
-                                        };
-                                        result = Right<string, Lst<BankEvent>>(eventList);
+                                        );
+                                        result = Right<string, List<BankEvent>>(eventList);
                                     }
                                     else
                                     {
-                                        result = Left<string, Lst<BankEvent>>("You don't have enough money!");
+                                        result = Left<string, List<BankEvent>>("You don't have enough money!");
                                     }
 
                                     break;
@@ -150,20 +150,31 @@ namespace Surge.Sample
 
             var surge = new SurgeEngine<Account, BankEvent, BankCommand>(serDer, cqrsModel);
             
+            // sleeping for a few seconds
+            Thread.Sleep(10000);
+
+            
             var randomGuid = Guid.NewGuid();
-            var result = surge.ForwardCommand(randomGuid, new Deposit()
+            var resultA = surge.ForwardCommand(randomGuid, new Deposit()
             {
                 Amount = 50
             });
-            result.Map
+            var resultB = resultA.Map
             (
                 item =>
                 {
                     Console.WriteLine("Option<Account> ..is defined ? " + item.IsSome);
+                   foreach (var account in item)
+                   {
+                       Console.WriteLine("Account balance is: " + account.amount);
+                   } 
                     return item;
                 }
             );
-
+           
+            
+            resultB.Wait();
+           
             ManualResetEvent manualResetEvent = new ManualResetEvent(false);
             manualResetEvent.WaitOne();
 

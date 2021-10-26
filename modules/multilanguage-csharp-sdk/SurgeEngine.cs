@@ -89,6 +89,7 @@ namespace Surge
                 AggregateId = aggregateId.ToString(),
                 Command = command
             };
+            
 
             Task<Option<TS>> ParseReply(ForwardCommandReply reply)
             {
@@ -102,13 +103,14 @@ namespace Surge
                 }
                 else
                 {
+               
                     if (reply.NewState.IsNull())
                     {
                         result = Option<TS>.None;
                     }
                     else
                     {
-                        var s = _serDeser.DeserializeState(reply.NewState.ToByteArray());
+                        var s = _serDeser.DeserializeState(reply.NewState.Payload.ToByteArray());
                         result = Option<TS>.Some(s);
                     }
 
