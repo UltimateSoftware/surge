@@ -4,12 +4,13 @@ package surge.scaladsl.command
 
 import akka.actor.ActorRef
 import io.opentelemetry.api.trace.Tracer
-import org.slf4j.{ Logger, LoggerFactory }
-import surge.internal.persistence.{ AggregateRefTrait, PersistentActor }
-import surge.kafka.streams.SurgeHealthCheck
-import surge.scaladsl.common.{ AggregateRefBaseTrait, _ }
+import org.slf4j.{Logger, LoggerFactory}
+import surge.exceptions.SurgeEngineNotRunningException
+import surge.internal.domain.{SurgeEngineState, SurgeMessagePipeline}
+import surge.internal.persistence.{AggregateRefTrait, PersistentActor}
+import surge.scaladsl.common.{AggregateRefBaseTrait, _}
 
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.{ExecutionContext, Future}
 
 trait AggregateRef[Agg, Cmd, Event] {
   def getState: Future[Option[Agg]]
@@ -19,12 +20,8 @@ trait AggregateRef[Agg, Cmd, Event] {
   def applyEvent(event: Event): Future[ApplyEventResult[Agg]]
 }
 
-final class AggregateRefImpl[AggId, Agg, Cmd, Event](
-    val aggregateId: AggId,
-    protected val region: ActorRef,
-    protected val tracer: Tracer,
-    surgeHealthCheck: SurgeHealthCheck)
-    extends AggregateRef[Agg, Cmd, Event]
+final class AggregateRefImpl[AggId, Agg, Cmd, Event](val aggregateId: AggId, protected val region: ActorRef, protected val tracer: Tracer)
+  extends AggregateRef[Agg, Cmd, Event]
     with AggregateRefBaseTrait[AggId, Agg, Cmd, Event]
     with AggregateRefTrait[AggId, Agg, Cmd, Event] {
 
@@ -32,37 +29,27 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event](
   private val log: Logger = LoggerFactory.getLogger(getClass)
 
   override def getState: Future[Option[Agg]] = {
-    val healthCheckFut = surgeHealthCheck.healthCheck()
-    log.info("surge health check in process..")
+    val engineCurrentState = SurgeMessagePipeline.surgeEngineState
 
-    healthCheckFut.flatMap { health =>
-      health.isHealthy match {
-        case Some(true) =>
-          log.info(s"The engine is up and running")
-          queryState
-        case None =>
-          log.error(s"The engine is not running")
-          Future.failed(new Exception("The engine is not running"))
-      }
+    if (engineCurrentState.equals(SurgeEngineState.started)) queryState else {
+      log.error(s"The engine is not running")
+      Future.failed(SurgeEngineNotRunningException("The engine is not running, please call .start() on the engine before interacting with it"))
     }
   }
 
   def sendCommand(command: Cmd): Future[CommandResult[Agg]] = {
-    val healthCheckFut = surgeHealthCheck.healthCheck()
-    log.info("surge health check in process..")
+    val engineCurrentState = SurgeMessagePipeline.surgeEngineState
 
-    healthCheckFut.flatMap { health =>
-      health.isHealthy match {
-        case Some(true) =>
-          log.info(s"The engine is up and running")
-          val envelope = PersistentActor.ProcessMessage[Cmd](aggregateId.toString, command)
-          sendCommand(envelope).map(aggOpt => CommandSuccess[Agg](aggOpt)).recover { case error: Throwable =>
-            CommandFailure[Agg](error)
-          }
-        case None =>
-          log.error(s"The engine is not running")
-          Future.failed(new Exception("The engine is not running"))
+    if (engineCurrentState.equals(SurgeEngineState.started)) {
+      val envelope = PersistentActor.ProcessMessage[Cmd](aggregateId.toString, command)
+      sendCommand(envelope).map(aggOpt => CommandSuccess[Agg](aggOpt)).recover { case error: Throwable =>
+        CommandFailure[Agg](error)
       }
     }
+    else {
+      log.error(s"The engine is not running")
+      Future.failed(SurgeEngineNotRunningException("The engine is not running, please call .start() on the engine before interacting with it"))
+    }
   }
+
 }
