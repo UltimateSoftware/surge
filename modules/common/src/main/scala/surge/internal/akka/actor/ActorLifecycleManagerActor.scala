@@ -2,7 +2,7 @@
 
 package surge.internal.akka.actor
 
-import akka.actor.{Actor, ActorPath, ActorRef, ActorSystem, NoSerializationVerificationNeeded, Props, Terminated}
+import akka.actor.{ Actor, ActorPath, ActorRef, ActorSystem, NoSerializationVerificationNeeded, Props, Terminated }
 import akka.pattern._
 import akka.util.Timeout
 import org.slf4j.LoggerFactory

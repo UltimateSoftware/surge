@@ -3,25 +3,25 @@
 package surge.internal.health.windows.stream.sliding
 
 import java.time.Instant
-import java.util.concurrent.{Executors, TimeUnit}
+import java.util.concurrent.{ Executors, TimeUnit }
 import akka.NotUsed
 import akka.actor.ActorSystem
-import akka.stream.scaladsl.{Sink, Source}
-import akka.testkit.{TestKit, TestProbe}
+import akka.stream.scaladsl.{ Sink, Source }
+import akka.testkit.{ TestKit, TestProbe }
 import com.typesafe.config.ConfigFactory
 import org.mockito.Mockito
 import org.mockito.stubbing.Stubber
 import org.scalatest.concurrent.Eventually
 import org.scalatest.matchers.should.Matchers
-import org.scalatest.time.{Milliseconds, Seconds, Span}
+import org.scalatest.time.{ Milliseconds, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
-import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
+import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach }
 import org.scalatestplus.mockito.MockitoSugar
-import surge.health.config.{ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig}
-import surge.health.domain.{Error, HealthSignal, Trace}
-import surge.health.matchers.{SideEffect, SignalPatternMatcherDefinition}
+import surge.health.config.{ ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig }
+import surge.health.domain.{ Error, HealthSignal, Trace }
+import surge.health.matchers.{ SideEffect, SignalPatternMatcherDefinition }
 import surge.health.windows._
-import surge.health.{HealthSignalReceived, HealthSignalStream, SignalType}
+import surge.health.{ HealthSignalReceived, HealthSignalStream, SignalType }
 import surge.internal.health._
 import surge.internal.health.windows.stream.WindowingHealthSignalStream
 
@@ -37,7 +37,7 @@ trait MockitoHelper extends MockitoSugar {
 
 case class TimedCount(count: Int, time: Option[Instant])
 class SlidingHealthSignalStreamSpec
-  extends TestKit(ActorSystem("SlidingHealthSignalStreamSpec", ConfigFactory.load("sliding-health-signal-stream-spec")))
+    extends TestKit(ActorSystem("SlidingHealthSignalStreamSpec", ConfigFactory.load("sliding-health-signal-stream-spec")))
     with AnyWordSpecLike
     with Matchers
     with BeforeAndAfterAll
@@ -52,12 +52,7 @@ class SlidingHealthSignalStreamSpec
 
   override def beforeEach(): Unit = {
     probe = TestProbe()
-    val signal = HealthSignal(
-      topic = "health.signal",
-      name = s"5 in a row",
-      signalType = SignalType.TRACE,
-      data = Trace(s"5 in a row"),
-      source = None)
+    val signal = HealthSignal(topic = "health.signal", name = s"5 in a row", signalType = SignalType.TRACE, data = Trace(s"5 in a row"), source = None)
 
     val definition = SignalPatternMatcherDefinition.repeating(
       times = 5,

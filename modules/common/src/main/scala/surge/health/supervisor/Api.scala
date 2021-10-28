@@ -2,7 +2,7 @@
 
 package surge.health.supervisor
 
-import akka.actor.{ActorRef, NoSerializationVerificationNeeded}
+import akka.actor.{ ActorRef, NoSerializationVerificationNeeded }
 import surge.health.supervisor.Domain.SupervisedComponentRegistration
 
 import java.util.regex.Pattern

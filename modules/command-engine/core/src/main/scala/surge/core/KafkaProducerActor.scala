@@ -2,26 +2,26 @@
 
 package surge.core
 
-import akka.actor.{ActorSystem, NoSerializationVerificationNeeded, PoisonPill, Props}
+import akka.actor.{ ActorSystem, NoSerializationVerificationNeeded, PoisonPill, Props }
 import akka.pattern._
 import akka.util.Timeout
 import com.typesafe.config.Config
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.header.Headers
 import org.slf4j.LoggerFactory
-import surge.health.{HealthSignalBusAware, HealthSignalBusTrait}
+import surge.health.{ HealthSignalBusAware, HealthSignalBusTrait }
 import surge.internal.SurgeModel
-import surge.internal.akka.actor.{ActorLifecycleManagerActor, ManagedActorRef}
+import surge.internal.akka.actor.{ ActorLifecycleManagerActor, ManagedActorRef }
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.config.TimeoutConfig
 import surge.internal.kafka.KafkaProducerActorImpl.ShutdownProducer
-import surge.internal.kafka.{KTableLagCheckerImpl, KafkaProducerActorImpl}
-import surge.kafka.{KafkaAdminClient, KafkaProducerTrait}
+import surge.internal.kafka.{ KTableLagCheckerImpl, KafkaProducerActorImpl }
+import surge.kafka.{ KafkaAdminClient, KafkaProducerTrait }
 import surge.kafka.streams._
-import surge.metrics.{MetricInfo, Metrics, Timer}
+import surge.metrics.{ MetricInfo, Metrics, Timer }
 
-import scala.concurrent.{ExecutionContext, Future}
-import scala.util.{Failure, Success, Try}
+import scala.concurrent.{ ExecutionContext, Future }
+import scala.util.{ Failure, Success, Try }
 
 object KafkaProducerActor {
   private val dispatcherName: String = "kafka-publisher-actor-dispatcher"
