@@ -10,16 +10,15 @@ import surge.scaladsl.common.Context
 import scala.concurrent.Future
 
 trait AggregateEventModel[Agg, Evt] extends AggregateEventModelCoreTrait[Agg, Evt] {
-  def handleEvent(ctx: Context, state: Option[Agg], event: Evt): Option[Agg]
+  def handleEvents(ctx: Context, state: Option[Agg], events: Seq[Evt]): Option[Agg]
 
-  override def toCore: EventHandler[Agg, Evt] = (ctx: persistence.Context, state: Option[Agg], event: Evt) => handleEvent(Context(ctx), state, event)
+  override def toCore: EventHandler[Agg, Evt] =
+    (ctx: persistence.Context, state: Option[Agg], events: Seq[Evt]) => AggregateEventModel.this.handleEvents(Context(ctx), state, events)
 }
 
 trait AsyncAggregateEventModel[Agg, Evt] extends AggregateEventModelCoreTrait[Agg, Evt] {
-  def handleEvent(ctx: Context, state: Option[Agg], event: Evt): Future[Option[Agg]]
+  def handleEvents(ctx: Context, state: Option[Agg], events: Seq[Evt]): Future[Option[Agg]]
 
-  override final def toCore: EventHandler[Agg, Evt] = new AsyncEventHandler[Agg, Evt] {
-    override def handleEventAsync(ctx: persistence.Context, state: Option[Agg], event: Evt): Future[Option[Agg]] =
-      AsyncAggregateEventModel.this.handleEvent(Context(ctx), state, event)
-  }
+  override final def toCore: AsyncEventHandler[Agg, Evt] =
+    (ctx: persistence.Context, state: Option[Agg], events: Seq[Evt]) => AsyncAggregateEventModel.this.handleEvents(Context(ctx), state, events)
 }

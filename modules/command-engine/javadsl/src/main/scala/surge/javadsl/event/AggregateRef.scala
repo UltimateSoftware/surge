@@ -11,7 +11,8 @@ import java.util.concurrent.CompletionStage
 
 trait AggregateRef[Agg, Event] {
   def getState: CompletionStage[Optional[Agg]]
-  def applyEvent(event: Event): CompletionStage[ApplyEventResult[Agg]]
+  final def applyEvent(event: Event): CompletionStage[ApplyEventResult[Agg]] = applyEvents(List(event))
+  def applyEvents(event: Seq[Event]): CompletionStage[ApplyEventResult[Agg]]
 }
 
 class AggregateRefImpl[AggId, Agg, Event](val aggregateId: AggId, protected val region: ActorRef, protected val tracer: Tracer)

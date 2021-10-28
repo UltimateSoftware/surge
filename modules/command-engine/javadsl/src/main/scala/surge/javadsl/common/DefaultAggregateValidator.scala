@@ -3,7 +3,6 @@
 package surge.javadsl.common
 
 import java.util.Optional
-import scala.compat.java8.OptionConverters._
 
 trait DefaultAggregateValidator {
   @deprecated("Aggregate validation in the KTable is no longer supported", "0.5.12")

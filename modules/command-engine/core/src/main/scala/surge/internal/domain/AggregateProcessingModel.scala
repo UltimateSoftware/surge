@@ -40,50 +40,48 @@ trait AggregateProcessingModel[S, M, +R, E] {
    *   the current state of the aggregate
    * @param msg
    *   the message
-   * @param ec
-   *   an execution context for generating futures
    * @return
    *   the future result of processing the message
    */
-  def handle(ctx: Context, state: Option[S], msg: M)(implicit ec: ExecutionContext): Future[Either[R, HandledMessageResult[S, E]]]
+  def handle(ctx: Context, state: Option[S], msg: M): Future[Either[R, HandledMessageResult[S, E]]]
 
-  def applyAsync(ctx: Context, state: Option[S], event: E): Future[Option[S]]
+  def applyAsync(ctx: Context, state: Option[S], events: Seq[E]): Future[Option[S]]
 }
 
-trait CommandHandler[S, M, R, E] extends AggregateProcessingModel[S, M, R, E] {
+trait SynchronousEventHandler[S, E] {
+  this: AggregateProcessingModel[S, _, _, E] =>
+  def apply(ctx: Context, state: Option[S], event: E): Option[S]
+
+  override def applyAsync(ctx: Context, state: Option[S], events: Seq[E]): Future[Option[S]] =
+    events.foldLeft(Future.successful(state))((s: Future[Option[S]], e: E) => s.flatMap(prev => Future.fromTry(Try(apply(ctx, prev, e))))(ctx.executionContext))
+}
+
+trait CommandHandler[S, M, R, E] extends AggregateProcessingModel[S, M, R, E] with SynchronousEventHandler[S, E] {
   type CommandResult = Either[R, Seq[E]]
 
   def processCommand(ctx: Context, state: Option[S], cmd: M): Future[CommandResult]
 
-  def apply(ctx: Context, state: Option[S], event: E): Option[S]
-  // FIXME this is a bit awkward. We should have a pure synchronous model, pure async model, and maybe something else for the gRPC pieces.
-  //       Perhaps it could implement AggregateProcessingModel directly
-  def applyAsync(ctx: Context, state: Option[S], event: E): Future[Option[S]] = Future.fromTry(Try(apply(ctx, state, event)))
-
-  override def handle(ctx: Context, state: Option[S], cmd: M)(implicit ec: ExecutionContext): Future[Either[R, HandledMessageResult[S, E]]] =
+  override def handle(ctx: Context, state: Option[S], cmd: M): Future[Either[R, HandledMessageResult[S, E]]] = {
+    implicit val ec: ExecutionContext = ctx.executionContext
     processCommand(ctx, state, cmd).flatMap {
       case Left(rejected) => Future.successful(Left(rejected))
       case Right(events) =>
-        events.foldLeft(Future.successful(state))((s: Future[Option[S]], e: E) => s.flatMap(prev => applyAsync(ctx, prev, e))).map { resultingState =>
+        applyAsync(ctx, state, events).map { resultingState =>
           Right(HandledMessageResult(resultingState = resultingState, eventsToLog = events))
         }
     }
+  }
 }
 
 trait AsyncCommandHandler[S, M, R, E] extends CommandHandler[S, M, R, E] {
 
-  def processCommand(ctx: Context, state: Option[S], cmd: M): Future[CommandResult]
-
-  override def apply(ctx: Context, state: Option[S], event: E): Option[S] =
+  override final def apply(ctx: Context, state: Option[S], event: E): Option[S] =
     throw new Exception("Synchronous event handler called when using AsyncCommandHandler. This should never happen")
 
-  // equivalent to a fold left but executed remotely
   def applyAsync(ctx: Context, initialState: Option[S], events: Seq[E]): Future[Option[S]]
 
-  override def applyAsync(ctx: Context, state: Option[S], event: E): Future[Option[S]] =
-    applyAsync(ctx, state, Seq(event))
-
-  override final def handle(ctx: Context, state: Option[S], cmd: M)(implicit ec: ExecutionContext): Future[Either[R, HandledMessageResult[S, E]]] =
+  override final def handle(ctx: Context, state: Option[S], cmd: M): Future[Either[R, HandledMessageResult[S, E]]] = {
+    implicit val ec: ExecutionContext = ctx.executionContext
     processCommand(ctx, state, cmd).flatMap {
       case Left(rejected) => Future.successful(Left(rejected))
       case Right(events) =>
@@ -91,23 +89,30 @@ trait AsyncCommandHandler[S, M, R, E] extends CommandHandler[S, M, R, E] {
           Right(HandledMessageResult(maybeS, events))
         }
     }
+  }
 }
 
-trait EventHandler[S, E] extends AggregateProcessingModel[S, Nothing, Nothing, E] {
-  def handleEvent(ctx: Context, state: Option[S], event: E): Option[S]
+trait EventHandler[S, E] extends AggregateProcessingModel[S, Nothing, Nothing, E] with SynchronousEventHandler[S, E] {
+  def handleEvents(ctx: Context, state: Option[S], event: Seq[E]): Option[S]
 
-  override final def handle(ctx: Context, state: Option[S], msg: Nothing)(
-      implicit ec: ExecutionContext): Future[Either[Nothing, HandledMessageResult[S, Nothing]]] =
+  override def apply(ctx: Context, state: Option[S], event: E): Option[S] = handleEvents(ctx, state, List(event))
+
+  override final def handle(ctx: Context, state: Option[S], msg: Nothing): Future[Either[Nothing, HandledMessageResult[S, Nothing]]] =
     throw new RuntimeException("Impossible")
 
-  override def applyAsync(ctx: Context, state: Option[S], event: E): Future[Option[S]] = Future.fromTry(Try(handleEvent(ctx, state, event)))
+  override def applyAsync(ctx: Context, state: Option[S], events: Seq[E]): Future[Option[S]] =
+    Future.fromTry(Try(handleEvents(ctx, state, events)))
 }
 
 trait AsyncEventHandler[S, E] extends EventHandler[S, E] {
-  def handleEventAsync(ctx: Context, state: Option[S], event: E): Future[Option[S]]
+  def handleEventsAsync(ctx: Context, state: Option[S], events: Seq[E]): Future[Option[S]]
 
-  override final def handleEvent(ctx: Context, state: Option[S], event: E): Option[S] =
+  override final def handleEvents(ctx: Context, state: Option[S], events: Seq[E]): Option[S] =
     throw new Exception("Synchronous event handler called when using AsyncEventHandler. This should never happen")
 
-  override final def applyAsync(ctx: Context, state: Option[S], event: E): Future[Option[S]] = handleEventAsync(ctx, state, event)
+  override def apply(ctx: Context, state: Option[S], event: E): Option[S] =
+    throw new Exception("Synchronous event application called when using AsyncEventHandler. This should never happen")
+
+  override final def applyAsync(ctx: Context, state: Option[S], events: Seq[E]): Future[Option[S]] =
+    handleEventsAsync(ctx, state, events)
 }

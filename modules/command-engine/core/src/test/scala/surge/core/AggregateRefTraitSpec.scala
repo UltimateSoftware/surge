@@ -39,8 +39,8 @@ class AggregateRefTraitSpec
       sendCommand(envelope)
     }
 
-    def applyEvent(event: String, retries: Int = 0): Future[Option[Person]] = {
-      val envelope = PersistentActor.ApplyEvent(aggregateId, event)
+    def applyEvents(events: List[String], retries: Int = 0): Future[Option[Person]] = {
+      val envelope = PersistentActor.ApplyEvents(aggregateId, events)
       applyEvents(envelope)
     }
 
@@ -115,25 +115,25 @@ class AggregateRefTraitSpec
     "Handle applying events to the underlying aggregate" in {
       val testProbe1 = TestProbe()
       val aggregateRef1 = TestAggregateRef(testPerson1.name, testProbe1)
-      val testPerson1StateFut = aggregateRef1.applyEvent("Event1")
-      testProbe1.expectMsg(PersistentActor.ApplyEvent(testPerson1.name, "Event1"))
+      val testPerson1StateFut = aggregateRef1.applyEvents(List("Event1"))
+      testProbe1.expectMsg(PersistentActor.ApplyEvents(testPerson1.name, List("Event1")))
       testProbe1.reply(PersistentActor.ACKSuccess(Some(testPerson1)))
 
       val testProbe2 = TestProbe()
       val aggregateRef2 = TestAggregateRef(testPerson2.name, testProbe2)
-      val testPerson2StateFut = aggregateRef2.applyEvent("Event2")
-      testProbe2.expectMsg(PersistentActor.ApplyEvent(testPerson2.name, "Event2"))
+      val testPerson2StateFut = aggregateRef2.applyEvents(List("Event2"))
+      testProbe2.expectMsg(PersistentActor.ApplyEvents(testPerson2.name, List("Event2")))
       testProbe2.reply(PersistentActor.ACKSuccess(None))
 
       val errorProbe = TestProbe()
       val expectedException = new RuntimeException("This is expected")
-      val testErrorResponseFut = TestAggregateRef("error", errorProbe).applyEvent("Event3")
-      errorProbe.expectMsg(PersistentActor.ApplyEvent("error", "Event3"))
+      val testErrorResponseFut = TestAggregateRef("error", errorProbe).applyEvents(List("Event3"))
+      errorProbe.expectMsg(PersistentActor.ApplyEvents("error", List("Event3")))
       errorProbe.reply(PersistentActor.ACKError(expectedException))
 
       val garbageProbe = TestProbe()
-      val testGarbageResponseFut = TestAggregateRef("foo", garbageProbe).applyEvent("Event4")
-      garbageProbe.expectMsg(PersistentActor.ApplyEvent("foo", "Event4"))
+      val testGarbageResponseFut = TestAggregateRef("foo", garbageProbe).applyEvents(List("Event4"))
+      garbageProbe.expectMsg(PersistentActor.ApplyEvents("foo", List("Event4")))
       garbageProbe.reply("Not a person object")
 
       for {

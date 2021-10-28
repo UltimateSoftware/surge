@@ -10,7 +10,8 @@ import scala.concurrent.Future
 
 trait AggregateRef[Agg, Event] {
   def getState: Future[Option[Agg]]
-  def applyEvent(event: Event): Future[ApplyEventResult[Agg]]
+  final def applyEvent(event: Event): Future[ApplyEventResult[Agg]] = applyEvents(List(event))
+  def applyEvents(event: Seq[Event]): Future[ApplyEventResult[Agg]]
 }
 
 class AggregateRefImpl[AggId, Agg, Event](val aggregateId: AggId, protected val region: ActorRef, protected val tracer: Tracer)
