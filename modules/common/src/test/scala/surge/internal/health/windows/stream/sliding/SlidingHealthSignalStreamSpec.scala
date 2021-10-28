@@ -131,34 +131,6 @@ class SlidingHealthSignalStreamSpec
         sourceAndEvents._2.exists(e => e.isInstanceOf[AddedToWindow])
       }
     }
-
-    "detect 5 messages in a 10 second window" in {
-      bus.signalWithTrace(name = "test.trace", Trace("test.trace")).emit().emit().emit().emit().emit()
-
-      eventually {
-        val received = probe.fishForMessage(max = 2.seconds) { case msg =>
-          msg.isInstanceOf[HealthSignalReceived]
-        }
-
-        received shouldBe a[HealthSignalReceived]
-        received.asInstanceOf[HealthSignalReceived].signal.name == "5 in a row" shouldEqual true
-      }
-    }
-  }
-
-  private def trackHealthSignals(): (Source[HealthSignal, NotUsed], ArrayBuffer[HealthSignal]) = {
-    val signalStream: Option[HealthSignalStream] = bus.backingSignalStream()
-    signalStream.isDefined shouldEqual true
-    signalStream.get shouldBe a[WindowingHealthSignalStream]
-
-    val signalSource = signalStream.get.signalSource(10, ThrottleConfig(20, 10.seconds))
-
-    val receivedSignals: ArrayBuffer[HealthSignal] = ArrayBuffer()
-    signalSource.source.runWith(Sink.foreach(signal => {
-      receivedSignals.addOne(signal)
-    }))
-
-    (signalSource.source, receivedSignals)
   }
 
   private def trackWindowEvents(): (Source[WindowEvent, NotUsed], ArrayBuffer[WindowEvent]) = {
