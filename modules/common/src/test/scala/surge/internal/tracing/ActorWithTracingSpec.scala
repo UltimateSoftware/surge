@@ -18,6 +18,7 @@ import org.scalatest.concurrent.{ Eventually, IntegrationPatience }
 import org.scalatest.concurrent.Eventually.eventually
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
+import org.slf4j.MDC
 import surge.internal.akka.ActorWithTracing
 import surge.internal.tracing.ProbeWithTraceSupport.{ GetMostRecentSpan, MostRecentSpan, TestMessage }
 import surge.internal.tracing.TracingHelper.{ SpanBuilderExt, SpanExt, TracerExt }
@@ -25,6 +26,7 @@ import surge.internal.tracing.TracingHelper.{ SpanBuilderExt, SpanExt, TracerExt
 object ProbeWithTraceSupport {
   case object TestMessage
   case object GetMostRecentSpan extends NoSerializationVerificationNeeded
+  case object GetMDC extends NoSerializationVerificationNeeded
   case class MostRecentSpan(spanOpt: Option[Span]) extends NoSerializationVerificationNeeded
 }
 
@@ -38,6 +40,7 @@ class ProbeWithTraceSupport(probe: TestProbe, val tracer: Tracer) extends ActorW
   override def receive: Receive = {
     case ProbeWithTraceSupport.GetMostRecentSpan =>
       sender() ! ProbeWithTraceSupport.MostRecentSpan(mostRecentSpan)
+    case ProbeWithTraceSupport.GetMDC => sender() ! Option(MDC.getCopyOfContextMap)
     case msg =>
       mostRecentSpan = Some(activeSpan)
       probe.ref.forward(msg)
@@ -55,9 +58,9 @@ class ActorWithTracingSpec
     with Eventually
     with IntegrationPatience {
 
-  val exporter = create() // in memory exporter for OpenTelemetry
+  private val exporter = create() // in memory exporter for OpenTelemetry
 
-  val tracer = {
+  private val tracer = {
 
     val sdkTracerProvider = SdkTracerProvider
       .builder()
@@ -72,7 +75,6 @@ class ActorWithTracingSpec
       .buildAndRegisterGlobal()
 
     openTelemetry.getTracer(OpenTelemetryInstrumentation.Name, OpenTelemetryInstrumentation.Version)
-
   }
 
   override def afterAll(): Unit = {
@@ -95,7 +97,6 @@ class ActorWithTracingSpec
         exporter.getFinishedSpanItems.get(0).getName shouldBe "ProbeWithTraceSupport:TestMessage"
         exporter.getFinishedSpanItems.get(1).getName shouldBe "ProbeWithTraceSupport:GetMostRecentSpan$"
       }
-
     }
 
     "Unwrap and forward a TracedMessage (and create a span that has a proper parent)" in {
@@ -120,7 +121,22 @@ class ActorWithTracingSpec
         maybeItem.isDefined shouldBe true
         maybeItem.get.getParentSpanId shouldBe parentSpan.getSpanContext.getSpanId
       }
+    }
 
+    "Unwrap and set the MDC for wrapped messages with an MDC set" in {
+      MDC.put("test", "test")
+      MDC.put("second key", "other value")
+      val expectedMDC = MDC.getCopyOfContextMap
+
+      val probe = TestProbe()
+      val actor = system.actorOf(Props(new ProbeWithTraceSupport(probe, tracer)))
+
+      probe.send(actor, TracedMessage(ProbeWithTraceSupport.GetMDC, Map.empty[String, String]))
+      probe.expectMsg(Some(expectedMDC))
+
+      MDC.clear()
+      probe.send(actor, TracedMessage(ProbeWithTraceSupport.GetMDC, Map.empty[String, String], Option(expectedMDC)))
+      probe.expectMsg(Some(expectedMDC))
     }
   }
 }

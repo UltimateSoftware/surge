@@ -2,8 +2,10 @@
 
 package surge.internal.health.windows.actor
 
-import akka.actor.{ Actor, ActorRef, ActorSystem, Cancellable, PoisonPill, Props, Stash }
-import akka.pattern.{ ask, BackoffOpts, BackoffSupervisor }
+import java.time.Instant
+import akka.pattern._
+import akka.actor.{ Actor, ActorRef, ActorSystem, Cancellable, NoSerializationVerificationNeeded, PoisonPill, Props, Stash }
+import akka.pattern.{ BackoffOpts, BackoffSupervisor }
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.health.HealthSignalBusTrait
 import surge.health.domain.{ HealthSignal, HealthSignalSource }
@@ -12,7 +14,6 @@ import surge.health.windows._
 import surge.internal.config.{ BackoffConfig, TimeoutConfig }
 import surge.internal.health.windows._
 
-import java.time.Instant
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.languageFeature.postfixOps
@@ -22,7 +23,7 @@ case class WindowState(window: Option[Window] = None, replyTo: Option[ActorRef] 
 object HealthSignalWindowActor {
   val log: Logger = LoggerFactory.getLogger(getClass)
 
-  trait Control {}
+  trait Control extends NoSerializationVerificationNeeded {}
   case class Start(window: Window, replyTo: ActorRef) extends Control
   case class Tick() extends Control
   case class Stop() extends Control

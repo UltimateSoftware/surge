@@ -169,7 +169,7 @@ private[surge] class HealthSignalBusImpl(
   private lazy val stream: HealthSignalStream = if (config.streamingEnabled) {
     signalStreamSupplier.provide(bus = this).subscribe()
   } else {
-    new DisabledHealthSignalStreamProvider(config, bus = this, actorSystem).provide(bus = this).subscribe()
+    new DisabledHealthSignalStreamProvider(bus = this, actorSystem).provide(bus = this).subscribe()
   }
 
   private val buffer: CircularBuffer[Event] = new CircularBuffer[Event](25)

@@ -2,9 +2,10 @@
 
 package surge.health.windows
 
+import akka.actor.NoSerializationVerificationNeeded
 import surge.health.domain.HealthSignal
 
-sealed trait StreamProcessingEvent
+sealed trait StreamProcessingEvent extends NoSerializationVerificationNeeded
 trait WindowEvent extends StreamProcessingEvent {
   def window(): Option[Window]
 }

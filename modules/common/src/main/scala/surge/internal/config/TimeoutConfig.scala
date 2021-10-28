@@ -11,10 +11,6 @@ import scala.concurrent.duration._
 object TimeoutConfig {
   private val config = ConfigFactory.load()
 
-  object ReplayCoordinatorActor {
-    val actorAskTimeout: FiniteDuration = 30.seconds
-  }
-
   object StateStoreKafkaStreamActor {
     val askTimeout: FiniteDuration =
       config.getDuration("surge.state-store-actor.ask-timeout", TimeUnit.MILLISECONDS).milliseconds

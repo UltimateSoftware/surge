@@ -24,6 +24,7 @@ import surge.exceptions.{ AggregateInitializationException, KafkaPublishTimeoutE
 import surge.health.HealthSignalBusTrait
 import surge.internal.kafka.HeadersHelper
 import surge.internal.persistence.PersistentActor.{ ACKError, ApplyEvent, Stop }
+import surge.internal.tracing.TracedMessage
 import surge.kafka.streams.AggregateStateStoreKafkaStreams
 import surge.metrics.Metrics
 
@@ -557,11 +558,17 @@ class PersistentActorSpec
       val getState1 = PersistentActor.GetState(aggregateId = "foobarbaz")
       val getState2 = PersistentActor.GetState(aggregateId = randomUUID)
 
+      val command3 = PersistentActor.ApplyEvent(aggregateId = "testAggregateId", event = "unused")
+      val command4 = PersistentActor.ApplyEvent(aggregateId = randomUUID, event = "unused")
+
       RoutableMessage.extractEntityId(command1) shouldEqual command1.aggregateId
       RoutableMessage.extractEntityId(command2) shouldEqual command2.aggregateId
 
       RoutableMessage.extractEntityId(getState1) shouldEqual getState1.aggregateId
       RoutableMessage.extractEntityId(getState2) shouldEqual getState2.aggregateId
+
+      RoutableMessage.extractEntityId(command3) shouldEqual command3.aggregateId
+      RoutableMessage.extractEntityId(command4) shouldEqual command4.aggregateId
     }
 
     "Passivate after the actor idle timeout threshold is exceeded" in {

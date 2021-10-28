@@ -16,7 +16,9 @@ private[surge] trait SpanSupport {
    *   A new span with no configured parents
    */
   def newSpan(operationName: String): Span = {
-    tracer.spanBuilder(operationName).setNoParent().startSpan()
+    val span = tracer.spanBuilder(operationName).setNoParent().startSpan()
+    span.makeCurrent()
+    span
   }
 
   /**
@@ -42,7 +44,9 @@ private[surge] trait SpanSupport {
    *   A new span with the explicitly provided parent
    */
   def childSpan(operationName: String, parentSpan: Span): Span = {
-    tracer.spanBuilder(operationName).setParent(io.opentelemetry.context.Context.root().`with`(parentSpan)).startSpan()
+    val span = tracer.spanBuilder(operationName).setParent(io.opentelemetry.context.Context.root().`with`(parentSpan)).startSpan()
+    span.makeCurrent()
+    span
   }
 }
 
@@ -55,7 +59,11 @@ trait TracingHelper {
 
   // alias for easy migration from OpenTracing
   implicit class SpanBuilderExt(spanBuilder: SpanBuilder) {
-    def start(): Span = spanBuilder.startSpan()
+    def start(): Span = {
+      val span = spanBuilder.startSpan()
+      span.makeCurrent()
+      span
+    }
   }
 
   implicit class SpanExt(span: Span) {

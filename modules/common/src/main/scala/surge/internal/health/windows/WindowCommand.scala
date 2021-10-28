@@ -2,10 +2,11 @@
 
 package surge.internal.health.windows
 
+import akka.actor.NoSerializationVerificationNeeded
 import surge.health.domain.HealthSignal
 import surge.health.windows.Window
 
-sealed trait WindowCommand {
+sealed trait WindowCommand extends NoSerializationVerificationNeeded {
   def w: Window
 }
 
@@ -14,5 +15,5 @@ case class CloseWindow(w: Window, advance: Boolean = false) extends WindowComman
 case class AddToWindow(sig: HealthSignal, w: Window) extends WindowCommand
 case class AdvanceWindow(w: Window, to: Window) extends WindowCommand
 
-case class CloseCurrentWindow()
-case class GetWindowSnapShot()
+case class CloseCurrentWindow() extends NoSerializationVerificationNeeded
+case class GetWindowSnapShot() extends NoSerializationVerificationNeeded

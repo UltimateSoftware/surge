@@ -1,7 +1,7 @@
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 syntax = "proto3";
 
-option java_multiple_files = true;
-option java_package = "com.ukg.surge.multilanguage.protobuf";
+option csharp_namespace = "surge.multilanguage.protobuf";
 
 message State {
   string aggregateId = 1;
@@ -65,12 +65,27 @@ message GetStateReply {
   State state = 2;
 }
 
+message HealthCheckRequest {
+
+}
+
+message HealthCheckReply {
+  enum Status {
+    UP = 0;
+    DOWN = 1;
+  }
+  string serviceName = 1;
+  Status status = 2;
+}
+
 service MultilanguageGatewayService {
+  rpc HealthCheck (HealthCheckRequest) returns (HealthCheckReply) {}
   rpc ForwardCommand (ForwardCommandRequest) returns (ForwardCommandReply) {}
   rpc GetState (GetStateRequest) returns (GetStateReply) {}
 }
 
 service BusinessLogicService {
+  rpc HealthCheck (HealthCheckRequest) returns (HealthCheckReply) {}
   rpc ProcessCommand (ProcessCommandRequest) returns (ProcessCommandReply) {}
   rpc HandleEvents (HandleEventsRequest) returns (HandleEventsResponse) {}
 }

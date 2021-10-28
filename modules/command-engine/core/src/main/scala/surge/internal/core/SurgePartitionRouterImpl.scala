@@ -10,7 +10,6 @@ import org.slf4j.LoggerFactory
 import surge.core.{ Ack, Controllable, SurgePartitionRouter }
 import surge.health.HealthSignalBusTrait
 import surge.internal.SurgeModel
-import surge.internal.akka.actor.{ ActorLifecycleManagerActor, ManagedActorRef }
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.config.TimeoutConfig
 import surge.internal.persistence.RoutableMessage
@@ -43,21 +42,22 @@ private[surge] final class SurgePartitionRouterImpl(
     RoutableMessage.extractEntityId)(businessLogic.tracer)
 
   private val routerActorName = s"${businessLogic.aggregateName}RouterActor"
-  private val actorRegionManager: ManagedActorRef = ActorLifecycleManagerActor.manage(
-    system,
-    shardRouterProps,
-    componentName = routerActorName,
-    managedActorName = Some(routerActorName),
-    stopMessageAdapter = Some(() => KafkaPartitionShardRouterActor.Shutdown))
 
-  override val actorRegion: ActorRef = actorRegionManager.ref
+  private val shardRouter = system.actorOf(shardRouterProps, name = routerActorName)
+  override val actorRegion: ActorRef = shardRouter
 
   override def start(): Future[Ack] = {
-    actorRegionManager.start().andThen(registrationCallback())
+    // TODO explicit start/stop for router actor
+    //implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PartitionRouter.askTimeout)
+    //actorRegion.ask(ActorLifecycleManagerActor.Start).mapTo[Ack].andThen(registrationCallback())
+    Future.successful(Ack())
   }
 
   override def stop(): Future[Ack] = {
-    actorRegionManager.stop()
+    // TODO explicit start/stop for router actor
+    //implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PartitionRouter.askTimeout)
+    //actorRegion.ask(ActorLifecycleManagerActor.Stop).mapTo[Ack]
+    Future.successful(Ack())
   }
 
   override def shutdown(): Future[Ack] = stop()

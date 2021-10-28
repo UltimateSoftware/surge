@@ -17,6 +17,7 @@ import surge.internal.tracing.TracedMessage
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
+import scala.util.{ Failure, Success }
 
 /**
  * A shard is a building block for scaling that is responsible for tracking & managing many child actors underneath. The child actors are what would actually
@@ -56,6 +57,18 @@ class Shard[IdType](shardId: String, regionLogicProvider: PerShardLogicProvider[
 
   private val actorProvider = regionLogicProvider.actorProvider(context)
 
+  override def aroundPostStop(): Unit = {
+    regionLogicProvider.stop().andThen {
+      case Failure(exception) =>
+        log.error("Failed to stop PersistentRegionLogicProvider", exception)
+        super.aroundPostStop()
+      case Success(_) =>
+        log.debug("Successfully stopped PersistentRegionLogicProvider")
+        super.aroundPostStop()
+    }
+    super.aroundPostStop()
+  }
+
   override def receive: Receive = {
     case msg: Terminated => receiveTerminated(msg)
     case msg: Passivate  => receivePassivate(msg)
@@ -67,7 +80,7 @@ class Shard[IdType](shardId: String, regionLogicProvider: PerShardLogicProvider[
   private def deliverMessage(msg: Any, send: ActorRef): Unit = {
     val id: IdType = extractEntityId(msg)
     activeSpan.log("extractEntityId", Map("entityId" -> id.toString))
-    if (id == null || id == "") {
+    if (id == null || id.toString == "") {
       log.warn("Unsure of how to route message with class [{}], dropping it.", msg.getClass.getName)
       context.system.deadLetters ! msg
     } else {

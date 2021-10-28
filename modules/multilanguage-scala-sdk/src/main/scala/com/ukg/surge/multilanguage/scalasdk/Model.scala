@@ -1,3 +1,5 @@
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
+
 package com.ukg.surge.multilanguage.scalasdk
 
 import com.google.protobuf.ByteString
@@ -20,7 +22,8 @@ final case class SerDeser[S, E, C](
     deserializeEvent: Array[Byte] => Try[E],
     deserializeCommand: Array[Byte] => Try[C],
     serializeState: S => Try[Array[Byte]],
-    serializeEvent: E => Try[Array[Byte]]) {
+    serializeEvent: E => Try[Array[Byte]],
+    serializeCommand: C => Try[Array[Byte]]) {
 
   def deserializeState(byteString: ByteString): Try[S] = {
     deserializeState(byteString.toByteArray)

@@ -2,8 +2,9 @@
 
 package surge.kafka.streams
 
-import java.util.regex.Pattern
+import akka.actor.NoSerializationVerificationNeeded
 
+import java.util.regex.Pattern
 import org.slf4j.LoggerFactory
 import play.api.libs.json.{ Format, Json }
 import surge.core.Controllable
@@ -77,7 +78,8 @@ case class HealthCheck(
     status: String,
     isHealthy: Option[Boolean] = None,
     components: Option[Seq[HealthCheck]] = None,
-    details: Option[Map[String, String]] = None) {
+    details: Option[Map[String, String]] = None)
+    extends NoSerializationVerificationNeeded {
   require(HealthCheckStatus.validStatuses.contains(status))
 }
 
@@ -93,5 +95,5 @@ object HealthCheckStatus {
 }
 
 object HealthyActor {
-  case object GetHealth
+  case object GetHealth extends NoSerializationVerificationNeeded
 }

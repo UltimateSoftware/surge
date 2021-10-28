@@ -2,7 +2,7 @@
 
 package surge.internal.akka.actor
 
-import akka.actor.{ Actor, ActorPath, ActorRef, ActorSystem, Props, Terminated }
+import akka.actor.{Actor, ActorPath, ActorRef, ActorSystem, NoSerializationVerificationNeeded, Props, Terminated}
 import akka.pattern._
 import akka.util.Timeout
 import org.slf4j.LoggerFactory
@@ -11,9 +11,8 @@ import surge.internal.akka.ActorOps
 import surge.internal.akka.actor.ActorLifecycleManagerActor.GetManagedActorPath
 import surge.internal.config.TimeoutConfig
 
-import scala.concurrent.{ Await, Future }
+import scala.concurrent.Future
 import scala.concurrent.duration._
-import scala.util.{ Failure, Success }
 
 case class ManagedActorRef(ref: ActorRef) {
   implicit val timeout: Timeout = TimeoutConfig.LifecycleManagerActor.askTimeout
@@ -31,9 +30,6 @@ case class ManagedActorRef(ref: ActorRef) {
 }
 
 object ActorLifecycleManagerActor {
-  case object Start
-  case object Stop
-  case object GetManagedActorPath
   val defaultStopTimeout: FiniteDuration = 30.seconds
 
   def manage(
@@ -46,6 +42,10 @@ object ActorLifecycleManagerActor {
     ManagedActorRef(
       actorSystem.actorOf(Props(new ActorLifecycleManagerActor(managedActorProps, componentName, managedActorName, startMessageAdapter, stopMessageAdapter))))
   }
+
+  case object Start extends NoSerializationVerificationNeeded
+  case object Stop extends NoSerializationVerificationNeeded
+  case object GetManagedActorPath extends NoSerializationVerificationNeeded
 }
 
 class ActorLifecycleManagerActor(

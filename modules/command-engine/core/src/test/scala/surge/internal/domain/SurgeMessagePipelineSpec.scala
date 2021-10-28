@@ -29,6 +29,7 @@ import surge.metrics.Metrics
 import java.util.regex.Pattern
 import scala.concurrent.duration._
 
+// FIXME need to be able to stop the router actor for this to work
 @Ignore
 class SurgeMessagePipelineSpec
     extends TestKit(ActorSystem("SurgeMessagePipelineSpec", ConfigFactory.load("artery-test-config")))
@@ -43,7 +44,7 @@ class SurgeMessagePipelineSpec
   import TestBoundedContext._
 
   implicit override val patienceConfig: PatienceConfig =
-    PatienceConfig(timeout = scaled(Span(30, Seconds)), interval = scaled(Span(10, Milliseconds)))
+    PatienceConfig(timeout = scaled(Span(1, Seconds)), interval = scaled(Span(10, Milliseconds)))
 
   private val config: EmbeddedKafkaConfig = EmbeddedKafkaConfig(kafkaPort = 6001)
   private val defaultConfig = ConfigFactory.load()

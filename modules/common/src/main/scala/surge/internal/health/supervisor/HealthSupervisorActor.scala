@@ -3,28 +3,28 @@
 package surge.internal.health.supervisor
 
 import akka.Done
-import akka.actor.{ Actor, ActorContext, ActorRef, ActorSystem, PoisonPill, Props, Terminated }
-import akka.pattern.{ ask, BackoffOpts, BackoffSupervisor }
+import akka.actor.{Actor, ActorContext, ActorRef, ActorSystem, PoisonPill, Props, Terminated}
+import akka.pattern.{BackoffOpts, BackoffSupervisor, ask}
 import akka.util.Timeout
-import org.slf4j.{ Logger, LoggerFactory }
-import surge.core.{ Ack, Controllable, ControllableLookup, ControllableRemover }
+import org.slf4j.{Logger, LoggerFactory}
+import surge.core.{Ack, Controllable, ControllableLookup, ControllableRemover}
 import surge.health._
 import surge.health.config.HealthSupervisorConfig
 import surge.health.domain.HealthSignal
-import surge.health.jmx.Api.{ AddComponent, RemoveComponent, StartManagement, StopManagement }
+import surge.health.jmx.Api.{AddComponent, RemoveComponent, StartManagement, StopManagement}
 import surge.health.jmx.Domain.HealthRegistrationDetail
-import surge.health.jmx.{ HealthJmxTrait, SurgeHealthActor }
+import surge.health.jmx.{HealthJmxTrait, SurgeHealthActor}
 import surge.health.supervisor.Api._
 import surge.health.supervisor.Domain.SupervisedComponentRegistration
-import surge.internal.config.{ BackoffConfig, TimeoutConfig }
+import surge.internal.config.{BackoffConfig, TimeoutConfig}
 import surge.internal.health._
 import surge.jmx.ActorJMXSupervisor
 
 import scala.collection.mutable
 import scala.concurrent.duration._
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.{ExecutionContext, Future}
 import scala.languageFeature.postfixOps
-import scala.util.{ Failure, Success, Try }
+import scala.util.{Failure, Success, Try}
 
 trait RegistrationSupport {
   def registrar(): ActorRef
@@ -187,6 +187,7 @@ class HealthSupervisorActorRef(val actor: ActorRef, askTimeout: FiniteDuration, 
     result.mapTo[Ack]
   }
 }
+
 
 // State
 case class HealthState(registered: Map[String, SupervisedComponentRegistration] = Map.empty, replyTo: Option[ActorRef] = None)

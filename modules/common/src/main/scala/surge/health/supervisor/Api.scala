@@ -2,22 +2,22 @@
 
 package surge.health.supervisor
 
-import akka.actor.ActorRef
+import akka.actor.{ActorRef, NoSerializationVerificationNeeded}
 import surge.health.supervisor.Domain.SupervisedComponentRegistration
 
 import java.util.regex.Pattern
 
 object Api {
   // Lifecycle Control
-  case class Start(replyTo: Option[ActorRef] = None)
-  case class Stop()
+  case class Start(replyTo: Option[ActorRef] = None) extends NoSerializationVerificationNeeded
+  case class Stop() extends NoSerializationVerificationNeeded
 
-  case class StartComponent(name: String, replyTo: ActorRef)
-  case class RestartComponent(name: String, replyTo: ActorRef)
-  case class QueryComponentExists(name: String)
-  case class ShutdownComponent(name: String, replyTo: ActorRef)
+  case class StartComponent(name: String, replyTo: ActorRef) extends NoSerializationVerificationNeeded
+  case class RestartComponent(name: String, replyTo: ActorRef) extends NoSerializationVerificationNeeded
+  case class QueryComponentExists(name: String) extends NoSerializationVerificationNeeded
+  case class ShutdownComponent(name: String, replyTo: ActorRef) extends NoSerializationVerificationNeeded
 
-  case class UnregisterSupervisedComponentRequest(componentName: String)
+  case class UnregisterSupervisedComponentRequest(componentName: String) extends NoSerializationVerificationNeeded
   case class RegisterSupervisedComponentRequest(
       componentName: String,
       controlProxyRef: ActorRef,
@@ -27,5 +27,5 @@ object Api {
       SupervisedComponentRegistration(componentName, controlProxyRef, restartSignalPatterns, shutdownSignalPatterns)
   }
 
-  case class HealthRegistrationDetailsRequest()
+  case class HealthRegistrationDetailsRequest() extends NoSerializationVerificationNeeded
 }
