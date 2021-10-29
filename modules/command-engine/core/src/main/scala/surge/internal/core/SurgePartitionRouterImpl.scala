@@ -2,34 +2,31 @@
 
 package surge.internal.core
 
-import java.util.regex.Pattern
 import akka.actor._
-import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
 import akka.cluster.sharding.external.ExternalShardAllocationStrategy
+import akka.cluster.sharding.{ ClusterSharding, ClusterShardingSettings }
 import akka.kafka.ConsumerSettings
 import akka.kafka.cluster.sharding.KafkaClusterSharding
 import akka.pattern.ask
-import akka.util.Timeout
 import com.typesafe.config.Config
 import org.apache.kafka.clients.consumer.ConsumerConfig
-import org.apache.kafka.common.serialization.{ByteArrayDeserializer, StringDeserializer}
+import org.apache.kafka.common.serialization.{ ByteArrayDeserializer, StringDeserializer }
 import org.slf4j.LoggerFactory
 import play.api.libs.json.JsValue
-import surge.core.{Ack, Controllable, KafkaProducerActor, SurgePartitionRouter}
+import surge.core.{ Ack, Controllable, KafkaProducerActor, SurgePartitionRouter }
 import surge.health.HealthSignalBusTrait
-import surge.internal.{SurgeModel, persistence}
-import surge.internal.akka.actor.ActorLifecycleManagerActor
-import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
+import surge.internal.SurgeModel
+import surge.internal.akka.kafka.{ KafkaConsumerPartitionAssignmentTracker, KafkaShardingClassicMessageExtractor }
 import surge.internal.config.TimeoutConfig
-import surge.internal.kafka.KafkaShardingMessageExtractor
-import surge.internal.persistence.{PersistentActor, RoutableMessage}
-import surge.kafka.streams.{AggregateStateStoreKafkaStreams, HealthCheck, HealthCheckStatus, HealthyActor, HealthyComponent}
-import surge.kafka.{KafkaPartitionShardRouterActor, PersistentActorRegionCreator}
+import surge.internal.persistence.{ PersistentActor, RoutableMessage }
+import surge.kafka.PersistentActorRegionCreator
+import surge.kafka.streams._
 
+import java.util.regex.Pattern
 import scala.concurrent.duration.DurationInt
-import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.{ Await, ExecutionContext, Future }
 import scala.languageFeature.postfixOps
-import scala.util.{Failure, Success, Try}
+import scala.util.{ Failure, Success, Try }
 
 private[surge] final class SurgePartitionRouterImpl(
     config: Config,
@@ -45,43 +42,43 @@ private[surge] final class SurgePartitionRouterImpl(
   implicit val executionContext: ExecutionContext = system.dispatcher
   private val log = LoggerFactory.getLogger(getClass)
 
-  private val partitionToKafkaProducerActor = KafkaProducerActor.create(
-    actorSystem = system,
-    metrics = businessLogic.metrics,
-    businessLogic = businessLogic,
-    partitionTracker = partitionTracker,
-    kStreams = aggregateKafkaStreamsImpl,
-    signalBus = signalBus,
-    config = config)
-
-  // FIXME
-  val consumerSettings = ConsumerSettings(system, new StringDeserializer, new ByteArrayDeserializer)
+  private val groupId = businessLogic.kafka.streamsApplicationId
+  private val consumerSettings = ConsumerSettings(system, new StringDeserializer, new ByteArrayDeserializer)
     .withBootstrapServers(config.getString("kafka.brokers"))
-    .withGroupId(businessLogic.kafka.streamsApplicationId)
+    .withGroupId(groupId)
     .withProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
     .withStopTimeout(0.seconds)
 
-  val regionF = KafkaClusterSharding(system).messageExtractorNoEnvelope(
-    timeout = 10.seconds,
-    topic = businessLogic.kafka.stateTopic.name,
-    entityIdExtractor = (msg: RoutableMessage) => msg.aggregateId,
-    settings = consumerSettings
-  ).map(messageExtractor => {
-    val classicMessageExtractor = new KafkaShardingMessageExtractor[RoutableMessage](
-      kafkaPartitions = messageExtractor.kafkaPartitions,
-      entityIdExtractor = (msg: RoutableMessage) => msg.aggregateId
-    )
-    system.log.info("Message extractor created. Initializing sharding")
-    ClusterSharding(system).start(
-      typeName = businessLogic.kafka.streamsApplicationId, // FIXME
-      entityProps = PersistentActor.props(partitionToKafkaProducerActor, businessLogic, signalBus, aggregateKafkaStreamsImpl, config),
-      settings = ClusterShardingSettings(system),
-      messageExtractor = classicMessageExtractor,
-      allocationStrategy = new ExternalShardAllocationStrategy(system, businessLogic.kafka.streamsApplicationId), // FIXME
-      handOffStopMessage = PoisonPill
-    )
-  })
+  val regionF = KafkaClusterSharding(system)
+    .messageExtractorNoEnvelope(
+      timeout = 10.seconds,
+      topic = businessLogic.kafka.stateTopic.name,
+      entityIdExtractor = (msg: RoutableMessage) => msg.aggregateId,
+      settings = consumerSettings)
+    .map(messageExtractor => {
+      val classicMessageExtractor = new KafkaShardingClassicMessageExtractor[RoutableMessage](
+        kafkaPartitions = messageExtractor.kafkaPartitions,
+        entityIdExtractor = (msg: RoutableMessage) => msg.aggregateId)
+      val aggregateIdToKafkaProducerActor = KafkaProducerActor.create(
+        actorSystem = system,
+        metrics = businessLogic.metrics,
+        businessLogic = businessLogic,
+        partitionTracker = partitionTracker,
+        kStreams = aggregateKafkaStreamsImpl,
+        signalBus = signalBus,
+        config = config,
+        numberOfPartitions = messageExtractor.kafkaPartitions)
 
+      ClusterSharding(system).start(
+        typeName = groupId,
+        entityProps = PersistentActor.props(aggregateIdToKafkaProducerActor, businessLogic, signalBus, aggregateKafkaStreamsImpl, config),
+        settings = ClusterShardingSettings(system),
+        messageExtractor = classicMessageExtractor,
+        allocationStrategy = new ExternalShardAllocationStrategy(system, groupId),
+        handOffStopMessage = PoisonPill)
+    })
+
+  // FIXME
   override val actorRegion: ActorRef = Await.result(regionF, 5.seconds)
 
   log.info(s"Shard region: $actorRegion")
@@ -148,4 +145,5 @@ private[surge] final class SurgePartitionRouterImpl(
     case Failure(error) =>
       log.error(s"Unable to register $getClass for supervision", error)
   }
+
 }

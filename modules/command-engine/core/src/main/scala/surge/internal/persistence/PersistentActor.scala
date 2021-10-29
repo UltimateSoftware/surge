@@ -3,13 +3,12 @@
 package surge.internal.persistence
 
 import akka.actor.{NoSerializationVerificationNeeded, Props, ReceiveTimeout, Stash, Status}
+import akka.cluster.Cluster
 import akka.cluster.sharding.ShardRegion.Passivate
 import akka.pattern.pipe
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import com.typesafe.config.{Config, ConfigFactory}
 import io.opentelemetry.api.trace.Tracer
-import org.apache.kafka.common.TopicPartition
-import org.apache.kafka.common.utils.Utils
 import org.slf4j.{Logger, LoggerFactory}
 import play.api.libs.json.JsValue
 import surge.akka.cluster.JacksonSerializable
@@ -26,8 +25,9 @@ import surge.metrics.{MetricInfo, Metrics, Timer}
 
 import java.time.Instant
 import java.util.concurrent.Executors
-import scala.concurrent.duration.{ Duration, DurationInt, FiniteDuration }
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.duration.{Duration, DurationInt, FiniteDuration}
+import scala.concurrent.{ExecutionContext, Future}
+import scala.util.{Failure, Success}
 
 object PersistentActor {
 
@@ -36,45 +36,45 @@ object PersistentActor {
   sealed trait RoutableActorMessage extends ActorMessage with RoutableMessage
 
   case class ProcessMessage[M](
-                                aggregateId: String,
-                                @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "msgType", visible = true) message: M)
-    extends RoutableActorMessage
+      aggregateId: String,
+      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "msgType", visible = true) message: M)
+      extends RoutableActorMessage
 
   case class GetState(aggregateId: String) extends RoutableActorMessage
 
   case class ApplyEvent[E](
-                            aggregateId: String,
-                            @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "eventType", visible = true) event: E)
-    extends RoutableActorMessage
+      aggregateId: String,
+      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "eventType", visible = true) event: E)
+      extends RoutableActorMessage
 
   case class StateResponse[S](
-                               @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "aggregateType", visible = true) aggregateState: Option[S])
-    extends JacksonSerializable
+      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "aggregateType", visible = true) aggregateState: Option[S])
+      extends JacksonSerializable
 
   sealed trait ACK extends ActorMessage with JacksonSerializable
 
   case class ACKSuccess[S](
-                            @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "aggregateType", visible = true) aggregateState: Option[S])
-    extends ACK
+      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "aggregateType", visible = true) aggregateState: Option[S])
+      extends ACK
 
   case class ACKError(exception: Throwable) extends ACK with NoSerializationVerificationNeeded
 
   case class ACKRejection[R](
-                              @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "rejectionType", visible = true) rejection: R)
-    extends ACK
+      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "rejectionType", visible = true) rejection: R)
+      extends ACK
 
   case object Stop extends ActorMessage with JacksonSerializable
 
   case class MetricsQuiver(
-                            stateInitializationTimer: Timer,
-                            aggregateDeserializationTimer: Timer,
-                            commandHandlingTimer: Timer,
-                            messageHandlingTimer: Timer,
-                            eventHandlingTimer: Timer,
-                            serializeStateTimer: Timer,
-                            serializeEventTimer: Timer,
-                            eventPublishTimer: Timer)
-    extends KTableInitializationMetrics
+      stateInitializationTimer: Timer,
+      aggregateDeserializationTimer: Timer,
+      commandHandlingTimer: Timer,
+      messageHandlingTimer: Timer,
+      eventHandlingTimer: Timer,
+      serializeStateTimer: Timer,
+      serializeEventTimer: Timer,
+      eventPublishTimer: Timer)
+      extends KTableInitializationMetrics
       with KTablePersistenceMetrics
 
   private[internal] def createMetrics(metrics: Metrics, aggregateName: String): MetricsQuiver = {
@@ -123,12 +123,12 @@ object PersistentActor {
   }
 
   def props[S, M, R, E](
-                         partitionToKafkaProducer: Int => KafkaProducerActor,
-                         businessLogic: SurgeModel[S, M, R, E],
-                         signalBus: HealthSignalBusTrait,
-                         stateStore: AggregateStateStoreKafkaStreams[JsValue],
-                         config: Config): Props = {
-    Props(new PersistentActor(partitionToKafkaProducer, businessLogic, stateStore, signalBus, config))
+      aggregateIdToKafkaProducer: String => KafkaProducerActor,
+      businessLogic: SurgeModel[S, M, R, E],
+      signalBus: HealthSignalBusTrait,
+      stateStore: AggregateStateStoreKafkaStreams[JsValue],
+      config: Config): Props = {
+    Props(new PersistentActor(aggregateIdToKafkaProducer, businessLogic, stateStore, signalBus, config))
   }
 
   val serializationThreadPoolSize: Int = ConfigFactory.load().getInt("surge.serialization.thread-pool-size")
@@ -137,12 +137,12 @@ object PersistentActor {
 
 }
 class PersistentActor[S, M, R, E](
-                                       val partitionToKafkaProducer: Int => KafkaProducerActor,
-                                       val businessLogic: SurgeModel[S, M, R, E],
-                                       val stateStore: AggregateStateStoreKafkaStreams[JsValue],
-                                       val signalBus: HealthSignalBusTrait,
-                                       config: Config)
-  extends ActorWithTracing
+    val aggregateIdToKafkaProducer: String => KafkaProducerActor,
+    val businessLogic: SurgeModel[S, M, R, E],
+    val stateStore: AggregateStateStoreKafkaStreams[JsValue],
+    val signalBus: HealthSignalBusTrait,
+    config: Config)
+    extends ActorWithTracing
     with Stash
     with KTablePersistenceSupport[S, E]
     with KTableInitializationSupport[S] {
@@ -161,13 +161,13 @@ class PersistentActor[S, M, R, E](
   private case class PersistenceSuccess(newState: InternalActorState, startTime: Instant) extends Internal
 
   private case class PersistenceFailure(
-                                         newState: InternalActorState,
-                                         reason: Throwable,
-                                         numberOfFailures: Int,
-                                         serializedEvents: Seq[KafkaProducerActor.MessageToPublish],
-                                         serializedState: KafkaProducerActor.MessageToPublish,
-                                         startTime: Instant)
-    extends Internal
+      newState: InternalActorState,
+      reason: Throwable,
+      numberOfFailures: Int,
+      serializedEvents: Seq[KafkaProducerActor.MessageToPublish],
+      serializedState: KafkaProducerActor.MessageToPublish,
+      startTime: Instant)
+      extends Internal
 
   private case class EventPublishTimedOut(reason: Throwable, startTime: Instant) extends Internal
 
@@ -177,12 +177,11 @@ class PersistentActor[S, M, R, E](
 
   override type ActorState = InternalActorState
 
-
   override val initializationMetrics: KTableInitializationMetrics = metrics
 
   override val ktablePersistenceMetrics: KTablePersistenceMetrics = metrics
 
-  override val kafkaProducerActor: KafkaProducerActor = partitionToKafkaProducer(partitionForAggregateId(aggregateId))
+  override val kafkaProducerActor: KafkaProducerActor = aggregateIdToKafkaProducer(aggregateId)
 
   override val kafkaStreamsCommand: AggregateStateStoreKafkaStreams[_] = stateStore
 
@@ -204,12 +203,6 @@ class PersistentActor[S, M, R, E](
 
   assert(publishStateOnly || businessLogic.eventWriteFormattingOpt.nonEmpty, "businessLogic.eventWriteFormattingOpt may not be none when publishing events")
 
-  private def partitionForAggregateId(aggregateId: String): Int = {
-    val partition = org.apache.kafka.common.utils.Utils
-      .toPositive(Utils.murmur2(aggregateId.getBytes())) % 16 // FIXME
-    partition
-  }
-
   override def messageNameForTracedMessages: MessageNameExtractor = { case t: ProcessMessage[_] =>
     s"ProcessMessage[${t.message.getClass.getSimpleName}]"
   }
@@ -220,12 +213,30 @@ class PersistentActor[S, M, R, E](
     super.preStart()
   }
 
+  override def aroundPostStop(): Unit = {
+    kafkaProducerActor.stop().andThen {
+      case Failure(exception) =>
+        log.error("Failed to stop KafkaProducerActor", exception)
+      case Success(_) =>
+        log.debug("Successfully stopped KafkaProducerActor")
+    }
+    super.aroundPostStop()
+  }
+
+  override def postStop(): Unit = {
+    // TODO: identify when we should terminate ActorLifecycleManager
+//    kafkaProducerActor.terminate()
+//    log.info("Successfully terminated KafkaProducerActor")
+    super.postStop()
+  }
+
   private def surgeContext() = Context(businessLogic.executionContext, this)
 
   override def receive: Receive = uninitialized
 
   private def freeToProcess(state: InternalActorState): Receive = {
     case pm: ProcessMessage[M] =>
+      log.info(s"Current actor is: ${self.path} and state: ${state.stateOpt}")
       log.info(s"Received message $pm")
       handle(state, pm)
     case ae: ApplyEvent[E] =>

@@ -6,12 +6,12 @@ import akka.actor.ActorRef
 import akka.actor.Status.Success
 import akka.pattern._
 import akka.util.Timeout
-import io.opentelemetry.api.trace.{Span, Tracer}
-import org.slf4j.{Logger, LoggerFactory}
-import surge.exceptions.{SurgeTimeoutException, SurgeUnexpectedException}
+import io.opentelemetry.api.trace.{ Span, Tracer }
+import org.slf4j.{ Logger, LoggerFactory }
+import surge.exceptions.{ SurgeTimeoutException, SurgeUnexpectedException }
 import surge.internal.config.TimeoutConfig
 import surge.internal.tracing.TracingHelper._
-import surge.internal.tracing.{SpanSupport, TracedMessage}
+import surge.internal.tracing.{ SpanSupport, TracedMessage }
 import surge.kafka.streams.SurgeHealthCheck
 
 import scala.concurrent.{ ExecutionContext, Future }

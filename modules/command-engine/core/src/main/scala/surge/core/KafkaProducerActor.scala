@@ -14,9 +14,9 @@ import surge.internal.SurgeModel
 import surge.internal.akka.actor.ActorLifecycleManagerActor
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.config.TimeoutConfig
-import surge.internal.kafka.{ KTableLagCheckerImpl, KafkaProducerActorImpl }
-import surge.kafka.{ KafkaAdminClient, KafkaProducer, KafkaProducerTrait }
+import surge.internal.kafka.{ KTableLagCheckerImpl, KafkaProducerActorImpl, PartitionerHelper }
 import surge.kafka.streams._
+import surge.kafka.{ KafkaAdminClient, KafkaProducerTrait }
 import surge.metrics.{ MetricInfo, Metrics, Timer }
 
 import scala.concurrent.{ ExecutionContext, Future }
@@ -59,19 +59,22 @@ object KafkaProducerActor {
   }
 
   def create(
-             actorSystem: ActorSystem,
-             metrics: Metrics,
-             businessLogic: SurgeModel[_, _, _, _],
-             kStreams: AggregateStateStoreKafkaStreams[_],
-             partitionTracker: KafkaConsumerPartitionAssignmentTracker,
-             signalBus: HealthSignalBusTrait,
-             config: Config,
-             kafkaProducerOverride: Option[KafkaProducerTrait[String, Array[Byte]]] = None): (Int => KafkaProducerActor) = partition => {
+      actorSystem: ActorSystem,
+      metrics: Metrics,
+      businessLogic: SurgeModel[_, _, _, _],
+      kStreams: AggregateStateStoreKafkaStreams[_],
+      partitionTracker: KafkaConsumerPartitionAssignmentTracker,
+      signalBus: HealthSignalBusTrait,
+      config: Config,
+      numberOfPartitions: Int,
+      kafkaProducerOverride: Option[KafkaProducerTrait[String, Array[Byte]]] = None): String => KafkaProducerActor = aggregateId => {
+
+    val partitionNumber = PartitionerHelper.partitionForKey(aggregateId, numberOfPartitions)
+    val assignedPartition = new TopicPartition(businessLogic.kafka.stateTopic.name, partitionNumber)
 
     val brokers = config.getString("kafka.brokers").split(",").toVector
     val adminClient = KafkaAdminClient(config, brokers)
 
-    val assignedPartition = new TopicPartition(businessLogic.kafka.stateTopic.name, partition)
     val kafkaProducerProps = Props(
       new KafkaProducerActorImpl(
         assignedPartition = assignedPartition,

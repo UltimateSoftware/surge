@@ -70,7 +70,7 @@ class PersistentActorRegion[M](
     val aggregateMetrics = PersistentActor.createMetrics(metrics, businessLogic.aggregateName)
     val sharedResources = persistence.PersistentEntitySharedResources(kafkaProducerActor, aggregateMetrics, aggregateKafkaStreamsImpl)
 
-    val fix = (n: Int) => sharedResources.kafkaProducerActor
+    val fix = (n: String) => sharedResources.kafkaProducerActor
     actorId: String => PersistentActor.props(fix, businessLogic, signalBus, sharedResources.stateStore, config)
   }
 
