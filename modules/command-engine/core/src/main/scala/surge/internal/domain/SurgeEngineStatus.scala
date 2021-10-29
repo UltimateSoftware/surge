@@ -1,4 +1,3 @@
-
 package surge.internal.domain
 
 sealed trait SurgeEngineStatus

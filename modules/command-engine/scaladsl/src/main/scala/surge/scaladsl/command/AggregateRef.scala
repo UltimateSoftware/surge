@@ -4,13 +4,13 @@ package surge.scaladsl.command
 
 import akka.actor.ActorRef
 import io.opentelemetry.api.trace.Tracer
-import org.slf4j.{Logger, LoggerFactory}
+import org.slf4j.{ Logger, LoggerFactory }
 import surge.exceptions.SurgeEngineNotRunningException
-import surge.internal.domain.{SurgeEngineStatus, SurgeMessagePipeline}
-import surge.internal.persistence.{AggregateRefTrait, PersistentActor}
-import surge.scaladsl.common.{AggregateRefBaseTrait, _}
+import surge.internal.domain.{ SurgeEngineStatus, SurgeMessagePipeline }
+import surge.internal.persistence.{ AggregateRefTrait, PersistentActor }
+import surge.scaladsl.common.{ AggregateRefBaseTrait, _ }
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ ExecutionContext, Future }
 
 trait AggregateRef[Agg, Cmd, Event] {
   def getState: Future[Option[Agg]]
