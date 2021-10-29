@@ -31,7 +31,7 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event](val aggregateId: AggId, pro
   override def getState: Future[Option[Agg]] = {
     val engineStatus = SurgeMessagePipeline.surgeEngineStatus
 
-    if (engineStatus == SurgeEngineStatus.On) {
+    if (engineStatus == SurgeEngineStatus.Running) {
       queryState
     } else {
       log.error(s"Engine Status: $engineStatus")
@@ -42,7 +42,7 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event](val aggregateId: AggId, pro
   def sendCommand(command: Cmd): Future[CommandResult[Agg]] = {
     val engineStatus = SurgeMessagePipeline.surgeEngineStatus
 
-    if (engineStatus == SurgeEngineStatus.On) {
+    if (engineStatus == SurgeEngineStatus.Running) {
       val envelope = PersistentActor.ProcessMessage[Cmd](aggregateId.toString, command)
       sendCommand(envelope).map(aggOpt => CommandSuccess[Agg](aggOpt)).recover { case error: Throwable =>
         CommandFailure[Agg](error)
