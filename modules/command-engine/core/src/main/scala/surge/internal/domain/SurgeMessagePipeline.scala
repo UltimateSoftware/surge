@@ -21,6 +21,7 @@ import scala.util.{ Failure, Success, Try }
 
 object SurgeMessagePipeline {
   val log: Logger = LoggerFactory.getLogger(getClass)
+  var surgeEngineState: String = SurgeEngineState.stopped
 }
 
 /**
@@ -81,6 +82,8 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
       _ <- actorRouter.start()
       allStarted <- kafkaStreamsImpl.start()
     } yield {
+      surgeEngineState = SurgeEngineState.started
+      log.info(s"surge engine is $surgeEngineState")
       allStarted
     }
 
@@ -109,6 +112,8 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
       _ <- actorRouter.stop()
       allStopped <- kafkaStreamsImpl.stop()
     } yield {
+      surgeEngineState = SurgeEngineState.stopped
+      log.info(s"surge engine has $surgeEngineState")
       allStopped
     }
 
@@ -163,4 +168,9 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     case Failure(exception) =>
       log.error("Failed to start so unable to register for supervision", exception)
   }
+}
+
+object SurgeEngineState {
+  val started = "started"
+  val stopped = "stopped"
 }
