@@ -186,7 +186,6 @@ class KafkaProducerActorImpl(
     case CheckKTableProgress       => checkKTableProgress()
     case msg: KTableProgressUpdate => handleFromWaitingForKTableIndexingState(msg)
     case FlushMessages             => log.trace("KafkaProducerActor ignoring FlushMessages message from the waitingForKTableIndexing state")
-    case GetHealth                 => doHealthCheck(initialFenceTime)
     case ShutdownProducer          => stopPublisher()
     case failedToPublish: EventsFailedToPublish =>
       sender() ! KafkaProducerActor.PublishFailure(failedToPublish.reason)
