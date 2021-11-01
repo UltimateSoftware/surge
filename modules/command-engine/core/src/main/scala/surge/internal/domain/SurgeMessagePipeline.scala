@@ -44,11 +44,11 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     with ActorSystemHostAwareness {
 
   import SurgeMessagePipeline._
+  import system.dispatcher
   protected implicit val system: ActorSystem = actorSystem
   protected val stateChangeActor: ActorRef = system.actorOf(KafkaConsumerStateTrackingActor.props)
 
-  protected val cluster: Cluster = Cluster.get(system)
-  AkkaManagement(system).start()
+  private val isAkkaClusterEnabled: Boolean = Try(config.getBoolean("surge.akka.cluster.enabled")).getOrElse(false)
 
   private val partitionTracker: KafkaConsumerPartitionAssignmentTracker = new KafkaConsumerPartitionAssignmentTracker(stateChangeActor)
 
@@ -88,11 +88,10 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
   // todo: chain the component starts together; if one fails they all fail and we rollback and
   //  stop any that have started. if all pass, we register..
   override def start(): Future[Ack] = {
-    implicit val ec: ExecutionContext = system.dispatcher
     val result = for {
       _ <- startSignalStream()
+      _ <- startClusterManagementAndRebalanceListener()
       _ <- actorRouter.start()
-      _ <- startKafkaClusterRebalanceListener()
       allStarted <- kafkaStreamsImpl.start()
     } yield {
       allStarted
@@ -103,8 +102,6 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
   }
 
   override def restart(): Future[Ack] = {
-    implicit val ec: ExecutionContext = system.dispatcher
-
     val result = for {
       _ <- stop()
       started <- start()
@@ -116,8 +113,6 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
   }
 
   override def stop(): Future[Ack] = {
-    implicit val ec: ExecutionContext = system.dispatcher
-
     val result = for {
       _ <- stopSignalStream()
       _ <- actorRouter.stop()
@@ -130,6 +125,18 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
   }
 
   override def shutdown(): Future[Ack] = stop()
+
+  private def startClusterManagementAndRebalanceListener(): Future[Unit] = {
+    if (isAkkaClusterEnabled) {
+      Cluster.get(system)
+      for {
+        _ <- AkkaManagement(system).start()
+        allStarted <- startKafkaClusterRebalanceListener()
+      } yield allStarted
+    } else {
+      Future.successful()
+    }
+  }
 
   private def startKafkaClusterRebalanceListener(): Future[ActorRef] = {
     Future.successful(

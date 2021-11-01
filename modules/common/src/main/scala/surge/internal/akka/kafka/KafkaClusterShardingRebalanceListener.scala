@@ -21,8 +21,8 @@ class KafkaClusterShardingRebalanceListener(stateTrackingActor: ActorRef, topic:
   import context.dispatcher
 
   private val log = LoggerFactory.getLogger(getClass)
-  protected val shardAllocationClient = ExternalShardAllocation(context.system).clientFor(groupId)
-  protected val address = Cluster(context.system).selfMember.address
+  private val shardAllocationClient = ExternalShardAllocation(context.system).clientFor(groupId)
+  private val address = Cluster(context.system).selfMember.address
 
   override def preStart(): Unit = {
     stateTrackingActor ! KafkaConsumerStateTrackingActor.Register(self)
@@ -46,7 +46,7 @@ class KafkaClusterShardingRebalanceListener(stateTrackingActor: ActorRef, topic:
     updates.onComplete {
       case Success(_) =>
         log.info(
-          "Completed consumer group '{}' assignment of topic partitions to cluster member '{}': [{}]",
+          "Completed groupId '{}' assignment of topic partitions to cluster member '{}': [{}]",
           groupId,
           address,
           updatedTopicPartitions.mkString(","))
