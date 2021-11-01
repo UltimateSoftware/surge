@@ -79,7 +79,7 @@ private[surge] trait AggregateRefTrait[AggId, Agg, Cmd, Event] extends SpanSuppo
   protected def sendCommand(envelope: PersistentActor.ProcessMessage[Cmd])(implicit ec: ExecutionContext): Future[Option[Agg]] = {
     val askSpan = createSpan(envelope.message.getClass.getSimpleName).setTag("aggregateId", aggregateId.toString)
     askSpan.log("actor ask", Map("timeout" -> timeout.duration.toString()))
-    (region ? envelope)
+    (region ? TracedMessage(envelope.aggregateId, envelope, askSpan)(tracer))
       .map(interpretActorResponse(askSpan))
       .flatMap {
         case Left(exception) => Future.failed(exception)
@@ -97,7 +97,7 @@ private[surge] trait AggregateRefTrait[AggId, Agg, Cmd, Event] extends SpanSuppo
 
   protected def applyEvents(envelope: PersistentActor.ApplyEvent[Event])(implicit ec: ExecutionContext): Future[Option[Agg]] = {
     val askSpan = createSpan("send_events_to_aggregate").setTag("aggregateId", aggregateId.toString)
-    (region ? envelope).map(interpretActorResponse(askSpan)).flatMap {
+    (region ? TracedMessage(envelope.aggregateId, envelope, askSpan)(tracer)).map(interpretActorResponse(askSpan)).flatMap {
       case Left(exception) => Future.failed(exception)
       case Right(state)    => Future.successful(state)
     }

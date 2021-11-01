@@ -45,11 +45,7 @@ class KafkaClusterShardingRebalanceListener(stateTrackingActor: ActorRef, topic:
 
     updates.onComplete {
       case Success(_) =>
-        log.info(
-          "Completed groupId '{}' assignment of topic partitions to cluster member '{}': [{}]",
-          groupId,
-          address,
-          updatedTopicPartitions.mkString(","))
+        log.info("Completed groupId '{}' assignment of topic partitions to cluster member '{}': [{}]", groupId, address, updatedTopicPartitions.mkString(","))
 
       case Failure(ex) =>
         log.error("A failure occurred while updating cluster shards", ex)

@@ -94,7 +94,7 @@ class Shard[IdType](shardId: String, regionLogicProvider: PerShardLogicProvider[
   }
 
   private def deliverTo(id: IdType, payload: Any, snd: ActorRef): Unit = {
-    val tracedMsg = TracedMessage(payload, parentSpan = activeSpan)
+    val tracedMsg = TracedMessage(id.toString, payload, parentSpan = activeSpan)
     getOrCreateEntity(id).tell(tracedMsg, snd)
   }
 

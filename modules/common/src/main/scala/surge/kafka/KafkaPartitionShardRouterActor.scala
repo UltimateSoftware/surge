@@ -12,7 +12,7 @@ import surge.internal.akka.ActorWithTracing
 import surge.internal.akka.cluster.{ ActorHostAwareness, Shard }
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.config.TimeoutConfig
-import surge.internal.tracing.TracedMessage
+import surge.internal.tracing.{ RoutableMessage, TracedMessage }
 import surge.kafka.streams.HealthyActor.GetHealth
 import surge.kafka.streams.{ HealthCheck, HealthCheckStatus, HealthyActor }
 
@@ -194,7 +194,7 @@ class KafkaPartitionShardRouterActor(
           activeSpan.addEvent("routing remotely")
         }
 
-        val tracedMsg = TracedMessage(msg, parentSpan = activeSpan)
+        val tracedMsg = TracedMessage(aggregateId, msg, parentSpan = activeSpan)
         responsiblePartitionRegion.regionManager.forward(tracedMsg)
       case None =>
         activeSpan.addEvent("failed to forward")

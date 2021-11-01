@@ -4,29 +4,30 @@ package surge.internal.core
 
 import akka.actor._
 import akka.cluster.sharding.external.ExternalShardAllocationStrategy
-import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
+import akka.cluster.sharding.{ ClusterSharding, ClusterShardingSettings }
 import akka.kafka.ConsumerSettings
 import akka.kafka.cluster.sharding.KafkaClusterSharding
 import akka.pattern.ask
 import com.typesafe.config.Config
 import org.apache.kafka.clients.consumer.ConsumerConfig
-import org.apache.kafka.common.serialization.{ByteArrayDeserializer, StringDeserializer}
+import org.apache.kafka.common.serialization.{ ByteArrayDeserializer, StringDeserializer }
 import org.slf4j.LoggerFactory
 import play.api.libs.json.JsValue
-import surge.core.{Ack, Controllable, KafkaProducerActor, SurgePartitionRouter}
+import surge.core.{ Ack, Controllable, KafkaProducerActor, SurgePartitionRouter }
 import surge.health.HealthSignalBusTrait
-import surge.internal.SurgeModel
-import surge.internal.akka.kafka.{KafkaConsumerPartitionAssignmentTracker, KafkaShardingClassicMessageExtractor}
+import surge.internal.akka.kafka.{ KafkaConsumerPartitionAssignmentTracker, KafkaShardingClassicMessageExtractor }
 import surge.internal.config.TimeoutConfig
-import surge.internal.persistence.{PersistentActor, RoutableMessage}
-import surge.kafka.{KafkaPartitionShardRouterActor, PersistentActorRegionCreator}
+import surge.internal.persistence.PersistentActor
+import surge.internal.tracing.RoutableMessage
+import surge.internal.{ persistence, SurgeModel }
 import surge.kafka.streams._
+import surge.kafka.{ KafkaPartitionShardRouterActor, PersistentActorRegionCreator }
 
 import java.util.regex.Pattern
 import scala.concurrent.duration.DurationInt
-import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.{ Await, ExecutionContext, Future }
 import scala.languageFeature.postfixOps
-import scala.util.{Failure, Success, Try}
+import scala.util.{ Failure, Success, Try }
 
 private[surge] final class SurgePartitionRouterImpl(
     config: Config,
@@ -73,9 +74,11 @@ private[surge] final class SurgePartitionRouterImpl(
             config = config,
             numberOfPartitions = messageExtractor.kafkaPartitions)
 
+          val aggregateMetrics = PersistentActor.createMetrics(businessLogic.metrics, businessLogic.aggregateName)
+          val sharedResources = persistence.PersistentEntitySharedResources(aggregateIdToKafkaProducerActor, aggregateMetrics, aggregateKafkaStreamsImpl)
           ClusterSharding(system).start(
             typeName = groupId,
-            entityProps = PersistentActor.props(aggregateIdToKafkaProducerActor, businessLogic, signalBus, aggregateKafkaStreamsImpl, config),
+            entityProps = PersistentActor.props(businessLogic, signalBus, sharedResources, config),
             settings = ClusterShardingSettings(system),
             messageExtractor = classicMessageExtractor,
             allocationStrategy = new ExternalShardAllocationStrategy(system, groupId),

@@ -2,32 +2,30 @@
 
 package surge.internal.persistence
 
-import akka.actor.{NoSerializationVerificationNeeded, Props, ReceiveTimeout, Stash, Status}
-import akka.cluster.Cluster
+import akka.actor.{ NoSerializationVerificationNeeded, Props, ReceiveTimeout, Stash, Status }
 import akka.cluster.sharding.ShardRegion.Passivate
 import akka.pattern.pipe
 import com.fasterxml.jackson.annotation.JsonTypeInfo
-import com.typesafe.config.{Config, ConfigFactory}
+import com.typesafe.config.{ Config, ConfigFactory }
 import io.opentelemetry.api.trace.Tracer
-import org.slf4j.{Logger, LoggerFactory}
-import play.api.libs.json.JsValue
+import org.slf4j.{ Logger, LoggerFactory }
 import surge.akka.cluster.JacksonSerializable
 import surge.core._
 import surge.health.HealthSignalBusTrait
 import surge.internal.SurgeModel
 import surge.internal.akka.ActorWithTracing
-import surge.internal.config.{RetryConfig, TimeoutConfig}
+import surge.internal.config.{ RetryConfig, TimeoutConfig }
 import surge.internal.domain.HandledMessageResult
 import surge.internal.kafka.HeadersHelper
+import surge.internal.tracing.RoutableMessage
 import surge.internal.utils.DiagnosticContextFuturePropagation
 import surge.kafka.streams.AggregateStateStoreKafkaStreams
-import surge.metrics.{MetricInfo, Metrics, Timer}
+import surge.metrics.{ MetricInfo, Metrics, Timer }
 
 import java.time.Instant
 import java.util.concurrent.Executors
-import scala.concurrent.duration.{Duration, DurationInt, FiniteDuration}
-import scala.concurrent.{ExecutionContext, Future}
-import scala.util.{Failure, Success}
+import scala.concurrent.duration.{ Duration, DurationInt, FiniteDuration }
+import scala.concurrent.{ ExecutionContext, Future }
 
 object PersistentActor {
 
@@ -123,12 +121,12 @@ object PersistentActor {
   }
 
   def props[S, M, R, E](
-      aggregateIdToKafkaProducer: String => KafkaProducerActor,
       businessLogic: SurgeModel[S, M, R, E],
       signalBus: HealthSignalBusTrait,
-      stateStore: AggregateStateStoreKafkaStreams[JsValue],
-      config: Config): Props = {
-    Props(new PersistentActor(aggregateIdToKafkaProducer, businessLogic, stateStore, signalBus, config))
+      regionSharedResources: PersistentEntitySharedResources,
+      config: Config,
+      aggregateIdOpt: Option[String] = None): Props = {
+    Props(new PersistentActor(businessLogic, regionSharedResources, signalBus, config, aggregateIdOpt))
   }
 
   val serializationThreadPoolSize: Int = ConfigFactory.load().getInt("surge.serialization.thread-pool-size")
@@ -137,11 +135,11 @@ object PersistentActor {
 
 }
 class PersistentActor[S, M, R, E](
-    val aggregateIdToKafkaProducer: String => KafkaProducerActor,
     val businessLogic: SurgeModel[S, M, R, E],
-    val stateStore: AggregateStateStoreKafkaStreams[JsValue],
+    val regionSharedResources: PersistentEntitySharedResources,
     val signalBus: HealthSignalBusTrait,
-    config: Config)
+    config: Config,
+    val aggregateIdOpt: Option[String])
     extends ActorWithTracing
     with Stash
     with KTablePersistenceSupport[S, E]
@@ -150,9 +148,9 @@ class PersistentActor[S, M, R, E](
   import PersistentActor._
   import context.dispatcher
 
-  def aggregateId: String = self.path.name
+  def aggregateId: String = aggregateIdOpt.getOrElse(self.path.name)
 
-  private val metrics = PersistentActor.createMetrics(businessLogic.metrics, businessLogic.aggregateName)
+  private val metrics = regionSharedResources.metrics
 
   private sealed trait Internal extends NoSerializationVerificationNeeded
 
@@ -177,13 +175,13 @@ class PersistentActor[S, M, R, E](
 
   override type ActorState = InternalActorState
 
-  override val initializationMetrics: KTableInitializationMetrics = metrics
+  override val initializationMetrics: KTableInitializationMetrics = regionSharedResources.metrics
 
-  override val ktablePersistenceMetrics: KTablePersistenceMetrics = metrics
+  override val ktablePersistenceMetrics: KTablePersistenceMetrics = regionSharedResources.metrics
 
-  override val kafkaProducerActor: KafkaProducerActor = aggregateIdToKafkaProducer(aggregateId)
+  override val kafkaProducerActor: KafkaProducerActor = regionSharedResources.aggregateIdToKafkaProducer(aggregateId)
 
-  override val kafkaStreamsCommand: AggregateStateStoreKafkaStreams[_] = stateStore
+  override val kafkaStreamsCommand: AggregateStateStoreKafkaStreams[_] = regionSharedResources.stateStore
 
   override def deserializeState(bytes: Array[Byte]): Option[S] = businessLogic.aggregateReadFormatting.readState(bytes)
 
@@ -213,18 +211,18 @@ class PersistentActor[S, M, R, E](
     super.preStart()
   }
 
+  // TODO: identify when we should stop KafkaProducerActor
   override def aroundPostStop(): Unit = {
-    kafkaProducerActor.stop().andThen {
-      case Failure(exception) =>
-        log.error("Failed to stop KafkaProducerActor", exception)
-      case Success(_) =>
-        log.debug("Successfully stopped KafkaProducerActor")
-    }
+//    kafkaProducerActor.stop().andThen {
+//      case Failure(exception) =>
+//        log.error("Failed to stop KafkaProducerActor", exception)
+//      case Success(_) =>
+//        log.debug("Successfully stopped KafkaProducerActor")
+//    }
     super.aroundPostStop()
   }
 
   override def postStop(): Unit = {
-    // TODO: identify when we should terminate ActorLifecycleManager
 //    kafkaProducerActor.terminate()
 //    log.info("Successfully terminated KafkaProducerActor")
     super.postStop()
@@ -236,8 +234,6 @@ class PersistentActor[S, M, R, E](
 
   private def freeToProcess(state: InternalActorState): Receive = {
     case pm: ProcessMessage[M] =>
-      log.info(s"Current actor is: ${self.path} and state: ${state.stateOpt}")
-      log.info(s"Received message $pm")
       handle(state, pm)
     case ae: ApplyEvent[E] =>
       val evt: E = ae.event

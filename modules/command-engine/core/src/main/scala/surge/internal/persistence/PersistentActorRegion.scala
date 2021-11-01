@@ -68,10 +68,11 @@ class PersistentActorRegion[M](
 
   override def actorProvider(context: ActorContext): EntityPropsProvider[String] = {
     val aggregateMetrics = PersistentActor.createMetrics(metrics, businessLogic.aggregateName)
-    val sharedResources = persistence.PersistentEntitySharedResources(kafkaProducerActor, aggregateMetrics, aggregateKafkaStreamsImpl)
+    //FIXME: temporary fix to support switch between akka and existing shard allocation strategy
+    val aggregateIdToKafkaProducer = (_: String) => kafkaProducerActor
+    val sharedResources = persistence.PersistentEntitySharedResources(aggregateIdToKafkaProducer, aggregateMetrics, aggregateKafkaStreamsImpl)
 
-    val fix = (n: String) => sharedResources.kafkaProducerActor
-    actorId: String => PersistentActor.props(fix, businessLogic, signalBus, sharedResources.stateStore, config)
+    actorId: String => PersistentActor.props(businessLogic, signalBus, sharedResources, config, Some(actorId))
   }
 
   override def restart(): Future[Ack] = {
