@@ -104,7 +104,7 @@ class ActorWithTracingSpec
       val probe = TestProbe()
       val actor = system.actorOf(Props(new ProbeWithTraceSupport(probe, tracer)))
       val parentSpan = tracer.buildSpan("The Parent Span").start()
-      actor ! TracedMessage(expectedMsg, parentSpan)(tracer)
+      actor ! TracedMessage("", expectedMsg, parentSpan)(tracer)
       probe.expectMsg(expectedMsg)
       parentSpan.finish()
       actor ! GetMostRecentSpan
@@ -131,11 +131,11 @@ class ActorWithTracingSpec
       val probe = TestProbe()
       val actor = system.actorOf(Props(new ProbeWithTraceSupport(probe, tracer)))
 
-      probe.send(actor, TracedMessage(ProbeWithTraceSupport.GetMDC, Map.empty[String, String]))
+      probe.send(actor, TracedMessage("", ProbeWithTraceSupport.GetMDC, Map.empty[String, String]))
       probe.expectMsg(Some(expectedMDC))
 
       MDC.clear()
-      probe.send(actor, TracedMessage(ProbeWithTraceSupport.GetMDC, Map.empty[String, String], Option(expectedMDC)))
+      probe.send(actor, TracedMessage("", ProbeWithTraceSupport.GetMDC, Map.empty[String, String], Option(expectedMDC)))
       probe.expectMsg(Some(expectedMDC))
     }
   }
