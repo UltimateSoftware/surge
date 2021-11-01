@@ -301,6 +301,7 @@ class SurgeMessagePipelineSpec
           actorSystem,
           new KafkaConsumerPartitionAssignmentTracker(stateChangeActor),
           businessLogic,
+          kafkaStreamsImpl,
           cqrsRegionCreator,
           signalStreamProvider.bus())
       override protected val kafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue] = new AggregateStateStoreKafkaStreams[JsValue](

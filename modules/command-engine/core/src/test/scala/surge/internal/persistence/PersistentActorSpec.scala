@@ -24,7 +24,7 @@ import surge.exceptions.{ AggregateInitializationException, KafkaPublishTimeoutE
 import surge.health.HealthSignalBusTrait
 import surge.internal.kafka.HeadersHelper
 import surge.internal.persistence.PersistentActor.{ ACKError, ApplyEvent, Stop }
-import surge.internal.tracing.TracedMessage
+import surge.internal.tracing.{ RoutableMessage, TracedMessage }
 import surge.kafka.streams.AggregateStateStoreKafkaStreams
 import surge.metrics.Metrics
 
@@ -69,13 +69,14 @@ class PersistentActorSpec
       aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue],
       publishStateOnly: Boolean = false): Props = {
     val metrics = PersistentActor.createMetrics(Metrics.globalMetricRegistry, "testAggregate")
-    val sharedResources = PersistentEntitySharedResources(producerActor, metrics, aggregateKafkaStreamsImpl)
+    val aggregateIdToKafkaProducer = (_: String) => producerActor
+    val sharedResources = PersistentEntitySharedResources(aggregateIdToKafkaProducer, metrics, aggregateKafkaStreamsImpl)
     PersistentActor.props(
-      aggregateId,
       businessLogic.copy(kafka = businessLogic.kafka.copy(publishStateOnly = publishStateOnly)),
       Mockito.mock(classOf[HealthSignalBusTrait]),
       sharedResources,
-      ConfigFactory.load())
+      ConfigFactory.load(),
+      Some(aggregateId))
   }
 
   private def envelope(cmd: BaseTestCommand): PersistentActor.ProcessMessage[BaseTestCommand] = {

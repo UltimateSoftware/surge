@@ -36,14 +36,13 @@ private[surge] final class SurgePartitionRouterImpl(
     businessLogic: SurgeModel[_, _, _, _],
     aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue],
     regionCreator: PersistentActorRegionCreator[String],
-    signalBus: HealthSignalBusTrait)
+    signalBus: HealthSignalBusTrait,
+    isAkkaClusterEnabled: Boolean)
     extends SurgePartitionRouter
     with HealthyComponent
     with Controllable {
   implicit val executionContext: ExecutionContext = system.dispatcher
   private val log = LoggerFactory.getLogger(getClass)
-
-  private val isAkkaClusterEnabled: Boolean = Try(config.getBoolean("surge.akka.cluster.enabled")).getOrElse(false)
 
   override val actorRegion: ActorRef = {
     if (isAkkaClusterEnabled) {

@@ -138,10 +138,10 @@ class KafkaPartitionShardRouterActorSpec
 
       val newPartitionAssignments = Map[HostPort, List[TopicPartition]](hostPort1 -> List(partition0, partition1, partition2), hostPort2 -> List())
 
-      partitionProbe.send(routerActor, TracedMessage(PartitionAssignments(newPartitionAssignments)))
+      partitionProbe.send(routerActor, TracedMessage("", PartitionAssignments(newPartitionAssignments)))
 
       val command = Command("partition2")
-      probe.send(routerActor, TracedMessage(command))
+      probe.send(routerActor, TracedMessage(command.id, command))
       regionProbe.expectMsg(WrappedCmd(partition2, command))
       regionProbe.reply(command)
       probe.expectMsg(command)
@@ -176,7 +176,7 @@ class KafkaPartitionShardRouterActorSpec
       initializePartitionAssignments(partitionProbe, Map.empty)
 
       val command0 = Command("partition0")
-      probe.send(routerActor, TracedMessage(command0))
+      probe.send(routerActor, TracedMessage(command0.id, command0))
 
       partitionProbe.send(routerActor, PartitionAssignments(partitionAssignments))
 

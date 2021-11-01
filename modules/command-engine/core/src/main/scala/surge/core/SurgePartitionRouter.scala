@@ -24,7 +24,8 @@ object SurgePartitionRouter {
       businessLogic: SurgeModel[_, _, _, _],
       kafkaStreamsCommand: AggregateStateStoreKafkaStreams[JsValue],
       regionCreator: PersistentActorRegionCreator[String],
-      signalBus: HealthSignalBusTrait): SurgePartitionRouter = {
-    new SurgePartitionRouterImpl(config, system, partitionTracker, businessLogic, kafkaStreamsCommand, regionCreator, signalBus)
+      signalBus: HealthSignalBusTrait,
+      isAkkaClusterEnabled: Boolean): SurgePartitionRouter = {
+    new SurgePartitionRouterImpl(config, system, partitionTracker, businessLogic, kafkaStreamsCommand, regionCreator, signalBus, isAkkaClusterEnabled)
   }
 }

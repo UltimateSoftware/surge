@@ -21,11 +21,13 @@ import surge.internal.tracing.RoutableMessage
 import surge.internal.utils.DiagnosticContextFuturePropagation
 import surge.kafka.streams.AggregateStateStoreKafkaStreams
 import surge.metrics.{ MetricInfo, Metrics, Timer }
+import surge.akka.cluster.{ Passivate => SurgePassivate }
 
 import java.time.Instant
 import java.util.concurrent.Executors
 import scala.concurrent.duration.{ Duration, DurationInt, FiniteDuration }
 import scala.concurrent.{ ExecutionContext, Future }
+import scala.util.Try
 
 object PersistentActor {
 
@@ -151,6 +153,8 @@ class PersistentActor[S, M, R, E](
   def aggregateId: String = aggregateIdOpt.getOrElse(self.path.name)
 
   private val metrics = regionSharedResources.metrics
+
+  private val isAkkaClusterEnabled: Boolean = Try(config.getBoolean("surge.akka.cluster.enabled")).getOrElse(false)
 
   private sealed trait Internal extends NoSerializationVerificationNeeded
 
@@ -342,7 +346,11 @@ class PersistentActor[S, M, R, E](
 
   private def handlePassivate(): Unit = {
     log.trace(s"PersistentActor for aggregate ${businessLogic.aggregateName} $aggregateId is passivating gracefully")
-    context.parent ! Passivate(Stop)
+    if (isAkkaClusterEnabled) {
+      context.parent ! Passivate(Stop)
+    } else {
+      context.parent ! SurgePassivate(Stop)
+    }
   }
 
   private def handleStop(): Unit = {
