@@ -6,7 +6,7 @@ import akka.actor.ActorRef
 import io.opentelemetry.api.trace.Tracer
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.exceptions.SurgeEngineNotRunningException
-import surge.internal.domain.{ SurgeEngineState, SurgeMessagePipeline }
+import surge.internal.domain.{ SurgeEngineStatus, SurgeMessagePipeline }
 import surge.internal.persistence.{ AggregateRefTrait, PersistentActor }
 import surge.javadsl.common.{ AggregateRefBaseTrait, _ }
 
@@ -33,12 +33,12 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event](val aggregateId: AggId, pro
   private val log: Logger = LoggerFactory.getLogger(getClass)
 
   override def getState: CompletionStage[Optional[Agg]] = {
-    val engineCurrentState = SurgeMessagePipeline.surgeEngineState
+    val engineStatus = SurgeMessagePipeline.surgeEngineStatus
 
-    val result = if (engineCurrentState.equals(SurgeEngineState.started)) {
+    val result = if (engineStatus == SurgeEngineStatus.Running) {
       queryState
     } else {
-      log.error(s"The engine is not running")
+      log.error(s"Engine Status: $engineStatus")
       Future.failed(SurgeEngineNotRunningException("The engine is not running, please call .start() on the engine before interacting with it"))
     }
 
@@ -46,15 +46,15 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event](val aggregateId: AggId, pro
   }
 
   def sendCommand(command: Cmd): CompletionStage[CommandResult[Agg]] = {
-    val engineCurrentState = SurgeMessagePipeline.surgeEngineState
+    val engineStatus = SurgeMessagePipeline.surgeEngineStatus
 
-    val result = if (engineCurrentState.equals(SurgeEngineState.started)) {
+    val result = if (engineStatus == SurgeEngineStatus.Running) {
       val envelope = PersistentActor.ProcessMessage[Cmd](aggregateId.toString, command)
       sendCommand(envelope).map(aggOpt => CommandSuccess[Agg](aggOpt.asJava)).recover { case error =>
         CommandFailure[Agg](error)
       }
     } else {
-      log.error(s"The engine is not running")
+      log.error(s"Engine Status: $engineStatus")
       Future.failed(SurgeEngineNotRunningException("The engine is not running, please call .start() on the engine before interacting with it"))
     }
 
