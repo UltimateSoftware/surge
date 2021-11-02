@@ -8,6 +8,7 @@ import surge.health.jmx.Api._
 import surge.health.jmx.Domain.HealthRegistrationDetail
 import surge.health.jmx.View.{ HealthRegistrationDetailMxView, HealthRegistryMxView }
 import surge.health.supervisor.Api.{ QueryComponentExists, RestartComponent, ShutdownComponent, StartComponent }
+import surge.internal.config.TimeoutConfig
 import surge.jmx.ActorWithJMX
 
 import java.util
@@ -114,7 +115,7 @@ class SurgeHealthActor(val supervisorRef: ActorRef) extends ActorWithJMX with Su
   override def countRegisteredComponents(): Int = registeredComponentNames().size()
 
   override def exists(componentName: String): Boolean = {
-    Await.result(asyncExists(componentName), 30.seconds)
+    Await.result(asyncExists(componentName), TimeoutConfig.HealthSupervision.actorAskTimeout)
   }
 
   private def asyncExists(componentName: String): Future[Boolean] = {
@@ -122,7 +123,7 @@ class SurgeHealthActor(val supervisorRef: ActorRef) extends ActorWithJMX with Su
       .andThen { case Success(data) =>
         val found = data.find(d => d.componentName == componentName)
         found.foreach(d => {
-          context.system.actorSelection(d.controlRefPath).tell(QueryComponentExists(d.componentName), self)
+          context.system.actorSelection(d.controlRefPath).ask(QueryComponentExists(d.componentName), self)(TimeoutConfig.HealthSupervision.actorAskTimeout)
         })
         found
       }
