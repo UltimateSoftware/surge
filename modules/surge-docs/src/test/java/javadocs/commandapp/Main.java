@@ -29,6 +29,7 @@ public class Main {
         SurgeCommand<UUID, BankAccount, BankAccountCommand, ?, BankAccountEvent> surgeCommand =
                 new SurgeCommandBuilder().withBusinessLogic(bankAccountSurgeModel).build();
         surgeCommand.start();
+        surgeCommand.stopEngine();
         // #bank_account_engine_class
 
         // #sending_command_to_engine
