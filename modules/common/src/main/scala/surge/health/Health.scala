@@ -174,6 +174,12 @@ trait HealthSignalBusTrait extends EventBus with BusSupervisionTrait with Signal
   def asSink(): Sink[HealthMessage, Future[Done]] = Sink.foreach(message => {
     publish(message)
   })
+
+  def asSource(buffer: Int, throttleConfig: ThrottleConfig): SourcePlusQueue[HealthMessage] =
+    signalStream().messageSource(buffer, throttleConfig)
+
+  def asSignalSource(buffer: Int, throttleConfig: ThrottleConfig): SourcePlusQueue[HealthSignal] =
+    signalStream().signalSource(buffer, throttleConfig)
 }
 
 trait HealthListener extends Comparable[String] {
@@ -284,6 +290,14 @@ trait HealthSignalStream extends HealthSignalListener {
    */
   def signalSource(buffer: Int, throttleConfig: ThrottleConfig): SourcePlusQueue[HealthSignal] = {
     val signalSource = Source.queue[HealthSignal](buffer, throttleConfig.overflowStrategy()).throttle(throttleConfig.elements, throttleConfig.duration)
+
+    val (sourceMat, source) = signalSource.preMaterialize()(Materializer(actorSystem))
+
+    SourcePlusQueue(source, sourceMat)
+  }
+
+  def messageSource(buffer: Int, throttleConfig: ThrottleConfig): SourcePlusQueue[HealthMessage] = {
+    val signalSource = Source.queue[HealthMessage](buffer, throttleConfig.overflowStrategy()).throttle(throttleConfig.elements, throttleConfig.duration)
 
     val (sourceMat, source) = signalSource.preMaterialize()(Materializer(actorSystem))
 
