@@ -5,7 +5,7 @@ package surge.health
 import akka.actor.{ ActorRef, ActorSystem, NoSerializationVerificationNeeded }
 import akka.event.EventBus
 import akka.stream.Materializer
-import akka.stream.scaladsl.{ Source, SourceQueueWithComplete }
+import akka.stream.scaladsl.{ Sink, Source, SourceQueueWithComplete }
 import akka.{ Done, NotUsed }
 import org.slf4j.LoggerFactory
 import surge.core.{ Ack, Controllable }
@@ -170,6 +170,10 @@ trait HealthSignalBusTrait extends EventBus with BusSupervisionTrait with Signal
   def supervisor(): Option[HealthSupervisorTrait]
 
   def signalStream(): HealthSignalStream
+
+  def asSink(): Sink[HealthMessage, Future[Done]] = Sink.foreach(message => {
+    publish(message)
+  })
 }
 
 trait HealthListener extends Comparable[String] {
