@@ -138,34 +138,45 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
 
   private def unRegistrationCallback(): PartialFunction[Try[Ack], Unit] = {
     case Success(_) =>
-      val unRegistrationResult = signalBus.unregister(control = this, componentName = "surge-message-pipeline")
-
-      unRegistrationResult.onComplete {
-        case Failure(exception) =>
-          log.error(s"$getClass registeration failed", exception)
-        case Success(_) =>
-          log.debug(s"$getClass registeration succeeded")
-      }(system.dispatcher)
+      unregisterWithSupervisor()
     case Failure(exception) =>
       log.error("Failed to stop so unable to unregister from supervision", exception)
   }
 
   private def registrationCallback(): PartialFunction[Try[Ack], Unit] = {
-
     case Success(_) =>
-      val registrationResult = signalBus.register(
-        control = this,
-        componentName = "surge-message-pipeline",
-        restartSignalPatterns = restartSignalPatterns(),
-        shutdownSignalPatterns = shutdownSignalPatterns())
-
-      registrationResult.onComplete {
-        case Failure(exception) =>
-          log.error(s"$getClass registeration failed", exception)
-        case Success(_) =>
-          log.debug(s"$getClass registeration succeeded")
-      }(system.dispatcher)
+      registerWithSupervisor()
     case Failure(exception) =>
       log.error("Failed to start so unable to register for supervision", exception)
+  }
+
+  /**
+   * Register for Supervision via HealthSignalBus
+   */
+  private def registerWithSupervisor(): Unit = {
+    signalBus.register(
+      control = this,
+      componentName = "surge-message-pipeline",
+      restartSignalPatterns = restartSignalPatterns(),
+      shutdownSignalPatterns = shutdownSignalPatterns()).onComplete {
+      case Failure(exception) =>
+        log.error(s"$getClass registeration failed", exception)
+      case Success(_) =>
+        log.debug(s"$getClass registeration succeeded")
+    }(system.dispatcher)
+  }
+
+  /**
+   * Unregister for Supervision via HealthSignalBus
+   */
+  private def unregisterWithSupervisor(): Unit = {
+    signalBus.unregister(
+      control = this,
+      componentName = "surge-message-pipeline").onComplete {
+      case Failure(exception) =>
+        log.error(s"$getClass registration failed", exception)
+      case Success(_) =>
+        log.debug(s"$getClass registration succeeded")
+    }(system.dispatcher)
   }
 }
