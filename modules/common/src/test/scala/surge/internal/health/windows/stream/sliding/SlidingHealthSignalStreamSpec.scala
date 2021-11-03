@@ -21,7 +21,7 @@ import surge.health.config.{ ThrottleConfig, WindowingStreamConfig, WindowingStr
 import surge.health.domain.{ Error, HealthSignal, Trace }
 import surge.health.matchers.{ SideEffect, SignalPatternMatcherDefinition }
 import surge.health.windows._
-import surge.health.{ HealthSignalReceived, HealthSignalStream, SignalType }
+import surge.health.{ HealthSignalStream, SignalType }
 import surge.internal.health._
 import surge.internal.health.windows.stream.WindowingHealthSignalStream
 
