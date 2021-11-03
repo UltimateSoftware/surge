@@ -296,10 +296,20 @@ trait HealthSignalStream extends HealthSignalListener {
     SourcePlusQueue(source, sourceMat)
   }
 
+  /**
+   * Provide HealthMessage(s) in a Source for stream operations
+   *
+   * @param buffer
+   *   Int
+   * @param throttleConfig
+   *   ThrottleConfig
+   * @return
+   *   SourcePlusQueue[HealthMessage]
+   */
   def messageSource(buffer: Int, throttleConfig: ThrottleConfig): SourcePlusQueue[HealthMessage] = {
-    val signalSource = Source.queue[HealthMessage](buffer, throttleConfig.overflowStrategy()).throttle(throttleConfig.elements, throttleConfig.duration)
+    val messageSource = Source.queue[HealthMessage](buffer, throttleConfig.overflowStrategy()).throttle(throttleConfig.elements, throttleConfig.duration)
 
-    val (sourceMat, source) = signalSource.preMaterialize()(Materializer(actorSystem))
+    val (sourceMat, source) = messageSource.preMaterialize()(Materializer(actorSystem))
 
     SourcePlusQueue(source, sourceMat)
   }
