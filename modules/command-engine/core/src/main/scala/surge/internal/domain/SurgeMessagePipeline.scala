@@ -154,29 +154,31 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
    * Register for Supervision via HealthSignalBus
    */
   private def registerWithSupervisor(): Unit = {
-    signalBus.register(
-      control = this,
-      componentName = "surge-message-pipeline",
-      restartSignalPatterns = restartSignalPatterns(),
-      shutdownSignalPatterns = shutdownSignalPatterns()).onComplete {
-      case Failure(exception) =>
-        log.error(s"$getClass registeration failed", exception)
-      case Success(_) =>
-        log.debug(s"$getClass registeration succeeded")
-    }(system.dispatcher)
+    signalBus
+      .register(
+        control = this,
+        componentName = "surge-message-pipeline",
+        restartSignalPatterns = restartSignalPatterns(),
+        shutdownSignalPatterns = shutdownSignalPatterns())
+      .onComplete {
+        case Failure(exception) =>
+          log.error(s"$getClass registeration failed", exception)
+        case Success(_) =>
+          log.debug(s"$getClass registeration succeeded")
+      }(system.dispatcher)
   }
 
   /**
    * Unregister for Supervision via HealthSignalBus
    */
   private def unregisterWithSupervisor(): Unit = {
-    signalBus.unregister(
-      control = this,
-      componentName = "surge-message-pipeline").onComplete {
-      case Failure(exception) =>
-        log.error(s"$getClass registration failed", exception)
-      case Success(_) =>
-        log.debug(s"$getClass registration succeeded")
-    }(system.dispatcher)
+    signalBus
+      .unregister(control = this, componentName = "surge-message-pipeline")
+      .onComplete {
+        case Failure(exception) =>
+          log.error(s"$getClass registration failed", exception)
+        case Success(_) =>
+          log.debug(s"$getClass registration succeeded")
+      }(system.dispatcher)
   }
 }
