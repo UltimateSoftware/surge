@@ -138,9 +138,36 @@ dependencies {
 case class BankAccount(accountNumber: UUID, accountOwner: String, securityCode: String, balance: Double)</code></pre></dd>
   <dt>Java</dt>
   <dd>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/account/BankAccount.java#L11-L14" target="_blank" title="Go to snippet source"></a><code class="language-java">@JsonSerialize
+  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/account/BankAccount.java#L11-L41" target="_blank" title="Go to snippet source"></a><code class="language-java">@JsonSerialize
 @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
-public record BankAccount(UUID accountNumber, String accountOwner, String securityCode, double balance) {
+public class BankAccount {
+    private final UUID accountNumber;
+    private final String accountOwner;
+    private final String securityCode;
+    private double balance;
+
+    public BankAccount(UUID accountNumber, String accountOwner, String securityCode, double balance) {
+        this.accountNumber = accountNumber;
+        this.accountOwner = accountOwner;
+        this.securityCode = securityCode;
+        this.balance = balance;
+    }
+
+    public UUID getAccountNumber() {
+        return accountNumber;
+    }
+
+    public String getAccountOwner() {
+        return accountOwner;
+    }
+
+    public String getSecurityCode() {
+        return securityCode;
+    }
+
+    public double getBalance() {
+        return balance;
+    }
 }</code></pre></dd>
 </dl>
 <h3><a href="#commands" name="commands" class="anchor"><span class="anchor-link"></span></a>Commands</h3>
@@ -160,23 +187,67 @@ case class DebitAccount(accountNumber: UUID, amount: Double)
   <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/command/BankAccountCommand.java#L8-L10" target="_blank" title="Go to snippet source"></a><code class="language-java">public interface BankAccountCommand {
     UUID getAccountNumber();
 }</code></pre>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/command/CreateAccount.java#L7-L13" target="_blank" title="Go to snippet source"></a><code class="language-java">public record CreateAccount(UUID accountNumber, String accountOwner, String securityCode,
-                            double initialBalance) implements BankAccountCommand {
+  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/command/CreateAccount.java#L7-L36" target="_blank" title="Go to snippet source"></a><code class="language-java">public class CreateAccount implements BankAccountCommand {
+    private final UUID accountNumber;
+    private final String accountOwner;
+    private double balance;
+    private final String securityCode;
+
+    public CreateAccount(UUID accountNumber, String accountOwner, String securityCode, double initialBalance) {
+        this.accountNumber = accountNumber;
+        this.accountOwner = accountOwner;
+        this.securityCode = securityCode;
+        this.balance = initialBalance;
+    }
+
     @Override
     public UUID getAccountNumber() {
         return accountNumber;
     }
+
+    public String getAccountOwner() {
+        return accountOwner;
+    }
+
+    public double getBalance() {
+        return balance;
+    }
+
+    public String getSecurityCode() {
+        return securityCode;
+    }
 }</code></pre>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/command/CreditAccount.java#L8-L13" target="_blank" title="Go to snippet source"></a><code class="language-java">public record CreditAccount(UUID accountNumber, double amount) implements BankAccountCommand {
+  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/command/CreditAccount.java#L8-L23" target="_blank" title="Go to snippet source"></a><code class="language-java">public class CreditAccount implements BankAccountCommand {
+    private final UUID accountNumber;
+    private final double amount;
+    public CreditAccount(UUID accountNumber, double amount) {
+        this.accountNumber = accountNumber;
+        this.amount = amount;
+    }
     @Override
     public UUID getAccountNumber() {
         return accountNumber;
     }
+
+    public double getAmount() {
+        return amount;
+    }
 }</code></pre>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/command/DebitAccount.java#L8-L13" target="_blank" title="Go to snippet source"></a><code class="language-java">public record DebitAccount(UUID accountNumber, double amount) implements BankAccountCommand {
+  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/command/DebitAccount.java#L8-L24" target="_blank" title="Go to snippet source"></a><code class="language-java">public class DebitAccount implements BankAccountCommand {
+    private final UUID accountNumber;
+    private final double amount;
+    public DebitAccount(UUID accountNumber, double amount) {
+        this.accountNumber = accountNumber;
+        this.amount = amount;
+    }
+
     @Override
     public UUID getAccountNumber() {
         return accountNumber;
+    }
+
+    public double getAmount() {
+        return amount;
     }
 }</code></pre></dd>
 </dl>
@@ -214,27 +285,63 @@ public interface BankAccountEvent {
 
     UUID getAccountNumber();
 }</code></pre>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/event/BankAccountCreated.java#L12-L22" target="_blank" title="Go to snippet source"></a><code class="language-java">@JsonSerialize
+  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/event/BankAccountCreated.java#L12-L46" target="_blank" title="Go to snippet source"></a><code class="language-java">@JsonSerialize
 @JsonTypeName(&quot;BankAccountCreated&quot;)
 @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
-public record BankAccountCreated(UUID accountNumber, String accountOwner, String securityCode,
-                                 double balance) implements BankAccountEvent {
+public class BankAccountCreated implements BankAccountEvent {
+
+    private final UUID accountNumber;
+    private final String accountOwner;
+    private final String securityCode;
+    private final double balance;
+
+    public BankAccountCreated(UUID accountNumber, String accountOwner, String securityCode,
+                              double balance) {
+        this.accountNumber = accountNumber;
+        this.accountOwner = accountOwner;
+        this.securityCode = securityCode;
+        this.balance = balance;
+    }
 
     @Override
     public UUID getAccountNumber() {
         return accountNumber;
     }
+
+    public String getAccountOwner() {
+        return accountOwner;
+    }
+
+    public String getSecurityCode() {
+        return securityCode;
+    }
+
+    public double getBalance() {
+        return balance;
+    }
 }</code></pre>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/event/BankAccountUpdated.java#L11-L20" target="_blank" title="Go to snippet source"></a><code class="language-java">@JsonSerialize
+  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/event/BankAccountUpdated.java#L11-L32" target="_blank" title="Go to snippet source"></a><code class="language-java">@JsonSerialize
 @JsonTypeName(&quot;BankAccountUpdated&quot;)
 @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
-public record BankAccountUpdated(UUID accountNumber, double amount) implements BankAccountEvent {
+public class BankAccountUpdated implements BankAccountEvent {
+
+    public double amount;
+    public UUID accountNumber;
+
+    public BankAccountUpdated(UUID accountNumber, double amount) {
+        this.amount = amount;
+        this.accountNumber = accountNumber;
+    }
+
     @Override
     public UUID getAccountNumber() {
         return accountNumber;
     }
-}
-</code></pre></dd>
+
+    public double getAmount() {
+        return amount;
+    }
+}</code></pre></dd>
 </dl>
 <h2><a href="#surge-configuration" name="surge-configuration" class="anchor"><span class="anchor-link"></span></a>Surge Configuration</h2>
 <p>The configuration of a Surge engine is done by implementing a command model interface with your particular domain logic and a Surge model interface with Kafka topic configuration.</p>
@@ -280,41 +387,45 @@ public record BankAccountUpdated(UUID accountNumber, double amount) implements B
 }</code></pre></dd>
   <dt>Java</dt>
   <dd>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/BankAccountCommandModel.java#L20-L84" target="_blank" title="Go to snippet source"></a><code class="language-java">public class BankAccountCommandModel implements AggregateCommandModel&lt;BankAccount, BankAccountCommand, BankAccountEvent&gt; {
+  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/BankAccountCommandModel.java#L20-L91" target="_blank" title="Go to snippet source"></a><code class="language-java">public class BankAccountCommandModel implements AggregateCommandModel&lt;BankAccount, BankAccountCommand, BankAccountEvent&gt; {
 
     @Override
     public List&lt;BankAccountEvent&gt; processCommand(Optional&lt;BankAccount&gt; aggregate, BankAccountCommand command) {
 
         // users can feel free to use vavr pattern matching as an alternative to instanceOf.
-        if (command instanceof CreateAccount createAccount) {
+        if (command instanceof CreateAccount) {
+            CreateAccount createAccount = (CreateAccount) command;
             if (aggregate.isPresent()) {
                 return new ArrayList&lt;&gt;();
             } else {
                 BankAccountCreated bankAccountCreated = new BankAccountCreated(createAccount.getAccountNumber(),
-                        createAccount.accountOwner()
-                        , createAccount.securityCode()
-                        , createAccount.initialBalance());
+                        createAccount.getAccountOwner()
+                        , createAccount.getSecurityCode()
+                        , createAccount.getBalance());
                 return Collections.singletonList(bankAccountCreated);
 
             }
         }
-        if (command instanceof CreditAccount creditAccount) {
+        if (command instanceof CreditAccount) {
+            CreditAccount creditAccount = (CreditAccount) command;
+
             if (aggregate.isPresent()) {
                 BankAccount bankAccount = aggregate.get();
-                BankAccountUpdated bankAccountUpdated = new BankAccountUpdated(creditAccount.accountNumber()
-                        , bankAccount.balance() + creditAccount.amount());
+                BankAccountUpdated bankAccountUpdated = new BankAccountUpdated(creditAccount.getAccountNumber()
+                        , bankAccount.getBalance() + creditAccount.getAmount());
                 return Collections.singletonList(bankAccountUpdated);
 
             } else {
                 throw new RuntimeException(&quot;Account does not exist&quot;);
             }
         }
-        if (command instanceof DebitAccount debitAccount) {
+        if (command instanceof DebitAccount) {
+            DebitAccount debitAccount = (DebitAccount) command;
             if (aggregate.isPresent()) {
                 BankAccount bankAccount = aggregate.get();
-                if (bankAccount.balance() &gt;= debitAccount.amount()) {
-                    BankAccountUpdated bankAccountUpdated = new BankAccountUpdated(bankAccount.accountNumber(),
-                            bankAccount.balance() - debitAccount.amount());
+                if (bankAccount.getBalance() &gt;= debitAccount.getAmount()) {
+                    BankAccountUpdated bankAccountUpdated = new BankAccountUpdated(bankAccount.getAccountNumber(),
+                            bankAccount.getBalance() - debitAccount.getAmount());
                     return Collections.singletonList(bankAccountUpdated);
 
                 } else {
@@ -331,15 +442,18 @@ public record BankAccountUpdated(UUID accountNumber, double amount) implements B
     public Optional&lt;BankAccount&gt; handleEvent(Optional&lt;BankAccount&gt; aggregate, BankAccountEvent event) {
 
         // users can feel free to use vavr pattern matching as an alternative to instanceOf.
-        if (event instanceof BankAccountCreated bankAccountCreated) {
+        if (event instanceof BankAccountCreated) {
+            BankAccountCreated bankAccountCreated = (BankAccountCreated)event;
             Optional&lt;BankAccount&gt; bankAccount;
-            bankAccount = Optional.of(new BankAccount(event.getAccountNumber(), bankAccountCreated.accountOwner(),
-                    bankAccountCreated.securityCode(), bankAccountCreated.balance()));
+            bankAccount = Optional.of(new BankAccount(event.getAccountNumber(), bankAccountCreated.getAccountOwner(),
+                    bankAccountCreated.getSecurityCode(), bankAccountCreated.getBalance()));
             return bankAccount;
         }
-        if (event instanceof BankAccountUpdated bankAccountUpdated) {
-            return aggregate.map((item) -&gt; new BankAccount(item.accountNumber(), item.accountOwner()
-                    , item.securityCode(), bankAccountUpdated.amount()));
+        if (event instanceof BankAccountUpdated) {
+            BankAccountUpdated bankAccountUpdated = (BankAccountUpdated)event;
+
+            return aggregate.map((item) -&gt; new BankAccount(item.getAccountNumber(), item.getAccountOwner()
+                    , item.getSecurityCode(), bankAccountUpdated.getAmount()));
         }
         throw new RuntimeException(&quot;Unhandled event&quot;);
     }
@@ -462,7 +576,7 @@ public record BankAccountUpdated(UUID accountNumber, double amount) implements B
 }</code></pre></dd>
   <dt>Java</dt>
   <dd>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/Main.java#L28-L31" target="_blank" title="Go to snippet source"></a><code class="language-java">BankAccountSurgeModel bankAccountSurgeModel = new BankAccountSurgeModel();
+  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/Main.java#L27-L30" target="_blank" title="Go to snippet source"></a><code class="language-java">BankAccountSurgeModel bankAccountSurgeModel = new BankAccountSurgeModel();
 SurgeCommand&lt;UUID, BankAccount, BankAccountCommand, ?, BankAccountEvent&gt; surgeCommand =
         new SurgeCommandBuilder().withBusinessLogic(bankAccountSurgeModel).build();
 surgeCommand.start();</code></pre></dd>
@@ -486,7 +600,7 @@ val creditedAccount: Future[Option[BankAccount]] = BankAccountEngine.surgeEngine
 }</code></pre></dd>
   <dt>Java</dt>
   <dd>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/Main.java#L35-L53" target="_blank" title="Go to snippet source"></a><code class="language-java">UUID accountNumber = UUID.randomUUID();
+  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/Main.java#L34-L54" target="_blank" title="Go to snippet source"></a><code class="language-java">UUID accountNumber = UUID.randomUUID();
 logger.info(&quot;Account number is: {}&quot;, accountNumber);
 CreateAccount createAccount = new CreateAccount(accountNumber, &quot;Jane Doe&quot;,
         &quot;1234&quot;, 1000.0);
@@ -498,9 +612,11 @@ completionStageCreateAccount.whenComplete((CommandResult&lt;BankAccount&gt; resu
     if (ex != null) {
         ex.printStackTrace();
     } else {
-        if (result instanceof CommandSuccess&lt;BankAccount&gt; commandSuccess) {
+        if (result instanceof CommandSuccess) {
+            CommandSuccess&lt;BankAccount&gt; commandSuccess = (CommandSuccess&lt;BankAccount&gt;)result;
             logger.info(&quot;Aggregate state is: {} &quot;, commandSuccess.aggregateState());
-        } else if (result instanceof CommandFailure&lt;BankAccount&gt; commandFailure) {
+        } else if (result instanceof CommandFailure) {
+            CommandFailure&lt;BankAccount&gt; commandFailure = (CommandFailure&lt;BankAccount&gt;)result;
             commandFailure.reason().printStackTrace();
         }
     }
@@ -513,7 +629,7 @@ completionStageCreateAccount.whenComplete((CommandResult&lt;BankAccount&gt; resu
   <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/scala/docs/command/BankAccountCommandEngineSpec.scala#L65" target="_blank" title="Go to snippet source"></a><code class="language-scala">val currentState: Future[Option[BankAccount]] = BankAccountEngine.surgeEngine.aggregateFor(accountNumber).getState</code></pre></dd>
   <dt>Java</dt>
   <dd>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/Main.java#L57-L65" target="_blank" title="Go to snippet source"></a><code class="language-java">CompletionStage&lt;Optional&lt;BankAccount&gt;&gt; currentState = surgeCommand.aggregateFor(accountNumber).getState();
+  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/Main.java#L58-L66" target="_blank" title="Go to snippet source"></a><code class="language-java">CompletionStage&lt;Optional&lt;BankAccount&gt;&gt; currentState = surgeCommand.aggregateFor(accountNumber).getState();
 currentState.whenComplete((bankAccount, throwable) -&gt;
 {
     if (throwable != null) {
