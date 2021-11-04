@@ -150,6 +150,7 @@ class PersistentActor[S, M, R, E](
   import PersistentActor._
   import context.dispatcher
 
+  //FIXME: temporary fix to support switch between akka and existing shard allocation strategy
   def aggregateId: String = aggregateIdOpt.getOrElse(self.path.name)
 
   private val metrics = regionSharedResources.metrics
@@ -328,6 +329,8 @@ class PersistentActor[S, M, R, E](
 
   private def handlePassivate(): Unit = {
     log.trace(s"PersistentActor for aggregate ${businessLogic.aggregateName} $aggregateId is passivating gracefully")
+
+    //FIXME: temporary fix to support switch between akka and existing shard allocation strategy
     if (isAkkaClusterEnabled) {
       context.parent ! Passivate(Stop)
     } else {
