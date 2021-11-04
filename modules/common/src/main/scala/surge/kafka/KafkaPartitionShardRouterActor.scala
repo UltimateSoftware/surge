@@ -157,7 +157,6 @@ class KafkaPartitionShardRouterActor(
     case msg: PartitionAssignments => handle(msg)
     case Shutdown =>
       log.info("Shutting down `shared-router-actor`")
-      scheduledInitialize.cancel()
       context.stop(self)
     case _ =>
       activeSpan.log("stashed")
@@ -172,7 +171,6 @@ class KafkaPartitionShardRouterActor(
       sender() ! HealthCheck(name = "shard-router-actor", id = s"router-actor-$hashCode", status = HealthCheckStatus.UP)
     case Shutdown =>
       log.info("Shutting down `shared-router-actor`")
-      scheduledInitialize.cancel()
       state.partitionRegions.values.foreach(region => region.regionManager ! ActorLifecycleManagerActor.Stop)
       context.stop(self)
     case msg if extractEntityId.isDefinedAt(msg) =>
@@ -185,7 +183,6 @@ class KafkaPartitionShardRouterActor(
     case GetPartitionRegionAssignments => sender() ! state.partitionRegions
     case Shutdown =>
       log.info("Shutting down `shared-router-actor`")
-      scheduledInitialize.cancel()
       state.partitionRegions.values.foreach(region => region.regionManager ! ActorLifecycleManagerActor.Stop)
       context.stop(self)
     case msg if extractEntityId.isDefinedAt(msg) =>
