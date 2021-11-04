@@ -210,26 +210,8 @@ class PersistentActor[S, M, R, E](
   }
 
   override def preStart(): Unit = {
-    kafkaProducerActor.start()
     initializeState(initializationAttempts = 0, None)
     super.preStart()
-  }
-
-  // TODO: identify when we should stop KafkaProducerActor
-  override def aroundPostStop(): Unit = {
-//    kafkaProducerActor.stop().andThen {
-//      case Failure(exception) =>
-//        log.error("Failed to stop KafkaProducerActor", exception)
-//      case Success(_) =>
-//        log.debug("Successfully stopped KafkaProducerActor")
-//    }
-    super.aroundPostStop()
-  }
-
-  override def postStop(): Unit = {
-//    kafkaProducerActor.terminate()
-//    log.info("Successfully terminated KafkaProducerActor")
-    super.postStop()
   }
 
   private def surgeContext() = Context(businessLogic.executionContext, this)

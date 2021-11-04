@@ -46,61 +46,66 @@ private[surge] final class SurgePartitionRouterImpl(
 
   override val actorRegion: ActorRef = {
     if (isAkkaClusterEnabled) {
-      val groupId = businessLogic.kafka.streamsApplicationId
-      val consumerSettings = ConsumerSettings(system, new StringDeserializer, new ByteArrayDeserializer)
-        .withBootstrapServers(config.getString("kafka.brokers"))
-        .withGroupId(groupId)
-        .withProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
-        .withStopTimeout(0.seconds)
-
-      val regionF = KafkaClusterSharding(system)
-        .messageExtractorNoEnvelope(
-          timeout = 10.seconds,
-          topic = businessLogic.kafka.stateTopic.name,
-          entityIdExtractor = (msg: RoutableMessage) => msg.aggregateId,
-          settings = consumerSettings)
-        .map(messageExtractor => {
-          val classicMessageExtractor = new KafkaShardingClassicMessageExtractor[RoutableMessage](
-            kafkaPartitions = messageExtractor.kafkaPartitions,
-            entityIdExtractor = (msg: RoutableMessage) => msg.aggregateId)
-          val aggregateIdToKafkaProducerActor = KafkaProducerActor.create(
-            actorSystem = system,
-            metrics = businessLogic.metrics,
-            businessLogic = businessLogic,
-            partitionTracker = partitionTracker,
-            kStreams = aggregateKafkaStreamsImpl,
-            signalBus = signalBus,
-            config = config,
-            numberOfPartitions = messageExtractor.kafkaPartitions)
-
-          val aggregateMetrics = PersistentActor.createMetrics(businessLogic.metrics, businessLogic.aggregateName)
-          val sharedResources = persistence.PersistentEntitySharedResources(aggregateIdToKafkaProducerActor, aggregateMetrics, aggregateKafkaStreamsImpl)
-          ClusterSharding(system).start(
-            typeName = groupId,
-            entityProps = PersistentActor.props(businessLogic, signalBus, sharedResources, config),
-            settings = ClusterShardingSettings(system),
-            messageExtractor = classicMessageExtractor,
-            allocationStrategy = new ExternalShardAllocationStrategy(system, groupId),
-            handOffStopMessage = PoisonPill)
-        })
-      // FIXME
-      Await.result(regionF, 5.seconds)
+      createAkkaCluster()
     } else {
-      val shardRouterProps = KafkaPartitionShardRouterActor.props(
-        config,
-        partitionTracker,
-        businessLogic.partitioner,
-        businessLogic.kafka.stateTopic,
-        regionCreator,
-        RoutableMessage.extractEntityId)(businessLogic.tracer)
-
-      val routerActorName = s"${businessLogic.aggregateName}RouterActor"
-      val shardRouter = system.actorOf(shardRouterProps, name = routerActorName)
-      shardRouter
+      createShardRouter()
     }
   }
 
   log.info(s"Shard region: $actorRegion")
+
+  private def createShardRouter(): ActorRef = {
+    val shardRouterProps = KafkaPartitionShardRouterActor.props(
+      config,
+      partitionTracker,
+      businessLogic.partitioner,
+      businessLogic.kafka.stateTopic,
+      regionCreator,
+      RoutableMessage.extractEntityId)(businessLogic.tracer)
+
+    val routerActorName = s"${businessLogic.aggregateName}RouterActor"
+    val shardRouter = system.actorOf(shardRouterProps, name = routerActorName)
+    shardRouter
+  }
+
+  private def createAkkaCluster(): ActorRef = {
+    val groupId = businessLogic.kafka.streamsApplicationId
+    val consumerSettings = ConsumerSettings(system, new StringDeserializer, new ByteArrayDeserializer)
+      .withBootstrapServers(config.getString("kafka.brokers"))
+      .withGroupId(groupId)
+      .withProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
+      .withStopTimeout(0.seconds)
+
+    val regionF = KafkaClusterSharding(system)
+      .messageExtractorNoEnvelope(
+        timeout = 10.seconds,
+        topic = businessLogic.kafka.stateTopic.name,
+        entityIdExtractor = (msg: RoutableMessage) => msg.aggregateId,
+        settings = consumerSettings)
+      .map(messageExtractor => {
+        val classicMessageExtractor = new KafkaShardingClassicMessageExtractor[RoutableMessage](
+          kafkaPartitions = messageExtractor.kafkaPartitions,
+          entityIdExtractor = (msg: RoutableMessage) => msg.aggregateId)
+        val aggregateIdToKafkaProducerActor = KafkaProducerActor.createWithActorSelection(
+          actorSystem = system,
+          metrics = businessLogic.metrics,
+          businessLogic = businessLogic,
+          signalBus = signalBus,
+          numberOfPartitions = messageExtractor.kafkaPartitions)
+
+        val aggregateMetrics = PersistentActor.createMetrics(businessLogic.metrics, businessLogic.aggregateName)
+        val sharedResources = persistence.PersistentEntitySharedResources(aggregateIdToKafkaProducerActor, aggregateMetrics, aggregateKafkaStreamsImpl)
+        ClusterSharding(system).start(
+          typeName = groupId,
+          entityProps = PersistentActor.props(businessLogic, signalBus, sharedResources, config),
+          settings = ClusterShardingSettings(system),
+          messageExtractor = classicMessageExtractor,
+          allocationStrategy = new ExternalShardAllocationStrategy(system, groupId),
+          handOffStopMessage = PoisonPill)
+      })
+    // FIXME
+    Await.result(regionF, 5.seconds)
+  }
 
   override def start(): Future[Ack] = {
     // TODO explicit start/stop for router actor

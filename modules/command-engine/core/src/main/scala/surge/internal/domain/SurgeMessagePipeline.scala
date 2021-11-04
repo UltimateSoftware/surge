@@ -8,17 +8,13 @@ import akka.management.scaladsl.AkkaManagement
 import com.typesafe.config.Config
 import org.slf4j.{ Logger, LoggerFactory }
 import play.api.libs.json.JsValue
-import surge.core.{ Ack, SurgePartitionRouter, SurgeProcessingTrait }
+import surge.core.{ Ack, KafkaProducerActor, SurgePartitionRouter, SurgeProcessingTrait }
 import surge.health.{ HealthSignalBusAware, HealthSignalBusTrait }
 import surge.internal.SurgeModel
 import surge.internal.akka.cluster.ActorSystemHostAwareness
-import surge.internal.akka.kafka.{
-  CustomConsumerGroupRebalanceListener,
-  KafkaClusterShardingRebalanceListener,
-  KafkaConsumerPartitionAssignmentTracker,
-  KafkaConsumerStateTrackingActor
-}
+import surge.internal.akka.kafka.{ CustomConsumerGroupRebalanceListener, KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor }
 import surge.internal.health.HealthSignalStreamProvider
+import surge.internal.kafka.KafkaClusterShardingRebalanceListener
 import surge.internal.persistence.PersistentActorRegionCreator
 import surge.kafka.PartitionAssignments
 import surge.kafka.streams._
@@ -138,10 +134,19 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     }
   }
 
-  private def startKafkaClusterRebalanceListener(): Future[ActorRef] = {
-    Future.successful(
-      system.actorOf(
-        KafkaClusterShardingRebalanceListener.props(stateChangeActor, businessLogic.kafka.stateTopic.name, businessLogic.kafka.streamsApplicationId)))
+  private def startKafkaClusterRebalanceListener(): Future[ActorRef] = Future.successful {
+    val partitionToKafkaProducerActor = KafkaProducerActor.create(
+      actorSystem = system,
+      metrics = businessLogic.metrics,
+      businessLogic = businessLogic,
+      partitionTracker = partitionTracker,
+      kStreams = kafkaStreamsImpl,
+      signalBus = signalBus,
+      config = config)
+
+    system.actorOf(
+      KafkaClusterShardingRebalanceListener
+        .props(stateChangeActor, partitionToKafkaProducerActor, businessLogic.kafka.stateTopic.name, businessLogic.kafka.streamsApplicationId))
   }
 
   private def startSignalStream(): Future[Ack] = {

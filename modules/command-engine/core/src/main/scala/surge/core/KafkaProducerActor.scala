@@ -2,7 +2,7 @@
 
 package surge.core
 
-import akka.actor.{ ActorRef, ActorSystem, NoSerializationVerificationNeeded, PoisonPill, Props }
+import akka.actor.{ ActorRef, ActorSelection, ActorSystem, NoSerializationVerificationNeeded, PoisonPill, Props }
 import akka.pattern._
 import akka.util.Timeout
 import com.typesafe.config.Config
@@ -19,7 +19,8 @@ import surge.kafka.streams._
 import surge.kafka.{ KafkaAdminClient, KafkaProducerTrait }
 import surge.metrics.{ MetricInfo, Metrics, Timer }
 
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.duration.DurationInt
+import scala.concurrent.{ Await, ExecutionContext, Future }
 import scala.util.{ Failure, Success, Try }
 
 object KafkaProducerActor {
@@ -66,10 +67,8 @@ object KafkaProducerActor {
       partitionTracker: KafkaConsumerPartitionAssignmentTracker,
       signalBus: HealthSignalBusTrait,
       config: Config,
-      numberOfPartitions: Int,
-      kafkaProducerOverride: Option[KafkaProducerTrait[String, Array[Byte]]] = None): String => KafkaProducerActor = aggregateId => {
+      kafkaProducerOverride: Option[KafkaProducerTrait[String, Array[Byte]]] = None): Int => KafkaProducerActor = partitionNumber => {
 
-    val partitionNumber = PartitionerHelper.partitionForKey(aggregateId, numberOfPartitions)
     val assignedPartition = new TopicPartition(businessLogic.kafka.stateTopic.name, partitionNumber)
 
     val brokers = config.getString("kafka.brokers").split(",").toVector
@@ -87,11 +86,30 @@ object KafkaProducerActor {
         kafkaProducerOverride = kafkaProducerOverride)).withDispatcher(dispatcherName)
 
     new KafkaProducerActor(
-      actorSystem.actorOf(Props(new ActorLifecycleManagerActor(kafkaProducerProps, s"producer-actor-${assignedPartition.toString}"))),
+      actorSystem.actorOf(
+        Props(new ActorLifecycleManagerActor(kafkaProducerProps, s"producer-actor-${assignedPartition.toString}")),
+        s"producer-actor-${assignedPartition.toString}"),
       metrics,
       businessLogic.aggregateName,
       assignedPartition,
       signalBus)
+  }
+
+  def createWithActorSelection(
+      actorSystem: ActorSystem,
+      metrics: Metrics,
+      businessLogic: SurgeModel[_, _, _, _],
+      signalBus: HealthSignalBusTrait,
+      numberOfPartitions: Int): String => KafkaProducerActor = (aggregateId: String) => {
+
+    val partitionNumber = PartitionerHelper.partitionForKey(aggregateId, numberOfPartitions)
+    val assignedPartition = new TopicPartition(businessLogic.kafka.stateTopic.name, partitionNumber)
+
+    // FIXME
+    val timeout = 5.seconds
+    val publisherActor = Await.result(actorSystem.actorSelection(s"user/producer-actor-${assignedPartition.toString}").resolveOne(timeout), timeout)
+
+    new KafkaProducerActor(publisherActor, metrics, businessLogic.aggregateName, assignedPartition, signalBus)
   }
 
   sealed trait PublishResult extends NoSerializationVerificationNeeded
