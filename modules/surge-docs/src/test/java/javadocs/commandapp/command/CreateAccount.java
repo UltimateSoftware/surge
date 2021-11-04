@@ -7,7 +7,7 @@ import java.util.UUID;
 public class CreateAccount implements BankAccountCommand {
     private final UUID accountNumber;
     private final String accountOwner;
-    private double balance;
+    private final double balance;
     private final String securityCode;
 
     public CreateAccount(UUID accountNumber, String accountOwner, String securityCode, double initialBalance) {
