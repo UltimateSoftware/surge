@@ -179,19 +179,11 @@ class HealthSignalWindowActorSpec
       actorRef.flush()
 
       eventually {
-        val paused = probe.fishForMessage(max = 1.second) { case _: WindowPaused =>
-          true
-        }
-
-        paused shouldBe a[WindowPaused]
+        probe.expectMsgType[WindowPaused](1.second)
       }
 
       eventually {
-        val resumed = probe.fishForMessage(max = 1.second) { case _: WindowResumed =>
-          true
-        }
-
-        resumed shouldBe a[WindowResumed]
+        probe.expectMsgType[WindowResumed](1.second)
       }
 
       actorRef.stop()

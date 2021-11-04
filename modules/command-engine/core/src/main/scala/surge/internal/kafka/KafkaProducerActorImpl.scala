@@ -11,7 +11,7 @@ import org.apache.kafka.clients.producer.{ ProducerConfig, ProducerRecord }
 import org.apache.kafka.common.errors.{ AuthorizationException, ProducerFencedException }
 import org.apache.kafka.common.{ IsolationLevel, TopicPartition }
 import org.slf4j.{ Logger, LoggerFactory }
-import surge.core.{ Ack, KafkaProducerActor }
+import surge.core.KafkaProducerActor
 import surge.health.{ HealthSignalBusTrait, HealthyPublisher }
 import surge.internal.akka.cluster.ActorHostAwareness
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
@@ -182,7 +182,7 @@ class KafkaProducerActorImpl(
     case _: IsAggregateStateCurrent   => sender().tell(false, self)
   }
 
-  private def waitingForKTableIndexing(initialFenceTime: Instant): Receive = {
+  private def waitingForKTableIndexing(): Receive = {
     case CheckKTableProgress       => checkKTableProgress()
     case msg: KTableProgressUpdate => handleFromWaitingForKTableIndexingState(msg)
     case FlushMessages             => log.trace("KafkaProducerActor ignoring FlushMessages message from the waitingForKTableIndexing state")
@@ -282,7 +282,7 @@ class KafkaProducerActorImpl(
 
   private def initTransactionsSuccess(lastProgressUpdate: Option[KTableProgressUpdate]): Unit = {
     unstashAll()
-    context.become(waitingForKTableIndexing(Instant.now()))
+    context.become(waitingForKTableIndexing())
     lastProgressUpdate.foreach(update => self ! update)
   }
 

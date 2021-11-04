@@ -271,8 +271,7 @@ class SurgeMessagePipelineSpec
           }
 
           val acknowledgedStop: Ack = pipeline.stop().futureValue
-
-          Option(acknowledgedStop) shouldBe defined
+          acknowledgedStop shouldEqual Ack()
 
           val afterStopRegistrations = eventually {
             val reg = pipeline.signalBus.registrations().futureValue

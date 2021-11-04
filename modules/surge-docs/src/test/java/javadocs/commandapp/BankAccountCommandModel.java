@@ -70,13 +70,13 @@ public class BankAccountCommandModel implements AggregateCommandModel<BankAccoun
         // users can feel free to use vavr pattern matching as an alternative to instanceOf.
         if (event instanceof BankAccountCreated bankAccountCreated) {
             Optional<BankAccount> bankAccount;
-            bankAccount = Optional.of(new BankAccount(event.getAccountNumber(), bankAccountCreated.getAccountOwner(),
-                    bankAccountCreated.getSecurityCode(), bankAccountCreated.getBalance()));
+            bankAccount = Optional.of(new BankAccount(event.getAccountNumber(), bankAccountCreated.accountOwner(),
+                    bankAccountCreated.securityCode(), bankAccountCreated.balance()));
             return bankAccount;
         }
         if (event instanceof BankAccountUpdated bankAccountUpdated) {
             return aggregate.map((item) -> new BankAccount(item.accountNumber(), item.accountOwner()
-                    , item.securityCode(), bankAccountUpdated.getAmount()));
+                    , item.securityCode(), bankAccountUpdated.amount()));
         }
         throw new RuntimeException("Unhandled event");
     }

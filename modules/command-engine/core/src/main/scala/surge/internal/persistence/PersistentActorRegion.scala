@@ -16,7 +16,6 @@ import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, HealthCheck }
 import surge.kafka.{ PersistentActorRegionCreator => KafkaPersistentActorRegionCreator }
 import surge.metrics.Metrics
 
-import java.util.regex.Pattern
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.{ Failure, Success, Try }
 
@@ -63,8 +62,6 @@ class PersistentActorRegion[M](
     log.debug("Shard for partition {} terminated, killing partition kafkaProducerActor", assignedPartition)
     kafkaProducerActor.terminate()
   }
-
-  override def restartSignalPatterns(): Seq[Pattern] = Seq(Pattern.compile("kafka.partition.lag.not.found.fatal.error"))
 
   override def healthCheck(): Future[HealthCheck] = {
     kafkaProducerActor.healthCheck()

@@ -11,24 +11,10 @@ import java.util.UUID;
 @JsonSerialize
 @JsonTypeName("BankAccountUpdated")
 @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
-public class BankAccountUpdated implements BankAccountEvent {
-
-    public double amount;
-    public UUID accountNumber;
-
-    public BankAccountUpdated(UUID accountNumber, double amount) {
-        this.amount = amount;
-        this.accountNumber = accountNumber;
-    }
-
+public record BankAccountUpdated(UUID accountNumber, double amount) implements BankAccountEvent {
     @Override
     public UUID getAccountNumber() {
         return accountNumber;
     }
-
-    public double getAmount() {
-        return amount;
-    }
 }
-
 // #event_class

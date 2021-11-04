@@ -162,19 +162,17 @@ class KafkaProducerActor(
 
   private def registrationCallback(): PartialFunction[Try[Ack], Unit] = {
     case Success(_) =>
-      val registrationResult =
-        signalBus.register(
+      signalBus
+        .register(
           control = this,
           componentName = s"kafka-producer-actor-${assignedPartition.topic()}-${assignedPartition.partition()}",
           restartSignalPatterns = restartSignalPatterns())
-
-      Option(registrationResult).foreach(result =>
-        result.onComplete {
+        .onComplete {
           case Failure(exception) =>
             log.error(s"$getClass registration failed", exception)
           case Success(_) =>
             log.debug(s"$getClass registration succeeded")
-        })
+        }
     case Failure(error) =>
       log.error(s"Unable to register $getClass for supervision", error)
   }
