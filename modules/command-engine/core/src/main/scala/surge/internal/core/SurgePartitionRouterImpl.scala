@@ -18,7 +18,6 @@ import surge.kafka.{ KafkaPartitionShardRouterActor, PersistentActorRegionCreato
 
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.languageFeature.postfixOps
-import scala.util.{ Failure, Success, Try }
 
 private[surge] final class SurgePartitionRouterImpl(
     config: Config,
@@ -82,33 +81,4 @@ private[surge] final class SurgePartitionRouterImpl(
         Future.successful(HealthCheck(name = "router-actor", id = s"router-actor-${actorRegion.hashCode}", status = HealthCheckStatus.DOWN))
       }
   }
-
-  private def registrationCallback(): PartialFunction[Try[Ack], Unit] = {
-    case Success(_) =>
-      val registrationResult = signalBus.register(control = this, componentName = "router-actor", restartSignalPatterns())
-
-      registrationResult.onComplete {
-        case Failure(exception) =>
-          log.error(s"$getClass registration failed", exception)
-        case Success(_) =>
-          log.debug(s"$getClass registration succeeded")
-      }
-    case Failure(error) =>
-      log.error(s"Unable to register $getClass for supervision", error)
-  }
-
-  private def unRegistrationCallback(): PartialFunction[Try[Ack], Unit] = {
-    case Success(_) =>
-      val unRegistrationResult = signalBus.unregister(control = this, componentName = "router-actor")
-
-      unRegistrationResult.onComplete {
-        case Failure(exception) =>
-          log.error(s"$getClass registeration failed", exception)
-        case Success(_) =>
-          log.debug(s"$getClass registeration succeeded")
-      }(system.dispatcher)
-    case Failure(exception) =>
-      log.error("Failed to stop so unable to unregister from supervision", exception)
-  }
-
 }
