@@ -57,7 +57,7 @@ class SlidingHealthSignalStreamSpec
     val definition = SignalPatternMatcherDefinition.repeating(
       times = 5,
       pattern = Pattern.compile("test.trace"),
-      frequency = 10.seconds,
+      frequency = 1.seconds,
       sideEffect = Some(SideEffect(Seq(signal))))
 
     signalStreamProvider = new SlidingHealthSignalStreamProvider(
