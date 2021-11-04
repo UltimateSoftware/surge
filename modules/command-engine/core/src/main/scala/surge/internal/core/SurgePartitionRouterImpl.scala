@@ -5,13 +5,11 @@ package surge.internal.core
 import java.util.regex.Pattern
 import akka.actor._
 import akka.pattern.ask
-import akka.util.Timeout
 import com.typesafe.config.Config
 import org.slf4j.LoggerFactory
 import surge.core.{ Ack, Controllable, SurgePartitionRouter }
 import surge.health.HealthSignalBusTrait
 import surge.internal.SurgeModel
-import surge.internal.akka.actor.ActorLifecycleManagerActor
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.config.TimeoutConfig
 import surge.internal.persistence.RoutableMessage
@@ -44,6 +42,7 @@ private[surge] final class SurgePartitionRouterImpl(
     RoutableMessage.extractEntityId)(businessLogic.tracer)
 
   private val routerActorName = s"${businessLogic.aggregateName}RouterActor"
+
   private val shardRouter = system.actorOf(shardRouterProps, name = routerActorName)
   override val actorRegion: ActorRef = shardRouter
 
@@ -97,4 +96,19 @@ private[surge] final class SurgePartitionRouterImpl(
     case Failure(error) =>
       log.error(s"Unable to register $getClass for supervision", error)
   }
+
+  private def unRegistrationCallback(): PartialFunction[Try[Ack], Unit] = {
+    case Success(_) =>
+      val unRegistrationResult = signalBus.unregister(control = this, componentName = "router-actor")
+
+      unRegistrationResult.onComplete {
+        case Failure(exception) =>
+          log.error(s"$getClass registeration failed", exception)
+        case Success(_) =>
+          log.debug(s"$getClass registeration succeeded")
+      }(system.dispatcher)
+    case Failure(exception) =>
+      log.error("Failed to stop so unable to unregister from supervision", exception)
+  }
+
 }

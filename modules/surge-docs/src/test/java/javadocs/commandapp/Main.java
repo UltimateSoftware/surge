@@ -9,7 +9,6 @@ import javadocs.commandapp.event.BankAccountEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import surge.javadsl.command.SurgeCommand;
-import surge.javadsl.command.SurgeCommand$;
 import surge.javadsl.command.SurgeCommandBuilder;
 import surge.javadsl.common.CommandFailure;
 import surge.javadsl.common.CommandResult;
@@ -44,9 +43,11 @@ public class Main {
             if (ex != null) {
                 ex.printStackTrace();
             } else {
-                if (result instanceof CommandSuccess<BankAccount> commandSuccess) {
+                if (result instanceof CommandSuccess) {
+                    CommandSuccess<BankAccount> commandSuccess = (CommandSuccess<BankAccount>)result;
                     logger.info("Aggregate state is: {} ", commandSuccess.aggregateState());
-                } else if (result instanceof CommandFailure<BankAccount> commandFailure) {
+                } else if (result instanceof CommandFailure) {
+                    CommandFailure<BankAccount> commandFailure = (CommandFailure<BankAccount>)result;
                     commandFailure.reason().printStackTrace();
                 }
             }

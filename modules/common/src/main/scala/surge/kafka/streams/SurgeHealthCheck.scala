@@ -49,9 +49,26 @@ class SurgeHealthCheck(healthCheckId: String, components: HealthyComponent*)(imp
 }
 
 trait HealthyComponent extends Controllable {
+
+  /**
+   * Perform a Health Check
+   * @return
+   *   HealthCheck
+   */
   def healthCheck(): Future[HealthCheck]
 
+  /**
+   * Signals Patterns that will trigger a restart
+   * @return
+   *   Seq[Pattern]
+   */
   def restartSignalPatterns(): Seq[Pattern] = Seq.empty
+
+  /**
+   * Signal Patterns that will trigger a shutdown
+   * @return
+   *   Seq[Pattern]
+   */
   def shutdownSignalPatterns(): Seq[Pattern] = Seq.empty
 }
 

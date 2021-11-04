@@ -8,6 +8,7 @@ import akka.pattern.AskTimeoutException
 import akka.testkit.{ TestKit, TestProbe }
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.header.internals.RecordHeaders
+import org.mockito.Mockito.when
 import org.mockito.{ ArgumentMatchers, Mockito }
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.{ PatienceConfiguration, ScalaFutures }
@@ -16,12 +17,13 @@ import org.scalatest.time.{ Millis, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
 import surge.health.{ HealthSignalBusTrait, InvokableHealthRegistration }
+import surge.internal.akka.actor.ManagedActorRef
 import surge.internal.kafka.KafkaProducerActorImpl
 import surge.kafka.streams.{ HealthCheck, HealthCheckStatus, HealthyActor }
 import surge.metrics.Metrics
 
 import scala.concurrent.duration._
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ ExecutionContext, Future }
 
 class KafkaProducerActorSpec
     extends TestKit(ActorSystem("KafkaProducerActorSpec"))
@@ -43,12 +45,12 @@ class KafkaProducerActorSpec
     def producerMock(testProbe: TestProbe): KafkaProducerActor = {
       val signalBus: HealthSignalBusTrait = Mockito.mock(classOf[HealthSignalBusTrait])
       val invokable: InvokableHealthRegistration = Mockito.mock(classOf[InvokableHealthRegistration])
-
-      Mockito
-        .when(signalBus.registration(ArgumentMatchers.any(classOf[Controllable]), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any()))
+      when(invokable.invoke()).thenReturn(Future.successful(Ack()))
+      when(signalBus.registration(ArgumentMatchers.any(classOf[Controllable]), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any()))
         .thenReturn(invokable)
-      new KafkaProducerActor(testProbe.ref, Metrics.globalMetricRegistry, "test-aggregate-name", new TopicPartition("testTopic", 1), signalBus)
+      new KafkaProducerActor(ManagedActorRef(testProbe.ref), Metrics.globalMetricRegistry, "test-aggregate-name", new TopicPartition("testTopic", 1), signalBus)
     }
+
     "Terminate an underlying actor by sending a PoisonPill" in {
       val probe = TestProbe()
       val shouldBeTerminatedProbe = TestProbe()

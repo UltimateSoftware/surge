@@ -3,7 +3,6 @@
 package surge.internal.health.matchers
 
 import java.util.regex.Pattern
-
 import akka.actor.ActorSystem
 import akka.stream.scaladsl.Source
 import akka.testkit.{ TestKit, TestProbe }
@@ -12,8 +11,8 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import surge.health.SignalType
 import surge.health.config.{ ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig }
-import surge.health.domain.{ HealthSignal, Trace }
-import surge.health.matchers.SideEffect
+import surge.health.domain.{ HealthSignal, HealthSignalSource, Trace }
+import surge.health.matchers.{ SideEffect, SignalPatternMatcherDefinition }
 import surge.health.windows.WindowAdvanced
 import surge.internal.health.StreamMonitoringRef
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
@@ -29,10 +28,10 @@ class RepeatingSignalMatcherSpec extends TestKit(ActorSystem("RepeatingSignals")
     TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
   }
 
-  private val testTraceSignal = HealthSignal(topic = "topic", name = "test.trace", signalType = SignalType.TRACE, data = Trace("test"))
-  private val testSignal1 = HealthSignal(topic = "topic", name = "foo", signalType = SignalType.TRACE, data = Trace("test"))
-  private val testSignal2 = HealthSignal(topic = "topic", name = "bar", signalType = SignalType.TRACE, data = Trace("test"))
-  private val fiveInARowSignal = HealthSignal(topic = "topic", name = "5 in a row", signalType = SignalType.TRACE, data = Trace("test"))
+  private val testTraceSignal = HealthSignal(topic = "topic", name = "test.trace", signalType = SignalType.TRACE, data = Trace("test"), source = None)
+  private val testSignal1 = HealthSignal(topic = "topic", name = "foo", signalType = SignalType.TRACE, data = Trace("test"), source = None)
+  private val testSignal2 = HealthSignal(topic = "topic", name = "bar", signalType = SignalType.TRACE, data = Trace("test"), source = None)
+  private val fiveInARowSignal = HealthSignal(topic = "topic", name = "5 in a row", signalType = SignalType.TRACE, data = Trace("test"), source = None)
 
   val signalTopic: String = "topic"
   "RepeatingSignalPatternMatcher" should {
@@ -43,10 +42,10 @@ class RepeatingSignalMatcherSpec extends TestKit(ActorSystem("RepeatingSignals")
         WindowingStreamConfig(
           advancerConfig = WindowingStreamSliderConfig(buffer = windowBuffer, advanceAmount = 1),
           throttleConfig = ThrottleConfig(elements = 100, duration = 5.seconds),
-          windowingDelay = 5.seconds,
-          maxWindowSize = 500,
-          frequencies = Seq(10.seconds)),
-        filters = Seq(RepeatingSignalMatcher(2, SignalNameEqualsMatcher("99"), None)),
+          windowingInitDelay = 5.seconds,
+          windowingResumeDelay = 5.seconds,
+          maxWindowSize = 500),
+        patternMatchers = Seq(SignalPatternMatcherDefinition.repeating(times = 2, pattern = Pattern.compile("99"), frequency = 10.seconds, sideEffect = None)),
         streamMonitoring = Some(new StreamMonitoringRef(probe.ref)),
         actorSystem = system)
 
@@ -82,10 +81,11 @@ class RepeatingSignalMatcherSpec extends TestKit(ActorSystem("RepeatingSignals")
     }
 
     "Find 5 matching signals - using nameEquals" in {
-      val matcher = RepeatingSignalMatcher(times = 5, atomicMatcher = SignalNameEqualsMatcher(name = "test.trace"), Some(SideEffect(Seq(fiveInARowSignal))))
+      val matcher =
+        RepeatingSignalMatcher(times = 5, atomicMatcher = SignalNameEqualsMatcher(name = "test.trace"), sideEffect = Some(SideEffect(Seq(fiveInARowSignal))))
 
       val result = matcher.searchForMatch(
-        Seq(testTraceSignal, testTraceSignal, testSignal1, testTraceSignal, testSignal2, testTraceSignal, testTraceSignal, testSignal2),
+        sourceFromData(Seq(testTraceSignal, testTraceSignal, testSignal1, testTraceSignal, testSignal2, testTraceSignal, testTraceSignal, testSignal2)),
         frequency = 10.seconds)
 
       result.matches.size shouldEqual 5
@@ -96,20 +96,21 @@ class RepeatingSignalMatcherSpec extends TestKit(ActorSystem("RepeatingSignals")
         RepeatingSignalMatcher(
           times = 5,
           atomicMatcher = SignalNamePatternMatcher(pattern = Pattern.compile("test.trace")),
-          Some(SideEffect(Seq(fiveInARowSignal))))
+          sideEffect = Some(SideEffect(Seq(fiveInARowSignal))))
 
       val result = matcher.searchForMatch(
-        Seq(testTraceSignal, testTraceSignal, testSignal1, testTraceSignal, testSignal2, testTraceSignal, testTraceSignal),
+        sourceFromData(Seq(testTraceSignal, testTraceSignal, testSignal1, testTraceSignal, testSignal2, testTraceSignal, testTraceSignal)),
         frequency = 10.seconds)
 
       result.matches.size shouldEqual 5
     }
 
     "Find 0 matching signals - using nameEquals" in {
-      val matcher = RepeatingSignalMatcher(times = 5, atomicMatcher = SignalNameEqualsMatcher(name = "test_trace"), Some(SideEffect(Seq(fiveInARowSignal))))
+      val matcher =
+        RepeatingSignalMatcher(times = 5, atomicMatcher = SignalNameEqualsMatcher(name = "test_trace"), sideEffect = Some(SideEffect(Seq(fiveInARowSignal))))
 
       val result =
-        matcher.searchForMatch(Seq(testSignal1, testTraceSignal, testSignal2), frequency = 10.seconds)
+        matcher.searchForMatch(sourceFromData(Seq(testSignal1, testTraceSignal, testSignal2)), frequency = 10.seconds)
 
       result.matches.size shouldEqual 0
     }
@@ -119,12 +120,19 @@ class RepeatingSignalMatcherSpec extends TestKit(ActorSystem("RepeatingSignals")
         RepeatingSignalMatcher(
           times = 5,
           atomicMatcher = SignalNamePatternMatcher(pattern = Pattern.compile("test_trace")),
-          Some(SideEffect(Seq(fiveInARowSignal))))
+          sideEffect = Some(SideEffect(Seq(fiveInARowSignal))))
 
       val result =
-        matcher.searchForMatch(Seq(testSignal1, testTraceSignal, testSignal2), frequency = 10.seconds)
+        matcher.searchForMatch(sourceFromData(Seq(testSignal1, testTraceSignal, testSignal2)), frequency = 10.seconds)
 
       result.matches.size shouldEqual 0
     }
   }
+
+  private def sourceFromData(data: Seq[HealthSignal]): HealthSignalSource =
+    new HealthSignalSource {
+      override def flush(): Unit = {}
+
+      override def signals(): Seq[HealthSignal] = data
+    }
 }

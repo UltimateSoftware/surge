@@ -4,20 +4,21 @@ package surge.internal.health.context
 
 import akka.Done
 import akka.actor.ActorSystem
+import surge.health.config.HealthSupervisorConfig
 import surge.health.domain.HealthSignal
-import surge.health.matchers.SignalPatternMatcher
+import surge.health.matchers.SignalPatternMatcherDefinition
 import surge.health.{ HealthSignalListener, HealthSignalStream, SignalHandler }
 import surge.internal.health._
 
 import scala.util.Try
 
 object TestContext {
-  def testHealthSignalStreamProvider(filters: Seq[SignalPatternMatcher]): HealthSignalStreamProvider = {
-    new TestHealthSignalStreamProvider(filters)
+  def testHealthSignalStreamProvider(patternMatchers: Seq[SignalPatternMatcherDefinition]): HealthSignalStreamProvider = {
+    new TestHealthSignalStreamProvider(patternMatchers)
   }
 }
 
-class TestHealthSignalStream(bus: HealthSignalBusInternal, matchers: Seq[SignalPatternMatcher], override val actorSystem: ActorSystem)
+class TestHealthSignalStream(bus: HealthSignalBusInternal, matchers: Seq[SignalPatternMatcherDefinition], override val actorSystem: ActorSystem)
     extends HealthSignalStream {
   override def signalHandler: SignalHandler = (_: HealthSignal) =>
     Try[Done] {
@@ -28,7 +29,7 @@ class TestHealthSignalStream(bus: HealthSignalBusInternal, matchers: Seq[SignalP
 
   override def id(): String = "test-health-signal-bus"
 
-  override def filters(): Seq[SignalPatternMatcher] = matchers
+  override def patternMatchers(): Seq[SignalPatternMatcherDefinition] = matchers
 
   override def start(maybeSideEffect: Option[() => Unit] = None): HealthSignalStream = {
     subscribe(signalHandler)
@@ -49,9 +50,11 @@ class TestHealthSignalStream(bus: HealthSignalBusInternal, matchers: Seq[SignalP
 }
 
 class TestHealthSignalStreamProvider(
-    override val filters: Seq[SignalPatternMatcher] = Seq.empty,
+    override val patternMatchers: Seq[SignalPatternMatcherDefinition] = Seq.empty,
     override val actorSystem: ActorSystem = ActorSystem("TestHealthSignalStream"))
     extends HealthSignalStreamProvider {
   override def provide(bus: HealthSignalBusInternal): HealthSignalStream =
-    new TestHealthSignalStream(bus, this.filters, actorSystem)
+    new TestHealthSignalStream(bus, this.patternMatchers, actorSystem)
+
+  override def healthSupervisionConfig: HealthSupervisorConfig = HealthSupervisorConfig()
 }

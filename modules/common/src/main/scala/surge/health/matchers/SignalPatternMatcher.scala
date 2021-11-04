@@ -2,12 +2,18 @@
 
 package surge.health.matchers
 
-import surge.health.domain.HealthSignal
+import surge.health.domain.{ HealthSignal, HealthSignalSource }
 
+import java.util.UUID
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.duration.FiniteDuration
 
-final case class SignalPatternMatchResult(matches: Seq[HealthSignal], existingSignals: Seq[HealthSignal], sideEffect: SideEffect, requency: FiniteDuration) {
+final case class SignalPatternMatchResult(
+    matches: Seq[HealthSignal],
+    existingSignals: Seq[HealthSignal],
+    sideEffect: SideEffect,
+    frequency: FiniteDuration,
+    signalSource: Option[HealthSignalSource]) {
   def found(): Boolean = matches.nonEmpty
 
   def hasSideEffects: Boolean = sideEffect.signals.nonEmpty
@@ -15,13 +21,13 @@ final case class SignalPatternMatchResult(matches: Seq[HealthSignal], existingSi
 
 trait SignalPatternMatcher {
   def sideEffect(): Option[SideEffect]
-  def searchForMatch(signals: Seq[HealthSignal], frequency: FiniteDuration): SignalPatternMatchResult
+  def searchForMatch(signalSource: HealthSignalSource, frequency: FiniteDuration): SignalPatternMatchResult
 
   def result(matches: Seq[HealthSignal], signals: Seq[HealthSignal], sideEffect: Option[SideEffect], frequency: FiniteDuration): SignalPatternMatchResult = {
     if (matches.nonEmpty) {
-      SignalPatternMatchResult(matches, signals, sideEffect.getOrElse(SideEffect(Seq())), frequency)
+      SignalPatternMatchResult(matches, signals, sideEffect.getOrElse(SideEffect(Seq())), frequency, None)
     } else {
-      SignalPatternMatchResult(matches, signals, SideEffect(Seq()), frequency)
+      SignalPatternMatchResult(matches, signals, SideEffect(Seq()), frequency, None)
     }
   }
 }

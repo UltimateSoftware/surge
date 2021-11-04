@@ -7,16 +7,16 @@ import akka.actor.{ Actor, ActorRef, ActorSystem, Props }
 import akka.stream.Materializer
 import akka.stream.scaladsl.{ Keep, Sink, Source, SourceQueue, SourceQueueWithComplete }
 import org.slf4j.{ Logger, LoggerFactory }
-import surge.health.config.{ ThrottleConfig, WindowingStreamConfig }
+import surge.health.config.{ HealthSupervisorConfig, ThrottleConfig, WindowingStreamConfig }
 import surge.health.domain.HealthSignal
-import surge.health.matchers.SignalPatternMatcher
-import surge.health.windows.{ WindowEvent, WindowStreamListener }
+import surge.health.matchers.SignalPatternMatcherDefinition
+import surge.health.windows.WindowEvent
 import surge.health.{ HealthSignalListener, SignalHandler, SourcePlusQueue, SourceQueueBackedSignalHandler }
 import surge.internal.health._
 import surge.internal.health.windows._
 import surge.internal.health.windows.actor.{ HealthSignalWindowActor, HealthSignalWindowActorRef }
 import surge.internal.health.windows.stream.actor.HealthSignalStreamActor
-import surge.internal.health.windows.stream.{ SignalPatternMatchResultHandler, SourcePlusQueueWithStreamHandle, StreamHandle, WindowingHealthSignalStream }
+import surge.internal.health.windows.stream.{ SourcePlusQueueWithStreamHandle, StreamHandle, WindowingHealthSignalStream }
 
 import scala.concurrent.Future
 
@@ -27,14 +27,13 @@ object SlidingHealthSignalStream {
 
   def apply(
       slidingConfig: WindowingStreamConfig,
+      supervisionConfig: HealthSupervisorConfig,
       signalBus: HealthSignalBusInternal,
-      filters: Seq[SignalPatternMatcher],
+      patternMatchers: Seq[SignalPatternMatcherDefinition],
       streamMonitoringRef: Option[StreamMonitoringRef] = None,
       actorSystem: ActorSystem): SlidingHealthSignalStream = {
-    val listener: WindowStreamListener =
-      SignalPatternMatchResultHandler.asListener(signalBus, filters, streamMonitoringRef.map(r => r.actor))
-    val ref = actorSystem.actorOf(Props(HealthSignalStreamActor(Some(listener))))
-    new SlidingHealthSignalStreamImpl(slidingConfig, signalBus, filters, ref, actorSystem)
+    val ref = streamMonitoringRef.map(m => m.actor).getOrElse(actorSystem.actorOf(Props(HealthSignalStreamActor())))
+    new SlidingHealthSignalStreamImpl(slidingConfig, signalBus, patternMatchers, ref, actorSystem)
   }
 }
 
@@ -66,16 +65,20 @@ private class WindowEventInterceptorActor(actorSystem: ActorSystem, backingActor
       windowEventQueueProvider
         .apply()
         .foreach(queue => Source.single(windowEvent).runWith(Sink.foreach(event => queue.offer(event)))(Materializer(actorSystem)))
-      backingActor ! windowEvent
-    case other => backingActor ! other
+      forward(windowEvent)
+    case other => forward(other)
   }
+
+  private def forward(msg: Any): Unit =
+    backingActor ! msg
 }
 
 case class WindowingHealthSignalStreamState(windowHandle: Option[StreamHandle] = None, windowEvents: Option[SourceQueueWithComplete[WindowEvent]] = None)
+
 private class SlidingHealthSignalStreamImpl(
     override val windowingConfig: WindowingStreamConfig,
     override val signalBus: HealthSignalBusInternal,
-    override val filters: Seq[SignalPatternMatcher],
+    override val patternMatchers: Seq[SignalPatternMatcherDefinition],
     override val underlyingActor: ActorRef,
     override val actorSystem: ActorSystem,
     state: WindowingHealthSignalStreamState = WindowingHealthSignalStreamState())
@@ -83,7 +86,7 @@ private class SlidingHealthSignalStreamImpl(
     with SlidingHealthSignalStream {
   import SlidingHealthSignalStream._
 
-  // todo: consider storing these (windowHandle and windowEvents) in a State object and
+  // todo: consider storing these (windowHandle, windowEvents, and windowActorStore) in a State object and
   //  returning a copy of the SignalStream in all methods that alter state
   //  i.e. start, stop, subscribe, release, etc.
   private var windowHandle: StreamHandle = _
@@ -187,13 +190,17 @@ private class SlidingHealthSignalStreamImpl(
     val windowEventInterceptorActor: ActorRef =
       actorSystem.actorOf(Props(new WindowEventInterceptorActor(actorSystem, underlyingActor, () => windowEvents)))
 
-    windowingConfig.frequencies
-      .map(freq =>
+    // window actor per patternMatcher
+    patternMatchers
+      .map(definition =>
         HealthSignalWindowActor(
           actorSystem,
-          initialWindowProcessingDelay = windowingConfig.windowingDelay,
-          windowFrequency = freq,
-          WindowSlider(advancerConfig.advanceAmount, advancerConfig.buffer)))
+          initialWindowProcessingDelay = windowingConfig.windowingInitDelay,
+          resumeWindowProcessingDelay = windowingConfig.windowingResumeDelay,
+          windowFrequency = definition.windowFrequency(),
+          signalBus = signalBus,
+          signalPatternMatcherDefinition = definition,
+          advancer = WindowSlider(advancerConfig.advanceAmount, advancerConfig.buffer)))
       .map(ref => ref.start(Some(windowEventInterceptorActor)))
   }
 }
