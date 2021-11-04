@@ -190,7 +190,7 @@ case class DebitAccount(accountNumber: UUID, amount: Double)
   <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/command/CreateAccount.java#L7-L36" target="_blank" title="Go to snippet source"></a><code class="language-java">public class CreateAccount implements BankAccountCommand {
     private final UUID accountNumber;
     private final String accountOwner;
-    private double balance;
+    private final double balance;
     private final String securityCode;
 
     public CreateAccount(UUID accountNumber, String accountOwner, String securityCode, double initialBalance) {
