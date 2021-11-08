@@ -19,13 +19,13 @@ import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach }
 import org.scalatestplus.mockito.MockitoSugar
 import surge.health.config.{ ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig }
 import surge.health.domain.{ Error, HealthSignal, Trace }
-import surge.health.matchers.SideEffect
+import surge.health.matchers.{ SideEffect, SignalPatternMatcherDefinition }
 import surge.health.windows._
-import surge.health.{ HealthSignalReceived, HealthSignalStream, SignalType }
+import surge.health.{ HealthSignalStream, SignalType }
 import surge.internal.health._
-import surge.internal.health.matchers.{ RepeatingSignalMatcher, SignalNameEqualsMatcher }
 import surge.internal.health.windows.stream.WindowingHealthSignalStream
 
+import java.util.regex.Pattern
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.duration._
 
@@ -52,24 +52,24 @@ class SlidingHealthSignalStreamSpec
 
   override def beforeEach(): Unit = {
     probe = TestProbe()
-    val signal = HealthSignal(topic = "health.signal", name = s"5 in a row", signalType = SignalType.TRACE, data = Trace(s"5 in a row"))
+    val signal = HealthSignal(topic = "health.signal", name = s"5 in a row", signalType = SignalType.TRACE, data = Trace(s"5 in a row"), source = None)
 
-    val filters = Seq(
-      RepeatingSignalMatcher(
-        times = 5,
-        atomicMatcher =
-          SignalNameEqualsMatcher("test.trace", Some(SideEffect(Seq(HealthSignal("health.signal", "boom", SignalType.ERROR, Error("bah", None)))))),
-        Some(SideEffect(Seq(signal)))))
+    val definition = SignalPatternMatcherDefinition.repeating(
+      times = 5,
+      pattern = Pattern.compile("test.trace"),
+      frequency = 1.seconds,
+      sideEffect = Some(SideEffect(Seq(signal))))
+
     signalStreamProvider = new SlidingHealthSignalStreamProvider(
       WindowingStreamConfig(
         advancerConfig = WindowingStreamSliderConfig(buffer = 10, advanceAmount = 1),
         throttleConfig = ThrottleConfig(100, 5.seconds),
-        windowingDelay = 1.seconds,
-        maxWindowSize = 500,
-        frequencies = Seq(10.seconds)),
+        windowingInitDelay = 100.millis,
+        windowingResumeDelay = 1.seconds,
+        maxWindowSize = 500),
       system,
       streamMonitoring = Some(new StreamMonitoringRef(probe.ref)),
-      filters)
+      patternMatchers = Seq(definition))
 
     bus = signalStreamProvider.bus()
 
@@ -131,34 +131,6 @@ class SlidingHealthSignalStreamSpec
         sourceAndEvents._2.exists(e => e.isInstanceOf[AddedToWindow])
       }
     }
-
-    "detect 5 messages in a 10 second window" in {
-      bus.signalWithTrace(name = "test.trace", Trace("test.trace")).emit().emit().emit().emit().emit()
-
-      eventually {
-        val received = probe.fishForMessage(max = 2.seconds) { case msg =>
-          msg.isInstanceOf[HealthSignalReceived]
-        }
-
-        received shouldBe a[HealthSignalReceived]
-        received.asInstanceOf[HealthSignalReceived].signal.name == "5 in a row" shouldEqual true
-      }
-    }
-  }
-
-  private def trackHealthSignals(): (Source[HealthSignal, NotUsed], ArrayBuffer[HealthSignal]) = {
-    val signalStream: Option[HealthSignalStream] = bus.backingSignalStream()
-    signalStream.isDefined shouldEqual true
-    signalStream.get shouldBe a[WindowingHealthSignalStream]
-
-    val signalSource = signalStream.get.signalSource(10, ThrottleConfig(20, 10.seconds))
-
-    val receivedSignals: ArrayBuffer[HealthSignal] = ArrayBuffer()
-    signalSource.source.runWith(Sink.foreach(signal => {
-      receivedSignals.addOne(signal)
-    }))
-
-    (signalSource.source, receivedSignals)
   }
 
   private def trackWindowEvents(): (Source[WindowEvent, NotUsed], ArrayBuffer[WindowEvent]) = {

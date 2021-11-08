@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: surge
+spec:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  replicas: 1
+  selector:
+    matchLabels:
+      app: surge
+  template:
+    metadata:
+      labels:
+        app: surge
+    spec:
+      containers:
+        - name: surge-server
+          image: surge-engine-multilanguage:0.5.42-SNAPSHOT
+          imagePullPolicy: Never
+          resources:
+            requests:
+              memory: "650Mi"
+            limits:
+              memory: "650Mi"
+          ports:
+            - containerPort: 25520
+              name: akka-remoting
+              protocol: TCP
+            - containerPort: 6667
+              name: surge-server
+              protocol: TCP 
+          env:
+            - name: EVENTS_TOPIC
+              value: events
+            - name: STATE_TOPIC
+              value: state
+            - name: AGGREGATE_NAME
+              value: aggregate
+            - name: "AKKA_REMOTING_HOST"
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: "BUSINESS_LOGIC_HOST"
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: "BUSINESS_LOGIC_PORT"
+              value: "7777"
+            - name: "LOCAL_SERVER_HOST"
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: "LOCAL_GRPC_SERVER_PORT"
+              value: "6667"
+            - name: "LOCAL_HTTP_SERVER_PORT"
+              value: "8888"
+            - name: "KAFKA_BROKERS"
+              value: "my-cluster-kafka-bootstrap:9092"
+        - name: business-app
+          image: dotnetsurgeapp:latest
+          imagePullPolicy: Never
+          resources:
+            requests:
+              memory: "250Mi"
+            limits:
+              memory: "250Mi"
+          ports:
+            - containerPort: 7777
+              name: scala-sdk
+              protocol: TCP 
+          env:
+            - name: "SURGE_SERVER_HOST"
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: "SURGE_SERVER_PORT"
+              value: "6667"
+            - name: "LOCAL_SERVER_HOST"
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: "LOCAL_SERVER_PORT"
+              value: "7777"
+  

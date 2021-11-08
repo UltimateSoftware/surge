@@ -27,7 +27,6 @@ import java.util.regex.Pattern
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{ Await, ExecutionContext, Future }
 import scala.languageFeature.postfixOps
-import scala.util.{ Failure, Success, Try }
 
 private[surge] final class SurgePartitionRouterImpl(
     config: Config,
@@ -144,18 +143,18 @@ private[surge] final class SurgePartitionRouterImpl(
       }
   }
 
-  private def registrationCallback(): PartialFunction[Try[Ack], Unit] = {
-    case Success(_) =>
-      val registrationResult = signalBus.register(control = this, componentName = "router-actor", restartSignalPatterns())
-
-      registrationResult.onComplete {
-        case Failure(exception) =>
-          log.error(s"$getClass registration failed", exception)
-        case Success(_) =>
-          log.debug(s"$getClass registration succeeded")
-      }
-    case Failure(error) =>
-      log.error(s"Unable to register $getClass for supervision", error)
-  }
+//  private def registrationCallback(): PartialFunction[Try[Ack], Unit] = {
+//    case Success(_) =>
+//      val registrationResult = signalBus.register(control = this, componentName = "router-actor", restartSignalPatterns())
+//
+//      registrationResult.onComplete {
+//        case Failure(exception) =>
+//          log.error(s"$getClass registration failed", exception)
+//        case Success(_) =>
+//          log.debug(s"$getClass registration succeeded")
+//      }
+//    case Failure(error) =>
+//      log.error(s"Unable to register $getClass for supervision", error)
+//  }
 
 }

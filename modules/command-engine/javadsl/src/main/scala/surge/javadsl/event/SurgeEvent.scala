@@ -34,7 +34,7 @@ object SurgeEvent {
       new SlidingHealthSignalStreamProvider(
         WindowingStreamConfigLoader.load(businessLogic.config),
         actorSystem,
-        filters = SignalPatternMatcherRegistry.load().toSeq),
+        patternMatchers = SignalPatternMatcherRegistry.load().toSeq),
       businessLogic.aggregateIdToString,
       businessLogic.config)
   }

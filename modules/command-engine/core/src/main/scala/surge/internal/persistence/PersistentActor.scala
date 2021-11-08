@@ -278,15 +278,9 @@ class PersistentActor[S, M, R, E](
   }
 
   private def callEventHandler(state: InternalActorState, evt: E): Future[HandleEventResult] = {
-    val result: Future[HandleEventResult] = {
-      metrics.eventHandlingTimer.time(businessLogic.model.applyAsync(surgeContext(), state.stateOpt, evt)).map { maybeS: Option[S] =>
-        HandleEventResult(result = maybeS)
-      }
+    metrics.eventHandlingTimer.time(businessLogic.model.applyAsync(surgeContext(), state.stateOpt, evt)).map { maybeS: Option[S] =>
+      HandleEventResult(result = maybeS)
     }
-    val timeOutFut =
-      akka.pattern.after(5.seconds, context.system.scheduler)(Future.failed(new Exception("Async event handler timed out after 5 seconds")))
-
-    Future.firstCompletedOf(List(timeOutFut, result))
   }
 
   private def waitForHandleEventResult(state: InternalActorState): Receive = {

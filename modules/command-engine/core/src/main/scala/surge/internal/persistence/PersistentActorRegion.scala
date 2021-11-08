@@ -17,6 +17,7 @@ import surge.kafka.{ PersistentActorRegionCreator => KafkaPersistentActorRegionC
 import surge.metrics.Metrics
 
 import scala.concurrent.{ ExecutionContext, Future }
+import scala.util.{ Failure, Success, Try }
 
 trait PersistentActorPropsFactory[M] extends {
   def props(aggregateId: String, businessLogic: BusinessLogic, resources: PersistentEntitySharedResources): Props
@@ -85,9 +86,29 @@ class PersistentActorRegion[M](
     }
   }
 
-  override def start(): Future[Ack] = kafkaProducerActor.start()
+  override def start(): Future[Ack] = kafkaProducerActor.start().andThen(registrationCallback())(ExecutionContext.global)
 
-  override def stop(): Future[Ack] = kafkaProducerActor.stop()
+  override def stop(): Future[Ack] = {
+    kafkaProducerActor.stop()
+  }
 
   override def shutdown(): Future[Ack] = stop()
+
+  private def registrationCallback(): PartialFunction[Try[Ack], Unit] = {
+    case Success(_) =>
+      val registrationResult =
+        signalBus.register(
+          control = this,
+          componentName = s"persistent-actor-region-${assignedPartition.topic()}-${assignedPartition.partition()}",
+          restartSignalPatterns = restartSignalPatterns())
+
+      registrationResult.onComplete {
+        case Failure(exception) =>
+          log.error(s"${this.getClass} registration failed", exception)
+        case Success(_) =>
+          log.debug(s"${this.getClass} registration succeeded")
+      }(ExecutionContext.global)
+    case Failure(error) =>
+      log.error(s"Unable to register ${this.getClass} for supervision", error)
+  }
 }

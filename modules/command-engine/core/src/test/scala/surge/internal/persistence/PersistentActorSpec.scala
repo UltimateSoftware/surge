@@ -24,7 +24,7 @@ import surge.exceptions.{ AggregateInitializationException, KafkaPublishTimeoutE
 import surge.health.HealthSignalBusTrait
 import surge.internal.kafka.HeadersHelper
 import surge.internal.persistence.PersistentActor.{ ACKError, ApplyEvent, Stop }
-import surge.internal.tracing.{ RoutableMessage, TracedMessage }
+import surge.internal.tracing.RoutableMessage
 import surge.kafka.streams.AggregateStateStoreKafkaStreams
 import surge.metrics.Metrics
 

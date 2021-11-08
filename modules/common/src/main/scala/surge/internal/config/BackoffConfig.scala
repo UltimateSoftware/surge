@@ -10,17 +10,17 @@ object BackoffConfig {
   private val config = ConfigFactory.load()
 
   object StateStoreKafkaStreamActor {
-    val minBackoff = config.getDuration("surge.state-store-actor.backoff.min-backoff")
-    val maxBackoff = config.getDuration("surge.state-store-actor.backoff.max-backoff")
-    val randomFactor = config.getDouble("surge.state-store-actor.backoff.random-factor")
-    val maxRetries = config.getInt("surge.state-store-actor.backoff.max-retries")
+    val minBackoff: Duration = config.getDuration("surge.state-store-actor.backoff.min-backoff")
+    val maxBackoff: Duration = config.getDuration("surge.state-store-actor.backoff.max-backoff")
+    val randomFactor: Double = config.getDouble("surge.state-store-actor.backoff.random-factor")
+    val maxRetries: Int = config.getInt("surge.state-store-actor.backoff.max-retries")
   }
 
   object HealthSignalWindowActor {
-    val minBackoff = config.getDuration("surge.health.window-actor.backoff.min-backoff")
-    val maxBackoff = config.getDuration("surge.health.window-actor.backoff.max-backoff")
-    val randomFactor = config.getDouble("surge.health.window-actor.backoff.random-factor")
-    val maxRetries = config.getInt("surge.health.window-actor.backoff.max-retries")
+    val minBackoff: Duration = config.getDuration("surge.health.window-actors.backoff.min-backoff")
+    val maxBackoff: Duration = config.getDuration("surge.health.window-actors.backoff.max-backoff")
+    val randomFactor: Double = config.getDouble("surge.health.window-actors.backoff.random-factor")
+    val maxRetries: Int = config.getInt("surge.health.window-actors.backoff.max-retries")
   }
 
   object HealthSupervisorActor {

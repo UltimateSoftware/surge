@@ -34,6 +34,7 @@ object KafkaProducerActorImpl {
   sealed trait KafkaProducerActorMessage extends NoSerializationVerificationNeeded
   case class Publish(state: KafkaProducerActor.MessageToPublish, eventsToPublish: Seq[KafkaProducerActor.MessageToPublish]) extends KafkaProducerActorMessage
   case class IsAggregateStateCurrent(aggregateId: String) extends KafkaProducerActorMessage
+  case object ShutdownProducer extends KafkaProducerActorMessage
 
   object AggregateStateRates {
     def apply(aggregateName: String, metrics: Metrics): AggregateStateRates = AggregateStateRates(
@@ -65,7 +66,6 @@ object KafkaProducerActorImpl {
   case class KTableProgressUpdate(topicPartition: TopicPartition, lagInfo: LagInfo) extends InternalMessage
   case class ProducerFenced(exception: ProducerFencedException) extends InternalMessage
   case object RestartProducer extends InternalMessage
-  case object ShutdownProducer extends InternalMessage
 }
 
 class KafkaProducerActorImpl(
@@ -177,6 +177,7 @@ class KafkaProducerActorImpl(
         status = HealthCheckStatus.UP,
         details = Some(Map("state" -> "uninitialized")))
     case update: KTableProgressUpdate => context.become(uninitialized(lastProgressUpdate = Some(update)))
+    case ShutdownProducer             => stopPublisher()
     case _: Publish                   => stash()
     case _: IsAggregateStateCurrent   => sender().tell(false, self)
   }
@@ -185,6 +186,7 @@ class KafkaProducerActorImpl(
     case CheckKTableProgress       => checkKTableProgress()
     case msg: KTableProgressUpdate => handleFromWaitingForKTableIndexingState(msg)
     case FlushMessages             => log.trace("KafkaProducerActor ignoring FlushMessages message from the waitingForKTableIndexing state")
+    case ShutdownProducer          => stopPublisher()
     case failedToPublish: EventsFailedToPublish =>
       sender() ! KafkaProducerActor.PublishFailure(failedToPublish.reason)
     case GetHealth =>
@@ -203,7 +205,7 @@ class KafkaProducerActorImpl(
       context.become(fenced(state.completeTransaction(), initialFenceTime))
       msg.originalSenders.foreach(_ ! KafkaProducerActor.PublishFailure(msg.reason))
     case RestartProducer              => restartPublisher()
-    case ShutdownProducer             => context.stop(self)
+    case ShutdownProducer             => stopPublisher()
     case CheckKTableProgress          => log.trace("KafkaProducerActor ignoring CheckKTableProgress message from the fenced state")
     case FlushMessages                => log.trace("KafkaProducerActor ignoring FlushMessages message from the fenced state")
     case update: KTableProgressUpdate => context.become(fenced(state.processedUpTo(update), initialFenceTime))
@@ -215,6 +217,7 @@ class KafkaProducerActorImpl(
     case msg: InternalMessage                                  => handleProcessingInternalMessage(msg, state)
     case msg: KafkaProducerActorImpl.KafkaProducerActorMessage => handleProcessingProducerMessage(msg, state)
     case GetHealth                                             => doHealthCheck(state)
+    case ShutdownProducer                                      => stopPublisher()
     case Status.Failure(e) =>
       log.error(s"Saw unhandled exception in producer for $assignedPartition", e)
   }
@@ -290,11 +293,15 @@ class KafkaProducerActorImpl(
     }
   }
 
-  private def closeAndRecreatePublisher(): Unit = {
+  private def closePublisher(): Unit = {
     if (enableMetrics) {
       metrics.unregisterKafkaMetric(kafkaPublisherMetricsName)
     }
     Try(kafkaPublisher.close())
+  }
+
+  private def closeAndRecreatePublisher(): Unit = {
+    closePublisher()
     kafkaPublisher = getPublisher
   }
 
@@ -432,6 +439,11 @@ class KafkaProducerActorImpl(
       abortTransactionFailed.abortTransactionException)
     abortTransactionFailed.originalSenders.foreach(_ ! KafkaProducerActor.PublishFailure(abortTransactionFailed.originalException))
     restartPublisher()
+  }
+
+  private def stopPublisher(): Unit = {
+    closePublisher()
+    context.stop(self)
   }
 
   private def restartPublisher(): Unit = {

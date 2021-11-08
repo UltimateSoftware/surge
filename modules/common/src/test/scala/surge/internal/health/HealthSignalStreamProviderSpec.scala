@@ -9,12 +9,13 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import surge.health.config.{ ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig }
 import surge.health.domain.{ HealthSignal, Trace }
-import surge.health.matchers.{ SideEffect, SignalPatternMatcher }
+import surge.health.matchers.SignalPatternMatcherDefinition.{ RepeatingSignalMatcherDefinition, SignalNameEqualsMatcherDefinition }
+import surge.health.matchers.{ SideEffect, SignalPatternMatcherDefinition }
 import surge.health.windows._
 import surge.health.{ HealthSignalStream, SignalType }
-import surge.internal.health.matchers.{ RepeatingSignalMatcher, SignalNameEqualsMatcher }
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
 
+import java.util.regex.Pattern
 import scala.concurrent.duration._
 class HealthSignalStreamProviderSpec extends TestKit(ActorSystem("HealthSignalStreamProviderSpec")) with AnyWordSpecLike with Matchers with BeforeAndAfterAll {
 
@@ -27,28 +28,28 @@ class HealthSignalStreamProviderSpec extends TestKit(ActorSystem("HealthSignalSt
   "HealthSignalStreamProvider" should {
     import org.mockito.Mockito._
     "have filters from ctor" in {
-      val initialFilters = Seq(SignalNameEqualsMatcher(name = "foo"))
+      val initialFilters = Seq(SignalPatternMatcherDefinition.nameEquals(signalName = "foo", 10.seconds))
       val provider = testHealthSignalStreamProvider(initialFilters)
-      provider.filters() shouldEqual initialFilters
+      provider.patternMatchers() shouldEqual initialFilters
     }
 
     "return bus" in {
-      val signal = HealthSignal(topic = "topic", name = "5 in a row", signalType = SignalType.TRACE, data = Trace("test"))
-      val initialFilters: Seq[SignalPatternMatcher] = Seq(
-        SignalNameEqualsMatcher(name = "foo"),
-        RepeatingSignalMatcher(times = 5, atomicMatcher = SignalNameEqualsMatcher(name = "bar"), Some(SideEffect(Seq(signal)))))
+      val signal = HealthSignal(topic = "topic", name = "5 in a row", signalType = SignalType.TRACE, data = Trace("test"), source = None)
+      val initialFilters: Seq[SignalPatternMatcherDefinition] = Seq(
+        SignalPatternMatcherDefinition.nameEquals(signalName = "foo", 10.seconds),
+        SignalPatternMatcherDefinition.repeating(times = 5, pattern = Pattern.compile("bar"), 10.seconds, Some(SideEffect(Seq(signal)))))
       val provider = testHealthSignalStreamProvider(initialFilters)
       val bus = provider.bus()
 
       bus shouldBe a[HealthSignalBusInternal]
 
-      provider.filters() shouldEqual initialFilters
+      provider.patternMatchers() shouldEqual initialFilters
 
       val streamRef: HealthSignalStream = bus.signalStream()
 
-      streamRef.filters().size shouldEqual 2
-      streamRef.filters().exists(p => p.isInstanceOf[SignalNameEqualsMatcher]) shouldEqual true
-      streamRef.filters().exists(p => p.isInstanceOf[RepeatingSignalMatcher]) shouldEqual true
+      streamRef.patternMatchers().size shouldEqual 2
+      streamRef.patternMatchers().exists(p => p.isInstanceOf[SignalNameEqualsMatcherDefinition]) shouldEqual true
+      streamRef.patternMatchers().exists(p => p.isInstanceOf[RepeatingSignalMatcherDefinition]) shouldEqual true
 
       streamRef.unsubscribe().stop()
 
@@ -56,24 +57,24 @@ class HealthSignalStreamProviderSpec extends TestKit(ActorSystem("HealthSignalSt
     }
 
     "return filters" in {
-      val initialFilters = Seq(mock(classOf[SignalPatternMatcher]))
+      val initialFilters = Seq(mock(classOf[SignalPatternMatcherDefinition]))
       val provider = testHealthSignalStreamProvider(initialFilters)
 
-      provider.filters() shouldEqual initialFilters
+      provider.patternMatchers() shouldEqual initialFilters
     }
   }
 
   "SlidingHealthSignalProvider" should {
     "provide a signalBus with Supervision" in {
-      val initialFilters = Seq(SignalNameEqualsMatcher(name = "foo"))
+      val initialFilters = Seq(SignalPatternMatcherDefinition.nameEquals(signalName = "foo", 10.seconds))
 
       val provider = new SlidingHealthSignalStreamProvider(
         WindowingStreamConfig(
           advancerConfig = WindowingStreamSliderConfig(buffer = 10, advanceAmount = 1),
           throttleConfig = ThrottleConfig(elements = 100, duration = 5.seconds),
-          windowingDelay = 5.seconds,
-          maxWindowSize = 500,
-          frequencies = Seq(10.seconds)),
+          windowingInitDelay = 5.seconds,
+          windowingResumeDelay = 5.seconds,
+          maxWindowSize = 500),
         system,
         streamMonitoring = None,
         initialFilters)

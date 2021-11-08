@@ -40,7 +40,7 @@ object SurgeCommand {
     new SurgeCommandImpl(
       actorSystem,
       SurgeCommandModel(businessLogic),
-      new SlidingHealthSignalStreamProvider(WindowingStreamConfigLoader.load(config), actorSystem, filters = SignalPatternMatcherRegistry.load().toSeq),
+      new SlidingHealthSignalStreamProvider(WindowingStreamConfigLoader.load(config), actorSystem, patternMatchers = SignalPatternMatcherRegistry.load().toSeq),
       businessLogic.aggregateIdToString,
       config)
   }
@@ -52,7 +52,7 @@ object SurgeCommand {
     new SurgeCommandImpl(
       actorSystem,
       SurgeCommandModel(businessLogic),
-      new SlidingHealthSignalStreamProvider(WindowingStreamConfigLoader.load(config), actorSystem, filters = SignalPatternMatcherRegistry.load().toSeq),
+      new SlidingHealthSignalStreamProvider(WindowingStreamConfigLoader.load(config), actorSystem, patternMatchers = SignalPatternMatcherRegistry.load().toSeq),
       businessLogic.aggregateIdToString,
       config)
   }
