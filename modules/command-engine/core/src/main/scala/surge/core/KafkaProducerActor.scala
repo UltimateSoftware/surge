@@ -59,7 +59,7 @@ object KafkaProducerActor {
       signalBus)
   }
 
-  def create(
+  def createFromPartitionNumber(
       actorSystem: ActorSystem,
       metrics: Metrics,
       businessLogic: SurgeModel[_, _, _, _],

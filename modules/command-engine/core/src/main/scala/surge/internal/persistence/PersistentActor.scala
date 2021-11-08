@@ -150,12 +150,11 @@ class PersistentActor[S, M, R, E](
   import PersistentActor._
   import context.dispatcher
 
-  //FIXME: temporary fix to support switch between akka and existing shard allocation strategy
   def aggregateId: String = aggregateIdOpt.getOrElse(self.path.name)
 
   private val metrics = regionSharedResources.metrics
 
-  private val isAkkaClusterEnabled: Boolean = Try(config.getBoolean("surge.akka.cluster.enabled")).getOrElse(false)
+  private val isAkkaClusterEnabled: Boolean = config.getBoolean("surge.akka.cluster.enabled")
 
   private sealed trait Internal extends NoSerializationVerificationNeeded
 

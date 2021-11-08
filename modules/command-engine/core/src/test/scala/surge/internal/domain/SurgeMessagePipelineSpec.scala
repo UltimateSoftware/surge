@@ -296,7 +296,7 @@ class SurgeMessagePipelineSpec
 
       override def actorSystem: ActorSystem = system
 
-      private val isAkkaClusterEnabled = Try(config.getBoolean("surge.akka.cluster.enabled")).getOrElse(false)
+      private val isAkkaClusterEnabled = config.getBoolean("surge.akka.cluster.enabled")
       override protected val actorRouter: SurgePartitionRouterImpl =
         new SurgePartitionRouterImpl(
           defaultConfig,

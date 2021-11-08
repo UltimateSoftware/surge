@@ -44,7 +44,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
   protected implicit val system: ActorSystem = actorSystem
   protected val stateChangeActor: ActorRef = system.actorOf(KafkaConsumerStateTrackingActor.props)
 
-  private val isAkkaClusterEnabled: Boolean = Try(config.getBoolean("surge.akka.cluster.enabled")).getOrElse(false)
+  private val isAkkaClusterEnabled: Boolean = config.getBoolean("surge.akka.cluster.enabled")
 
   private val partitionTracker: KafkaConsumerPartitionAssignmentTracker = new KafkaConsumerPartitionAssignmentTracker(stateChangeActor)
 
@@ -135,7 +135,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
   }
 
   private def startKafkaClusterRebalanceListener(): Future[ActorRef] = Future.successful {
-    val partitionToKafkaProducerActor = KafkaProducerActor.create(
+    val partitionToKafkaProducerActor = KafkaProducerActor.createFromPartitionNumber(
       actorSystem = system,
       metrics = businessLogic.metrics,
       businessLogic = businessLogic,
