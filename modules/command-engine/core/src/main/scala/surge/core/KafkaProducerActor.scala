@@ -53,12 +53,8 @@ object KafkaProducerActor {
         kafkaProducerOverride = kafkaProducerOverride)).withDispatcher(dispatcherName)
 
     new KafkaProducerActor(
-      publisherActor = ActorLifecycleManagerActor.manage(
-        actorSystem,
-        kafkaProducerProps,
-        s"producer-actor-${assignedPartition.toString}",
-        actorLifecycleName = Some(s"producer-actor-${assignedPartition.toString}"),
-        stopMessageAdapter = Some(() => ShutdownProducer)),
+      publisherActor = ActorLifecycleManagerActor
+        .manage(actorSystem, kafkaProducerProps, s"producer-actor-${assignedPartition.toString}", stopMessageAdapter = Some(() => ShutdownProducer)),
       metrics,
       businessLogic.aggregateName,
       assignedPartition,
@@ -92,8 +88,12 @@ object KafkaProducerActor {
         kafkaProducerOverride = kafkaProducerOverride)).withDispatcher(dispatcherName)
 
     new KafkaProducerActor(
-      ActorLifecycleManagerActor
-        .manage(actorSystem, kafkaProducerProps, s"producer-actor-${assignedPartition.toString}", stopMessageAdapter = Some(() => ShutdownProducer)),
+      ActorLifecycleManagerActor.manage(
+        actorSystem,
+        kafkaProducerProps,
+        s"producer-actor-${assignedPartition.toString}",
+        actorLifecycleName = Some(s"producer-actor-${assignedPartition.toString}"),
+        stopMessageAdapter = Some(() => ShutdownProducer)),
       metrics,
       businessLogic.aggregateName,
       assignedPartition,
