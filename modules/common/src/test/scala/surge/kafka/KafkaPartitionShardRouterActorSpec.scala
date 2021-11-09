@@ -45,9 +45,9 @@ object KafkaPartitionShardRouterActorSpecModels {
 
         override def restart(): Future[Ack] = Future.successful(Ack())
         override def start(): Future[Ack] = Future.successful(Ack())
-        override def stop(): Future[Ack] = Future.successful(Ack())
+        override def stopInternal(): Future[Ack] = Future.successful(Ack())
 
-        override def shutdown(): Future[Ack] = stop()
+        override def shutdown(): Future[Ack] = stopInternal()
       }
 
       provider.start()

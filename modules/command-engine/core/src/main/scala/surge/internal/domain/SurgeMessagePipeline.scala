@@ -95,7 +95,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     implicit val ec: ExecutionContext = system.dispatcher
 
     val result = for {
-      _ <- stop()
+      _ <- stopInternal()
       started <- start()
     } yield {
       started
@@ -104,13 +104,13 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     result
   }
 
-  override def stop(): Future[Ack] = {
+  override def stopInternal(): Future[Ack] = {
     implicit val ec: ExecutionContext = system.dispatcher
 
     val result = for {
       _ <- stopSignalStream()
-      _ <- actorRouter.stop()
-      allStopped <- kafkaStreamsImpl.stop()
+      _ <- actorRouter.stopInternal()
+      allStopped <- kafkaStreamsImpl.stopInternal()
     } yield {
       surgeEngineStatus = SurgeEngineStatus.Stopped
       log.info(s"surge engine status: $surgeEngineStatus")
@@ -120,7 +120,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     result.andThen(unRegistrationCallback())
   }
 
-  override def shutdown(): Future[Ack] = stop()
+  override def shutdown(): Future[Ack] = stopInternal()
 
   private def startSignalStream(): Future[Ack] = {
     val signalStream = signalBus.signalStream()

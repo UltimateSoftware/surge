@@ -52,20 +52,20 @@ private[surge] final class SurgePartitionRouterImpl(
     Future.successful(Ack())
   }
 
-  override def stop(): Future[Ack] = {
+  override def stopInternal(): Future[Ack] = {
     // TODO explicit start/stop for router actor
     //implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PartitionRouter.askTimeout)
     //actorRegion.ask(ActorLifecycleManagerActor.Stop).mapTo[Ack]
     Future.successful(Ack())
   }
 
-  override def shutdown(): Future[Ack] = stop()
+  override def shutdown(): Future[Ack] = stopInternal()
 
   override def restartSignalPatterns(): Seq[Pattern] = Seq(Pattern.compile("kafka.fatal.error"))
 
   override def restart(): Future[Ack] = {
     for {
-      _ <- stop()
+      _ <- stopInternal()
       started <- start()
     } yield {
       started

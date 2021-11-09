@@ -26,7 +26,7 @@ trait SurgeCommand[AggId, Agg, Command, Rej, Evt] extends core.SurgeProcessingTr
   def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Command, Evt]
   def getMetrics: java.util.List[Metric]
   def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Command, Rej, Evt]): Unit
-  def stopEngine: CompletionStage[Ack]
+  def stop: CompletionStage[Ack]
 }
 
 object SurgeCommand {
@@ -88,5 +88,5 @@ private[javadsl] class SurgeCommandImpl[AggId, Agg, Command, Rej, Evt](
     }
   }
 
-  override def stopEngine: CompletionStage[Ack] = FutureConverters.toJava(super.stop())
+  override def stop: CompletionStage[Ack] = FutureConverters.toJava(super.stopInternal())
 }

@@ -58,7 +58,7 @@ class Shard[IdType](shardId: String, regionLogicProvider: PerShardLogicProvider[
   private val actorProvider = regionLogicProvider.actorProvider(context)
 
   override def aroundPostStop(): Unit = {
-    regionLogicProvider.stop().andThen {
+    regionLogicProvider.stopInternal().andThen {
       case Failure(exception) =>
         log.error("Failed to stop PersistentRegionLogicProvider", exception)
         super.aroundPostStop()

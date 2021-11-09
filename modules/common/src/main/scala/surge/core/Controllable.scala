@@ -17,7 +17,7 @@ trait ControllableRemover {
 trait Controllable {
   def start(): Future[Ack]
   def restart(): Future[Ack]
-  def stop(): Future[Ack]
+  def stopInternal(): Future[Ack]
   def shutdown(): Future[Ack]
 }
 
@@ -27,7 +27,7 @@ class ControllableAdapter extends Controllable {
 
   override def restart(): Future[Ack] = Future.successful[Ack](Ack())
 
-  override def stop(): Future[Ack] = Future.successful[Ack](Ack())
+  override def stopInternal(): Future[Ack] = Future.successful[Ack](Ack())
 
   override def shutdown(): Future[Ack] = Future.successful(Ack())
 }

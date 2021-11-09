@@ -5,8 +5,9 @@ package surge.scaladsl.command
 import akka.actor.ActorSystem
 import com.typesafe.config.Config
 import surge.core
+import surge.core.Ack
 import surge.core.command.SurgeCommandModel
-import surge.core.commondsl.{ SurgeCommandBusinessLogicTrait, SurgeRejectableCommandBusinessLogicTrait }
+import surge.core.commondsl.{SurgeCommandBusinessLogicTrait, SurgeRejectableCommandBusinessLogicTrait}
 import surge.health.config.WindowingStreamConfigLoader
 import surge.health.matchers.SignalPatternMatcherRegistry
 import surge.internal.domain
@@ -15,10 +16,13 @@ import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamPro
 import surge.metrics.Metric
 import surge.scaladsl.common.HealthCheckTrait
 
+import scala.concurrent.Future
+
 trait SurgeCommand[AggId, Agg, Command, Rej, Evt] extends core.SurgeProcessingTrait[Agg, Command, Rej, Evt] with HealthCheckTrait {
   def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Command, Evt]
   def getMetrics: Seq[Metric] = businessLogic.metrics.getMetrics
   def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Command, Rej, Evt]): Unit
+  def stop():Future[Ack]
 }
 
 object SurgeCommand {
@@ -70,4 +74,6 @@ private[scaladsl] class SurgeCommandImpl[AggId, Agg, Command, Rej, Event](
   def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Command, Rej, Event]): Unit = {
     registerRebalanceCallback { assignments => listener.onRebalance(engine = this, assignments.partitionAssignments) }
   }
+
+  override def stop(): Future[Ack] = super.stopInternal()
 }
