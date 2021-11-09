@@ -84,7 +84,7 @@ class SurgeMessagePipelineSpec
     try {
       testFun(TestContext(probe, signalStreamProvider, pipeline))
     } finally {
-      pipeline.stop().futureValue shouldBe an[Ack]
+      pipeline.stopInternal().futureValue shouldBe an[Ack]
     }
   }
 
@@ -101,7 +101,7 @@ class SurgeMessagePipelineSpec
           createCustomTopic(businessLogic.kafka.eventsTopic.name, Map.empty)
           createCustomTopic(businessLogic.kafka.stateTopic.name, Map.empty)
 
-          val stopped = pipeline.stop()
+          val stopped = pipeline.stopInternal()
 
           val result = stopped.futureValue
 
@@ -270,7 +270,7 @@ class SurgeMessagePipelineSpec
             reg
           }
 
-          val acknowledgedStop: Ack = pipeline.stop().futureValue
+          val acknowledgedStop: Ack = pipeline.stopInternal().futureValue
           acknowledgedStop shouldEqual Ack()
 
           val afterStopRegistrations = eventually {

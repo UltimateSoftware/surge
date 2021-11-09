@@ -116,7 +116,7 @@ class HealthSupervisorActorSpec
       val componentName = "testRegistrationControl"
       val stopProbe = TestProbe()
       val control = new ControllableAdapter() {
-        override def stop(): Future[Ack] = Future {
+        override def stopInternal(): Future[Ack] = Future {
           stopProbe.ref ! ShutdownComponent(componentName, probe.ref)
           Ack()
         }(system.dispatcher)
