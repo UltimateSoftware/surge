@@ -7,7 +7,7 @@ import com.typesafe.config.Config
 import surge.core
 import surge.core.Ack
 import surge.core.command.SurgeCommandModel
-import surge.core.commondsl.{SurgeCommandBusinessLogicTrait, SurgeRejectableCommandBusinessLogicTrait}
+import surge.core.commondsl.{ SurgeCommandBusinessLogicTrait, SurgeRejectableCommandBusinessLogicTrait }
 import surge.health.config.WindowingStreamConfigLoader
 import surge.health.matchers.SignalPatternMatcherRegistry
 import surge.internal.domain
@@ -22,7 +22,7 @@ trait SurgeCommand[AggId, Agg, Command, Rej, Evt] extends core.SurgeProcessingTr
   def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Command, Evt]
   def getMetrics: Seq[Metric] = businessLogic.metrics.getMetrics
   def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Command, Rej, Evt]): Unit
-  def stop():Future[Ack]
+  def stop(): Future[Ack]
 }
 
 object SurgeCommand {
