@@ -86,7 +86,6 @@ class PersistentActorRegion[M](
 
   override def start(): Future[Ack] = kafkaProducerActor.start().andThen(registrationCallback())(ExecutionContext.global)
 
-
   override def stopInternal(): Future[Ack] = {
     kafkaProducerActor.stopInternal()
   }
