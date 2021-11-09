@@ -16,3 +16,4 @@ case class AddToWindow(sig: HealthSignal, w: Window) extends WindowCommand
 case class AdvanceWindow(w: Window, to: Window) extends WindowCommand
 
 case class CloseCurrentWindow() extends NoSerializationVerificationNeeded
+case class GetWindowSnapShot() extends NoSerializationVerificationNeeded

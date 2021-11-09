@@ -6,7 +6,7 @@ import akka.actor.{ ActorRef, ActorSystem }
 import akka.stream.scaladsl.{ Source, SourceQueueWithComplete }
 import akka.stream.{ Materializer, OverflowStrategy }
 import org.slf4j.{ Logger, LoggerFactory }
-import surge.health.config.WindowingStreamConfig
+import surge.health.config.{ HealthSupervisorConfig, WindowingStreamConfig }
 import surge.health.windows.WindowEvent
 import surge.health.{ HealthSignalStream, SignalSourceQueueProvider, SourcePlusQueue }
 

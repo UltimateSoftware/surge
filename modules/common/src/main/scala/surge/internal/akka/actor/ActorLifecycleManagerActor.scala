@@ -2,24 +2,61 @@
 
 package surge.internal.akka.actor
 
-import akka.actor.{ Actor, ActorRef, NoSerializationVerificationNeeded, Props, Terminated }
+import akka.actor.{ Actor, ActorPath, ActorRef, ActorSystem, NoSerializationVerificationNeeded, Props, Terminated }
+import akka.pattern._
+import akka.util.Timeout
 import org.slf4j.LoggerFactory
 import surge.core.Ack
 import surge.internal.akka.ActorOps
+import surge.internal.akka.actor.ActorLifecycleManagerActor.GetManagedActorPath
+import surge.internal.config.TimeoutConfig
+
+import scala.concurrent.Future
+import scala.concurrent.duration._
+
+case class ManagedActorRef(ref: ActorRef) {
+  implicit val timeout: Timeout = TimeoutConfig.LifecycleManagerActor.askTimeout
+  def start(): Future[Ack] = {
+    ref.ask(ActorLifecycleManagerActor.Start).mapTo[Ack]
+  }
+
+  def stop(): Future[Ack] = {
+    ref.ask(ActorLifecycleManagerActor.Stop).mapTo[Ack]
+  }
+
+  def managedPath(): Future[Option[ActorPath]] = {
+    ref.ask(GetManagedActorPath)(30.seconds).mapTo[Option[ActorPath]]
+  }
+}
 
 object ActorLifecycleManagerActor {
+  val defaultStopTimeout: FiniteDuration = 30.seconds
+
+  def manage(
+      actorSystem: ActorSystem,
+      managedActorProps: Props,
+      componentName: String,
+      managedActorName: Option[String] = None,
+      startMessageAdapter: Option[() => Any] = None,
+      stopMessageAdapter: Option[() => Any] = None): ManagedActorRef = {
+    ManagedActorRef(
+      actorSystem.actorOf(Props(new ActorLifecycleManagerActor(managedActorProps, componentName, managedActorName, startMessageAdapter, stopMessageAdapter))))
+  }
+
   case object Start extends NoSerializationVerificationNeeded
   case object Stop extends NoSerializationVerificationNeeded
+  case object GetManagedActorPath extends NoSerializationVerificationNeeded
 }
 
 class ActorLifecycleManagerActor(
     managedActorProps: Props,
     componentName: String,
     managedActorName: Option[String] = None,
-    initMessage: Option[() => Any] = None,
-    finalizeMessage: Option[() => Any] = None)
+    startMessageAdapter: Option[() => Any] = None,
+    stopMessageAdapter: Option[() => Any] = None)
     extends Actor
     with ActorOps {
+  import ActorLifecycleManagerActor._
   private val log = LoggerFactory.getLogger(getClass)
 
   override def receive: Receive = stopped
@@ -33,7 +70,7 @@ class ActorLifecycleManagerActor(
         case _ => context.actorOf(managedActorProps)
       }
 
-      initMessage.foreach(init => actor ! init())
+      startMessageAdapter.foreach(init => actor ! init())
 
       log.info("Lifecycle manager starting actor named {} for component {}", Seq(actor.prettyPrintPath, componentName): _*)
       context.watch(actor)
@@ -41,22 +78,27 @@ class ActorLifecycleManagerActor(
       sender() ! Ack()
     case ActorLifecycleManagerActor.Stop =>
       sender() ! Ack()
+    case ActorLifecycleManagerActor.GetManagedActorPath =>
+      sender() ! None
     case msg =>
       context.system.deadLetters ! msg
   }
 
   private def running(managedActor: ActorRef): Receive = {
+    case ActorLifecycleManagerActor.GetManagedActorPath =>
+      sender() ! Some(managedActor.path)
     case ActorLifecycleManagerActor.Start =>
       sender() ! Ack()
     case ActorLifecycleManagerActor.Stop =>
       log.info("Lifecycle manager stopping actor named {} for component {}", Seq(managedActor.prettyPrintPath, componentName): _*)
-      finalizeMessage match {
-        case Some(fin) => managedActor ! fin()
+      stopMessageAdapter match {
+        case Some(fin) =>
+          gracefulStop(managedActor, defaultStopTimeout, fin())
         case None =>
-          context.stop(managedActor)
+          gracefulStop(managedActor, defaultStopTimeout)
       }
-      context.become(stopped)
       sender() ! Ack()
+      context.become(stopped)
     case Terminated(actorRef) if actorRef == managedActor =>
       log.info("Lifecycle manager saw actor named {} stop for component {}", Seq(managedActor.prettyPrintPath, componentName): _*)
       context.become(stopped)

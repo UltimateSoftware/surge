@@ -4,8 +4,8 @@ package surge.internal.health.windows.stream.sliding
 
 import akka.actor.ActorSystem
 import surge.health.HealthSignalStream
-import surge.health.config.{ WindowingStreamConfig, WindowingStreamSliderConfig }
-import surge.health.matchers.SignalPatternMatcher
+import surge.health.config.{ HealthSupervisorConfig, WindowingStreamConfig, WindowingStreamSliderConfig }
+import surge.health.matchers.SignalPatternMatcherDefinition
 import surge.internal.health._
 
 /**
@@ -17,14 +17,15 @@ import surge.internal.health._
  *   ActorSystem
  * @param streamMonitoring
  *   Option[StreamMonitoringRef]
- * @param filters
- *   Seq[SignalPatterMatcher]
+ * @param patternMatchers
+ *   Seq[SignalPatterMatcherDefinition]
  */
 class SlidingHealthSignalStreamProvider(
     config: WindowingStreamConfig,
     override val actorSystem: ActorSystem,
     override val streamMonitoring: Option[StreamMonitoringRef] = None,
-    override val filters: Seq[SignalPatternMatcher] = Seq.empty)
+    override val patternMatchers: Seq[SignalPatternMatcherDefinition] = Seq.empty,
+    override val healthSupervisionConfig: HealthSupervisorConfig = HealthSupervisorConfig())
     extends HealthSignalStreamProvider {
 
   /**
@@ -38,7 +39,7 @@ class SlidingHealthSignalStreamProvider(
    */
   override def provide(bus: HealthSignalBusInternal): HealthSignalStream = {
     if (config.advancerConfig.isInstanceOf[WindowingStreamSliderConfig]) {
-      SlidingHealthSignalStream(config, bus, filters, streamMonitoring, actorSystem = actorSystem)
+      SlidingHealthSignalStream(config, healthSupervisionConfig, bus, patternMatchers, streamMonitoring, actorSystem = actorSystem)
     } else {
       throw new RuntimeException(s"The Advancer Configuration provided in WindowingStreamConfig must be of type ${classOf[WindowingStreamSliderConfig]}")
     }

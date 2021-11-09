@@ -75,8 +75,6 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     system.actorOf(CustomConsumerGroupRebalanceListener.props(stateChangeActor, callback))
   }
 
-  // todo: chain the component starts together; if one fails they all fail and we rollback and
-  //  stop any that have started. if all pass, we register..
   override def start(): Future[Ack] = {
     implicit val ec: ExecutionContext = system.dispatcher
     val result = for {
@@ -119,7 +117,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
       allStopped
     }
 
-    result
+    result.andThen(unRegistrationCallback())
   }
 
   override def shutdown(): Future[Ack] = stop()
@@ -138,22 +136,49 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     Future.successful[Ack](Ack())
   }
 
-  private def registrationCallback(): PartialFunction[Try[Ack], Unit] = {
-
+  private def unRegistrationCallback(): PartialFunction[Try[Ack], Unit] = {
     case Success(_) =>
-      val registrationResult = signalBus.register(
+      unregisterWithSupervisor()
+    case Failure(exception) =>
+      log.error("Failed to stop so unable to unregister from supervision", exception)
+  }
+
+  private def registrationCallback(): PartialFunction[Try[Ack], Unit] = {
+    case Success(_) =>
+      registerWithSupervisor()
+    case Failure(exception) =>
+      log.error("Failed to start so unable to register for supervision", exception)
+  }
+
+  /**
+   * Register for Supervision via HealthSignalBus
+   */
+  private def registerWithSupervisor(): Unit = {
+    signalBus
+      .register(
         control = this,
         componentName = "surge-message-pipeline",
         restartSignalPatterns = restartSignalPatterns(),
         shutdownSignalPatterns = shutdownSignalPatterns())
-
-      registrationResult.onComplete {
+      .onComplete {
         case Failure(exception) =>
-          log.error("AggregateStateStore registeration failed", exception)
+          log.error(s"$getClass registeration failed", exception)
         case Success(_) =>
-          log.debug(s"AggregateStateStore registration succeeded")
+          log.debug(s"$getClass registeration succeeded")
       }(system.dispatcher)
-    case Failure(exception) =>
-      log.error("Failed to register start so unable to register for supervision", exception)
+  }
+
+  /**
+   * Unregister for Supervision via HealthSignalBus
+   */
+  private def unregisterWithSupervisor(): Unit = {
+    signalBus
+      .unregister(control = this, componentName = "surge-message-pipeline")
+      .onComplete {
+        case Failure(exception) =>
+          log.error(s"$getClass registration failed", exception)
+        case Success(_) =>
+          log.debug(s"$getClass registration succeeded")
+      }(system.dispatcher)
   }
 }

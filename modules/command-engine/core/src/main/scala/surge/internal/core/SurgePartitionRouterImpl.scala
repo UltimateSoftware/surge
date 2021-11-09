@@ -5,13 +5,11 @@ package surge.internal.core
 import java.util.regex.Pattern
 import akka.actor._
 import akka.pattern.ask
-import akka.util.Timeout
 import com.typesafe.config.Config
 import org.slf4j.LoggerFactory
 import surge.core.{ Ack, Controllable, SurgePartitionRouter }
 import surge.health.HealthSignalBusTrait
 import surge.internal.SurgeModel
-import surge.internal.akka.actor.ActorLifecycleManagerActor
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.config.TimeoutConfig
 import surge.internal.persistence.RoutableMessage
@@ -20,7 +18,6 @@ import surge.kafka.{ KafkaPartitionShardRouterActor, PersistentActorRegionCreato
 
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.languageFeature.postfixOps
-import scala.util.{ Failure, Success, Try }
 
 private[surge] final class SurgePartitionRouterImpl(
     config: Config,
@@ -44,6 +41,7 @@ private[surge] final class SurgePartitionRouterImpl(
     RoutableMessage.extractEntityId)(businessLogic.tracer)
 
   private val routerActorName = s"${businessLogic.aggregateName}RouterActor"
+
   private val shardRouter = system.actorOf(shardRouterProps, name = routerActorName)
   override val actorRegion: ActorRef = shardRouter
 
@@ -82,19 +80,5 @@ private[surge] final class SurgePartitionRouterImpl(
         log.error(s"Failed to get router-actor health check", err)
         Future.successful(HealthCheck(name = "router-actor", id = s"router-actor-${actorRegion.hashCode}", status = HealthCheckStatus.DOWN))
       }
-  }
-
-  private def registrationCallback(): PartialFunction[Try[Ack], Unit] = {
-    case Success(_) =>
-      val registrationResult = signalBus.register(control = this, componentName = "router-actor", restartSignalPatterns())
-
-      registrationResult.onComplete {
-        case Failure(exception) =>
-          log.error(s"$getClass registration failed", exception)
-        case Success(_) =>
-          log.debug(s"$getClass registration succeeded")
-      }
-    case Failure(error) =>
-      log.error(s"Unable to register $getClass for supervision", error)
   }
 }

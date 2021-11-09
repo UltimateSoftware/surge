@@ -2,22 +2,23 @@
 
 package surge.health
 
-import java.time.Instant
-import java.util.UUID
-import java.util.regex.Pattern
 import akka.actor.{ ActorRef, ActorSystem, NoSerializationVerificationNeeded }
 import akka.event.EventBus
-import akka.stream.scaladsl.{ Source, SourceQueueWithComplete }
-import akka.stream.{ Materializer, OverflowStrategy }
+import akka.stream.Materializer
+import akka.stream.scaladsl.{ Sink, Source, SourceQueueWithComplete }
 import akka.{ Done, NotUsed }
 import org.slf4j.LoggerFactory
 import surge.core.{ Ack, Controllable }
 import surge.health.config.ThrottleConfig
-import surge.health.domain.{ EmittableHealthSignal, Error, HealthSignal, Timed, Trace, Warning }
-import surge.health.matchers.SignalPatternMatcher
+import surge.health.domain.{ EmittableHealthSignal, Error, HealthSignal, HealthSignalSource, Timed, Trace, Warning }
+import surge.health.matchers.SignalPatternMatcherDefinition
+import surge.health.supervisor.Api.{ RegisterSupervisedComponentRequest, RestartComponent, ShutdownComponent, StartComponent }
+import surge.health.supervisor.Domain.SupervisedComponentRegistration
 import surge.internal.health.RegistrationHandler
-import surge.internal.health.supervisor.{ RegisterSupervisedComponentRequest, RestartComponent, ShutdownComponent, SupervisedComponentRegistration }
 
+import java.time.Instant
+import java.util.UUID
+import java.util.regex.Pattern
 import scala.concurrent.Future
 import scala.util.Try
 
@@ -53,6 +54,7 @@ final case class HealthRegistration(
 
 trait RegistrationProducer {
   def register(control: Controllable, componentName: String, restartSignalPatterns: Seq[Pattern], shutdownSignalPatterns: Seq[Pattern] = Seq.empty): Future[Ack]
+  def unregister(control: Controllable, componentName: String): Future[Ack]
   def registration(
       controllable: Controllable,
       componentName: String,
@@ -126,6 +128,10 @@ case class ControlProxy(name: String, actor: ActorRef) {
   def restart(replyTo: ActorRef): Unit = {
     actor ! RestartComponent(name, replyTo)
   }
+
+  def start(replyTo: ActorRef): Unit = {
+    actor ! StartComponent(name, replyTo)
+  }
 }
 
 case class HealthRegistrationLink(componentName: String, controlProxy: ControlProxy)
@@ -136,7 +142,7 @@ trait HealthSupervisorTrait {
   def start(replyTo: Option[ActorRef] = None): HealthSupervisorTrait
 
   def register(registration: HealthRegistration): Future[Any]
-
+  def unregister(componentName: String): Future[Ack]
   def registrar(): ActorRef
 
   def registrationLinks(): Seq[HealthRegistrationLink]
@@ -149,7 +155,7 @@ trait SignalProducer {
   def signalWithTrace(name: String, trace: Trace, metadata: Map[String, String] = Map.empty): EmittableHealthSignal
 }
 
-trait HealthSignalBusTrait extends EventBus with BusSupervisionTrait with SignalProducer {
+trait HealthSignalBusTrait extends EventBus with BusSupervisionTrait with SignalProducer with HealthSignalSource {
   type Event = HealthMessage
   type Classifier = String
   type Subscriber = HealthListener
@@ -164,6 +170,16 @@ trait HealthSignalBusTrait extends EventBus with BusSupervisionTrait with Signal
   def supervisor(): Option[HealthSupervisorTrait]
 
   def signalStream(): HealthSignalStream
+
+  def asSink(): Sink[HealthMessage, Future[Done]] = Sink.foreach(message => {
+    publish(message)
+  })
+
+  def asSource(buffer: Int, throttleConfig: ThrottleConfig): SourcePlusQueue[HealthMessage] =
+    signalStream().messageSource(buffer, throttleConfig)
+
+  def asSignalSource(buffer: Int, throttleConfig: ThrottleConfig): SourcePlusQueue[HealthSignal] =
+    signalStream().signalSource(buffer, throttleConfig)
 }
 
 trait HealthListener extends Comparable[String] {
@@ -250,23 +266,59 @@ trait HealthSignalStreamControl {
 trait HealthSignalStream extends HealthSignalListener {
   def actorSystem: ActorSystem
   def signalTopic: String
+
+  /**
+   * Get SignalHandler
+   * @see
+   *   surge.health.HealthSignalStream#subscribe
+   * @return
+   *   SignalHandler
+   */
   def signalHandler: SignalHandler
 
-  def filters(): Seq[SignalPatternMatcher]
+  def patternMatchers(): Seq[SignalPatternMatcherDefinition]
 
   /**
    * Provide HealthSignal(s) in a Source for stream operations
+   *
+   * @param buffer
+   *   Int
+   * @param throttleConfig
+   *   ThrottleConfig
    * @return
    *   SourcePlusQueue[HealthSignal]
    */
   def signalSource(buffer: Int, throttleConfig: ThrottleConfig): SourcePlusQueue[HealthSignal] = {
-    val signalSource = Source.queue[HealthSignal](buffer, OverflowStrategy.backpressure).throttle(throttleConfig.elements, throttleConfig.duration)
+    val signalSource = Source.queue[HealthSignal](buffer, throttleConfig.overflowStrategy()).throttle(throttleConfig.elements, throttleConfig.duration)
 
     val (sourceMat, source) = signalSource.preMaterialize()(Materializer(actorSystem))
 
     SourcePlusQueue(source, sourceMat)
   }
 
+  /**
+   * Provide HealthMessage(s) in a Source for stream operations
+   *
+   * @param buffer
+   *   Int
+   * @param throttleConfig
+   *   ThrottleConfig
+   * @return
+   *   SourcePlusQueue[HealthMessage]
+   */
+  def messageSource(buffer: Int, throttleConfig: ThrottleConfig): SourcePlusQueue[HealthMessage] = {
+    val messageSource = Source.queue[HealthMessage](buffer, throttleConfig.overflowStrategy()).throttle(throttleConfig.elements, throttleConfig.duration)
+
+    val (sourceMat, source) = messageSource.preMaterialize()(Materializer(actorSystem))
+
+    SourcePlusQueue(source, sourceMat)
+  }
+
+  /**
+   * Subscribe for HealthSignals
+   * @return
+   *   HealthSignalStream
+   */
   def subscribe(): HealthSignalStream = {
     subscribe(signalHandler).asInstanceOf[HealthSignalStream]
   }

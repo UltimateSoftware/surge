@@ -4,21 +4,23 @@ package surge.internal.health
 
 import akka.Done
 import akka.actor.ActorSystem
+import akka.stream.scaladsl.Source
 import akka.testkit.{ TestKit, TestProbe }
 import org.mockito.Mockito._
 import org.mockito.stubbing.Stubber
 import org.mockito.{ ArgumentMatchers, Mockito }
 import org.scalatest.BeforeAndAfterAll
+import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
 import surge.health.config.HealthSignalBusConfig
-
 import surge.health.domain._
 import surge.health.{ HealthSignalListener, SignalHandler }
 import surge.internal.health.context.TestHealthSignalStream
 import surge.internal.health.supervisor.HealthSupervisorActorRef
 
+import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.Try
 
@@ -45,7 +47,13 @@ trait MockitoHelper extends MockitoSugar {
   }
 }
 
-class HealthSignalBusSpec extends TestKit(ActorSystem("healthSignalBus")) with AnyWordSpecLike with Matchers with MockitoHelper with BeforeAndAfterAll {
+class HealthSignalBusSpec
+    extends TestKit(ActorSystem("healthSignalBus"))
+    with AnyWordSpecLike
+    with Matchers
+    with ScalaFutures
+    with MockitoHelper
+    with BeforeAndAfterAll {
 
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
@@ -55,6 +63,23 @@ class HealthSignalBusSpec extends TestKit(ActorSystem("healthSignalBus")) with A
   val signalStreamProvider: HealthSignalStreamProvider = testHealthSignalStreamProvider(Seq.empty)
 
   "HealthSignalBus" should {
+    "provide a sink" in {
+      val probe = TestProbe()
+      val bus =
+        HealthSignalBus(signalStreamProvider)
+          .withStreamSupervision(_ => new HealthSupervisorActorRef(probe.ref, 30.seconds, system), Some(new StreamMonitoringRef(probe.ref)))
+
+      val listener: HealthSignalListener = testListener(bus)
+      val handler: SignalHandler = testSignalHandler()
+      val signalHandler = spy(handler)
+
+      listener.subscribe(signalHandler)
+
+      val signal: HealthSignal = bus.signalWithTrace(name = "trace", Trace("a trace", None, None)).underlyingSignal()
+      val handle: Future[Done] = Source.single(signal).runWith(bus.asSink())
+      val d: Done = handle.futureValue
+      verify(signalHandler, times(1)).handle(ArgumentMatchers.any(classOf[HealthSignal]))
+    }
     "have stream monitoring" in {
       val probe = TestProbe()
       val bus =
