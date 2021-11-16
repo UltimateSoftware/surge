@@ -9,7 +9,6 @@ import org.apache.kafka.clients.admin.{ Admin, ListOffsetsOptions, OffsetSpec }
 import org.apache.kafka.clients.admin.ListOffsetsResult.ListOffsetsResultInfo
 import org.apache.kafka.clients.consumer.{ ConsumerConfig, OffsetAndMetadata }
 import org.apache.kafka.common.TopicPartition
-import surge.annotations.Experimental
 
 import scala.jdk.CollectionConverters._
 
@@ -33,8 +32,7 @@ object KafkaAdminClient {
 class KafkaAdminClient(props: Properties) {
   private val client = Admin.create(props)
 
-  @Experimental
-  def consumerGroupOffsets(groupName: String, foo: String): Map[TopicPartition, OffsetAndMetadata] = {
+  def consumerGroupOffsets(groupName: String): Map[TopicPartition, OffsetAndMetadata] = {
     client.listConsumerGroupOffsets(groupName).partitionsToOffsetAndMetadata().get().asScala.toMap
   }
 
@@ -46,7 +44,7 @@ class KafkaAdminClient(props: Properties) {
       groupName: String,
       topicPartitions: List[TopicPartition],
       listOffsetsOptions: ListOffsetsOptions = new ListOffsetsOptions()): Map[TopicPartition, LagInfo] = {
-    val cgOffsets = consumerGroupOffsets(groupName, "")
+    val cgOffsets = consumerGroupOffsets(groupName)
     val tpEndOffsets = endOffsets(topicPartitions, listOffsetsOptions)
 
     tpEndOffsets.map { case (topicPartition, endOffsetMeta) =>
