@@ -1,3 +1,4 @@
+ProblemFilters.exclude[ExcludeAnnotations]("surge.annotations.Experimental")
 ProblemFilters.exclude[ReversedMissingMethodProblem]("surge.streams.KafkaEventSource.surge$streams$KafkaEventSource$$super$to")
 ProblemFilters.exclude[DirectMissingMethodProblem]("surge.kafka.streams.AggregateStateStoreKafkaStreams.this")
 
