@@ -1,1 +1,1 @@
-ProblemFilters.exclude[ExcludeAnnotations]("surge.annotations.Experimental")
+ProblemFilters.exclude[ExcludeAnnotations]("surge.annotations.Experimental", "surge.annotations.ApiMayChange")
