@@ -14,11 +14,13 @@ object MiMa extends AutoPlugin {
   override val projectSettings = Seq(
     mimaReportSignatureProblems := true,
     mimaPreviousArtifacts := previousArtifacts(name.value, organization.value),
-    mimaBinaryIssueFilters ++= Seq(ProblemFilters.exclude[Problem]("surge.internal.*")))
+    mimaBinaryIssueFilters ++= Seq(ProblemFilters.exclude[Problem]("surge.internal.*"),
+      ProblemFilters.exclude[Problem]("surge.health.*")
+    ))
 
   private def previousArtifacts(projectName: String, organization: String): Set[sbt.ModuleID] = {
     val versions: Seq[String] = {
-      val firstPatchVersion = "19"
+      val firstPatchVersion = "40"
       Seq(s"0.5.$firstPatchVersion")
     }
 

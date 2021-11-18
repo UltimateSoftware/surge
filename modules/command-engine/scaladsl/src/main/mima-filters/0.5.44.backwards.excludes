@@ -1,0 +1,3 @@
+ProblemFilters.exclude[DirectMissingMethodProblem]("surge.scaladsl.common.HealthCheck.writer")
+ProblemFilters.exclude[MissingClassProblem]("surge.scaladsl.command.AggregateRefImpl")
+ProblemFilters.exclude[MissingClassProblem]("surge.scaladsl.event.AggregateRefImpl")

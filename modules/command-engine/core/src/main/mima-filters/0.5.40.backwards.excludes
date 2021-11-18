@@ -1,0 +1,1 @@
+ProblemFilters.exclude[IncompatibleMethTypeProblem]("surge.core.KafkaProducerActor.this")

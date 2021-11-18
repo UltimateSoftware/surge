@@ -2,23 +2,23 @@
 
 package surge.internal.health
 
-import akka.actor.{ Actor, ActorSystem, BootstrapSetup, Props, ProviderSelection }
+import akka.actor.{Actor, ActorSystem, BootstrapSetup, Props, ProviderSelection}
 import akka.event.LookupClassification
 import akka.pattern._
-import com.typesafe.config.{ Config, ConfigFactory }
-import org.slf4j.{ Logger, LoggerFactory }
-import surge.core.{ Ack, Controllable }
+import com.typesafe.config.{Config, ConfigFactory}
+import org.slf4j.{Logger, LoggerFactory}
+import surge.core.{Ack, Controllable}
 import surge.health._
-import surge.health.config.{ HealthSignalBusConfig, HealthSupervisorConfig }
-import surge.health.domain.{ EmittableHealthSignal, Error, HealthSignal, HealthSignalSource, SnapshotHealthSignalSource, Trace, Warning }
-import surge.health.supervisor.Api.{ HealthRegistrationDetailsRequest, RegisterSupervisedComponentRequest, Stop }
+import surge.health.config.{HealthSignalBusConfig, HealthSupervisorConfig}
+import surge.health.domain.{EmittableHealthSignal, Error, HealthRegistration, HealthSignal, HealthSignalSource, SnapshotHealthSignalSource, Trace, Warning}
+import surge.health.supervisor.Api.{HealthRegistrationDetailsRequest, RegisterSupervisedComponentRequest, Stop}
 import surge.health.supervisor.Domain.SupervisedComponentRegistration
 import surge.internal.health.HealthSignalBus.log
 import surge.internal.health.supervisor._
 
 import java.util.regex.Pattern
 import scala.concurrent.duration._
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
 case class SubscriberInfo(name: String, id: String)
@@ -104,7 +104,7 @@ private class EmittableHealthSignalImpl(healthSignal: HealthSignal, signalBus: H
   import surge.health.domain.EmittableHealthSignal._
 
   override def handled(handled: Boolean): EmittableHealthSignal = {
-    new EmittableHealthSignalImpl(healthSignal.copy(handled = handled), signalBus)
+    new EmittableHealthSignalImpl(healthSignal.handled(handled), signalBus)
   }
 
   override def emit(): EmittableHealthSignal = {
@@ -117,7 +117,7 @@ private class EmittableHealthSignalImpl(healthSignal: HealthSignal, signalBus: H
   override def logAsWarning(error: Option[Throwable]): EmittableHealthSignal = {
     error match {
       case Some(err) =>
-        log(logType = "warn", healthSignal.copy(data = healthSignal.data.withError(err)))
+        log(logType = "warn", healthSignal.data(healthSignal.data.withError(err)))
       case None =>
         log(logType = "warn", healthSignal)
     }
@@ -130,7 +130,7 @@ private class EmittableHealthSignalImpl(healthSignal: HealthSignal, signalBus: H
   override def logAsError(error: Option[Throwable]): EmittableHealthSignal = {
     error match {
       case Some(err) =>
-        log(logType = "error", healthSignal.copy(data = healthSignal.data.withError(err)))
+        log(logType = "error", healthSignal.data(healthSignal.data.withError(err)))
       case None =>
         log(logType = "error", healthSignal)
     }
@@ -258,7 +258,7 @@ private[surge] class HealthSignalBusImpl(
   override def unsupervise(): HealthSignalBusTrait = {
     supervisor() match {
       case Some(s) =>
-        if (s.state().started) {
+        if (s.state().started()) {
           if (stopStreamOnUnsubscribe) {
             signalStream().unsubscribe().stop()
           }

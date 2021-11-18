@@ -3,28 +3,28 @@
 package surge.internal.health.supervisor
 
 import akka.Done
-import akka.actor.{ Actor, ActorContext, ActorRef, ActorSystem, PoisonPill, Props, Terminated }
-import akka.pattern.{ ask, BackoffOpts, BackoffSupervisor }
+import akka.actor.{Actor, ActorContext, ActorRef, ActorSystem, PoisonPill, Props, Terminated}
+import akka.pattern.{BackoffOpts, BackoffSupervisor, ask}
 import akka.util.Timeout
-import org.slf4j.{ Logger, LoggerFactory }
-import surge.core.{ Ack, Controllable, ControllableLookup, ControllableRemover }
+import org.slf4j.{Logger, LoggerFactory}
+import surge.core.{Ack, Controllable, ControllableLookup, ControllableRemover}
 import surge.health._
 import surge.health.config.HealthSupervisorConfig
-import surge.health.domain.HealthSignal
-import surge.health.jmx.Api.{ AddComponent, RemoveComponent, StartManagement, StopManagement }
+import surge.health.domain.{HealthRegistration, HealthSignal}
+import surge.health.jmx.Api.{AddComponent, RemoveComponent, StartManagement, StopManagement}
 import surge.health.jmx.Domain.HealthRegistrationDetail
-import surge.health.jmx.{ HealthJmxTrait, SurgeHealthActor }
+import surge.health.jmx.{HealthJmxTrait, SurgeHealthActor}
 import surge.health.supervisor.Api._
 import surge.health.supervisor.Domain.SupervisedComponentRegistration
-import surge.internal.config.{ BackoffConfig, TimeoutConfig }
+import surge.internal.config.{BackoffConfig, TimeoutConfig}
 import surge.internal.health._
 import surge.jmx.ActorJMXSupervisor
 
 import scala.collection.mutable
 import scala.concurrent.duration._
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.{ExecutionContext, Future}
 import scala.languageFeature.postfixOps
-import scala.util.{ Failure, Success, Try }
+import scala.util.{Failure, Success, Try}
 
 trait RegistrationSupport {
   def registrar(): ActorRef
@@ -173,15 +173,15 @@ class HealthSupervisorActorRef(val actor: ActorRef, askTimeout: FiniteDuration, 
     val result = actor
       .ask(
         RegisterSupervisedComponentRequest(
-          registration.componentName,
+          registration.componentName(),
           controlProxy,
-          restartSignalPatterns = registration.restartSignalPatterns,
-          shutdownSignalPatterns = registration.shutdownSignalPatterns))(askTimeout)
+          restartSignalPatterns = registration.restartSignalPatterns(),
+          shutdownSignalPatterns = registration.shutdownSignalPatterns()))(askTimeout)
       .andThen {
         case Success(_) =>
-          controlled.put(registration.componentName, registration.control)
+          controlled.put(registration.componentName(), registration.control())
         case Failure(exception) =>
-          log.error(s"Failed to register ${registration.componentName}", exception)
+          log.error(s"Failed to register ${registration.componentName()}", exception)
       }
 
     result.mapTo[Ack]
@@ -337,7 +337,7 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, config: 
   // Private
   private def processShutdown(signal: HealthSignal, registered: SupervisedComponentRegistration, state: HealthState): Unit = {
     registered.shutdownSignalPatterns.foreach(p => {
-      if (p.matcher(signal.name).matches()) {
+      if (p.matcher(signal.name()).matches()) {
         attemptShutdown(registered).onComplete {
           case Failure(err) =>
             val event = ShutdownComponentFailed(registered.componentName, error = Some(err))
@@ -351,7 +351,7 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, config: 
 
   private def processRestart(signal: HealthSignal, registered: SupervisedComponentRegistration, state: HealthState): Unit = {
     registered.restartSignalPatterns.foreach(p => {
-      if (p.matcher(signal.name).matches()) {
+      if (p.matcher(signal.name()).matches()) {
         attemptRestart(registered).onComplete {
           case Failure(err) =>
             val events = Set(RestartComponentAttempted(registered.componentName), RestartComponentFailed(registered.componentName, error = Some(err)))

@@ -372,7 +372,7 @@ class HealthSignalWindowActor(
 
   def injectSignalPatternMatchResultIntoStream(result: SignalPatternMatchResult): Unit = {
     result.sideEffect.signals.foreach(s => {
-      signalBus.publish(s.copy(source = result.signalSource))
+      signalBus.publish(s.source(result.signalSource))
     })
   }
 }
