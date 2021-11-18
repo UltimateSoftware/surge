@@ -156,6 +156,7 @@ object HealthRegistrationLink {
 }
 trait HealthRegistrationLink {
   def componentName(): String
+  def controlProxy(): ControlProxy
 }
 
 trait HealthSupervisorTrait {

@@ -18,10 +18,10 @@ import surge.health.config.{ ThrottleConfig, WindowingStreamConfig, WindowingStr
 import surge.health.domain.{ Error, HealthSignal }
 import surge.health.matchers.{ SideEffectBuilder, SignalPatternMatcherDefinition }
 import surge.health.supervisor.Api.ShutdownComponent
-import surge.health.{ ComponentRestarted, HealthListener, HealthMessage, SignalType }
+import surge.health.{ HealthListener, HealthMessage, SignalType }
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.core.SurgePartitionRouterImpl
-import surge.internal.health.StreamMonitoringRef
+import surge.internal.health.{ ComponentRestarted, StreamMonitoringRef }
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
 import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, MockPartitionTracker }
 import surge.metrics.Metrics
