@@ -14,6 +14,7 @@ object MiMa extends AutoPlugin {
   override val projectSettings = Seq(
     mimaReportSignatureProblems := true,
     mimaPreviousArtifacts := previousArtifacts(name.value, organization.value),
+    mimaExcludeAnnotations := Seq("surge.annotations.Experimental", "surge.annotations.ApiMayChange", "surge.annotations.InternalApi"),
     mimaBinaryIssueFilters ++= Seq(ProblemFilters.exclude[Problem]("surge.internal.*")))
 
   private def previousArtifacts(projectName: String, organization: String): Set[sbt.ModuleID] = {
