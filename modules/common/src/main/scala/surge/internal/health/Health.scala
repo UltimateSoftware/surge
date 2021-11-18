@@ -1,11 +1,11 @@
 // Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 package surge.internal.health
 
-import akka.actor.{ActorRef, NoSerializationVerificationNeeded}
+import akka.actor.{ ActorRef, NoSerializationVerificationNeeded }
 import surge.core.Controllable
-import surge.health.domain.{HealthRegistration, HealthSignal, HealthSignalSource, SignalData, Timed}
-import surge.health.supervisor.Api.{RegisterSupervisedComponentRequest, RestartComponent, ShutdownComponent, StartComponent}
-import surge.health.{ControlProxy, HealthRegistrationLink, HealthSupervisorState, SignalType}
+import surge.health.domain.{ HealthRegistration, HealthSignal, HealthSignalSource, SignalData, Timed }
+import surge.health.supervisor.Api.{ RegisterSupervisedComponentRequest, RestartComponent, ShutdownComponent, StartComponent }
+import surge.health.{ ControlProxy, HealthRegistrationLink, HealthSupervisorState, SignalType }
 
 import java.time.Instant
 import java.util.UUID
@@ -25,29 +25,29 @@ case class ShutdownComponentAttempted(componentName: String, timestamp: Instant 
 
 case class HealthSupervisorStateImpl(started: Boolean) extends HealthSupervisorState
 
-
 final case class HealthRegistrationImpl(
-                                     componentName: String,
-                                     control: Controllable,
-                                     topic: String,
-                                     override val restartSignalPatterns: Seq[Pattern] = Seq.empty,
-                                     override val shutdownSignalPatterns: Seq[Pattern] = Seq.empty,
-                                     id: UUID = UUID.randomUUID(),
-                                     timestamp: Instant = Instant.now,
-                                     override val ref: Option[ActorRef] = None)
-  extends HealthRegistration
+    componentName: String,
+    control: Controllable,
+    topic: String,
+    override val restartSignalPatterns: Seq[Pattern] = Seq.empty,
+    override val shutdownSignalPatterns: Seq[Pattern] = Seq.empty,
+    id: UUID = UUID.randomUUID(),
+    timestamp: Instant = Instant.now,
+    override val ref: Option[ActorRef] = None)
+    extends HealthRegistration
     with NoSerializationVerificationNeeded
 
-final case class HealthSignalImpl(topic: String,
-                             name: String,
-                             signalType: SignalType.Value,
-                             data: SignalData,
-                             override val metadata: Map[String, String] = Map[String, String](),
-                             source: Option[HealthSignalSource],
-                             override val handled: Boolean = false,
-                             id: UUID = UUID.randomUUID(),
-                             timestamp: Instant = Instant.now())
-  extends HealthSignal
+final case class HealthSignalImpl(
+    topic: String,
+    name: String,
+    signalType: SignalType.Value,
+    data: SignalData,
+    override val metadata: Map[String, String] = Map[String, String](),
+    source: Option[HealthSignalSource],
+    override val handled: Boolean = false,
+    id: UUID = UUID.randomUUID(),
+    timestamp: Instant = Instant.now())
+    extends HealthSignal
     with NoSerializationVerificationNeeded
     with Timed {
 

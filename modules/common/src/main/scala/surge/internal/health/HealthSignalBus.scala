@@ -2,23 +2,23 @@
 
 package surge.internal.health
 
-import akka.actor.{Actor, ActorSystem, BootstrapSetup, Props, ProviderSelection}
+import akka.actor.{ Actor, ActorSystem, BootstrapSetup, Props, ProviderSelection }
 import akka.event.LookupClassification
 import akka.pattern._
-import com.typesafe.config.{Config, ConfigFactory}
-import org.slf4j.{Logger, LoggerFactory}
-import surge.core.{Ack, Controllable}
+import com.typesafe.config.{ Config, ConfigFactory }
+import org.slf4j.{ Logger, LoggerFactory }
+import surge.core.{ Ack, Controllable }
 import surge.health._
-import surge.health.config.{HealthSignalBusConfig, HealthSupervisorConfig}
-import surge.health.domain.{EmittableHealthSignal, Error, HealthRegistration, HealthSignal, HealthSignalSource, SnapshotHealthSignalSource, Trace, Warning}
-import surge.health.supervisor.Api.{HealthRegistrationDetailsRequest, RegisterSupervisedComponentRequest, Stop}
+import surge.health.config.{ HealthSignalBusConfig, HealthSupervisorConfig }
+import surge.health.domain.{ EmittableHealthSignal, Error, HealthRegistration, HealthSignal, HealthSignalSource, SnapshotHealthSignalSource, Trace, Warning }
+import surge.health.supervisor.Api.{ HealthRegistrationDetailsRequest, RegisterSupervisedComponentRequest, Stop }
 import surge.health.supervisor.Domain.SupervisedComponentRegistration
 import surge.internal.health.HealthSignalBus.log
 import surge.internal.health.supervisor._
 
 import java.util.regex.Pattern
 import scala.concurrent.duration._
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.Try
 
 case class SubscriberInfo(name: String, id: String)

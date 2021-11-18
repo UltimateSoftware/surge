@@ -16,7 +16,6 @@ import surge.metrics.Metric
 import surge.scaladsl.common.HealthCheckTrait
 import surge.internal.scaladsl.command.AggregateRefImpl
 
-
 trait SurgeCommand[AggId, Agg, Command, Rej, Evt] extends core.SurgeProcessingTrait[Agg, Command, Rej, Evt] with HealthCheckTrait {
   def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Command, Evt]
   def getMetrics: Seq[Metric] = businessLogic.metrics.getMetrics

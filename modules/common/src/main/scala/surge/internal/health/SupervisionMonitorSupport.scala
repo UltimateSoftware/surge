@@ -2,7 +2,6 @@
 
 package surge.internal.health
 
-
 trait SupervisionMonitorSupport {
   def healthSignalReceived(signal: HealthSignalReceived): Unit
   def registrationReceived(registration: HealthRegistrationReceived): Unit

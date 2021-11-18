@@ -22,5 +22,3 @@ trait AggregateRef[Agg, Cmd, Event] {
 
   def applyEvent(event: Event): Future[ApplyEventResult[Agg]]
 }
-
-

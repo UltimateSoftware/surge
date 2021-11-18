@@ -10,23 +10,16 @@ import java.util.UUID
 import java.util.regex.Pattern
 
 object HealthRegistration {
-  def apply(componentName: String,
-            control: Controllable,
-            topic: String,
-            restartSignalPatterns: Seq[Pattern] = Seq.empty,
-            shutdownSignalPatterns: Seq[Pattern] = Seq.empty,
-            id: UUID = UUID.randomUUID(),
-            timestamp: Instant = Instant.now,
-            ref: Option[ActorRef] = None): HealthRegistration = {
-    HealthRegistrationImpl(componentName,
-      control,
-      topic,
-      restartSignalPatterns,
-      shutdownSignalPatterns,
-      id,
-      timestamp,
-      ref
-    )
+  def apply(
+      componentName: String,
+      control: Controllable,
+      topic: String,
+      restartSignalPatterns: Seq[Pattern] = Seq.empty,
+      shutdownSignalPatterns: Seq[Pattern] = Seq.empty,
+      id: UUID = UUID.randomUUID(),
+      timestamp: Instant = Instant.now,
+      ref: Option[ActorRef] = None): HealthRegistration = {
+    HealthRegistrationImpl(componentName, control, topic, restartSignalPatterns, shutdownSignalPatterns, id, timestamp, ref)
   }
 }
 

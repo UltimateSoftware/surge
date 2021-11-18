@@ -2,11 +2,11 @@
 
 package surge.health.domain
 
-import org.slf4j.{Logger, LoggerFactory}
+import org.slf4j.{ Logger, LoggerFactory }
 
 import java.time.Instant
 import java.util.UUID
-import surge.health.{HealthMessage, SignalType}
+import surge.health.{ HealthMessage, SignalType }
 import surge.internal.health.HealthSignalImpl
 
 trait HealthSignalSource {
@@ -28,15 +28,16 @@ class SnapshotHealthSignalSource(private val data: Seq[HealthSignal]) extends He
 }
 
 object HealthSignal {
-  def apply(topic: String,
-            name: String,
-            signalType: SignalType.Value,
-            data: SignalData,
-            metadata: Map[String, String] = Map[String, String](),
-            source: Option[HealthSignalSource],
-            handled: Boolean = false,
-            id: UUID = UUID.randomUUID(),
-            timestamp: Instant = Instant.now()): HealthSignal = {
+  def apply(
+      topic: String,
+      name: String,
+      signalType: SignalType.Value,
+      data: SignalData,
+      metadata: Map[String, String] = Map[String, String](),
+      source: Option[HealthSignalSource],
+      handled: Boolean = false,
+      id: UUID = UUID.randomUUID(),
+      timestamp: Instant = Instant.now()): HealthSignal = {
     HealthSignalImpl(topic, name, signalType, data, metadata, source, handled, id, timestamp)
   }
 }

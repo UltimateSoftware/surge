@@ -6,14 +6,11 @@ import org.apache.kafka.common.serialization.Serializer
 
 import java.util.Properties
 
-class KafkaBytesProducer(brokers: Seq[String],
-                         topic: KafkaTopicTrait,
-                         keySerializer: Serializer[String],
-                         valueSerializer: Serializer[Array[Byte]],
-                         partitioner: KafkaPartitionerBase[String],
-                         producerProps: Properties) extends surge.internal.kafka.KafkaBytesProducer(brokers,
-  topic,
-  keySerializer,
-  valueSerializer,
-  partitioner,
-  producerProps)
+class KafkaBytesProducer(
+    brokers: Seq[String],
+    topic: KafkaTopicTrait,
+    keySerializer: Serializer[String],
+    valueSerializer: Serializer[Array[Byte]],
+    partitioner: KafkaPartitionerBase[String],
+    producerProps: Properties)
+    extends surge.internal.kafka.KafkaBytesProducer(brokers, topic, keySerializer, valueSerializer, partitioner, producerProps)

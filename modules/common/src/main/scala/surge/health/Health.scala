@@ -2,18 +2,18 @@
 
 package surge.health
 
-import akka.actor.{ActorRef, ActorSystem}
+import akka.actor.{ ActorRef, ActorSystem }
 import akka.event.EventBus
 import akka.stream.Materializer
-import akka.stream.scaladsl.{Sink, Source, SourceQueueWithComplete}
-import akka.{Done, NotUsed}
+import akka.stream.scaladsl.{ Sink, Source, SourceQueueWithComplete }
+import akka.{ Done, NotUsed }
 import org.slf4j.LoggerFactory
-import surge.core.{Ack, Controllable}
+import surge.core.{ Ack, Controllable }
 import surge.health.config.ThrottleConfig
-import surge.health.domain.{EmittableHealthSignal, Error, HealthRegistration, HealthSignal, HealthSignalSource, Timed, Trace, Warning}
+import surge.health.domain.{ EmittableHealthSignal, Error, HealthRegistration, HealthSignal, HealthSignalSource, Timed, Trace, Warning }
 import surge.health.matchers.SignalPatternMatcherDefinition
 import surge.health.supervisor.Domain.SupervisedComponentRegistration
-import surge.internal.health.{ControlProxyImpl, HealthRegistrationImpl, HealthRegistrationLinkImpl, HealthSupervisorStateImpl, RegistrationHandler}
+import surge.internal.health.{ ControlProxyImpl, HealthRegistrationImpl, HealthRegistrationLinkImpl, HealthSupervisorStateImpl, RegistrationHandler }
 
 import java.time.Instant
 import java.util.UUID
