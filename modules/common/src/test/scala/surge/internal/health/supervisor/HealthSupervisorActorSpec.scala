@@ -230,7 +230,7 @@ class HealthSupervisorActorSpec
         .registrationLinks()
         .find(l => l.componentName == "boomControl")
         .foreach(link => {
-          link.controlProxy.shutdown(probe.ref)
+          link.controlProxy().shutdown(probe.ref)
         })
 
       eventually {

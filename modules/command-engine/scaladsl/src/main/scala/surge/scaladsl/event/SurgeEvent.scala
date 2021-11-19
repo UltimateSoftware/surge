@@ -11,6 +11,7 @@ import surge.health.matchers.SignalPatternMatcherRegistry
 import surge.internal.domain.SurgeEventServiceImpl
 import surge.internal.health.HealthSignalStreamProvider
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
+import surge.internal.scaladsl.event.AggregateRefImpl
 import surge.metrics.Metric
 import surge.scaladsl.common.HealthCheckTrait
 

@@ -1,0 +1,7 @@
+ProblemFilters.exclude[MissingClassProblem]("com.ukg.surge.multilanguage.scalasdk.CQRSModel")
+ProblemFilters.exclude[MissingClassProblem]("com.ukg.surge.multilanguage.scalasdk.ScalaSurgeServer")
+ProblemFilters.exclude[MissingClassProblem]("com.ukg.surge.multilanguage.scalasdk.SerDeser$")
+ProblemFilters.exclude[MissingClassProblem]("com.ukg.surge.multilanguage.scalasdk.CQRSModel$")
+ProblemFilters.exclude[MissingClassProblem]("com.ukg.surge.multilanguage.scalasdk.BusinessServiceImpl")
+ProblemFilters.exclude[MissingClassProblem]("com.ukg.surge.multilanguage.scalasdk.SerDeser")
+ProblemFilters.exclude[MissingClassProblem]("com.ukg.surge.multilanguage.scalasdk.ScalaSurge")

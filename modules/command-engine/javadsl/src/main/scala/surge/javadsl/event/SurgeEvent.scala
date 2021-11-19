@@ -56,7 +56,7 @@ private[javadsl] class SurgeEventImpl[AggId, Agg, Evt](
   }
 
   def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Evt] = {
-    new AggregateRefImpl(aggIdToString(aggregateId), actorRouter.actorRegion, businessLogic.tracer)
+    AggregateRef(aggIdToString(aggregateId), actorRouter.actorRegion, businessLogic.tracer)
   }
 
   def getMetrics: java.util.List[Metric] = businessLogic.metrics.getMetrics.asJava

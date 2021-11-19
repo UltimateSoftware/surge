@@ -3,7 +3,7 @@
 package surge.internal.health
 
 import akka.Done
-import surge.health.HealthRegistration
+import surge.health.domain.HealthRegistration
 
 import scala.util.Try
 

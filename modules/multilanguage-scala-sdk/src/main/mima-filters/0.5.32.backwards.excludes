@@ -1,0 +1,7 @@
+ProblemFilters.exclude[DirectMissingMethodProblem]("com.ukg.surge.multilanguage.scalasdk.ScalaSurgeServer.run")
+ProblemFilters.exclude[DirectMissingMethodProblem]("com.ukg.surge.multilanguage.scalasdk.SerDeser.apply")
+ProblemFilters.exclude[IncompatibleSignatureProblem]("com.ukg.surge.multilanguage.scalasdk.SerDeser.unapply")
+ProblemFilters.exclude[DirectMissingMethodProblem]("com.ukg.surge.multilanguage.scalasdk.BusinessServiceImpl.convertState")
+ProblemFilters.exclude[DirectMissingMethodProblem]("com.ukg.surge.multilanguage.scalasdk.SerDeser.copy")
+ProblemFilters.exclude[DirectMissingMethodProblem]("com.ukg.surge.multilanguage.scalasdk.SerDeser.this")
+ProblemFilters.exclude[IncompatibleResultTypeProblem]("com.ukg.surge.multilanguage.scalasdk.ScalaSurge.start")

@@ -14,6 +14,7 @@ import surge.internal.health.HealthSignalStreamProvider
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
 import surge.metrics.Metric
 import surge.scaladsl.common.HealthCheckTrait
+import surge.internal.scaladsl.command.AggregateRefImpl
 
 trait SurgeCommand[AggId, Agg, Command, Rej, Evt] extends core.SurgeProcessingTrait[Agg, Command, Rej, Evt] with HealthCheckTrait {
   def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Command, Evt]

@@ -25,8 +25,10 @@ val multiJvmTestSettings = Seq(
   })
 
 lazy val `surge-serialization` =
-  (project in file("modules/serialization"))
-    .settings(multiJvmTestSettings, libraryDependencies ++= Seq(scalaCollectionCompat, scalatest, scalatestPlusMockito, mockitoCore, PlayFramework.json))
+  (project in file("modules/serialization")).settings(
+    multiJvmTestSettings,
+    libraryDependencies ++= Seq(scalaCollectionCompat, scalatest, scalatestPlusMockito, mockitoCore, PlayFramework.json),
+    mimaPreviousArtifacts := Set("com.ukg" %% "surge-serialization" % "0.5.41"))
 
 lazy val `surge-common` = (project in file("modules/common"))
   .settings(
@@ -89,12 +91,13 @@ lazy val `surge-engine-multilanguage` =
     .dependsOn(`surge-engine-command-scaladsl`, `surge-engine-multilanguage-protocol`)
     .settings(
       libraryDependencies ++= Seq(Akka.discovery, Akka.slf4j, Akka.http, logback, slf4jApi, Akka.testKit, scalatest, embeddedKafka),
-      publish / skip := true)
+      publish / skip := true,
+      mimaPreviousArtifacts := Set("com.ukg" %% "surge-engine-multilanguage-scala-sdk" % "0.5.32"))
     .enablePlugins(JavaServerAppPackaging)
 
 lazy val `surge-engine-multilanguage-scala-sdk` =
   (project in file("modules/multilanguage-scala-sdk"))
-    .settings(publish / skip := true)
+    .settings(publish / skip := true, mimaPreviousArtifacts := Set("com.ukg" %% "surge-engine-multilanguage-scala-sdk" % "0.5.32"))
     .dependsOn(`surge-engine-multilanguage-protocol`)
     .enablePlugins(AkkaGrpcPlugin)
 
@@ -102,8 +105,10 @@ lazy val `surge-engine-multilanguage-scala-sdk-sample` =
   (project in file("modules/multilanguage-scala-sdk-sample"))
     .settings(
       libraryDependencies ++= Seq(Akka.http, Akka.discovery, Akka.stream, Akka.protobufV3, Akka.slf4j, logback, slf4jApi, json4s),
-      publish / skip := true)
+      publish / skip := true,
+      mimaPreviousArtifacts := Set("com.ukg" %% "surge-engine-multilanguage-scala-sdk" % "0.5.32"))
     .dependsOn(`surge-engine-multilanguage-scala-sdk`)
+    .disablePlugins(MimaPlugin)
     .enablePlugins(JavaServerAppPackaging)
 
 lazy val `surge-metrics` = (project in file("modules/metrics")).settings(
@@ -122,6 +127,7 @@ lazy val `surge-metrics` = (project in file("modules/metrics")).settings(
 lazy val `surge-docs` = (project in file("modules/surge-docs"))
   .dependsOn(`surge-common`, `surge-engine-command-core`, `surge-engine-command-javadsl`, `surge-engine-command-scaladsl`, `surge-metrics`)
   .enablePlugins(ParadoxPlugin, ParadoxSitePlugin, GhpagesPlugin)
+  .disablePlugins(MimaPlugin)
   .settings(
     compileOrder := CompileOrder.JavaThenScala,
     publish / skip := true,

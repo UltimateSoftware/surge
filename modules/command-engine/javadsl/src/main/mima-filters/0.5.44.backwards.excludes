@@ -1,0 +1,3 @@
+ProblemFilters.exclude[DirectMissingMethodProblem]("surge.javadsl.common.HealthCheck.writer")
+ProblemFilters.exclude[MissingClassProblem]("surge.javadsl.event.AggregateRefImpl")
+ProblemFilters.exclude[MissingClassProblem]("surge.javadsl.command.AggregateRefImpl")

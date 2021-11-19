@@ -16,8 +16,8 @@ import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.config.TimeoutConfig
 import surge.internal.kafka.KafkaProducerActorImpl.ShutdownProducer
 import surge.internal.kafka.{ KTableLagCheckerImpl, KafkaProducerActorImpl }
-import surge.kafka.{ KafkaAdminClient, KafkaProducerTrait }
 import surge.kafka.streams._
+import surge.kafka.{ KafkaAdminClient, KafkaBytesProducer, KafkaProducerTrait }
 import surge.metrics.{ MetricInfo, Metrics, Timer }
 
 import scala.concurrent.{ ExecutionContext, Future }
@@ -25,8 +25,20 @@ import scala.util.{ Failure, Success, Try }
 
 object KafkaProducerActor {
   private val dispatcherName: String = "kafka-publisher-actor-dispatcher"
-
   def apply(
+      actorSystem: ActorSystem,
+      assignedPartition: TopicPartition,
+      metrics: Metrics,
+      businessLogic: SurgeModel[_, _, _, _],
+      kStreams: AggregateStateStoreKafkaStreams[_],
+      partitionTracker: KafkaConsumerPartitionAssignmentTracker,
+      signalBus: HealthSignalBusTrait,
+      config: Config,
+      kafkaProducerOverride: Option[KafkaBytesProducer] = None): KafkaProducerActor = {
+    generic(actorSystem, assignedPartition, metrics, businessLogic, kStreams, partitionTracker, signalBus, config, kafkaProducerOverride)
+  }
+
+  def generic(
       actorSystem: ActorSystem,
       assignedPartition: TopicPartition,
       metrics: Metrics,

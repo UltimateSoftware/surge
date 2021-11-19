@@ -2,7 +2,7 @@
 
 package surge.health
 
-import akka.actor.{ ActorRef, ActorSystem, NoSerializationVerificationNeeded }
+import akka.actor.{ ActorRef, ActorSystem }
 import akka.event.EventBus
 import akka.stream.Materializer
 import akka.stream.scaladsl.{ Sink, Source, SourceQueueWithComplete }
@@ -10,11 +10,10 @@ import akka.{ Done, NotUsed }
 import org.slf4j.LoggerFactory
 import surge.core.{ Ack, Controllable }
 import surge.health.config.ThrottleConfig
-import surge.health.domain.{ EmittableHealthSignal, Error, HealthSignal, HealthSignalSource, Timed, Trace, Warning }
+import surge.health.domain.{ EmittableHealthSignal, Error, HealthRegistration, HealthSignal, HealthSignalSource, Timed, Trace, Warning }
 import surge.health.matchers.SignalPatternMatcherDefinition
-import surge.health.supervisor.Api.{ RegisterSupervisedComponentRequest, RestartComponent, ShutdownComponent, StartComponent }
 import surge.health.supervisor.Domain.SupervisedComponentRegistration
-import surge.internal.health.RegistrationHandler
+import surge.internal.health.{ ControlProxyImpl, HealthRegistrationLinkImpl, HealthSupervisorStateImpl, RegistrationHandler }
 
 import java.time.Instant
 import java.util.UUID
@@ -40,17 +39,6 @@ trait RegistrationConsumer {
   def registrations(): Future[Seq[SupervisedComponentRegistration]]
   def registrations(matching: Pattern): Future[Seq[SupervisedComponentRegistration]]
 }
-
-final case class HealthRegistration(
-    componentName: String,
-    control: Controllable,
-    topic: String,
-    restartSignalPatterns: Seq[Pattern] = Seq.empty,
-    shutdownSignalPatterns: Seq[Pattern] = Seq.empty,
-    id: UUID = UUID.randomUUID(),
-    timestamp: Instant = Instant.now,
-    ref: Option[ActorRef] = None)
-    extends HealthMessage
 
 trait RegistrationProducer {
   def register(control: Controllable, componentName: String, restartSignalPatterns: Seq[Pattern], shutdownSignalPatterns: Seq[Pattern] = Seq.empty): Future[Ack]
@@ -107,34 +95,37 @@ trait HealthRegistrationListener extends HealthListener {
 
 }
 
-sealed trait HealthSupervisionEvent extends NoSerializationVerificationNeeded {}
-case class HealthRegistrationReceived(registration: RegisterSupervisedComponentRequest) extends HealthSupervisionEvent
-case class HealthSignalReceived(signal: HealthSignal) extends HealthSupervisionEvent
-case class HealthSignalStreamAdvanced() extends HealthSupervisionEvent
-case class RestartComponentAttempted(componentName: String, timestamp: Instant = Instant.now()) extends HealthSupervisionEvent
-case class RestartComponentFailed(componentName: String, timestamp: Instant = Instant.now(), error: Option[Throwable]) extends HealthSupervisionEvent
-case class ShutdownComponentFailed(componentName: String, timestamp: Instant = Instant.now(), error: Option[Throwable]) extends HealthSupervisionEvent
-case class ComponentRestarted(componentName: String, timestamp: Instant = Instant.now()) extends HealthSupervisionEvent
-case class ComponentShutdown(componentName: String, timestamp: Instant = Instant.now()) extends HealthSupervisionEvent
-
-case class ShutdownComponentAttempted(componentName: String, timestamp: Instant = Instant.now()) extends HealthSupervisionEvent
-
-case class HealthSupervisorState(started: Boolean)
-case class ControlProxy(name: String, actor: ActorRef) {
-  def shutdown(replyTo: ActorRef): Unit = {
-    actor ! ShutdownComponent(name, replyTo)
-  }
-
-  def restart(replyTo: ActorRef): Unit = {
-    actor ! RestartComponent(name, replyTo)
-  }
-
-  def start(replyTo: ActorRef): Unit = {
-    actor ! StartComponent(name, replyTo)
+object HealthSupervisorState {
+  def apply(started: Boolean): HealthSupervisorState = {
+    HealthSupervisorStateImpl(started)
   }
 }
 
-case class HealthRegistrationLink(componentName: String, controlProxy: ControlProxy)
+trait HealthSupervisorState {
+  def started(): Boolean
+}
+
+object ControlProxy {
+  def apply(name: String, actorRef: ActorRef): ControlProxy = {
+    ControlProxyImpl(name, actorRef)
+  }
+}
+
+trait ControlProxy {
+  def shutdown(replyTo: ActorRef): Unit
+  def restart(replyTo: ActorRef): Unit
+  def start(replyTo: ActorRef): Unit
+}
+
+object HealthRegistrationLink {
+  def apply(name: String, controlProxy: ControlProxy): HealthRegistrationLink = {
+    HealthRegistrationLinkImpl(name, controlProxy)
+  }
+}
+trait HealthRegistrationLink {
+  def componentName(): String
+  def controlProxy(): ControlProxy
+}
 
 trait HealthSupervisorTrait {
   def state(): HealthSupervisorState
