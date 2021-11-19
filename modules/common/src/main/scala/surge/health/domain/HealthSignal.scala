@@ -2,6 +2,7 @@
 
 package surge.health.domain
 
+import akka.actor.NoSerializationVerificationNeeded
 import org.slf4j.{ Logger, LoggerFactory }
 
 import java.time.Instant
@@ -41,7 +42,8 @@ object HealthSignal {
     HealthSignalImpl(topic, name, signalType, data, metadata, source, handled, id, timestamp)
   }
 }
-trait HealthSignal extends HealthMessage {
+
+trait HealthSignal extends HealthMessage with NoSerializationVerificationNeeded {
   def topic(): String
   def name(): String
   def signalType: SignalType.Value

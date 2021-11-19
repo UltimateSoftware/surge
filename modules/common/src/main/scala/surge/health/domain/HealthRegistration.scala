@@ -1,6 +1,8 @@
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
+
 package surge.health.domain
 
-import akka.actor.ActorRef
+import akka.actor.{ ActorRef, NoSerializationVerificationNeeded }
 import surge.core.Controllable
 import surge.health.HealthMessage
 import surge.internal.health.HealthRegistrationImpl
@@ -23,7 +25,7 @@ object HealthRegistration {
   }
 }
 
-trait HealthRegistration extends HealthMessage {
+trait HealthRegistration extends HealthMessage with NoSerializationVerificationNeeded {
   def componentName(): String
   def control(): Controllable
   def topic(): String
