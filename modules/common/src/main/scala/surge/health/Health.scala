@@ -13,7 +13,7 @@ import surge.health.config.ThrottleConfig
 import surge.health.domain.{ EmittableHealthSignal, Error, HealthRegistration, HealthSignal, HealthSignalSource, Timed, Trace, Warning }
 import surge.health.matchers.SignalPatternMatcherDefinition
 import surge.health.supervisor.Domain.SupervisedComponentRegistration
-import surge.internal.health.{ ControlProxyImpl, HealthRegistrationImpl, HealthRegistrationLinkImpl, HealthSupervisorStateImpl, RegistrationHandler }
+import surge.internal.health.{ ControlProxyImpl, HealthRegistrationLinkImpl, HealthSupervisorStateImpl, RegistrationHandler }
 
 import java.time.Instant
 import java.util.UUID
