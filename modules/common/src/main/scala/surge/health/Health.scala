@@ -40,38 +40,6 @@ trait RegistrationConsumer {
   def registrations(matching: Pattern): Future[Seq[SupervisedComponentRegistration]]
 }
 
-//object HealthRegistration {
-//  def apply(componentName: String,
-//            control: Controllable,
-//            topic: String,
-//            restartSignalPatterns: Seq[Pattern] = Seq.empty,
-//            shutdownSignalPatterns: Seq[Pattern] = Seq.empty,
-//            id: UUID = UUID.randomUUID(),
-//            timestamp: Instant = Instant.now,
-//            ref: Option[ActorRef] = None): HealthRegistration = {
-//    HealthRegistrationImpl(componentName,
-//      control,
-//      topic,
-//      restartSignalPatterns,
-//      shutdownSignalPatterns,
-//      id,
-//      timestamp,
-//      ref
-//    )
-//  }
-//}
-//
-//trait HealthRegistration extends HealthMessage {
-//  def componentName(): String
-//  def control(): Controllable
-//  def topic(): String
-//  def restartSignalPatterns(): Seq[Pattern] = Seq.empty
-//  def shutdownSignalPatterns(): Seq[Pattern] = Seq.empty
-//  def id(): UUID
-//  def timestamp: Instant
-//  def ref(): Option[ActorRef] = None
-//}
-
 trait RegistrationProducer {
   def register(control: Controllable, componentName: String, restartSignalPatterns: Seq[Pattern], shutdownSignalPatterns: Seq[Pattern] = Seq.empty): Future[Ack]
   def unregister(control: Controllable, componentName: String): Future[Ack]
