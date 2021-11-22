@@ -39,7 +39,7 @@ class AggregateRefTraitSpec
       sendCommand(envelope)
     }
 
-    def applyEvent(event: String, retries: Int = 0): Future[Option[Person]] = {
+    def applyEvent(event: String): Future[Option[Person]] = {
       val envelope = PersistentActor.ApplyEvent(aggregateId, event)
       applyEvents(envelope)
     }

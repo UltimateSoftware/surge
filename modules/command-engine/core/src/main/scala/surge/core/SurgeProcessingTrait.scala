@@ -6,8 +6,8 @@ import akka.actor.ActorSystem
 import com.typesafe.config.Config
 import surge.internal.SurgeModel
 
-trait SurgeProcessingTrait[S, M, +R, E] extends Controllable {
-  val businessLogic: SurgeModel[S, M, R, E]
+trait SurgeProcessingTrait[S, M, E] extends Controllable {
+  val businessLogic: SurgeModel[S, M, E]
   def actorSystem: ActorSystem
   def config: Config
 }

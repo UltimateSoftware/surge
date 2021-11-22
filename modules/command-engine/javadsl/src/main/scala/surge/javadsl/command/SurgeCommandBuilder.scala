@@ -5,7 +5,7 @@ package surge.javadsl.command
 import surge.core.commondsl.SurgeCommandBusinessLogicTrait
 
 class Buildable[AggId, Agg, Command, Evt](businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Evt]) {
-  def build(): SurgeCommand[AggId, Agg, Command, Nothing, Evt] = {
+  def build(): SurgeCommand[AggId, Agg, Command, Evt] = {
     SurgeCommand.create(businessLogic)
   }
 }

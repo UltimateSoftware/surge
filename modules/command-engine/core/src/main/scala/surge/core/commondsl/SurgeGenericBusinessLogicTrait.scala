@@ -13,7 +13,7 @@ import surge.metrics.Metrics
 import scala.concurrent.ExecutionContext
 import scala.concurrent.ExecutionContext.global
 
-trait SurgeGenericBusinessLogicTrait[AggId, Agg, Command, Rej, Event] {
+trait SurgeGenericBusinessLogicTrait[AggId, Agg, Command, Event] {
 
   def config: Config = ConfigFactory.load()
 
@@ -57,6 +57,8 @@ trait SurgeGenericBusinessLogicTrait[AggId, Agg, Command, Rej, Event] {
   def streamsClientId: String = ""
 
   def transactionalIdPrefix: String = "surge-transactional-event-producer-partition"
+
+  def processingModel: SurgeProcessingModelCoreTrait[Agg, Command, Event]
 
   val executionContext: ExecutionContext = global
 }

@@ -20,6 +20,7 @@ object Dependencies extends AutoPlugin {
       val testKit = "com.typesafe.akka" %% "akka-testkit" % version % Test
       val akkaStreamTestKit = "com.typesafe.akka" %% "akka-stream-testkit" % version % Test
       val jacksonSerialization = "com.typesafe.akka" %% "akka-serialization-jackson" % version
+      val persistenceTyped = "com.typesafe.akka" %% "akka-persistence-typed" % version
     }
 
     object Alpakka {

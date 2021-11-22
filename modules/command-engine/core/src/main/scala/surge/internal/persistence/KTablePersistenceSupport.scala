@@ -5,11 +5,10 @@ package surge.internal.persistence
 import akka.actor.Actor.Receive
 import akka.actor.{ ActorContext, ActorRef, NoSerializationVerificationNeeded }
 import akka.pattern._
-import com.typesafe.config.ConfigFactory
-import io.opentelemetry.api.trace.Span
 import org.slf4j.LoggerFactory
 import surge.core.KafkaProducerActor
 import surge.exceptions.KafkaPublishTimeoutException
+import surge.internal.domain.SurgeContextImpl
 import surge.metrics.Timer
 
 import java.time.Instant
@@ -30,16 +29,17 @@ trait KTablePersistenceSupport[Agg, Event] {
 
   protected type ActorState
   protected def receiveWhilePersistingEvents(state: ActorState): Receive
-  protected def onPersistenceSuccess(newState: ActorState): Unit
+  protected def onPersistenceSuccess(newState: ActorState, surgeContext: SurgeContextImpl[Agg, Event]): Unit
   protected def onPersistenceFailure(state: ActorState, cause: Throwable): Unit
 
   private val log = LoggerFactory.getLogger(getClass)
   protected val maxProducerFailureRetries: Int
 
   private sealed trait Internal extends NoSerializationVerificationNeeded
-  private case class PersistenceSuccess(newState: ActorState, startTime: Instant) extends Internal
+  private case class PersistenceSuccess(newState: ActorState, startTime: Instant, surgeContext: SurgeContextImpl[Agg, Event]) extends Internal
   private case class PersistenceFailure(
       newState: ActorState,
+      context: SurgeContextImpl[Agg, Event],
       reason: Throwable,
       numberOfFailures: Int,
       serializedEvents: Seq[KafkaProducerActor.MessageToPublish],
@@ -57,6 +57,7 @@ trait KTablePersistenceSupport[Agg, Event] {
 
   protected def doPublish(
       state: ActorState,
+      context: SurgeContextImpl[Agg, Event], // FIXME add serialized events/state to the context???
       serializedEvents: Seq[KafkaProducerActor.MessageToPublish],
       serializedState: KafkaProducerActor.MessageToPublish,
       currentFailureCount: Int = 0,
@@ -64,13 +65,14 @@ trait KTablePersistenceSupport[Agg, Event] {
       didStateChange: Boolean)(implicit ec: ExecutionContext): Future[Any] = {
     log.trace("Publishing messages for {}", aggregateId)
     if (serializedEvents.isEmpty && !didStateChange) {
-      Future.successful(PersistenceSuccess(state, startTime))
+      Future.successful(PersistenceSuccess(state, startTime, context))
     } else {
       kafkaProducerActor
         .publish(aggregateId = aggregateId, state = serializedState, events = serializedEvents)
         .map {
-          case KafkaProducerActor.PublishSuccess    => PersistenceSuccess(state, startTime)
-          case KafkaProducerActor.PublishFailure(t) => PersistenceFailure(state, t, currentFailureCount + 1, serializedEvents, serializedState, startTime)
+          case KafkaProducerActor.PublishSuccess => PersistenceSuccess(state, startTime, context)
+          case KafkaProducerActor.PublishFailure(t) =>
+            PersistenceFailure(state, context, t, currentFailureCount + 1, serializedEvents, serializedState, startTime)
         }
         .recover { case t =>
           EventPublishTimedOut(t, startTime)
@@ -97,6 +99,7 @@ trait KTablePersistenceSupport[Agg, Event] {
         eventsFailedToPersist.reason)
       doPublish(
         eventsFailedToPersist.newState,
+        eventsFailedToPersist.context,
         eventsFailedToPersist.serializedEvents,
         eventsFailedToPersist.serializedState,
         eventsFailedToPersist.numberOfFailures,
@@ -111,6 +114,6 @@ trait KTablePersistenceSupport[Agg, Event] {
 
   private def handle(state: ActorState, msg: PersistenceSuccess): Unit = {
     ktablePersistenceMetrics.eventPublishTimer.recordTime(publishTimeInMillis(msg.startTime))
-    onPersistenceSuccess(msg.newState)
+    onPersistenceSuccess(msg.newState, msg.surgeContext)
   }
 }

@@ -6,7 +6,7 @@ import akka.actor.ActorSystem
 import com.typesafe.config.Config
 import surge.core
 import surge.core.command._
-import surge.core.commondsl.{ SurgeCommandBusinessLogicTrait, SurgeRejectableCommandBusinessLogicTrait }
+import surge.core.commondsl.SurgeCommandBusinessLogicTrait
 import surge.health.config.WindowingStreamConfigLoader
 import surge.health.matchers.SignalPatternMatcherRegistry
 import surge.internal.domain
@@ -20,15 +20,14 @@ import scala.compat.java8.FutureConverters
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.jdk.CollectionConverters._
 
-trait SurgeCommand[AggId, Agg, Command, Rej, Evt] extends core.SurgeProcessingTrait[Agg, Command, Rej, Evt] with HealthCheckTrait {
+trait SurgeCommand[AggId, Agg, Command, Evt] extends core.SurgeProcessingTrait[Agg, Command, Evt] with HealthCheckTrait {
   def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Command, Evt]
   def getMetrics: java.util.List[Metric]
-  def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Command, Rej, Evt]): Unit
+  def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Command, Evt]): Unit
 }
 
 object SurgeCommand {
-  def create[AggId, Agg, Command, Evt](
-      businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Evt]): SurgeCommand[AggId, Agg, Command, Nothing, Evt] = {
+  def create[AggId, Agg, Command, Evt](businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Evt]): SurgeCommand[AggId, Agg, Command, Evt] = {
     val actorSystem = ActorSystem(s"${businessLogic.aggregateName}ActorSystem")
     create(actorSystem, businessLogic, businessLogic.config)
   }
@@ -36,19 +35,7 @@ object SurgeCommand {
   def create[AggId, Agg, Command, Evt](
       actorSystem: ActorSystem,
       businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Evt],
-      config: Config): SurgeCommand[AggId, Agg, Command, Nothing, Evt] = {
-    new SurgeCommandImpl(
-      actorSystem,
-      SurgeCommandModel(businessLogic),
-      new SlidingHealthSignalStreamProvider(WindowingStreamConfigLoader.load(config), actorSystem, patternMatchers = SignalPatternMatcherRegistry.load().toSeq),
-      businessLogic.aggregateIdToString,
-      config)
-  }
-
-  def create[AggId, Agg, Command, Rej, Evt](
-      actorSystem: ActorSystem,
-      businessLogic: SurgeRejectableCommandBusinessLogicTrait[AggId, Agg, Command, Rej, Evt],
-      config: Config): SurgeCommand[AggId, Agg, Command, Rej, Evt] = {
+      config: Config): SurgeCommand[AggId, Agg, Command, Evt] = {
     new SurgeCommandImpl(
       actorSystem,
       SurgeCommandModel(businessLogic),
@@ -58,14 +45,14 @@ object SurgeCommand {
   }
 }
 
-private[javadsl] class SurgeCommandImpl[AggId, Agg, Command, Rej, Evt](
+private[javadsl] class SurgeCommandImpl[AggId, Agg, Command, Evt](
     val actorSystem: ActorSystem,
-    override val businessLogic: SurgeCommandModel[Agg, Command, Rej, Evt],
+    override val businessLogic: SurgeCommandModel[Agg, Command, Evt],
     signalStreamProvider: HealthSignalStreamProvider,
     aggIdToString: AggId => String,
     config: Config)
-    extends domain.SurgeCommandImpl[Agg, Command, Rej, Evt](actorSystem, businessLogic, signalStreamProvider, config)
-    with SurgeCommand[AggId, Agg, Command, Rej, Evt] {
+    extends domain.SurgeCommandImpl[Agg, Command, Evt](actorSystem, businessLogic, signalStreamProvider, config)
+    with SurgeCommand[AggId, Agg, Command, Evt] {
 
   import surge.javadsl.common.HealthCheck._
   def getHealthCheck: CompletionStage[HealthCheck] = {
@@ -78,7 +65,7 @@ private[javadsl] class SurgeCommandImpl[AggId, Agg, Command, Rej, Evt](
 
   def getMetrics: java.util.List[Metric] = businessLogic.metrics.getMetrics.asJava
 
-  def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Command, Rej, Evt]): Unit = {
+  def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Command, Evt]): Unit = {
     registerRebalanceCallback { assignments =>
       val javaAssignments = assignments.partitionAssignments.map(kv => kv._1 -> kv._2.asJava).asJava
       listener.onRebalance(engine = this, javaAssignments)

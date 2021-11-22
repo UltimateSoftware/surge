@@ -62,6 +62,7 @@ lazy val `surge-engine-command-core` = (project in file("modules/command-engine/
   .settings(libraryDependencies ++= Seq(
     Akka.actor,
     Akka.remote,
+    Akka.persistenceTyped,
     Kafka.kafkaClients,
     Akka.testKit,
     Akka.akkaStreamTestKit,

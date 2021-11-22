@@ -9,10 +9,9 @@ import com.typesafe.config.Config
 import org.slf4j.LoggerFactory
 import surge.core.{ Ack, Controllable, SurgePartitionRouter }
 import surge.health.HealthSignalBusTrait
-import surge.internal.SurgeModel
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.config.TimeoutConfig
-import surge.internal.persistence.RoutableMessage
+import surge.internal.persistence.{ BusinessLogic, RoutableMessage }
 import surge.kafka.streams.{ HealthCheck, HealthCheckStatus, HealthyActor, HealthyComponent }
 import surge.kafka.{ KafkaPartitionShardRouterActor, PersistentActorRegionCreator }
 
@@ -23,7 +22,7 @@ private[surge] final class SurgePartitionRouterImpl(
     config: Config,
     system: ActorSystem,
     partitionTracker: KafkaConsumerPartitionAssignmentTracker,
-    businessLogic: SurgeModel[_, _, _, _],
+    businessLogic: BusinessLogic,
     regionCreator: PersistentActorRegionCreator[String],
     signalBus: HealthSignalBusTrait)
     extends SurgePartitionRouter

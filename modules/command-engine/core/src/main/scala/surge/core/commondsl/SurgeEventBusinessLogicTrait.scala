@@ -2,16 +2,15 @@
 
 package surge.core.commondsl
 
-import surge.core.event.{ AggregateEventModelCoreTrait, SurgeEventKafkaConfig }
+import surge.core.event.SurgeEventKafkaConfig
 
-trait SurgeEventBusinessLogicTrait[AggId, Agg, Event] extends SurgeGenericBusinessLogicTrait[AggId, Agg, Nothing, Nothing, Event] {
+trait SurgeEventBusinessLogicTrait[AggId, Agg, Event] extends SurgeGenericBusinessLogicTrait[AggId, Agg, Nothing, Event] {
+  def eventModel: SurgeProcessingModelCoreTrait[Agg, Nothing, Event]
+  override def processingModel: SurgeProcessingModelCoreTrait[Agg, Nothing, Event] = eventModel
 
-  def kafkaConfig: SurgeEventKafkaConfig = new SurgeEventKafkaConfig(
+  def kafkaConfig: SurgeEventKafkaConfig = SurgeEventKafkaConfig(
     stateTopic = stateTopic,
     streamsApplicationId = streamsApplicationId,
     clientId = streamsClientId,
     transactionalIdPrefix = transactionalIdPrefix)
-
-  def eventModel: AggregateEventModelCoreTrait[Agg, Event]
-
 }

@@ -20,7 +20,7 @@ object SurgePartitionRouter {
       config: Config,
       system: ActorSystem,
       partitionTracker: KafkaConsumerPartitionAssignmentTracker,
-      businessLogic: SurgeModel[_, _, _, _],
+      businessLogic: SurgeModel[_, _, _],
       regionCreator: PersistentActorRegionCreator[String],
       signalBus: HealthSignalBusTrait): SurgePartitionRouter = {
     new SurgePartitionRouterImpl(config, system, partitionTracker, businessLogic, regionCreator, signalBus)

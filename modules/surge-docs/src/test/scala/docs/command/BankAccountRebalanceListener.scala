@@ -9,9 +9,9 @@ import surge.kafka.HostPort
 import surge.scaladsl.command.{ ConsumerRebalanceListener, SurgeCommand }
 
 // #rebalance_listener
-class BankAccountRebalanceListener extends ConsumerRebalanceListener[UUID, BankAccount, BankAccountCommand, Nothing, BankAccountEvent] {
+class BankAccountRebalanceListener extends ConsumerRebalanceListener[UUID, BankAccount, BankAccountCommand, BankAccountEvent] {
   override def onRebalance(
-      engine: SurgeCommand[UUID, BankAccount, BankAccountCommand, Nothing, BankAccountEvent],
+      engine: SurgeCommand[UUID, BankAccount, BankAccountCommand, BankAccountEvent],
       assignments: Map[HostPort, List[TopicPartition]]): Unit = {
     // Handle any updates to partition assignments here
   }
