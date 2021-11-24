@@ -6,13 +6,13 @@ import akka.actor.ActorSystem
 import com.typesafe.config.Config
 import surge.core
 import surge.core.command._
-import surge.core.commondsl.{SurgeCommandBusinessLogicTrait, SurgeRejectableCommandBusinessLogicTrait}
+import surge.core.commondsl.{ SurgeCommandBusinessLogicTrait, SurgeRejectableCommandBusinessLogicTrait }
 import surge.health.config.WindowingStreamConfigLoader
 import surge.health.matchers.SignalPatternMatcherRegistry
 import surge.internal.domain
 import surge.internal.health.HealthSignalStreamProvider
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
-import surge.javadsl.common.{HealthCheck, HealthCheckTrait}
+import surge.javadsl.common.{ HealthCheck, HealthCheckTrait }
 import surge.metrics.Metric
 
 import java.util.concurrent.CompletionStage
