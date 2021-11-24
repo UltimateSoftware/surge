@@ -5,7 +5,6 @@ package surge.scaladsl.command
 import akka.actor.ActorSystem
 import com.typesafe.config.Config
 import surge.core
-import surge.core.Ack
 import surge.core.command.SurgeCommandModel
 import surge.core.commondsl.{ SurgeCommandBusinessLogicTrait, SurgeRejectableCommandBusinessLogicTrait }
 import surge.health.config.WindowingStreamConfigLoader
@@ -15,8 +14,6 @@ import surge.internal.health.HealthSignalStreamProvider
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
 import surge.metrics.Metric
 import surge.scaladsl.common.HealthCheckTrait
-
-import scala.concurrent.Future
 
 trait SurgeCommand[AggId, Agg, Command, Rej, Evt] extends core.SurgeProcessingTrait[Agg, Command, Rej, Evt] with HealthCheckTrait {
   def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Command, Evt]
@@ -73,5 +70,4 @@ private[scaladsl] class SurgeCommandImpl[AggId, Agg, Command, Rej, Event](
   def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Command, Rej, Event]): Unit = {
     registerRebalanceCallback { assignments => listener.onRebalance(engine = this, assignments.partitionAssignments) }
   }
-
 }
