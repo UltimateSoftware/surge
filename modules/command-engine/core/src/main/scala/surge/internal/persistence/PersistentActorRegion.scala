@@ -77,7 +77,7 @@ class PersistentActorRegion[M](
   override def restart(): Future[Ack] = {
     implicit val executionContext: ExecutionContext = system.dispatcher
     for {
-      _ <- stopInternal()
+      _ <- stop()
       started <- start()
     } yield {
       started
@@ -86,11 +86,11 @@ class PersistentActorRegion[M](
 
   override def start(): Future[Ack] = kafkaProducerActor.start().andThen(registrationCallback())(ExecutionContext.global)
 
-  override def stopInternal(): Future[Ack] = {
-    kafkaProducerActor.stopInternal()
+  override def stop(): Future[Ack] = {
+    kafkaProducerActor.stop()
   }
 
-  override def shutdown(): Future[Ack] = stopInternal()
+  override def shutdown(): Future[Ack] = stop()
 
   private def registrationCallback(): PartialFunction[Try[Ack], Unit] = {
     case Success(_) =>

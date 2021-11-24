@@ -143,7 +143,7 @@ class KafkaProducerActor(
 
   override def restart(): Future[Ack] = {
     for {
-      _ <- stopInternal()
+      _ <- stop()
       started <- start()
     } yield {
       started
@@ -154,11 +154,11 @@ class KafkaProducerActor(
     publisherActor.start().andThen(registrationCallback())
   }
 
-  override def stopInternal(): Future[Ack] = {
+  override def stop(): Future[Ack] = {
     publisherActor.stop()
   }
 
-  override def shutdown(): Future[Ack] = stopInternal()
+  override def shutdown(): Future[Ack] = stop()
 
   private def registrationCallback(): PartialFunction[Try[Ack], Unit] = {
     case Success(_) =>

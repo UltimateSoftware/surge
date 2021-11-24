@@ -22,7 +22,6 @@ trait SurgeCommand[AggId, Agg, Command, Rej, Evt] extends core.SurgeProcessingTr
   def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Command, Evt]
   def getMetrics: Seq[Metric] = businessLogic.metrics.getMetrics
   def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Command, Rej, Evt]): Unit
-  def stop(): Future[Ack]
 }
 
 object SurgeCommand {
@@ -75,5 +74,4 @@ private[scaladsl] class SurgeCommandImpl[AggId, Agg, Command, Rej, Event](
     registerRebalanceCallback { assignments => listener.onRebalance(engine = this, assignments.partitionAssignments) }
   }
 
-  override def stop(): Future[Ack] = super.stopInternal()
 }

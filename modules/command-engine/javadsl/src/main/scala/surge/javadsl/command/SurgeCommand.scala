@@ -5,28 +5,26 @@ package surge.javadsl.command
 import akka.actor.ActorSystem
 import com.typesafe.config.Config
 import surge.core
-import surge.core.Ack
 import surge.core.command._
-import surge.core.commondsl.{ SurgeCommandBusinessLogicTrait, SurgeRejectableCommandBusinessLogicTrait }
+import surge.core.commondsl.{SurgeCommandBusinessLogicTrait, SurgeRejectableCommandBusinessLogicTrait}
 import surge.health.config.WindowingStreamConfigLoader
 import surge.health.matchers.SignalPatternMatcherRegistry
 import surge.internal.domain
 import surge.internal.health.HealthSignalStreamProvider
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
-import surge.javadsl.common.{ HealthCheck, HealthCheckTrait }
+import surge.javadsl.common.{HealthCheck, HealthCheckTrait}
 import surge.metrics.Metric
 
 import java.util.concurrent.CompletionStage
 import scala.compat.java8.FutureConverters
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Future
 import scala.jdk.CollectionConverters._
 
 trait SurgeCommand[AggId, Agg, Command, Rej, Evt] extends core.SurgeProcessingTrait[Agg, Command, Rej, Evt] with HealthCheckTrait {
   def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Command, Evt]
   def getMetrics: java.util.List[Metric]
   def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Command, Rej, Evt]): Unit
-  def stop: CompletionStage[Ack]
+  def control: ControllableAdapter
 }
 
 object SurgeCommand {
@@ -88,5 +86,5 @@ private[javadsl] class SurgeCommandImpl[AggId, Agg, Command, Rej, Evt](
     }
   }
 
-  override def stop: CompletionStage[Ack] = FutureConverters.toJava(super.stopInternal())
+  override def control: ControllableAdapter = new ControllableAdapter(this)
 }
