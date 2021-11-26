@@ -108,7 +108,7 @@ class AggregateStateStoreKafkaStreamsSpec
             AggregateStateStoreKafkaStreamsImplSettings(defaultConfig, appId, testAggregateName, "").copy(brokers = Seq(s"localhost:${actualConfig.kafkaPort}"))
         }
 
-        aggStoreKafkaStreams.start()
+        aggStoreKafkaStreams.controllable.start()
 
         val topology = aggStoreKafkaStreams.getTopology.futureValue
 
@@ -148,7 +148,7 @@ class AggregateStateStoreKafkaStreamsSpec
             AggregateStateStoreKafkaStreamsImplSettings(defaultConfig, appId, testAggregateName, "").copy(brokers = Seq(s"localhost:${actualConfig.kafkaPort}"))
         }
 
-        aggStoreKafkaStreams.start()
+        aggStoreKafkaStreams.controllable.start()
 
         val topology = aggStoreKafkaStreams.getTopology.futureValue
 

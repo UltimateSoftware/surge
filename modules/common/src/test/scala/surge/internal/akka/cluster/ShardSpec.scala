@@ -2,18 +2,18 @@
 
 package surge.internal.akka.cluster
 
-import akka.actor.{ ActorContext, ActorRef, ActorSystem, DeadLetter, PoisonPill, Props, Terminated }
-import akka.testkit.{ TestKit, TestProbe }
+import akka.actor.{ActorContext, ActorRef, ActorSystem, DeadLetter, PoisonPill, Props, Terminated}
+import akka.testkit.{TestKit, TestProbe}
 import io.opentelemetry.api.trace.Tracer
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
-import surge.akka.cluster.{ EntityPropsProvider, Passivate, PerShardLogicProvider }
-import surge.core.ControllableAdapter
+import surge.akka.cluster.{EntityPropsProvider, Passivate, PerShardLogicProvider}
+import surge.core.{Controllable, ControllableAdapter}
 import surge.internal.akka.ActorWithTracing
 import surge.internal.tracing.NoopTracerFactory
-import surge.kafka.streams.{ HealthCheck, HealthCheckStatus }
+import surge.kafka.streams.{HealthCheck, HealthCheckStatus}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -41,7 +41,7 @@ object TestActor {
     m.actorIdentifier
   }
 
-  class RegionLogicProvider(onShardTerminatedCallback: () => Unit = () => {}) extends ControllableAdapter with PerShardLogicProvider[String] {
+  class RegionLogicProvider(onShardTerminatedCallback: () => Unit = () => {}) extends PerShardLogicProvider[String] {
     override def actorProvider(context: ActorContext): EntityPropsProvider[String] = (actorId: String) => props(actorId)
 
     override def healthCheck(): Future[HealthCheck] = Future {
@@ -50,6 +50,8 @@ object TestActor {
 
     override def onShardTerminated(): Unit =
       onShardTerminatedCallback()
+
+    override def controllable: Controllable = new ControllableAdapter
   }
 }
 
