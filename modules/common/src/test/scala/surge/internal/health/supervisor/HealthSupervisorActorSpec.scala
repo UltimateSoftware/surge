@@ -2,30 +2,30 @@
 
 package surge.internal.health.supervisor
 
-import akka.actor.{ActorRef, ActorSystem}
+import akka.actor.{ ActorRef, ActorSystem }
 import akka.pattern.ask
-import akka.testkit.{TestKit, TestProbe}
+import akka.testkit.{ TestKit, TestProbe }
 import com.typesafe.config.ConfigFactory
 import org.scalatest.BeforeAndAfterAll
-import org.scalatest.concurrent.{Eventually, ScalaFutures}
+import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
-import org.scalatest.time.{Milliseconds, Seconds, Span}
+import org.scalatest.time.{ Milliseconds, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
-import surge.core.{Ack, ControllableAdapter}
+import surge.core.{ Ack, ControllableAdapter }
 import surge.health._
-import surge.health.config.{HealthSupervisorConfig, ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig}
-import surge.health.domain.{HealthSignal, Trace}
+import surge.health.config.{ HealthSupervisorConfig, ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig }
+import surge.health.domain.{ HealthSignal, Trace }
 import surge.health.jmx.Domain.HealthRegistrationDetail
 import surge.health.jmx.View.HealthRegistrationDetailMxView
-import surge.health.matchers.{SideEffect, SignalPatternMatcherDefinition}
-import surge.health.supervisor.Api.{QueryComponentExists, RestartComponent, ShutdownComponent}
+import surge.health.matchers.{ SideEffect, SignalPatternMatcherDefinition }
+import surge.health.supervisor.Api.{ QueryComponentExists, RestartComponent, ShutdownComponent }
 import surge.internal.health._
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
 
 import java.lang.management.ManagementFactory
 import java.util.regex.Pattern
 import javax.management.openmbean.CompositeData
-import javax.management.{MBeanInfo, MBeanServer, ObjectName}
+import javax.management.{ MBeanInfo, MBeanServer, ObjectName }
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
