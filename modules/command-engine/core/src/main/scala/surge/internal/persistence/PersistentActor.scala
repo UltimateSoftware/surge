@@ -262,8 +262,8 @@ class PersistentActor[S, M, R, E](
             publishResult
           }
       }
-      .map { _ =>
-        ACKError(new Throwable(new RuntimeException("test")))
+      .recover { case e =>
+        ACKError(e)
       }
       .pipeTo(self)(sender())
   }
