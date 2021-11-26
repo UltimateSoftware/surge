@@ -4,7 +4,7 @@ package surge.internal.persistence
 
 import akka.actor.{ ActorRef, ActorSystem, NoSerializationVerificationNeeded, Props, ReceiveTimeout }
 import akka.pattern._
-import akka.serialization.Serializers
+import akka.serialization.{ SerializationExtension, Serializers }
 import akka.testkit.{ TestKit, TestProbe }
 import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
@@ -23,8 +23,8 @@ import surge.core.{ KafkaProducerActor, TestBoundedContext }
 import surge.exceptions.{ AggregateInitializationException, KafkaPublishTimeoutException }
 import surge.health.HealthSignalBusTrait
 import surge.internal.kafka.HeadersHelper
-import surge.internal.persistence.PersistentActor.{ ACKError, ApplyEvent, Stop }
-import surge.kafka.streams.AggregateStateStoreKafkaStreams
+import surge.internal.persistence.PersistentActor.{ ACK, ACKError, ApplyEvent, Stop }
+import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, ExpectedTestException }
 import surge.metrics.Metrics
 
 import java.util.UUID
@@ -581,34 +581,46 @@ class PersistentActorSpec
       probe.expectTerminated(actor)
     }
 
-    "Serialize/Deserialize a CommandEnvelope from Akka" in {
-      import akka.serialization.SerializationExtension
-      def doSerde[A](envelope: PersistentActor.ProcessMessage[A]): Unit = {
-        val serialization = SerializationExtension.get(system)
-        val serializer = serialization.findSerializerFor(envelope)
-        val serialized = serialization.serialize(envelope).get
-        val manifest = Serializers.manifestFor(serializer, envelope)
-        val deserialized = serialization.deserialize(serialized, serializer.identifier, manifest).get
+    // Sometimes we need to compare toString values of AnyRef, e.g. for exceptions
+    def doSerde(envelope: AnyRef, shouldCompareStringResults: Boolean = false): Unit = {
+      val serialization = SerializationExtension.get(system)
+      val serializer = serialization.findSerializerFor(envelope)
+      val serialized = serialization.serialize(envelope).get
+      val manifest = Serializers.manifestFor(serializer, envelope)
+      val deserialized = serialization.deserialize(serialized, serializer.identifier, manifest).get
+      if (shouldCompareStringResults) {
+        deserialized.toString shouldEqual envelope.toString
+      } else {
         deserialized shouldEqual envelope
       }
+    }
+
+    "Serialize/Deserialize a CommandEnvelope from Akka" in {
       doSerde(PersistentActor.ProcessMessage[String]("hello", "test2"))
       doSerde(envelope(Increment(UUID.randomUUID().toString)))
     }
 
     "Serialize/Deserialize an ApplyEvent from Akka" in {
-      import akka.serialization.SerializationExtension
-
-      def doSerde[A](envelope: ApplyEvent[A]): Unit = {
-        val serialization = SerializationExtension.get(system)
-        val serializer = serialization.findSerializerFor(envelope)
-        val serialized = serialization.serialize(envelope).get
-        val manifest = Serializers.manifestFor(serializer, envelope)
-        val deserialized = serialization.deserialize(serialized, serializer.identifier, manifest).get
-        deserialized shouldEqual envelope
-      }
-
       doSerde(PersistentActor.ApplyEvent[String](UUID.randomUUID().toString, "test2"))
       doSerde(eventEnvelope(CountIncremented(UUID.randomUUID().toString, 1, 1)))
+    }
+
+    "Serialize/Deserialize response types from Akka" in {
+      doSerde(PersistentActor.StateResponse[String](Some("test state")))
+      doSerde(PersistentActor.StateResponse[String](None))
+      doSerde(PersistentActor.StateResponse[State](Some(State(UUID.randomUUID().toString, 100, 3))))
+      doSerde(PersistentActor.StateResponse[State](None))
+
+      doSerde(PersistentActor.ACKSuccess[String](Some("success!")))
+      doSerde(PersistentActor.ACKSuccess[String](None))
+      doSerde(PersistentActor.ACKSuccess[State](Some(State(UUID.randomUUID().toString, 10, 3))))
+      doSerde(PersistentActor.ACKSuccess[State](None))
+
+      doSerde(PersistentActor.ACKError(new ExpectedTestException), shouldCompareStringResults = true)
+      doSerde(PersistentActor.ACKError(new Throwable(new RuntimeException)), shouldCompareStringResults = true)
+
+      def exceptionAsThrowable(cause: Throwable): Throwable = cause
+      doSerde(PersistentActor.ACKError(exceptionAsThrowable(new ExpectedTestException)), shouldCompareStringResults = true)
     }
   }
 }

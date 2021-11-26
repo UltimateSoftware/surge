@@ -53,7 +53,9 @@ object PersistentActor {
       @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "aggregateType", visible = true) aggregateState: Option[S])
       extends ACK
 
-  case class ACKError(exception: Throwable) extends ACK with NoSerializationVerificationNeeded
+  case class ACKError(
+      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "exceptionType", visible = true) exception: Throwable)
+      extends ACK
 
   case class ACKRejection[R](
       @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "rejectionType", visible = true) rejection: R)
@@ -260,8 +262,8 @@ class PersistentActor[S, M, R, E](
             publishResult
           }
       }
-      .recover { case e =>
-        ACKError(e)
+      .map { _ =>
+        ACKError(new Throwable(new RuntimeException("test")))
       }
       .pipeTo(self)(sender())
   }
