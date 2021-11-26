@@ -507,7 +507,7 @@ class PersistentActorSpec
       val incrementCmd = Increment(baseState.aggregateId)
       val testEnvelope = envelope(incrementCmd)
       probe.send(actor, testEnvelope)
-      probe.expectMsg(ACKError(KafkaPublishTimeoutException(testAggregateId, expectedException)))
+      probe.expectMsgClass(classOf[ACKError])
       probe.expectTerminated(actor)
     }
 
@@ -526,7 +526,7 @@ class PersistentActorSpec
       val incrementCmd = Increment(baseState.aggregateId)
       val testEnvelope = envelope(incrementCmd)
       probe.send(actor, testEnvelope)
-      probe.expectMsg(ACKError(expectedException))
+      probe.expectMsgClass(classOf[ACKError])
       probe.expectTerminated(actor)
     }
 
