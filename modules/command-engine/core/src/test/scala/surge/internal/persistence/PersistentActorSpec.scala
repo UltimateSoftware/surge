@@ -589,8 +589,6 @@ class PersistentActorSpec
       val manifest = Serializers.manifestFor(serializer, envelope)
       val deserialized = serialization.deserialize(serialized, serializer.identifier, manifest).get
       if (shouldCompareStringResults) {
-        println(deserialized)
-        println(envelope)
         deserialized.toString shouldEqual envelope.toString
       } else {
         deserialized shouldEqual envelope
