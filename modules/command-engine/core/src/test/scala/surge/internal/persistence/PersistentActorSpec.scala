@@ -589,6 +589,8 @@ class PersistentActorSpec
       val manifest = Serializers.manifestFor(serializer, envelope)
       val deserialized = serialization.deserialize(serialized, serializer.identifier, manifest).get
       if (shouldCompareStringResults) {
+        println(deserialized)
+        println(envelope)
         deserialized.toString shouldEqual envelope.toString
       } else {
         deserialized shouldEqual envelope
@@ -621,6 +623,9 @@ class PersistentActorSpec
 
       def exceptionAsThrowable(cause: Throwable): Throwable = cause
       doSerde(PersistentActor.ACKError(exceptionAsThrowable(new ExpectedTestException)), shouldCompareStringResults = true)
+      doSerde(
+        PersistentActor.ACKError(exceptionAsThrowable(KafkaPublishTimeoutException("some-aggregate-id", new Throwable("error")))),
+        shouldCompareStringResults = true)
     }
   }
 }
