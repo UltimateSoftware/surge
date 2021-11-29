@@ -16,6 +16,8 @@ object Dependencies extends AutoPlugin {
       val clusterSharding = "com.typesafe.akka" %% "akka-cluster-sharding" % version
       val management = "com.lightbend.akka.management" %% "akka-management" % managementVersion
       val managementClusterHttp = "com.lightbend.akka.management" %% "akka-management-cluster-http" % managementVersion
+      val managementClusterBootstrap = "com.lightbend.akka.management" %% "akka-management-cluster-bootstrap" % managementVersion
+      val discoveryKubernetesApi = "com.lightbend.akka.discovery"  %% "akka-discovery-kubernetes-api"     % managementVersion
       val actor = "com.typesafe.akka" %% "akka-actor" % version
       val stream = "com.typesafe.akka" %% "akka-stream" % version
       val slf4j = "com.typesafe.akka" %% "akka-slf4j" % version

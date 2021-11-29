@@ -4,6 +4,7 @@ package surge.internal.domain
 
 import akka.actor.{ ActorRef, ActorSystem }
 import akka.cluster.Cluster
+import akka.management.cluster.bootstrap.ClusterBootstrap
 import akka.management.scaladsl.AkkaManagement
 import com.typesafe.config.Config
 import org.slf4j.{ Logger, LoggerFactory }
@@ -128,6 +129,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
   private def startClusterManagementAndRebalanceListener(): Future[Unit] = {
     if (isAkkaClusterEnabled) {
       Cluster.get(system)
+      ClusterBootstrap(system).start()
       for {
         _ <- AkkaManagement(system).start()
         allStarted <- startKafkaClusterRebalanceListener()
