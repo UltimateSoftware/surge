@@ -15,7 +15,7 @@ import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
 import surge.akka.cluster.{ EntityPropsProvider, PerShardLogicProvider }
 import surge.internal.akka.ActorWithTracing
-import surge.core.Ack
+import surge.core.{ Ack, Controllable, ControllableAdapter }
 import surge.internal.akka.cluster.ActorSystemHostAwareness
 import surge.internal.akka.kafka.{ KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor }
 import surge.kafka.streams.{ HealthCheck, HealthCheckStatus }
@@ -43,14 +43,10 @@ object KafkaPartitionShardRouterActorSpecModels {
         override def onShardTerminated(): Unit = {}
         override def healthCheck(): Future[HealthCheck] = Future.successful(HealthCheck("test", "test", HealthCheckStatus.UP))
 
-        override def restart(): Future[Ack] = Future.successful(Ack())
-        override def start(): Future[Ack] = Future.successful(Ack())
-        override def stop(): Future[Ack] = Future.successful(Ack())
-
-        override def shutdown(): Future[Ack] = stop()
+        override def controllable: Controllable = new ControllableAdapter
       }
 
-      provider.start()
+      provider.controllable.start()
       provider
     }
   }
