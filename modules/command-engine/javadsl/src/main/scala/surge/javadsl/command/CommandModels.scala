@@ -3,7 +3,7 @@
 package surge.javadsl.command
 
 import surge.core.command.AggregateCommandModelCoreTrait
-import surge.internal.domain.CommandHandler
+import surge.internal.domain.{ AsyncCommandHandler, CommandHandler }
 import surge.internal.persistence
 import surge.javadsl._
 import surge.javadsl.common.Context
@@ -32,33 +32,36 @@ trait AsyncAggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCor
   def processCommand(aggregate: Optional[Agg], command: Cmd): CompletableFuture[JList[Evt]]
   def handleEvent(aggregate: Optional[Agg], event: Evt): CompletableFuture[Optional[Agg]]
 
-  final def toCore: CommandHandler[Agg, Cmd, Nothing, Evt] =
-    new CommandHandler[Agg, Cmd, Nothing, Evt] {
+  final def toCore: AsyncCommandHandler[Agg, Cmd, Nothing, Evt] =
+    new AsyncCommandHandler[Agg, Cmd, Nothing, Evt] {
       override def processCommand(ctx: persistence.Context, state: Option[Agg], cmd: Cmd): Future[CommandResult] =
         FutureConverters
           .toScala(AsyncAggregateCommandModel.this.processCommand(state.asJava, cmd))
-          .map(evts => Right(evts.asScala.toSeq))(ExecutionContext.global)
+          .map(events => Right(events.asScala.toSeq))(ExecutionContext.global)
 
-      override def apply(ctx: persistence.Context, state: Option[Agg], event: Evt): Option[Agg] =
-        throw new Exception("Synchronous event handler called when using AsyncCommandHandler. This should never happen")
-
-      override def applyAsync(ctx: persistence.Context, state: Option[Agg], event: Evt): Future[Option[Agg]] = {
-        FutureConverters.toScala(handleEvent(state.asJava, event)).map(_.asScala)(ExecutionContext.global)
+      override def applyAsync(ctx: persistence.Context, state: Option[Agg], events: Seq[Evt]): Future[Option[Agg]] = {
+        FutureConverters
+          .toScala(events.foldLeft(CompletableFuture.completedFuture(state.asJava))((fs, event) => fs.thenComposeAsync(handleEvent(_, event))))
+          .map(_.asScala)(ctx.executionContext)
       }
     }
 }
 
 trait ContextAwareAggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCoreTrait[Agg, Cmd, Nothing, Evt] {
-  def processCommand(ctx: common.Context, aggregate: Optional[Agg], command: Cmd): CompletableFuture[Seq[Evt]]
-  def handleEvent(ctx: common.Context, aggregate: Optional[Agg], event: Evt): Optional[Agg]
+  def processCommand(ctx: common.Context, aggregate: Optional[Agg], command: Cmd): CompletableFuture[JList[Evt]]
+  def handleEvents(ctx: common.Context, aggregate: Optional[Agg], events: JList[Evt]): CompletableFuture[Optional[Agg]]
 
-  final def toCore: CommandHandler[Agg, Cmd, Nothing, Evt] =
-    new CommandHandler[Agg, Cmd, Nothing, Evt] {
-      override def processCommand(ctx: persistence.Context, state: Option[Agg], cmd: Cmd): Future[CommandResult] =
+  final def toCore: AsyncCommandHandler[Agg, Cmd, Nothing, Evt] =
+    new AsyncCommandHandler[Agg, Cmd, Nothing, Evt] {
+      override def processCommand(ctx: persistence.Context, state: Option[Agg], cmd: Cmd): Future[CommandResult] = {
         FutureConverters
           .toScala(ContextAwareAggregateCommandModel.this.processCommand(Context(ctx), state.asJava, cmd))
-          .map(v => Right(v))(ctx.executionContext)
-      override def apply(ctx: persistence.Context, state: Option[Agg], event: Evt): Option[Agg] = handleEvent(Context(ctx), state.asJava, event).asScala
+          .map(events => Right(events.asScala.toSeq))(ctx.executionContext)
+      }
+      override def applyAsync(ctx: persistence.Context, state: Option[Agg], events: Seq[Evt]): Future[Option[Agg]] = {
+        FutureConverters.toScala(handleEvents(Context(ctx), state.asJava, events.toList.asJava)).map(_.asScala)(ctx.executionContext)
+      }
+
     }
 }
 

@@ -94,7 +94,7 @@ private[surge] trait AggregateRefTrait[AggId, Agg, Cmd, Event] extends SpanSuppo
       }
   }
 
-  protected def applyEvents(envelope: PersistentActor.ApplyEvent[Event])(implicit ec: ExecutionContext): Future[Option[Agg]] = {
+  protected def applyEvents(envelope: PersistentActor.ApplyEvents[Event])(implicit ec: ExecutionContext): Future[Option[Agg]] = {
     val askSpan = createSpan("send_events_to_aggregate").setTag("aggregateId", aggregateId.toString)
     (region ? TracedMessage(envelope, askSpan)(tracer)).map(interpretActorResponse(askSpan)).flatMap {
       case Left(exception) => Future.failed(exception)
