@@ -2,5 +2,5 @@
 
 package surge.exceptions
 
-case class KafkaPublishTimeoutException(aggregateId: String, underlyingException: Throwable)
-    extends RuntimeException(s"Aggregate $aggregateId timed out trying to publish to Kafka", underlyingException)
+case class KafkaPublishTimeoutException(aggregateId: String, cause: Throwable)
+    extends RuntimeException(s"Aggregate $aggregateId timed out trying to publish to Kafka", cause)
