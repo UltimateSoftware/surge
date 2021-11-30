@@ -3,4 +3,4 @@
 package surge.exceptions
 
 case class AggregateInitializationException(aggregateId: String, cause: Throwable)
-    extends RuntimeException(s"Unable to fetch aggregate state for aggregate $aggregateId")
+    extends RuntimeException(s"Unable to fetch aggregate state for aggregate $aggregateId", cause)

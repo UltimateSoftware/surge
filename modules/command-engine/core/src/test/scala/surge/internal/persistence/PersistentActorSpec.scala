@@ -23,7 +23,7 @@ import surge.core.{ KafkaProducerActor, TestBoundedContext }
 import surge.exceptions.{ AggregateInitializationException, KafkaPublishTimeoutException }
 import surge.health.HealthSignalBusTrait
 import surge.internal.kafka.HeadersHelper
-import surge.internal.persistence.PersistentActor.{ ACK, ACKError, ApplyEvent, Stop }
+import surge.internal.persistence.PersistentActor.{ ACKError, ApplyEvent, Stop }
 import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, ExpectedTestException }
 import surge.metrics.Metrics
 
@@ -623,6 +623,10 @@ class PersistentActorSpec
       doSerde(PersistentActor.ACKError(exceptionAsThrowable(new ExpectedTestException)), shouldCompareStringResults = true)
       doSerde(
         PersistentActor.ACKError(exceptionAsThrowable(KafkaPublishTimeoutException("some-aggregate-id", new Throwable("error")))),
+        shouldCompareStringResults = true)
+
+      doSerde(
+        PersistentActor.ACKError(exceptionAsThrowable(AggregateInitializationException("some-aggregate-id", new Throwable("error")))),
         shouldCompareStringResults = true)
     }
   }
