@@ -27,8 +27,7 @@ private[surge] final class SurgePartitionRouterImpl(
     regionCreator: PersistentActorRegionCreator[String],
     signalBus: HealthSignalBusTrait)
     extends SurgePartitionRouter
-    with HealthyComponent
-    with Controllable {
+    with HealthyComponent {
   implicit val executionContext: ExecutionContext = system.dispatcher
   private val log = LoggerFactory.getLogger(getClass)
 
@@ -45,32 +44,7 @@ private[surge] final class SurgePartitionRouterImpl(
   private val shardRouter = system.actorOf(shardRouterProps, name = routerActorName)
   override val actorRegion: ActorRef = shardRouter
 
-  override def start(): Future[Ack] = {
-    // TODO explicit start/stop for router actor
-    //implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PartitionRouter.askTimeout)
-    //actorRegion.ask(ActorLifecycleManagerActor.Start).mapTo[Ack].andThen(registrationCallback())
-    Future.successful(Ack())
-  }
-
-  override def stop(): Future[Ack] = {
-    // TODO explicit start/stop for router actor
-    //implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PartitionRouter.askTimeout)
-    //actorRegion.ask(ActorLifecycleManagerActor.Stop).mapTo[Ack]
-    Future.successful(Ack())
-  }
-
-  override def shutdown(): Future[Ack] = stop()
-
   override def restartSignalPatterns(): Seq[Pattern] = Seq(Pattern.compile("kafka.fatal.error"))
-
-  override def restart(): Future[Ack] = {
-    for {
-      _ <- stop()
-      started <- start()
-    } yield {
-      started
-    }
-  }
 
   override def healthCheck(): Future[HealthCheck] = {
     actorRegion
@@ -80,5 +54,32 @@ private[surge] final class SurgePartitionRouterImpl(
         log.error(s"Failed to get router-actor health check", err)
         Future.successful(HealthCheck(name = "router-actor", id = s"router-actor-${actorRegion.hashCode}", status = HealthCheckStatus.DOWN))
       }
+  }
+
+  override def controllable: Controllable = new Controllable {
+    override def start(): Future[Ack] = {
+      // TODO explicit start/stop for router actor
+      //implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PartitionRouter.askTimeout)
+      //actorRegion.ask(ActorLifecycleManagerActor.Start).mapTo[Ack].andThen(registrationCallback())
+      Future.successful(Ack())
+    }
+
+    override def restart(): Future[Ack] = {
+      for {
+        _ <- stop()
+        started <- start()
+      } yield {
+        started
+      }
+    }
+
+    override def stop(): Future[Ack] = {
+      // TODO explicit start/stop for router actor
+      //implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PartitionRouter.askTimeout)
+      //actorRegion.ask(ActorLifecycleManagerActor.Stop).mapTo[Ack]
+      Future.successful(Ack())
+    }
+
+    override def shutdown(): Future[Ack] = stop()
   }
 }
