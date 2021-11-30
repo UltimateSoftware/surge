@@ -11,8 +11,8 @@ import java.util.Optional
 import java.util.concurrent.CompletableFuture
 import scala.compat.java8.FutureConverters
 import scala.compat.java8.OptionConverters._
-import scala.concurrent.{ ExecutionContext, Future }
-import scala.jdk.CollectionConverters.SeqHasAsJava
+import scala.concurrent.Future
+import scala.jdk.CollectionConverters._
 
 trait AggregateEventModel[Agg, Evt] extends AggregateEventModelCoreTrait[Agg, Evt] {
   def handleEvents(ctx: Context, state: Optional[Agg], events: java.util.List[Evt]): Optional[Agg]
