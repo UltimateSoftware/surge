@@ -93,7 +93,7 @@ trait AsyncCommandHandler[S, M, R, E] extends CommandHandler[S, M, R, E] {
 }
 
 trait EventHandler[S, E] extends AggregateProcessingModel[S, Nothing, Nothing, E] with SynchronousEventHandler[S, E] {
-  def handleEvents(ctx: Context, state: Option[S], event: Seq[E]): Option[S]
+  def handleEvents(ctx: Context, state: Option[S], events: Seq[E]): Option[S]
 
   override def apply(ctx: Context, state: Option[S], event: E): Option[S] = handleEvents(ctx, state, List(event))
 
