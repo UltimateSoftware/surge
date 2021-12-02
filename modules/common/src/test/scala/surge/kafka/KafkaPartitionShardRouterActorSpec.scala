@@ -43,7 +43,7 @@ object KafkaPartitionShardRouterActorSpecModels {
         override def onShardTerminated(): Unit = {}
         override def healthCheck(): Future[HealthCheck] = Future.successful(HealthCheck("test", "test", HealthCheckStatus.UP))
 
-        override def controllable: Controllable = new ControllableAdapter
+        override val controllable: Controllable = new ControllableAdapter
       }
 
       provider.controllable.start()

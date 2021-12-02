@@ -158,7 +158,7 @@ class KafkaProducerActor(
       log.error(s"Unable to register $getClass for supervision", error)
   }
 
-  override def controllable: Controllable = new Controllable {
+  private[surge] override val controllable: Controllable = new Controllable {
 
     override def start(): Future[Ack] = {
       publisherActor.start().andThen(registrationCallback())
