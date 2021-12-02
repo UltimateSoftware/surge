@@ -92,7 +92,7 @@ class PersistentActorRegion[M](
       log.error(s"Unable to register ${this.getClass} for supervision", error)
   }
 
-  override def controllable: Controllable = new Controllable {
+  private[surge] override val controllable: Controllable = new Controllable {
     override def start(): Future[Ack] = kafkaProducerActor.controllable.start().andThen(registrationCallback())(ExecutionContext.global)
 
     override def restart(): Future[Ack] = {

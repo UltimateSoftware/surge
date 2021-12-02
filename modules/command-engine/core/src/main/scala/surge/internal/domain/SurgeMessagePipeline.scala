@@ -135,7 +135,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
       }(system.dispatcher)
   }
 
-  override def controllable: Controllable = new Controllable {
+  private[surge] override val controllable: Controllable = new Controllable {
     override def start(): Future[Ack] = {
       implicit val ec: ExecutionContext = system.dispatcher
       val result = for {

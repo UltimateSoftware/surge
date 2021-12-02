@@ -71,7 +71,7 @@ trait HealthyComponent {
    */
   def shutdownSignalPatterns(): Seq[Pattern] = Seq.empty
 
-  def controllable: Controllable
+  private[surge] def controllable: Controllable
 }
 
 case class HealthCheck(

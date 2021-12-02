@@ -56,7 +56,7 @@ private[surge] final class SurgePartitionRouterImpl(
       }
   }
 
-  override def controllable: Controllable = new Controllable {
+  private[surge] override val controllable: Controllable = new Controllable {
     override def start(): Future[Ack] = {
       // TODO explicit start/stop for router actor
       //implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PartitionRouter.askTimeout)

@@ -165,7 +165,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
       log.error("Failed to stop so unable to unregister from supervision", exception)
   }
 
-  override def controllable: Controllable = new Controllable {
+  override val controllable: Controllable = new Controllable {
     override def start(): Future[Ack] = {
       implicit val ec: ExecutionContext = system.dispatcher
       underlyingActor.ask(ActorLifecycleManagerActor.Start).mapTo[Ack].andThen(registrationCallback())

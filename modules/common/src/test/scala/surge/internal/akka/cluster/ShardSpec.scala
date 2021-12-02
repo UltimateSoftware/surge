@@ -51,7 +51,7 @@ object TestActor {
     override def onShardTerminated(): Unit =
       onShardTerminatedCallback()
 
-    override def controllable: Controllable = new ControllableAdapter
+    private[surge] override val controllable: Controllable = new ControllableAdapter
   }
 }
 
