@@ -2,7 +2,7 @@
 
 package surge.internal.persistence
 
-import akka.actor.{ NoSerializationVerificationNeeded, Props, ReceiveTimeout, Stash, Status }
+import akka.actor.{ Actor, ActorContext, NoSerializationVerificationNeeded, Props, ReceiveTimeout, Stash, Status }
 import akka.pattern.pipe
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import com.typesafe.config.{ Config, ConfigFactory }
@@ -16,6 +16,7 @@ import surge.internal.akka.ActorWithTracing
 import surge.internal.config.{ RetryConfig, TimeoutConfig }
 import surge.internal.domain.{ Callback, SurgeContextImpl, SurgeSideEffect }
 import surge.internal.kafka.HeadersHelper
+import surge.internal.persistence.PersistentActor.{ ACKError, ApplyEvent, GetState, ProcessMessage, StateResponse, Stop }
 import surge.internal.utils.DiagnosticContextFuturePropagation
 import surge.kafka.streams.AggregateStateStoreKafkaStreams
 import surge.metrics.{ MetricInfo, Metrics, Timer }
@@ -70,8 +71,6 @@ object PersistentActor {
       commandHandlingTimer: Timer,
       messageHandlingTimer: Timer,
       eventHandlingTimer: Timer,
-      serializeStateTimer: Timer,
-      serializeEventTimer: Timer,
       eventPublishTimer: Timer)
       extends KTableInitializationMetrics
       with KTablePersistenceMetrics
@@ -103,16 +102,6 @@ object PersistentActor {
           name = s"surge.${aggregateName.toLowerCase()}.event-handling-timer",
           description = "Average time taken in milliseconds for the business logic 'handleEvent' function to handle an event",
           tags = Map("aggregate" -> aggregateName))),
-      serializeStateTimer = metrics.timer(
-        MetricInfo(
-          name = s"surge.${aggregateName.toLowerCase()}.aggregate-state-serialization-timer",
-          description = "Average time taken in milliseconds to serialize a new aggregate state to bytes before persisting to Kafka",
-          tags = Map("aggregate" -> aggregateName))),
-      serializeEventTimer = metrics.timer(
-        MetricInfo(
-          name = s"surge.${aggregateName.toLowerCase()}.event-serialization-timer",
-          description = "Average time taken in milliseconds to serialize an individual event to bytes before persisting to Kafka",
-          tags = Map("aggregate" -> aggregateName))),
       eventPublishTimer = metrics.timer(
         MetricInfo(
           name = s"surge.${aggregateName.toLowerCase()}.event-publish-timer",
@@ -127,7 +116,7 @@ object PersistentActor {
       signalBus: HealthSignalBusTrait,
       regionSharedResources: PersistentEntitySharedResources,
       config: Config): Props = {
-    Props(new PersistentActor(aggregateId, businessLogic, regionSharedResources, signalBus, config))
+    Props(new PersistentActor(aggregateId, businessLogic, regionSharedResources, config))
   }
 
   val serializationThreadPoolSize: Int = ConfigFactory.load().getInt("surge.serialization.thread-pool-size")
@@ -136,15 +125,18 @@ object PersistentActor {
 
 }
 
-class PersistentActor[State, Message, Event](
-    val aggregateId: String,
-    val businessLogic: SurgeModel[State, Message, Event],
-    val regionSharedResources: PersistentEntitySharedResources,
-    val signalBus: HealthSignalBusTrait,
-    config: Config)
+case class SurgeBehaviorContext[State](actorContext: ActorContext, initialState: State)
+
+class PersistentActor[State, Message, Event, BehaviorState](
+    aggregateId: String,
+    businessLogic: SurgeModel[State, Message, Event],
+    regionSharedResources: PersistentEntitySharedResources,
+    config: Config,
+    initialState: Option[State] => BehaviorState,
+    behaviorCreator: SurgeBehaviorContext[BehaviorState] => Actor.Receive)
     extends ActorWithTracing
     with Stash
-    with KTablePersistenceSupport[State, Event]
+    with KTablePersistenceSupport[State, Event, BehaviorState]
     with KTableInitializationSupport[State] {
 
   import PersistentActor._
@@ -155,14 +147,6 @@ class PersistentActor[State, Message, Event](
   private case class InitializeWithState(stateOpt: Option[State]) extends Internal
 
   private case class EventPublishTimedOut(reason: Throwable, startTime: Instant) extends Internal
-
-  protected case class InternalActorState(stateOpt: Option[State])
-
-  protected case class HandleEventResult(context: SurgeContextImpl[State, Event]) extends NoSerializationVerificationNeeded
-
-  override type ActorState = InternalActorState
-
-  import regionSharedResources._
 
   override val initializationMetrics: KTableInitializationMetrics = regionSharedResources.metrics
 
@@ -186,10 +170,6 @@ class PersistentActor[State, Message, Event](
 
   protected val log: Logger = LoggerFactory.getLogger(getClass)
 
-  private val publishStateOnly: Boolean = businessLogic.kafka.eventsTopicOpt.isEmpty
-
-  assert(publishStateOnly || businessLogic.eventWriteFormattingOpt.nonEmpty, "businessLogic.eventWriteFormattingOpt may not be none when publishing events")
-
   override def messageNameForTracedMessages: MessageNameExtractor = { case t: ProcessMessage[_] =>
     s"ProcessMessage[${t.message.getClass.getSimpleName}]"
   }
@@ -201,108 +181,14 @@ class PersistentActor[State, Message, Event](
 
   override def receive: Receive = uninitialized
 
-  private def freeToProcess(state: InternalActorState): Receive = {
-    case pm: ProcessMessage[Message] =>
-      handle(state, pm)
-    case ae: ApplyEvent[Event] =>
-      val result: Future[HandleEventResult] = callEventHandler(state, ae.event)
-      pipe(result).to(self, sender())
-      context.become(waitForHandleEventResult(state))
-    case GetState(_)    => sender() ! StateResponse(state.stateOpt)
-    case ReceiveTimeout => handlePassivate()
-    case Stop           => handleStop()
-  }
-
   private def handle(initializeWithState: InitializeWithState): Unit = {
     log.debug(s"Actor state for aggregate $aggregateId successfully initialized")
     unstashAll()
 
-    val internalActorState = InternalActorState(stateOpt = initializeWithState.stateOpt)
+    val nextState = behaviorCreator(SurgeBehaviorContext(context, initialState(initializeWithState.stateOpt)))
 
     context.setReceiveTimeout(receiveTimeout)
-    context.become(freeToProcess(internalActorState))
-  }
-
-  private def handle(state: InternalActorState, msg: ProcessMessage[Message]): Unit = {
-    context.setReceiveTimeout(Duration.Inf)
-    context.become(persistingEvents(state))
-
-    processMessage(state, msg)
-      .flatMap { result =>
-        if (result.isRejected) {
-          // FIXME Temporary no-op publish to trigger side effects later
-          doPublish(
-            state,
-            result,
-            Seq.empty,
-            KafkaProducerActor.MessageToPublish("", "".getBytes(), HeadersHelper.createHeaders(Map.empty)),
-            startTime = Instant.now,
-            didStateChange = false)
-        } else {
-          val serializingFut = if (publishStateOnly) {
-            Future.successful(Seq.empty)
-          } else {
-            serializeEvents(result.events)
-          }
-          for {
-            serializedState <- serializeState(result.state)
-            serializedEvents <- serializingFut
-            publishResult <- doPublish(
-              state.copy(stateOpt = result.state),
-              result,
-              serializedEvents,
-              serializedState,
-              startTime = Instant.now,
-              didStateChange = state.stateOpt != result.state)
-          } yield {
-            publishResult
-          }
-        }
-      }
-      .recover { case e =>
-        ACKError(e)
-      }
-      .pipeTo(self)(sender())
-  }
-
-  private def processMessage(state: InternalActorState, ProcessMessage: ProcessMessage[Message]): Future[SurgeContextImpl[State, Event]] = {
-    metrics.messageHandlingTimer
-      .timeFuture {
-        businessLogic.model.handle(SurgeContextImpl(sender()), state.stateOpt, ProcessMessage.message)
-      }
-      .mapTo[SurgeContextImpl[State, Event]]
-  }
-
-  private def callEventHandler(state: InternalActorState, evt: Event): Future[HandleEventResult] = {
-    metrics.eventHandlingTimer.time(businessLogic.model.applyAsync(SurgeContextImpl(sender()), state.stateOpt, evt)).mapTo[SurgeContextImpl[State, Event]].map {
-      context =>
-        HandleEventResult(context)
-    }
-  }
-
-  private def waitForHandleEventResult(state: InternalActorState): Receive = {
-    case HandleEventResult(ctx) =>
-      log.debug("Received result from async handle event call!")
-      context.setReceiveTimeout(Duration.Inf)
-      context.become(persistingEvents(state))
-      unstashAll()
-      val futureStatePersisted = serializeState(ctx.state).flatMap { serializedState =>
-        doPublish(
-          state.copy(stateOpt = ctx.state),
-          ctx,
-          serializedEvents = Seq.empty,
-          serializedState = serializedState,
-          startTime = Instant.now,
-          didStateChange = state.stateOpt != ctx.state)
-      }
-      futureStatePersisted.pipeTo(self)(sender())
-    case failedFuture: akka.actor.Status.Failure =>
-      log.error("Received failure from async handle event call!", failedFuture.cause)
-      sender() ! ACKError(failedFuture.cause)
-      context.become(freeToProcess(state))
-      unstashAll()
-    case _ =>
-      stash()
+    context.become(nextState)
   }
 
   private def uninitialized: Receive = {
@@ -318,25 +204,20 @@ class PersistentActor[State, Message, Event](
       stash()
   }
 
-  private def handlePassivate(): Unit = {
-    log.trace(s"PersistentActor for aggregate ${businessLogic.aggregateName} $aggregateId is passivating gracefully")
-    context.parent ! Passivate(Stop)
-  }
-
   private def handleStop(): Unit = {
     log.trace(s"PersistentActor for aggregate ${businessLogic.aggregateName} $aggregateId is stopping gracefully")
     context.stop(self)
   }
 
-  private def handleCommandError(state: InternalActorState, error: ACKError): Unit = {
+  private def handleCommandError(state: BehaviorState, error: ACKError): Unit = {
     log.debug(s"The command for ${businessLogic.aggregateName} $aggregateId resulted in an error", error.exception)
     context.setReceiveTimeout(receiveTimeout)
-    context.become(freeToProcess(state))
+    context.become(behaviorCreator(SurgeBehaviorContext(context, state)))
 
     sender() ! error
   }
 
-  override def receiveWhilePersistingEvents(state: InternalActorState): Receive = {
+  override def receiveWhilePersistingEvents(state: BehaviorState): Receive = {
     case msg: ACKError  => handleCommandError(state, msg)
     case ReceiveTimeout => // Ignore and drop ReceiveTimeout messages from this state
     case Status.Failure(e) =>
@@ -364,7 +245,7 @@ class PersistentActor[State, Message, Event](
     self ! InitializeWithState(model)
   }
 
-  override def onPersistenceSuccess(newState: InternalActorState, surgeContext: SurgeContextImpl[State, Event]): Unit = {
+  override def onPersistenceSuccess(newState: BehaviorState, surgeContext: SurgeContextImpl[State, Event]): Unit = {
     activeSpan.log("Successfully persisted events + state")
     context.setReceiveTimeout(receiveTimeout)
     context.become(freeToProcess(newState))
@@ -382,35 +263,125 @@ class PersistentActor[State, Message, Event](
     }
   }
 
-  override def onPersistenceFailure(state: InternalActorState, cause: Throwable): Unit = {
+  override def onPersistenceFailure(state: BehaviorState, cause: Throwable): Unit = {
     log.error(s"Error while trying to publish to Kafka, crashing actor for $aggregateName $aggregateId", cause)
     activeSpan.log("Failed to persist events + state")
     activeSpan.error(cause)
     sender() ! ACKError(cause)
     context.stop(self)
   }
+}
 
-  private def serializeEvents(events: Seq[Event]): Future[Seq[KafkaProducerActor.MessageToPublish]] = Future {
-    val eventWriteFormatting = businessLogic.eventWriteFormattingOpt.getOrElse {
-      throw new IllegalStateException("businessLogic.eventWriteFormattingOpt must not be None")
-    }
-    events.map { event =>
-      val serializedMessage = metrics.serializeEventTimer.time(eventWriteFormatting.writeEvent(event))
-      log.trace(s"Publishing event for {} {}", Seq(businessLogic.aggregateName, serializedMessage.key): _*)
-      KafkaProducerActor.MessageToPublish(
-        key = serializedMessage.key,
-        value = serializedMessage.value,
-        headers = HeadersHelper.createHeaders(serializedMessage.headers))
-    }
+// FIXME This should live somewhere else
+case class CQRSPersistenceBehaviorActorState[State](stateOpt: Option[State])
 
-  }(serializationExecutionContext)
+class CQRSPersistenceBehavior[State, Message, Event](
+    aggregateId: String,
+    businessLogic: SurgeModel[State, Message, Event],
+    regionSharedResources: PersistentEntitySharedResources,
+    becomePersistingEvents: CQRSPersistenceBehaviorActorState[State] => Actor.Receive,
+    persistenceSupport: KTablePersistenceSupport[State, Event, CQRSPersistenceBehaviorActorState[State]],
+    context: ActorContext) {
+  private val log = LoggerFactory.getLogger(getClass)
+  import regionSharedResources._
 
-  private def serializeState(stateValueOpt: Option[State]): Future[KafkaProducerActor.MessageToPublish] = Future {
-    val serializedStateOpt = stateValueOpt.map { value =>
-      metrics.serializeStateTimer.time(businessLogic.aggregateWriteFormatting.writeState(value))
-    }
-    val stateValue = serializedStateOpt.map(_.value).orNull
-    val stateHeaders = serializedStateOpt.map(ser => HeadersHelper.createHeaders(ser.headers)).orNull
-    KafkaProducerActor.MessageToPublish(aggregateId, stateValue, stateHeaders)
-  }(serializationExecutionContext)
+  private val publishStateOnly: Boolean = businessLogic.kafka.eventsTopicOpt.isEmpty
+  assert(publishStateOnly || businessLogic.eventWriteFormattingOpt.nonEmpty, "businessLogic.eventWriteFormattingOpt may not be none when publishing events")
+
+  import context._
+  def statefulReceive(state: CQRSPersistenceBehaviorActorState[State]): Actor.Receive = {
+    case pm: ProcessMessage[Message] =>
+      handle(state, pm)
+    case ae: ApplyEvent[Event] =>
+      doApplyEvent(state, ae)
+    case GetState(_)    => sender() ! StateResponse(state.stateOpt)
+    case ReceiveTimeout => handlePassivate()
+    case Stop           => handleStop()
+  }
+
+  def handle(state: CQRSPersistenceBehaviorActorState[State], msg: ProcessMessage[Message]): Unit = {
+    context.setReceiveTimeout(Duration.Inf)
+    context.become(becomePersistingEvents(state))
+
+    processMessage(state, msg)
+      .flatMap { result =>
+        if (result.isRejected) {
+          // FIXME Temporary no-op publish to trigger side effects later
+          persistenceSupport.doPublish(
+            state,
+            result,
+            Seq.empty,
+            KafkaProducerActor.MessageToPublish("", "".getBytes(), HeadersHelper.createHeaders(Map.empty)),
+            startTime = Instant.now,
+            didStateChange = false)
+        } else {
+          val serializingFut = if (publishStateOnly) {
+            Future.successful(Seq.empty)
+          } else {
+            businessLogic.serializeEvents(result.events)
+          }
+          for {
+            serializedState <- businessLogic.serializeState(aggregateId, result.state)
+            serializedEvents <- serializingFut
+            publishResult <- persistenceSupport.doPublish(
+              state.copy(stateOpt = result.state),
+              result,
+              serializedEvents,
+              serializedState,
+              startTime = Instant.now,
+              didStateChange = state.stateOpt != result.state)
+          } yield {
+            publishResult
+          }
+        }
+      }
+      .recover { case e =>
+        ACKError(e)
+      }
+      .pipeTo(self)(sender())
+  }
+
+  def processMessage(state: CQRSPersistenceBehaviorActorState[State], ProcessMessage: ProcessMessage[Message]): Future[SurgeContextImpl[State, Event]] = {
+    metrics.messageHandlingTimer
+      .timeFuture {
+        businessLogic.model.handle(SurgeContextImpl(sender()), state.stateOpt, ProcessMessage.message)
+      }
+      .mapTo[SurgeContextImpl[State, Event]]
+  }
+
+  def doApplyEvent(state: CQRSPersistenceBehaviorActorState[State], value: PersistentActor.ApplyEvent[Event]): Unit = {
+    context.setReceiveTimeout(Duration.Inf)
+    context.become(becomePersistingEvents(state))
+
+    callEventHandler(state, value.event)
+      .flatMap { context =>
+        businessLogic.serializeState(aggregateId, context.state).flatMap { serializedState =>
+          persistenceSupport.doPublish(
+            state.copy(stateOpt = context.state),
+            context,
+            serializedEvents = Seq.empty,
+            serializedState = serializedState,
+            startTime = Instant.now,
+            didStateChange = state.stateOpt != context.state)
+        }
+      }
+      .recover { case e =>
+        ACKError(e)
+      }
+      .pipeTo(self)(sender())
+  }
+
+  def callEventHandler(state: CQRSPersistenceBehaviorActorState[State], evt: Event): Future[SurgeContextImpl[State, Event]] = {
+    metrics.eventHandlingTimer.timeFuture(businessLogic.model.applyAsync(SurgeContextImpl(sender()), state.stateOpt, evt)).mapTo[SurgeContextImpl[State, Event]]
+  }
+
+  def handlePassivate(): Unit = {
+    log.trace(s"PersistentActor for aggregate ${businessLogic.aggregateName} $aggregateId is passivating gracefully")
+    context.parent ! Passivate(Stop)
+  }
+
+  def handleStop(): Unit = {
+    log.trace(s"PersistentActor for aggregate ${businessLogic.aggregateName} $aggregateId is stopping gracefully")
+    context.stop(self)
+  }
 }

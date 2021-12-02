@@ -18,7 +18,7 @@ trait KTablePersistenceMetrics {
   def eventPublishTimer: Timer
 }
 
-trait KTablePersistenceSupport[Agg, Event] {
+trait KTablePersistenceSupport[Agg, Event, ActorState] {
   protected def aggregateId: String
   protected def aggregateName: String
   protected def kafkaProducerActor: KafkaProducerActor
@@ -27,7 +27,6 @@ trait KTablePersistenceSupport[Agg, Event] {
   protected def self: ActorRef
   protected def sender(): ActorRef
 
-  protected type ActorState
   protected def receiveWhilePersistingEvents(state: ActorState): Receive
   protected def onPersistenceSuccess(newState: ActorState, surgeContext: SurgeContextImpl[Agg, Event]): Unit
   protected def onPersistenceFailure(state: ActorState, cause: Throwable): Unit
@@ -55,7 +54,8 @@ trait KTablePersistenceSupport[Agg, Event] {
   }
   protected def persistingEvents(state: ActorState): Receive = handleInternal(state).orElse(receiveWhilePersistingEvents(state))
 
-  protected def doPublish(
+  // TODO protected??
+  def doPublish(
       state: ActorState,
       context: SurgeContextImpl[Agg, Event], // FIXME add serialized events/state to the context???
       serializedEvents: Seq[KafkaProducerActor.MessageToPublish],
