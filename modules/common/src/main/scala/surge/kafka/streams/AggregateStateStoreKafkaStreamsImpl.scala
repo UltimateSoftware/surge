@@ -52,7 +52,8 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
     StreamsConfig.NUM_STANDBY_REPLICAS_CONFIG -> settings.standByReplicas.toString,
     StreamsConfig.TOPOLOGY_OPTIMIZATION_CONFIG -> StreamsConfig.OPTIMIZE,
     StreamsConfig.STATE_DIR_CONFIG -> settings.stateDirectory,
-    StreamsConfig.ROCKSDB_CONFIG_SETTER_CLASS_CONFIG -> classOf[AggregateStreamsRocksDBConfig].getName)
+    StreamsConfig.ROCKSDB_CONFIG_SETTER_CLASS_CONFIG -> classOf[AggregateStreamsRocksDBConfig].getName,
+    StreamsConfig.APPLICATION_SERVER_CONFIG -> settings.localActorHostPort)
 
   override def subscribeListeners(consumer: KafkaByteStreamsConsumer): Unit = {
     // In addition to the listener added by the KafkaStreamLifeCycleManagement we need to also subscribe this one
@@ -187,7 +188,8 @@ private[streams] object AggregateStateStoreKafkaStreamsImpl {
       commitInterval: Int,
       stateDirectory: String,
       clearStateOnStartup: Boolean,
-      enableMetrics: Boolean)
+      enableMetrics: Boolean,
+      localActorHostPort: String)
       extends KafkaStreamSettings
 
   object AggregateStateStoreKafkaStreamsImplSettings {
@@ -202,6 +204,7 @@ private[streams] object AggregateStateStoreKafkaStreamsImpl {
       val stateDirectory = config.getString("kafka.streams.state-dir")
       val clearStateOnStartup = config.getBoolean("kafka.streams.wipe-state-on-start")
       val enableMetrics = config.getBoolean("surge.kafka-streams.enable-kafka-metrics")
+      val localActorProviderHostPort = config.getString("surge.local-actor-provider.host-port")
 
       new AggregateStateStoreKafkaStreamsImplSettings(
         storeName = aggregateStateStoreName,
@@ -213,7 +216,8 @@ private[streams] object AggregateStateStoreKafkaStreamsImpl {
         commitInterval = commitInterval,
         stateDirectory = stateDirectory,
         clearStateOnStartup = clearStateOnStartup,
-        enableMetrics = enableMetrics)
+        enableMetrics = enableMetrics,
+        localActorHostPort = localActorProviderHostPort)
     }
   }
 }
