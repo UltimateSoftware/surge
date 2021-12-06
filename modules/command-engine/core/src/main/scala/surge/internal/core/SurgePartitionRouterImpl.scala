@@ -21,9 +21,11 @@ import surge.internal.persistence.PersistentActor
 import surge.internal.tracing.RoutableMessage
 import surge.internal.{ persistence, SurgeModel }
 import surge.kafka.streams._
-import surge.kafka.{ KafkaPartitionShardRouterActor, PersistentActorRegionCreator }
+import surge.kafka.{ KafkaPartitionShardRouterActor, KafkaSecurityConfigurationImpl, PersistentActorRegionCreator }
 
+import java.util.Properties
 import java.util.regex.Pattern
+import scala.collection.JavaConverters._
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{ Await, ExecutionContext, Future }
 import scala.languageFeature.postfixOps
@@ -67,12 +69,21 @@ private[surge] final class SurgePartitionRouterImpl(
     shardRouter
   }
 
-  private def createAkkaCluster(): ActorRef = {
-    val groupId = businessLogic.kafka.streamsApplicationId
-    val consumerSettings = ConsumerSettings(system, new StringDeserializer, new ByteArrayDeserializer)
+  private def initializeKafkaConsumerSettings(groupId: String): ConsumerSettings[String, Array[Byte]] = {
+    val securityRelatedProps = new Properties()
+    val securityHelper = new KafkaSecurityConfigurationImpl(config)
+    securityHelper.configureSecurityProperties(securityRelatedProps)
+
+    ConsumerSettings(system, new StringDeserializer, new ByteArrayDeserializer)
       .withBootstrapServers(config.getString("kafka.brokers"))
       .withGroupId(groupId)
       .withProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
+      .withProperties(securityRelatedProps.asScala.toMap)
+  }
+
+  private def createAkkaCluster(): ActorRef = {
+    val groupId = businessLogic.kafka.streamsApplicationId
+    val consumerSettings = initializeKafkaConsumerSettings(groupId)
 
     val regionF = KafkaClusterSharding(system)
       .messageExtractorNoEnvelope(
