@@ -2,7 +2,7 @@
 
 package surge.core
 
-import akka.actor.{ ActorSystem, NoSerializationVerificationNeeded, PoisonPill, Props }
+import akka.actor.{ ActorRef, ActorSelection, ActorSystem, NoSerializationVerificationNeeded, PoisonPill, Props }
 import akka.pattern._
 import akka.util.Timeout
 import com.typesafe.config.Config
@@ -14,13 +14,14 @@ import surge.internal.SurgeModel
 import surge.internal.akka.actor.{ ActorLifecycleManagerActor, ManagedActorRef }
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.config.TimeoutConfig
+import surge.internal.kafka.{ KTableLagCheckerImpl, KafkaProducerActorImpl, PartitionerHelper }
 import surge.internal.kafka.KafkaProducerActorImpl.ShutdownProducer
-import surge.internal.kafka.{ KTableLagCheckerImpl, KafkaProducerActorImpl }
-import surge.kafka.{ KafkaAdminClient, KafkaProducerTrait }
 import surge.kafka.streams._
+import surge.kafka.{ KafkaAdminClient, KafkaProducerTrait }
 import surge.metrics.{ MetricInfo, Metrics, Timer }
 
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.duration.DurationInt
+import scala.concurrent.{ Await, ExecutionContext, Future }
 import scala.util.{ Failure, Success, Try }
 
 object KafkaProducerActor {
@@ -53,12 +54,71 @@ object KafkaProducerActor {
         kafkaProducerOverride = kafkaProducerOverride)).withDispatcher(dispatcherName)
 
     new KafkaProducerActor(
-      publisherActor = ActorLifecycleManagerActor
-        .manage(actorSystem, kafkaProducerProps, s"producer-actor-${assignedPartition.toString}", stopMessageAdapter = Some(() => ShutdownProducer)),
+      publisherActor = ActorLifecycleManagerActor.manage(
+        actorSystem = actorSystem,
+        managedActorProps = kafkaProducerProps,
+        componentName = s"producer-actor-${assignedPartition.toString}",
+        stopMessageAdapter = Some(() => ShutdownProducer)),
       metrics,
       businessLogic.aggregateName,
       assignedPartition,
       signalBus)
+  }
+
+  def createFromPartitionNumber(
+      actorSystem: ActorSystem,
+      metrics: Metrics,
+      businessLogic: SurgeModel[_, _, _, _],
+      kStreams: AggregateStateStoreKafkaStreams[_],
+      partitionTracker: KafkaConsumerPartitionAssignmentTracker,
+      signalBus: HealthSignalBusTrait,
+      config: Config,
+      kafkaProducerOverride: Option[KafkaProducerTrait[String, Array[Byte]]] = None): Int => KafkaProducerActor = partitionNumber => {
+
+    val assignedPartition = new TopicPartition(businessLogic.kafka.stateTopic.name, partitionNumber)
+
+    val brokers = config.getString("kafka.brokers").split(",").toVector
+    val adminClient = KafkaAdminClient(config, brokers)
+
+    val kafkaProducerProps = Props(
+      new KafkaProducerActorImpl(
+        assignedPartition = assignedPartition,
+        metrics = metrics,
+        businessLogic,
+        lagChecker = new KTableLagCheckerImpl(kStreams.applicationId, adminClient),
+        partitionTracker = partitionTracker,
+        signalBus = signalBus,
+        config = config,
+        kafkaProducerOverride = kafkaProducerOverride)).withDispatcher(dispatcherName)
+
+    new KafkaProducerActor(
+      ActorLifecycleManagerActor.manage(
+        actorSystem = actorSystem,
+        managedActorProps = kafkaProducerProps,
+        componentName = s"producer-actor-${assignedPartition.toString}",
+        actorLifecycleName = Some(s"producer-actor-${assignedPartition.toString}"),
+        stopMessageAdapter = Some(() => ShutdownProducer)),
+      metrics,
+      businessLogic.aggregateName,
+      assignedPartition,
+      signalBus)
+  }
+
+  def createWithActorSelection(
+      actorSystem: ActorSystem,
+      metrics: Metrics,
+      businessLogic: SurgeModel[_, _, _, _],
+      signalBus: HealthSignalBusTrait,
+      numberOfPartitions: Int): String => KafkaProducerActor = (aggregateId: String) => {
+
+    val partitionNumber = PartitionerHelper.partitionForKey(aggregateId, numberOfPartitions)
+    val assignedPartition = new TopicPartition(businessLogic.kafka.stateTopic.name, partitionNumber)
+
+    // FIXME This could be an ActorSelection once we drop the old router
+    val timeout = 5.seconds
+    val publisherActor = Await.result(actorSystem.actorSelection(s"user/producer-actor-${assignedPartition.toString}").resolveOne(timeout), timeout)
+
+    new KafkaProducerActor(ManagedActorRef(publisherActor), metrics, businessLogic.aggregateName, assignedPartition, signalBus)
   }
 
   sealed trait PublishResult extends NoSerializationVerificationNeeded

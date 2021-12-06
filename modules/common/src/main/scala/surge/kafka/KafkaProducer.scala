@@ -3,18 +3,17 @@
 package surge.kafka
 
 import com.typesafe.config.{ Config, ConfigFactory }
-
-import java.util.Properties
 import org.apache.kafka.clients.consumer.OffsetAndMetadata
 import org.apache.kafka.clients.producer._
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.header.Headers
 import org.apache.kafka.common.serialization.{ ByteArraySerializer, Serializer, StringSerializer }
+import surge.internal.kafka.PartitionerHelper
 
+import java.util.Properties
 import scala.concurrent.{ ExecutionContext, Future, Promise }
 import scala.jdk.CollectionConverters._
 import scala.util.control.NonFatal
-import scala.util.hashing.MurmurHash3
 import scala.util.{ Failure, Success, Try }
 
 final case class KafkaRecordMetadata[Key](key: Option[Key], wrapped: RecordMetadata)
@@ -53,7 +52,7 @@ trait KafkaProducerHelperCommon[K, V] {
     if (partitionByString.isEmpty) {
       None
     } else {
-      val partitionNumber = math.abs(MurmurHash3.stringHash(partitionByString) % numPartitions)
+      val partitionNumber = PartitionerHelper.partitionForKey(partitionByString, numPartitions)
       Some(partitionNumber)
     }
   }

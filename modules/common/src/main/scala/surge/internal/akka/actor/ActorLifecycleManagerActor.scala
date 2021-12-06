@@ -37,10 +37,16 @@ object ActorLifecycleManagerActor {
       managedActorProps: Props,
       componentName: String,
       managedActorName: Option[String] = None,
+      actorLifecycleName: Option[String] = None,
       startMessageAdapter: Option[() => Any] = None,
       stopMessageAdapter: Option[() => Any] = None): ManagedActorRef = {
-    ManagedActorRef(
-      actorSystem.actorOf(Props(new ActorLifecycleManagerActor(managedActorProps, componentName, managedActorName, startMessageAdapter, stopMessageAdapter))))
+    val lifecycleManagerProps = Props(
+      new ActorLifecycleManagerActor(managedActorProps, componentName, managedActorName, startMessageAdapter, stopMessageAdapter))
+    val actor = actorLifecycleName match {
+      case Some(name) => actorSystem.actorOf(lifecycleManagerProps, name)
+      case None       => actorSystem.actorOf(lifecycleManagerProps)
+    }
+    ManagedActorRef(actor)
   }
 
   case object Start extends NoSerializationVerificationNeeded

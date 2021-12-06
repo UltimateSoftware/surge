@@ -3,12 +3,13 @@
 package surge.internal.persistence
 
 import akka.actor.{ NoSerializationVerificationNeeded, Props, ReceiveTimeout, Stash, Status }
+import akka.cluster.sharding.ShardRegion.Passivate
 import akka.pattern.pipe
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import com.typesafe.config.{ Config, ConfigFactory }
 import io.opentelemetry.api.trace.Tracer
 import org.slf4j.{ Logger, LoggerFactory }
-import surge.akka.cluster.{ JacksonSerializable, Passivate }
+import surge.akka.cluster.JacksonSerializable
 import surge.core._
 import surge.health.HealthSignalBusTrait
 import surge.internal.SurgeModel
@@ -16,13 +17,17 @@ import surge.internal.akka.ActorWithTracing
 import surge.internal.config.{ RetryConfig, TimeoutConfig }
 import surge.internal.domain.HandledMessageResult
 import surge.internal.kafka.HeadersHelper
+import surge.internal.tracing.RoutableMessage
+import surge.internal.utils.DiagnosticContextFuturePropagation
 import surge.kafka.streams.AggregateStateStoreKafkaStreams
 import surge.metrics.{ MetricInfo, Metrics, Timer }
+import surge.akka.cluster.{ Passivate => SurgePassivate }
 
 import java.time.Instant
 import java.util.concurrent.Executors
 import scala.concurrent.duration.{ Duration, FiniteDuration }
 import scala.concurrent.{ ExecutionContext, Future }
+import scala.util.Try
 
 object PersistentActor {
 
@@ -120,12 +125,12 @@ object PersistentActor {
   }
 
   def props[S, M, R, E](
-      aggregateId: String,
       businessLogic: SurgeModel[S, M, R, E],
       signalBus: HealthSignalBusTrait,
       regionSharedResources: PersistentEntitySharedResources,
-      config: Config): Props = {
-    Props(new PersistentActor(aggregateId, businessLogic, regionSharedResources, signalBus, config))
+      config: Config,
+      aggregateIdOpt: Option[String] = None): Props = {
+    Props(new PersistentActor(businessLogic, regionSharedResources, signalBus, config, aggregateIdOpt))
   }
 
   val serializationThreadPoolSize: Int = ConfigFactory.load().getInt("surge.serialization.thread-pool-size")
@@ -134,11 +139,11 @@ object PersistentActor {
 
 // scalastyle:off number.of.methods
 class PersistentActor[S, M, R, E](
-    val aggregateId: String,
     val businessLogic: SurgeModel[S, M, R, E],
     val regionSharedResources: PersistentEntitySharedResources,
     val signalBus: HealthSignalBusTrait,
-    config: Config)
+    config: Config,
+    val aggregateIdOpt: Option[String])
     extends ActorWithTracing
     with Stash
     with KTablePersistenceSupport[S, E]
@@ -146,6 +151,12 @@ class PersistentActor[S, M, R, E](
 
   import PersistentActor._
   import context.dispatcher
+
+  def aggregateId: String = aggregateIdOpt.getOrElse(self.path.name)
+
+  private val metrics = regionSharedResources.metrics
+
+  private val isAkkaClusterEnabled: Boolean = config.getBoolean("surge.feature-flags.experimental.enable-akka-cluster")
 
   private sealed trait Internal extends NoSerializationVerificationNeeded
 
@@ -170,13 +181,11 @@ class PersistentActor[S, M, R, E](
 
   override type ActorState = InternalActorState
 
-  import regionSharedResources._
-
   override val initializationMetrics: KTableInitializationMetrics = regionSharedResources.metrics
 
   override val ktablePersistenceMetrics: KTablePersistenceMetrics = regionSharedResources.metrics
 
-  override val kafkaProducerActor: KafkaProducerActor = regionSharedResources.kafkaProducerActor
+  override val kafkaProducerActor: KafkaProducerActor = regionSharedResources.aggregateIdToKafkaProducer(aggregateId)
 
   override val kafkaStreamsCommand: AggregateStateStoreKafkaStreams[_] = regionSharedResources.stateStore
 
@@ -315,7 +324,13 @@ class PersistentActor[S, M, R, E](
 
   private def handlePassivate(): Unit = {
     log.trace(s"PersistentActor for aggregate ${businessLogic.aggregateName} $aggregateId is passivating gracefully")
-    context.parent ! Passivate(Stop)
+
+    //FIXME: temporary fix to support switch between akka and existing shard allocation strategy
+    if (isAkkaClusterEnabled) {
+      context.parent ! Passivate(Stop)
+    } else {
+      context.parent ! SurgePassivate(Stop)
+    }
   }
 
   private def handleStop(): Unit = {
