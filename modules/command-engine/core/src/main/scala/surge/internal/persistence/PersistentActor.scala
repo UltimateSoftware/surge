@@ -3,20 +3,21 @@
 package surge.internal.persistence
 
 import akka.actor.{ Actor, ActorContext, NoSerializationVerificationNeeded, Props, ReceiveTimeout, Stash, Status }
+import akka.cluster.sharding.ShardRegion.Passivate
 import akka.pattern.pipe
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import com.typesafe.config.{ Config, ConfigFactory }
 import io.opentelemetry.api.trace.Tracer
 import org.slf4j.{ Logger, LoggerFactory }
-import surge.akka.cluster.{ JacksonSerializable, Passivate }
+import surge.akka.cluster.{ JacksonSerializable, Passivate => SurgePassivate }
 import surge.core._
-import surge.health.HealthSignalBusTrait
 import surge.internal.SurgeModel
 import surge.internal.akka.ActorWithTracing
 import surge.internal.config.{ RetryConfig, TimeoutConfig }
 import surge.internal.domain.{ Callback, SurgeContextImpl, SurgeSideEffect }
 import surge.internal.kafka.HeadersHelper
-import surge.internal.persistence.PersistentActor.{ ACKError, ApplyEvent, GetState, ProcessMessage, StateResponse, Stop }
+import surge.internal.persistence.PersistentActor._
+import surge.internal.tracing.RoutableMessage
 import surge.internal.utils.DiagnosticContextFuturePropagation
 import surge.kafka.streams.AggregateStateStoreKafkaStreams
 import surge.metrics.{ MetricInfo, Metrics, Timer }
@@ -39,9 +40,9 @@ object PersistentActor {
 
   case class GetState(aggregateId: String) extends RoutableActorMessage
 
-  case class ApplyEvent[E](
+  case class ApplyEvents[E](
       aggregateId: String,
-      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "eventType", visible = true) event: E)
+      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "eventType", visible = true) events: Seq[E])
       extends RoutableActorMessage
 
   case class StateResponse[S](
@@ -57,7 +58,9 @@ object PersistentActor {
       @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "aggregateType", visible = true) aggregateState: Option[S])
       extends ACK
 
-  case class ACKError(exception: Throwable) extends ACK with NoSerializationVerificationNeeded
+  case class ACKError(
+      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "exceptionType", visible = true) exception: Throwable)
+      extends ACK
 
   case class ACKRejection[R](
       @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "rejectionType", visible = true) rejection: R)
@@ -111,12 +114,11 @@ object PersistentActor {
   }
 
   def props[S, M, E](
-      aggregateId: String,
       businessLogic: SurgeModel[S, M, E],
-      signalBus: HealthSignalBusTrait,
       regionSharedResources: PersistentEntitySharedResources,
-      config: Config): Props = {
-    Props(new PersistentActor(aggregateId, businessLogic, regionSharedResources, config))
+      config: Config,
+      aggregateIdOpt: Option[String]): Props = {
+    Props(new PersistentActor(businessLogic, regionSharedResources, config, aggregateIdOpt))
   }
 
   val serializationThreadPoolSize: Int = ConfigFactory.load().getInt("surge.serialization.thread-pool-size")
@@ -128,12 +130,12 @@ object PersistentActor {
 case class SurgeBehaviorContext[State](actorContext: ActorContext, initialState: State)
 
 class PersistentActor[State, Message, Event, BehaviorState](
-    aggregateId: String,
     businessLogic: SurgeModel[State, Message, Event],
     regionSharedResources: PersistentEntitySharedResources,
     config: Config,
     initialState: Option[State] => BehaviorState,
-    behaviorCreator: SurgeBehaviorContext[BehaviorState] => Actor.Receive)
+    behaviorCreator: SurgeBehaviorContext[BehaviorState] => Actor.Receive,
+    aggregateIdOpt: Option[String])
     extends ActorWithTracing
     with Stash
     with KTablePersistenceSupport[State, Event, BehaviorState]
@@ -141,6 +143,8 @@ class PersistentActor[State, Message, Event, BehaviorState](
 
   import PersistentActor._
   import context.dispatcher
+
+  val aggregateId: String = aggregateIdOpt.getOrElse(self.path.name)
 
   private sealed trait Internal extends NoSerializationVerificationNeeded
 
@@ -152,7 +156,7 @@ class PersistentActor[State, Message, Event, BehaviorState](
 
   override val ktablePersistenceMetrics: KTablePersistenceMetrics = regionSharedResources.metrics
 
-  override val kafkaProducerActor: KafkaProducerActor = regionSharedResources.kafkaProducerActor
+  override val kafkaProducerActor: KafkaProducerActor = regionSharedResources.aggregateIdToKafkaProducer(aggregateId)
 
   override val kafkaStreamsCommand: AggregateStateStoreKafkaStreams[_] = regionSharedResources.stateStore
 
@@ -230,7 +234,7 @@ class PersistentActor[State, Message, Event, BehaviorState](
 
   private def initializationFailed(error: ACKError): Receive = {
     case _: ProcessMessage[Message] => sender() ! error
-    case _: ApplyEvent[Event]       => sender() ! error
+    case _: ApplyEvents[Event]      => sender() ! error
     case Stop                       => handleStop()
   }
 
@@ -285,6 +289,8 @@ class CQRSPersistenceBehavior[State, Message, Event](
   private val log = LoggerFactory.getLogger(getClass)
   import regionSharedResources._
 
+  private val config = ConfigFactory.load() // FIXME inject this config
+  private val isAkkaClusterEnabled: Boolean = config.getBoolean("surge.feature-flags.experimental.enable-akka-cluster")
   private val publishStateOnly: Boolean = businessLogic.kafka.eventsTopicOpt.isEmpty
   assert(publishStateOnly || businessLogic.eventWriteFormattingOpt.nonEmpty, "businessLogic.eventWriteFormattingOpt may not be none when publishing events")
 
@@ -292,7 +298,7 @@ class CQRSPersistenceBehavior[State, Message, Event](
   def statefulReceive(state: CQRSPersistenceBehaviorActorState[State]): Actor.Receive = {
     case pm: ProcessMessage[Message] =>
       handle(state, pm)
-    case ae: ApplyEvent[Event] =>
+    case ae: ApplyEvents[Event] =>
       doApplyEvent(state, ae)
     case GetState(_)    => sender() ! StateResponse(state.stateOpt)
     case ReceiveTimeout => handlePassivate()
@@ -349,7 +355,7 @@ class CQRSPersistenceBehavior[State, Message, Event](
       .mapTo[SurgeContextImpl[State, Event]]
   }
 
-  def doApplyEvent(state: CQRSPersistenceBehaviorActorState[State], value: PersistentActor.ApplyEvent[Event]): Unit = {
+  def doApplyEvent(state: CQRSPersistenceBehaviorActorState[State], value: PersistentActor.ApplyEvents[Event]): Unit = {
     context.setReceiveTimeout(Duration.Inf)
     context.become(becomePersistingEvents(state))
 
@@ -377,7 +383,13 @@ class CQRSPersistenceBehavior[State, Message, Event](
 
   def handlePassivate(): Unit = {
     log.trace(s"PersistentActor for aggregate ${businessLogic.aggregateName} $aggregateId is passivating gracefully")
-    context.parent ! Passivate(Stop)
+
+    //FIXME: temporary fix to support switch between akka and existing shard allocation strategy
+    if (isAkkaClusterEnabled) {
+      context.parent ! Passivate(Stop)
+    } else {
+      context.parent ! SurgePassivate(Stop)
+    }
   }
 
   def handleStop(): Unit = {

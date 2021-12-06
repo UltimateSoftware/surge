@@ -12,7 +12,7 @@ import scala.compat.java8.OptionConverters._
 import scala.concurrent.{ ExecutionContext, Future }
 
 trait AggregateEventModel[Agg, Evt] extends SurgeProcessingModelCoreTrait[Agg, Nothing, Evt] {
-  def handleEvent(state: Optional[Agg], event: Evt): Optional[Agg]
+  def handleEvent(state: Optional[Agg], events: java.util.List[Evt]): Optional[Agg]
 
   override def toCore: SurgeProcessingModel[Agg, Nothing, Evt] = new SurgeProcessingModel[Agg, Nothing, Evt] {
     override def handle(ctx: SurgeContext[Agg, Evt], state: Option[Agg], msg: Nothing)(implicit ec: ExecutionContext): Future[SurgeContext[Agg, Evt]] = {

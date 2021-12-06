@@ -5,6 +5,7 @@ package surge.javadsl.command
 import akka.actor.ActorSystem
 import com.typesafe.config.Config
 import surge.core
+import surge.core.{ Ack, Controllable }
 import surge.core.command._
 import surge.core.commondsl.SurgeCommandBusinessLogicTrait
 import surge.health.config.WindowingStreamConfigLoader
@@ -24,6 +25,10 @@ trait SurgeCommand[AggId, Agg, Command, Evt] extends core.SurgeProcessingTrait[A
   def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Command, Evt]
   def getMetrics: java.util.List[Metric]
   def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Command, Evt]): Unit
+  def start: CompletionStage[Ack] = FutureConverters.toJava(controllable.start())
+  def stop: CompletionStage[Ack] = FutureConverters.toJava(controllable.stop())
+  def restart: CompletionStage[Ack] = FutureConverters.toJava(controllable.restart())
+  def shutdown: CompletionStage[Ack] = FutureConverters.toJava(controllable.shutdown())
 }
 
 object SurgeCommand {

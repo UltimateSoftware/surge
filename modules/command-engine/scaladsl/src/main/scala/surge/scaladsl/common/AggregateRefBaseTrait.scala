@@ -20,8 +20,8 @@ trait AggregateRefBaseTrait[AggId, Agg, Cmd, Event] extends AggregateRefTrait[Ag
     queryState
   }
 
-  def applyEvent(event: Event): Future[ApplyEventResult[Agg]] = {
-    val envelope = PersistentActor.ApplyEvent[Event](aggregateId.toString, event)
+  def applyEvents(events: Seq[Event]): Future[ApplyEventResult[Agg]] = {
+    val envelope = PersistentActor.ApplyEvents[Event](aggregateId.toString, events)
     applyEvents(envelope).map(aggOpt => ApplyEventSuccess[Agg](aggOpt)).recover { case e =>
       ApplyEventFailure[Agg](e)
     }

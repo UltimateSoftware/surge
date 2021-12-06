@@ -21,7 +21,8 @@ trait AggregateRef[Agg, Cmd, Event] {
 
   def sendCommand(command: Cmd): CompletionStage[CommandResult[Agg]]
 
-  def applyEvent(event: Event): CompletionStage[ApplyEventResult[Agg]]
+  final def applyEvent(event: Event): CompletionStage[ApplyEventResult[Agg]] = applyEvents(List(event))
+  def applyEvents(events: Seq[Event]): CompletionStage[ApplyEventResult[Agg]]
 }
 
 final class AggregateRefImpl[AggId, Agg, Cmd, Event](val aggregateId: AggId, protected val region: ActorRef, protected val tracer: Tracer)

@@ -15,17 +15,20 @@ import surge.internal.akka.actor.{ ActorLifecycleManagerActor, ManagedActorRef }
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.config.TimeoutConfig
 import surge.internal.kafka.KafkaProducerActorImpl.ShutdownProducer
-import surge.internal.kafka.{ KTableLagCheckerImpl, KafkaProducerActorImpl }
-import surge.kafka.{ KafkaAdminClient, KafkaProducerTrait }
+import surge.internal.kafka.{ KTableLagCheckerImpl, KafkaProducerActorImpl, PartitionerHelper }
+import surge.internal.persistence.BusinessLogic
 import surge.kafka.streams._
+import surge.kafka.{ KafkaAdminClient, KafkaProducerTrait }
 import surge.metrics.{ MetricInfo, Metrics, Timer }
 
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.duration.DurationInt
+import scala.concurrent.{ Await, ExecutionContext, Future }
 import scala.util.{ Failure, Success, Try }
 
 object KafkaProducerActor {
   private val dispatcherName: String = "kafka-publisher-actor-dispatcher"
 
+  //scalastyle:off parameter.number
   def apply(
       actorSystem: ActorSystem,
       assignedPartition: TopicPartition,
@@ -52,12 +55,71 @@ object KafkaProducerActor {
         kafkaProducerOverride = kafkaProducerOverride)).withDispatcher(dispatcherName)
 
     new KafkaProducerActor(
-      publisherActor = ActorLifecycleManagerActor
-        .manage(actorSystem, kafkaProducerProps, s"producer-actor-${assignedPartition.toString}", stopMessageAdapter = Some(() => ShutdownProducer)),
+      publisherActor = ActorLifecycleManagerActor.manage(
+        actorSystem = actorSystem,
+        managedActorProps = kafkaProducerProps,
+        componentName = s"producer-actor-${assignedPartition.toString}",
+        stopMessageAdapter = Some(() => ShutdownProducer)),
       metrics,
       businessLogic.aggregateName,
       assignedPartition,
       signalBus)
+  }
+
+  def createFromPartitionNumber(
+      actorSystem: ActorSystem,
+      metrics: Metrics,
+      businessLogic: BusinessLogic,
+      kStreams: AggregateStateStoreKafkaStreams[_],
+      partitionTracker: KafkaConsumerPartitionAssignmentTracker,
+      signalBus: HealthSignalBusTrait,
+      config: Config,
+      kafkaProducerOverride: Option[KafkaProducerTrait[String, Array[Byte]]] = None): Int => KafkaProducerActor = partitionNumber => {
+
+    val assignedPartition = new TopicPartition(businessLogic.kafka.stateTopic.name, partitionNumber)
+
+    val brokers = config.getString("kafka.brokers").split(",").toVector
+    val adminClient = KafkaAdminClient(config, brokers)
+
+    val kafkaProducerProps = Props(
+      new KafkaProducerActorImpl(
+        assignedPartition = assignedPartition,
+        metrics = metrics,
+        businessLogic,
+        lagChecker = new KTableLagCheckerImpl(kStreams.applicationId, adminClient),
+        partitionTracker = partitionTracker,
+        signalBus = signalBus,
+        config = config,
+        kafkaProducerOverride = kafkaProducerOverride)).withDispatcher(dispatcherName)
+
+    new KafkaProducerActor(
+      ActorLifecycleManagerActor.manage(
+        actorSystem = actorSystem,
+        managedActorProps = kafkaProducerProps,
+        componentName = s"producer-actor-${assignedPartition.toString}",
+        actorLifecycleName = Some(s"producer-actor-${assignedPartition.toString}"),
+        stopMessageAdapter = Some(() => ShutdownProducer)),
+      metrics,
+      businessLogic.aggregateName,
+      assignedPartition,
+      signalBus)
+  }
+
+  def createWithActorSelection(
+      actorSystem: ActorSystem,
+      metrics: Metrics,
+      businessLogic: BusinessLogic,
+      signalBus: HealthSignalBusTrait,
+      numberOfPartitions: Int): String => KafkaProducerActor = (aggregateId: String) => {
+
+    val partitionNumber = PartitionerHelper.partitionForKey(aggregateId, numberOfPartitions)
+    val assignedPartition = new TopicPartition(businessLogic.kafka.stateTopic.name, partitionNumber)
+
+    // FIXME This could be an ActorSelection once we drop the old router
+    val timeout = 5.seconds
+    val publisherActor = Await.result(actorSystem.actorSelection(s"user/producer-actor-${assignedPartition.toString}").resolveOne(timeout), timeout)
+
+    new KafkaProducerActor(ManagedActorRef(publisherActor), metrics, businessLogic.aggregateName, assignedPartition, signalBus)
   }
 
   sealed trait PublishResult extends NoSerializationVerificationNeeded
@@ -110,11 +172,9 @@ class KafkaProducerActor(
       state: KafkaProducerActor.MessageToPublish,
       events: Seq[KafkaProducerActor.MessageToPublish]): Future[KafkaProducerActor.PublishResult] = {
     log.trace(s"Publishing state for {} {}", Seq(aggregateName, state.key): _*)
-    implicit val ec: ExecutionContext = ExecutionContext.global
     implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PublisherActor.publishTimeout)
     (publisherActor.ref ? KafkaProducerActorImpl.Publish(eventsToPublish = events, state = state)).mapTo[KafkaProducerActor.PublishResult]
   }
-
   def terminate(): Unit = {
     publisherActor.ref ! PoisonPill
   }
@@ -141,30 +201,11 @@ class KafkaProducerActor(
       }(ExecutionContext.global)
   }
 
-  override def restart(): Future[Ack] = {
-    for {
-      _ <- stop()
-      started <- start()
-    } yield {
-      started
-    }
-  }
-
-  override def start(): Future[Ack] = {
-    publisherActor.start().andThen(registrationCallback())
-  }
-
-  override def stop(): Future[Ack] = {
-    publisherActor.stop()
-  }
-
-  override def shutdown(): Future[Ack] = stop()
-
   private def registrationCallback(): PartialFunction[Try[Ack], Unit] = {
     case Success(_) =>
       signalBus
         .register(
-          control = this,
+          control = controllable,
           componentName = s"kafka-producer-actor-${assignedPartition.topic()}-${assignedPartition.partition()}",
           restartSignalPatterns = restartSignalPatterns())
         .onComplete {
@@ -175,5 +216,27 @@ class KafkaProducerActor(
         }
     case Failure(error) =>
       log.error(s"Unable to register $getClass for supervision", error)
+  }
+
+  private[surge] override val controllable: Controllable = new Controllable {
+
+    override def start(): Future[Ack] = {
+      publisherActor.start().andThen(registrationCallback())
+    }
+
+    override def restart(): Future[Ack] = {
+      for {
+        _ <- stop()
+        started <- start()
+      } yield {
+        started
+      }
+    }
+
+    override def stop(): Future[Ack] = {
+      publisherActor.stop()
+    }
+
+    override def shutdown(): Future[Ack] = stop()
   }
 }

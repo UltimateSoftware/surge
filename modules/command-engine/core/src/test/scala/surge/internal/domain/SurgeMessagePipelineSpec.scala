@@ -28,6 +28,7 @@ import surge.metrics.Metrics
 
 import java.util.regex.Pattern
 import scala.concurrent.duration._
+import scala.util.Try
 
 // FIXME need to be able to stop the router actor for this to work
 @Ignore
@@ -79,12 +80,12 @@ class SurgeMessagePipelineSpec
     // Create SurgeMessagePipeline
     val pipeline = createPipeline(signalStreamProvider)
     // Start Pipeline
-    pipeline.start().futureValue shouldBe an[Ack]
+    pipeline.controllable.start().futureValue shouldBe an[Ack]
 
     try {
       testFun(TestContext(probe, signalStreamProvider, pipeline))
     } finally {
-      pipeline.stop().futureValue shouldBe an[Ack]
+      pipeline.controllable.stop().futureValue shouldBe an[Ack]
     }
   }
 
@@ -101,7 +102,7 @@ class SurgeMessagePipelineSpec
           createCustomTopic(businessLogic.kafka.eventsTopic.name, Map.empty)
           createCustomTopic(businessLogic.kafka.stateTopic.name, Map.empty)
 
-          val stopped = pipeline.stop()
+          val stopped = pipeline.controllable.stop()
 
           val result = stopped.futureValue
 
@@ -117,7 +118,7 @@ class SurgeMessagePipelineSpec
           createCustomTopic(businessLogic.kafka.eventsTopic.name, Map.empty)
           createCustomTopic(businessLogic.kafka.stateTopic.name, Map.empty)
 
-          val restarted = pipeline.restart()
+          val restarted = pipeline.controllable.restart()
 
           val result = restarted.futureValue
           result shouldEqual Ack()
@@ -270,7 +271,7 @@ class SurgeMessagePipelineSpec
             reg
           }
 
-          val acknowledgedStop: Ack = pipeline.stop().futureValue
+          val acknowledgedStop: Ack = pipeline.controllable.stop().futureValue
           acknowledgedStop shouldEqual Ack()
 
           val afterStopRegistrations = eventually {
@@ -324,14 +325,17 @@ class SurgeMessagePipelineSpec
 
       override def actorSystem: ActorSystem = system
 
+      private val isAkkaClusterEnabled = config.getBoolean("surge.feature-flags.experimental.enable-akka-cluster")
       override protected val actorRouter: SurgePartitionRouterImpl =
         new SurgePartitionRouterImpl(
           defaultConfig,
           actorSystem,
           new KafkaConsumerPartitionAssignmentTracker(stateChangeActor),
           businessLogic,
+          kafkaStreamsImpl,
           cqrsRegionCreator,
-          signalStreamProvider.bus())
+          signalStreamProvider.bus(),
+          isAkkaClusterEnabled)
       override protected val kafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue] = new AggregateStateStoreKafkaStreams[JsValue](
         businessLogic.aggregateName,
         businessLogic.kafka.stateTopic,
