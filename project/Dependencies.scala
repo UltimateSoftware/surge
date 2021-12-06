@@ -12,6 +12,7 @@ object Dependencies extends AutoPlugin {
       val managementVersion = "1.1.1"
 
       val kafkaStream = "com.typesafe.akka" %% "akka-stream-kafka" % alpakkaVersion
+      val kafkaStreamTestKit = "com.typesafe.akka" %% "akka-stream-kafka-testkit" % alpakkaVersion % Test
       val kafkaClusterSharding = "com.typesafe.akka" %% "akka-stream-kafka-cluster-sharding" % alpakkaVersion
       val clusterSharding = "com.typesafe.akka" %% "akka-cluster-sharding" % version
       val management = "com.lightbend.akka.management" %% "akka-management" % managementVersion
