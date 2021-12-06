@@ -53,8 +53,11 @@ object KafkaProducerActor {
         kafkaProducerOverride = kafkaProducerOverride)).withDispatcher(dispatcherName)
 
     new KafkaProducerActor(
-      publisherActor = ActorLifecycleManagerActor
-        .manage(actorSystem, kafkaProducerProps, s"producer-actor-${assignedPartition.toString}", stopMessageAdapter = Some(() => ShutdownProducer)),
+      publisherActor = ActorLifecycleManagerActor.manage(
+        actorSystem = actorSystem,
+        managedActorProps = kafkaProducerProps,
+        componentName = s"producer-actor-${assignedPartition.toString}",
+        stopMessageAdapter = Some(() => ShutdownProducer)),
       metrics,
       businessLogic.aggregateName,
       assignedPartition,
@@ -89,9 +92,9 @@ object KafkaProducerActor {
 
     new KafkaProducerActor(
       ActorLifecycleManagerActor.manage(
-        actorSystem,
-        kafkaProducerProps,
-        s"producer-actor-${assignedPartition.toString}",
+        actorSystem = actorSystem,
+        managedActorProps = kafkaProducerProps,
+        componentName = s"producer-actor-${assignedPartition.toString}",
         actorLifecycleName = Some(s"producer-actor-${assignedPartition.toString}"),
         stopMessageAdapter = Some(() => ShutdownProducer)),
       metrics,
@@ -110,7 +113,7 @@ object KafkaProducerActor {
     val partitionNumber = PartitionerHelper.partitionForKey(aggregateId, numberOfPartitions)
     val assignedPartition = new TopicPartition(businessLogic.kafka.stateTopic.name, partitionNumber)
 
-    // FIXME
+    // FIXME This could be an ActorSelection once we drop the old router
     val timeout = 5.seconds
     val publisherActor = Await.result(actorSystem.actorSelection(s"user/producer-actor-${assignedPartition.toString}").resolveOne(timeout), timeout)
 

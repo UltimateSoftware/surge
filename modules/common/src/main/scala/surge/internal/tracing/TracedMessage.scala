@@ -17,7 +17,6 @@ object TracedMessage {
   }
 }
 
-//FIXME: added aggregateId due to the akka clustering, because it needs to extractEntityId.
 final case class TracedMessage[T](
     aggregateId: String,
     @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "messageType", visible = true) message: T,

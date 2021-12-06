@@ -2,7 +2,7 @@
 
 package surge.internal.akka.kafka
 
-import akka.actor.{ Actor, ActorRef, NoSerializationVerificationNeeded, Props }
+import akka.actor.{ Actor, ActorRef, ActorSelection, NoSerializationVerificationNeeded, Props }
 import akka.pattern.ask
 import akka.util.Timeout
 import org.apache.kafka.common.TopicPartition
@@ -25,6 +25,12 @@ class KafkaConsumerPartitionAssignmentTracker(val underlyingActor: ActorRef) ext
 
   override def healthCheck(): Future[HealthCheck] = {
     underlyingActor.ask(HealthyActor.GetHealth)(TimeoutConfig.HealthCheck.actorAskTimeout).mapTo[HealthCheck]
+  }
+}
+
+class KafkaConsumerPartitionAssignmentTrackerWithSelection(val underlyingActor: ActorSelection) {
+  def getPartitionAssignments(implicit timeout: Timeout): Future[PartitionAssignments] = {
+    underlyingActor.ask(KafkaConsumerStateTrackingActor.GetPartitionAssignments).mapTo[PartitionAssignments]
   }
 }
 

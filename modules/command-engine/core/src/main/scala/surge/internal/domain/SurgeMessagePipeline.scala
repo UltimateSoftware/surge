@@ -44,9 +44,9 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
   import SurgeMessagePipeline._
   import system.dispatcher
   protected implicit val system: ActorSystem = actorSystem
-  protected val stateChangeActor: ActorRef = system.actorOf(KafkaConsumerStateTrackingActor.props)
+  protected val stateChangeActor: ActorRef = system.actorOf(KafkaConsumerStateTrackingActor.props, "state-change-actor")
 
-  private val isAkkaClusterEnabled: Boolean = config.getBoolean("surge.akka.cluster.enabled")
+  private val isAkkaClusterEnabled: Boolean = config.getBoolean("surge.feature-flags.experimental.enable-akka-cluster")
 
   private val partitionTracker: KafkaConsumerPartitionAssignmentTracker = new KafkaConsumerPartitionAssignmentTracker(stateChangeActor)
 
@@ -135,7 +135,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
         allStarted <- startKafkaClusterRebalanceListener()
       } yield allStarted
     } else {
-      Future.successful(())
+      Future.unit
     }
   }
 

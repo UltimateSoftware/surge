@@ -154,7 +154,7 @@ class PersistentActor[S, M, R, E](
 
   private val metrics = regionSharedResources.metrics
 
-  private val isAkkaClusterEnabled: Boolean = config.getBoolean("surge.akka.cluster.enabled")
+  private val isAkkaClusterEnabled: Boolean = config.getBoolean("surge.feature-flags.experimental.enable-akka-cluster")
 
   private sealed trait Internal extends NoSerializationVerificationNeeded
 

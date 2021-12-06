@@ -72,8 +72,6 @@ lazy val `surge-engine-command-core` = (project in file("modules/command-engine/
     Akka.managementClusterHttp,
     Akka.managementClusterBootstrap,
     Akka.discovery,
-    Akka.discoveryKubernetesApi,
-    Akka.http,
     mockitoCore,
     scalatest,
     scalatestPlusMockito,

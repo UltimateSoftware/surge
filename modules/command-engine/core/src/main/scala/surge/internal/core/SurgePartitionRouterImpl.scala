@@ -73,7 +73,6 @@ private[surge] final class SurgePartitionRouterImpl(
       .withBootstrapServers(config.getString("kafka.brokers"))
       .withGroupId(groupId)
       .withProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
-      .withStopTimeout(0.seconds)
 
     val regionF = KafkaClusterSharding(system)
       .messageExtractorNoEnvelope(
@@ -102,7 +101,7 @@ private[surge] final class SurgePartitionRouterImpl(
           allocationStrategy = new ExternalShardAllocationStrategy(system, groupId),
           handOffStopMessage = PoisonPill)
       })
-    // FIXME
+    // FIXME This could be fixed once we drop existing router
     Await.result(regionF, 5.seconds)
   }
 

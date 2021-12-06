@@ -27,6 +27,11 @@ trait ActorSystemHostAwareness {
     localAddress.hasLocalScope || hostPortsMatch
   }
 
+  protected def isAddressThisNode(address: Address): Boolean = {
+    val hostPortsMatch = address.host.contains(localHostname) && address.port.contains(localPort)
+    localAddress.hasLocalScope || hostPortsMatch
+  }
+
   protected def isHostInfoThisNode(hostInfo: HostInfo): Boolean = {
     val hostPort = HostPort(hostInfo.host(), hostInfo.port())
     isHostPortThisNode(hostPort)
