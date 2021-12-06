@@ -12,7 +12,7 @@ import surge.internal.core.SurgePartitionRouterImpl
 import surge.kafka.PersistentActorRegionCreator
 import surge.kafka.streams._
 
-trait SurgePartitionRouter extends HealthyComponent with Controllable {
+trait SurgePartitionRouter extends HealthyComponent {
   def actorRegion: ActorRef
 }
 

@@ -7,7 +7,7 @@ import com.typesafe.config.Config
 import org.apache.kafka.common.TopicPartition
 import play.api.libs.json.JsValue
 import surge.akka.cluster.{ EntityPropsProvider, PerShardLogicProvider }
-import surge.core.{ Ack, KafkaProducerActor }
+import surge.core.{ Ack, Controllable, KafkaProducerActor }
 import surge.health.HealthSignalBusTrait
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.persistence
@@ -76,29 +76,11 @@ class PersistentActorRegion[M](
     actorId: String => PersistentActor.props(businessLogic, signalBus, sharedResources, config, Some(actorId))
   }
 
-  override def restart(): Future[Ack] = {
-    implicit val executionContext: ExecutionContext = system.dispatcher
-    for {
-      _ <- stop()
-      started <- start()
-    } yield {
-      started
-    }
-  }
-
-  override def start(): Future[Ack] = kafkaProducerActor.start().andThen(registrationCallback())(ExecutionContext.global)
-
-  override def stop(): Future[Ack] = {
-    kafkaProducerActor.stop()
-  }
-
-  override def shutdown(): Future[Ack] = stop()
-
   private def registrationCallback(): PartialFunction[Try[Ack], Unit] = {
     case Success(_) =>
       val registrationResult =
         signalBus.register(
-          control = this,
+          control = this.controllable,
           componentName = s"persistent-actor-region-${assignedPartition.topic()}-${assignedPartition.partition()}",
           restartSignalPatterns = restartSignalPatterns())
 
@@ -110,5 +92,25 @@ class PersistentActorRegion[M](
       }(ExecutionContext.global)
     case Failure(error) =>
       log.error(s"Unable to register ${this.getClass} for supervision", error)
+  }
+
+  private[surge] override val controllable: Controllable = new Controllable {
+    override def start(): Future[Ack] = kafkaProducerActor.controllable.start().andThen(registrationCallback())(ExecutionContext.global)
+
+    override def restart(): Future[Ack] = {
+      implicit val executionContext: ExecutionContext = system.dispatcher
+      for {
+        _ <- stop()
+        started <- start()
+      } yield {
+        started
+      }
+    }
+
+    override def stop(): Future[Ack] = {
+      kafkaProducerActor.controllable.stop()
+    }
+
+    override def shutdown(): Future[Ack] = stop()
   }
 }

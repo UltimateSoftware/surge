@@ -7,7 +7,7 @@ import akka.pattern.{ ask, BackoffOpts, BackoffSupervisor }
 import akka.util.Timeout
 import com.typesafe.config.{ Config, ConfigFactory }
 import org.apache.kafka.streams.Topology
-import surge.core.Ack
+import surge.core.{ Ack, Controllable }
 import surge.health.HealthSignalBusTrait
 import surge.internal.akka.actor.ActorLifecycleManagerActor
 import surge.internal.config.{ BackoffConfig, TimeoutConfig }
@@ -82,29 +82,6 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
    * Used to actually start the Kafka Streams process. Optionally cleans up persistent state directories left behind by previous runs if
    * `kafka.streams.wipe-state-on-start` config setting is set to true.
    */
-  override def start(): Future[Ack] = {
-    implicit val ec: ExecutionContext = system.dispatcher
-    underlyingActor.ask(ActorLifecycleManagerActor.Start).mapTo[Ack].andThen(registrationCallback())
-  }
-
-  override def shutdown(): Future[Ack] = {
-    stop()
-  }
-
-  override def stop(): Future[Ack] = {
-    implicit val ec: ExecutionContext = system.dispatcher
-    underlyingActor.ask(ActorLifecycleManagerActor.Stop).mapTo[Ack].andThen(unregistrationCallback())
-  }
-
-  override def restart(): Future[Ack] = {
-    implicit val executionContext: ExecutionContext = system.dispatcher
-    for {
-      _ <- stop()
-      started <- start()
-    } yield {
-      started
-    }
-  }
 
   def getAggregateBytes(aggregateId: String): Future[Option[Array[Byte]]] = {
     underlyingActor.ask(GetAggregateBytes(aggregateId)).mapTo[Option[Array[Byte]]]
@@ -160,7 +137,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
   private def registrationCallback(): PartialFunction[Try[Ack], Unit] = {
     case Success(_) =>
       val registrationResult = signalBus.register(
-        control = this,
+        control = controllable,
         componentName = "state-store-kafka-streams",
         shutdownSignalPatterns = shutdownSignalPatterns(),
         restartSignalPatterns = restartSignalPatterns())
@@ -176,7 +153,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
   }
   private def unregistrationCallback(): PartialFunction[Try[Ack], Unit] = {
     case Success(_) =>
-      val unRegistrationResult = signalBus.unregister(control = this, componentName = "state-store-kafka-streams")
+      val unRegistrationResult = signalBus.unregister(control = controllable, componentName = "state-store-kafka-streams")
 
       unRegistrationResult.onComplete {
         case Failure(exception) =>
@@ -186,5 +163,29 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
       }(system.dispatcher)
     case Failure(exception) =>
       log.error("Failed to stop so unable to unregister from supervision", exception)
+  }
+
+  override val controllable: Controllable = new Controllable {
+    override def start(): Future[Ack] = {
+      implicit val ec: ExecutionContext = system.dispatcher
+      underlyingActor.ask(ActorLifecycleManagerActor.Start).mapTo[Ack].andThen(registrationCallback())
+    }
+
+    override def restart(): Future[Ack] = {
+      implicit val executionContext: ExecutionContext = system.dispatcher
+      for {
+        _ <- stop()
+        started <- start()
+      } yield {
+        started
+      }
+    }
+
+    override def stop(): Future[Ack] = {
+      implicit val ec: ExecutionContext = system.dispatcher
+      underlyingActor.ask(ActorLifecycleManagerActor.Stop).mapTo[Ack].andThen(unregistrationCallback())
+    }
+
+    override def shutdown(): Future[Ack] = stop()
   }
 }

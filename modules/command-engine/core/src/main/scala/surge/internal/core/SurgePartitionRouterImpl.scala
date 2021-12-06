@@ -40,8 +40,7 @@ private[surge] final class SurgePartitionRouterImpl(
     signalBus: HealthSignalBusTrait,
     isAkkaClusterEnabled: Boolean)
     extends SurgePartitionRouter
-    with HealthyComponent
-    with Controllable {
+    with HealthyComponent {
   implicit val executionContext: ExecutionContext = system.dispatcher
   private val log = LoggerFactory.getLogger(getClass)
 
@@ -116,32 +115,7 @@ private[surge] final class SurgePartitionRouterImpl(
     Await.result(regionF, 5.seconds)
   }
 
-  override def start(): Future[Ack] = {
-    // TODO explicit start/stop for router actor
-    //implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PartitionRouter.askTimeout)
-    //actorRegion.ask(ActorLifecycleManagerActor.Start).mapTo[Ack].andThen(registrationCallback())
-    Future.successful(Ack())
-  }
-
-  override def stop(): Future[Ack] = {
-    // TODO explicit start/stop for router actor
-    //implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PartitionRouter.askTimeout)
-    //actorRegion.ask(ActorLifecycleManagerActor.Stop).mapTo[Ack]
-    Future.successful(Ack())
-  }
-
-  override def shutdown(): Future[Ack] = stop()
-
   override def restartSignalPatterns(): Seq[Pattern] = Seq(Pattern.compile("kafka.fatal.error"))
-
-  override def restart(): Future[Ack] = {
-    for {
-      _ <- stop()
-      started <- start()
-    } yield {
-      started
-    }
-  }
 
   override def healthCheck(): Future[HealthCheck] = {
     actorRegion
@@ -153,18 +127,30 @@ private[surge] final class SurgePartitionRouterImpl(
       }
   }
 
-//  private def registrationCallback(): PartialFunction[Try[Ack], Unit] = {
-//    case Success(_) =>
-//      val registrationResult = signalBus.register(control = this, componentName = "router-actor", restartSignalPatterns())
-//
-//      registrationResult.onComplete {
-//        case Failure(exception) =>
-//          log.error(s"$getClass registration failed", exception)
-//        case Success(_) =>
-//          log.debug(s"$getClass registration succeeded")
-//      }
-//    case Failure(error) =>
-//      log.error(s"Unable to register $getClass for supervision", error)
-//  }
+  private[surge] override val controllable: Controllable = new Controllable {
+    override def start(): Future[Ack] = {
+      // TODO explicit start/stop for router actor
+      //implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PartitionRouter.askTimeout)
+      //actorRegion.ask(ActorLifecycleManagerActor.Start).mapTo[Ack].andThen(registrationCallback())
+      Future.successful(Ack())
+    }
 
+    override def restart(): Future[Ack] = {
+      for {
+        _ <- stop()
+        started <- start()
+      } yield {
+        started
+      }
+    }
+
+    override def stop(): Future[Ack] = {
+      // TODO explicit start/stop for router actor
+      //implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PartitionRouter.askTimeout)
+      //actorRegion.ask(ActorLifecycleManagerActor.Stop).mapTo[Ack]
+      Future.successful(Ack())
+    }
+
+    override def shutdown(): Future[Ack] = stop()
+  }
 }

@@ -4,7 +4,7 @@ package surge.internal.persistence
 
 import akka.actor.{ ActorRef, ActorSystem, NoSerializationVerificationNeeded, Props, ReceiveTimeout }
 import akka.pattern._
-import akka.serialization.Serializers
+import akka.serialization.{ SerializationExtension, Serializers }
 import akka.testkit.{ TestKit, TestProbe }
 import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
@@ -25,7 +25,7 @@ import surge.health.HealthSignalBusTrait
 import surge.internal.kafka.HeadersHelper
 import surge.internal.persistence.PersistentActor.{ ACKError, ApplyEvent, Stop }
 import surge.internal.tracing.RoutableMessage
-import surge.kafka.streams.AggregateStateStoreKafkaStreams
+import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, ExpectedTestException }
 import surge.metrics.Metrics
 
 import java.util.UUID
@@ -83,8 +83,8 @@ class PersistentActorSpec
     PersistentActor.ProcessMessage(cmd.aggregateId, cmd)
   }
 
-  private def eventEnvelope(event: BaseTestEvent): PersistentActor.ApplyEvent[BaseTestEvent] = {
-    PersistentActor.ApplyEvent[BaseTestEvent](event.aggregateId, event)
+  private def eventEnvelope(event: BaseTestEvent): PersistentActor.ApplyEvents[BaseTestEvent] = {
+    PersistentActor.ApplyEvents[BaseTestEvent](event.aggregateId, List(event))
   }
 
   private def mockKafkaStreams(state: State): AggregateStateStoreKafkaStreams[JsValue] = {
@@ -239,8 +239,8 @@ class PersistentActorSpec
         val testContext = TestContext.setupDefault(mockProducer = probeBackedMockProducer(producerProbe))
         import testContext._
 
-        val testEnvelope: ApplyEvent[CountIncremented] =
-          ApplyEvent[CountIncremented](testAggregateId, CountIncremented(testAggregateId, 0, 3))
+        val testEnvelope: ApplyEvents[CountIncremented] =
+          ApplyEvents[CountIncremented](testAggregateId, List(CountIncremented(testAggregateId, 0, 3)))
 
         probe.send(actor, testEnvelope)
         probe.expectMsg(PersistentActor.ACKSuccess(Some(baseState)))
@@ -375,7 +375,7 @@ class PersistentActorSpec
         val probe2 = TestProbe()
         val actor2 = testActor(testAggregateId, mockProducer, mockStreams)
         terminationWatcherProbe.watch(actor2)
-        val applyEvent = PersistentActor.ApplyEvent(testAggregateId, CountIncremented(testAggregateId, 1, 1))
+        val applyEvent = PersistentActor.ApplyEvents(testAggregateId, List(CountIncremented(testAggregateId, 1, 1)))
         probe2.send(actor2, applyEvent)
         val cmdError2 = probe2.expectMsgType[ACKError](20.seconds)
         cmdError2.exception shouldBe a[AggregateInitializationException]
@@ -412,7 +412,7 @@ class PersistentActorSpec
       // Fuzzy matching because serializing and deserializing gets a different object and messes up .equals even though the two are identical
       eventError.exception.getMessage shouldEqual "failed"
 
-      val applyEvent = PersistentActor.ApplyEvent(testAggregateId, ExceptionThrowingEvent(testAggregateId, 1, errorMsg = "failed"))
+      val applyEvent = PersistentActor.ApplyEvents(testAggregateId, List(ExceptionThrowingEvent(testAggregateId, 1, errorMsg = "failed")))
       probe.send(actor, applyEvent)
       val applyEventError = probe.expectMsgClass(classOf[PersistentActor.ACKError])
       // Fuzzy matching because serializing and deserializing gets a different object and messes up .equals even though the two are identical
@@ -474,6 +474,8 @@ class PersistentActorSpec
       probe.expectMsg(PersistentActor.ACKSuccess(Some(baseState)))
     }
 
+    /** TODO add tests for applying multiple events in one applyEvents call */
+
     "Handle ApplyEvent requests" in {
       val testContext = TestContext.setupDefault
       import testContext._
@@ -484,8 +486,8 @@ class PersistentActorSpec
       val event2 = CountIncremented(expectedState1.get.aggregateId, 1, expectedState1.get.version + 1)
       val expectedState2: Option[State] = BusinessLogic.handleEvent(expectedState1, event2)
 
-      probe.send(actor, PersistentActor.ApplyEvent(testAggregateId, event1))
-      probe.send(actor, PersistentActor.ApplyEvent(testAggregateId, event2))
+      probe.send(actor, PersistentActor.ApplyEvents(testAggregateId, List(event1)))
+      probe.send(actor, PersistentActor.ApplyEvents(testAggregateId, List(event2)))
 
       probe.expectMsg(PersistentActor.ACKSuccess(expectedState1))
       probe.expectMsg(PersistentActor.ACKSuccess(expectedState2))
@@ -509,7 +511,7 @@ class PersistentActorSpec
       val incrementCmd = Increment(baseState.aggregateId)
       val testEnvelope = envelope(incrementCmd)
       probe.send(actor, testEnvelope)
-      probe.expectMsg(ACKError(KafkaPublishTimeoutException(testAggregateId, expectedException)))
+      probe.expectMsgClass(classOf[ACKError])
       probe.expectTerminated(actor)
     }
 
@@ -528,7 +530,7 @@ class PersistentActorSpec
       val incrementCmd = Increment(baseState.aggregateId)
       val testEnvelope = envelope(incrementCmd)
       probe.send(actor, testEnvelope)
-      probe.expectMsg(ACKError(expectedException))
+      probe.expectMsgClass(classOf[ACKError])
       probe.expectTerminated(actor)
     }
 
@@ -559,8 +561,8 @@ class PersistentActorSpec
       val getState1 = PersistentActor.GetState(aggregateId = "foobarbaz")
       val getState2 = PersistentActor.GetState(aggregateId = randomUUID)
 
-      val command3 = PersistentActor.ApplyEvent(aggregateId = "testAggregateId", event = "unused")
-      val command4 = PersistentActor.ApplyEvent(aggregateId = randomUUID, event = "unused")
+      val command3 = PersistentActor.ApplyEvents(aggregateId = "testAggregateId", events = List("unused"))
+      val command4 = PersistentActor.ApplyEvents(aggregateId = randomUUID, events = List("unused"))
 
       RoutableMessage.extractEntityId(command1) shouldEqual command1.aggregateId
       RoutableMessage.extractEntityId(command2) shouldEqual command2.aggregateId
@@ -583,16 +585,21 @@ class PersistentActorSpec
       probe.expectTerminated(actor)
     }
 
-    "Serialize/Deserialize a CommandEnvelope from Akka" in {
-      import akka.serialization.SerializationExtension
-      def doSerde[A](envelope: PersistentActor.ProcessMessage[A]): Unit = {
-        val serialization = SerializationExtension.get(system)
-        val serializer = serialization.findSerializerFor(envelope)
-        val serialized = serialization.serialize(envelope).get
-        val manifest = Serializers.manifestFor(serializer, envelope)
-        val deserialized = serialization.deserialize(serialized, serializer.identifier, manifest).get
+    // Sometimes we need to compare toString values of AnyRef, e.g. for exceptions
+    def doSerde(envelope: AnyRef, shouldCompareStringResults: Boolean = false): Unit = {
+      val serialization = SerializationExtension.get(system)
+      val serializer = serialization.findSerializerFor(envelope)
+      val serialized = serialization.serialize(envelope).get
+      val manifest = Serializers.manifestFor(serializer, envelope)
+      val deserialized = serialization.deserialize(serialized, serializer.identifier, manifest).get
+      if (shouldCompareStringResults) {
+        deserialized.toString shouldEqual envelope.toString
+      } else {
         deserialized shouldEqual envelope
       }
+    }
+
+    "Serialize/Deserialize a CommandEnvelope from Akka" in {
       doSerde(PersistentActor.ProcessMessage[String]("hello", "test2"))
       doSerde(envelope(Increment(UUID.randomUUID().toString)))
     }
@@ -600,7 +607,7 @@ class PersistentActorSpec
     "Serialize/Deserialize an ApplyEvent from Akka" in {
       import akka.serialization.SerializationExtension
 
-      def doSerde[A](envelope: ApplyEvent[A]): Unit = {
+      def doSerde[A](envelope: ApplyEvents[A]): Unit = {
         val serialization = SerializationExtension.get(system)
         val serializer = serialization.findSerializerFor(envelope)
         val serialized = serialization.serialize(envelope).get
@@ -609,8 +616,33 @@ class PersistentActorSpec
         deserialized shouldEqual envelope
       }
 
-      doSerde(PersistentActor.ApplyEvent[String](UUID.randomUUID().toString, "test2"))
+      doSerde(PersistentActor.ApplyEvents[String](UUID.randomUUID().toString, List("test2")))
       doSerde(eventEnvelope(CountIncremented(UUID.randomUUID().toString, 1, 1)))
+    }
+
+    "Serialize/Deserialize response types from Akka" in {
+      doSerde(PersistentActor.StateResponse[String](Some("test state")))
+      doSerde(PersistentActor.StateResponse[String](None))
+      doSerde(PersistentActor.StateResponse[State](Some(State(UUID.randomUUID().toString, 100, 3))))
+      doSerde(PersistentActor.StateResponse[State](None))
+
+      doSerde(PersistentActor.ACKSuccess[String](Some("success!")))
+      doSerde(PersistentActor.ACKSuccess[String](None))
+      doSerde(PersistentActor.ACKSuccess[State](Some(State(UUID.randomUUID().toString, 10, 3))))
+      doSerde(PersistentActor.ACKSuccess[State](None))
+
+      doSerde(PersistentActor.ACKError(new ExpectedTestException), shouldCompareStringResults = true)
+      doSerde(PersistentActor.ACKError(new Throwable(new RuntimeException)), shouldCompareStringResults = true)
+
+      def exceptionAsThrowable(cause: Throwable): Throwable = cause
+      doSerde(PersistentActor.ACKError(exceptionAsThrowable(new ExpectedTestException)), shouldCompareStringResults = true)
+      doSerde(
+        PersistentActor.ACKError(exceptionAsThrowable(KafkaPublishTimeoutException("some-aggregate-id", new Throwable("error")))),
+        shouldCompareStringResults = true)
+
+      doSerde(
+        PersistentActor.ACKError(exceptionAsThrowable(AggregateInitializationException("some-aggregate-id", new Throwable("error")))),
+        shouldCompareStringResults = true)
     }
   }
 }

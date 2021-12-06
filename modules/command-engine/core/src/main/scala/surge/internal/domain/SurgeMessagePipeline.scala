@@ -9,7 +9,7 @@ import akka.management.scaladsl.AkkaManagement
 import com.typesafe.config.Config
 import org.slf4j.{ Logger, LoggerFactory }
 import play.api.libs.json.JsValue
-import surge.core.{ Ack, KafkaProducerActor, SurgePartitionRouter, SurgeProcessingTrait }
+import surge.core.{ Ack, Controllable, KafkaProducerActor, SurgePartitionRouter, SurgeProcessingTrait }
 import surge.health.{ HealthSignalBusAware, HealthSignalBusTrait }
 import surge.internal.SurgeModel
 import surge.internal.akka.cluster.ActorSystemHostAwareness
@@ -83,49 +83,6 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     system.actorOf(CustomConsumerGroupRebalanceListener.props(stateChangeActor, callback))
   }
 
-  override def start(): Future[Ack] = {
-    val result = for {
-      _ <- startSignalStream()
-      _ <- startClusterManagementAndRebalanceListener()
-      _ <- actorRouter.start()
-      allStarted <- kafkaStreamsImpl.start()
-    } yield {
-      surgeEngineStatus = SurgeEngineStatus.Running
-      log.info(s"surge engine status: $surgeEngineStatus")
-      allStarted
-    }
-
-    result.andThen(registrationCallback())
-    result
-  }
-
-  override def restart(): Future[Ack] = {
-    val result = for {
-      _ <- stop()
-      started <- start()
-    } yield {
-      started
-    }
-
-    result
-  }
-
-  override def stop(): Future[Ack] = {
-    val result = for {
-      _ <- stopSignalStream()
-      _ <- actorRouter.stop()
-      allStopped <- kafkaStreamsImpl.stop()
-    } yield {
-      surgeEngineStatus = SurgeEngineStatus.Stopped
-      log.info(s"surge engine status: $surgeEngineStatus")
-      allStopped
-    }
-
-    result.andThen(unRegistrationCallback())
-  }
-
-  override def shutdown(): Future[Ack] = stop()
-
   private def startClusterManagementAndRebalanceListener(): Future[Unit] = {
     if (isAkkaClusterEnabled) {
       Cluster.get(system)
@@ -188,7 +145,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
   private def registerWithSupervisor(): Unit = {
     signalBus
       .register(
-        control = this,
+        control = this.controllable,
         componentName = "surge-message-pipeline",
         restartSignalPatterns = restartSignalPatterns(),
         shutdownSignalPatterns = shutdownSignalPatterns())
@@ -205,12 +162,57 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
    */
   private def unregisterWithSupervisor(): Unit = {
     signalBus
-      .unregister(control = this, componentName = "surge-message-pipeline")
+      .unregister(control = this.controllable, componentName = "surge-message-pipeline")
       .onComplete {
         case Failure(exception) =>
           log.error(s"$getClass registration failed", exception)
         case Success(_) =>
           log.debug(s"$getClass registration succeeded")
       }(system.dispatcher)
+  }
+
+  private[surge] override val controllable: Controllable = new Controllable {
+    override def start(): Future[Ack] = {
+      val result = for {
+        _ <- startSignalStream()
+        _ <- startClusterManagementAndRebalanceListener()
+        _ <- actorRouter.start()
+        allStarted <- kafkaStreamsImpl.start()
+      } yield {
+        surgeEngineStatus = SurgeEngineStatus.Running
+        log.info(s"surge engine status: $surgeEngineStatus")
+        allStarted
+      }
+
+      result.andThen(registrationCallback())
+      result
+    }
+
+    override def restart(): Future[Ack] = {
+      val result = for {
+        _ <- stop()
+        started <- start()
+      } yield {
+        started
+      }
+
+      result
+    }
+
+    override def stop(): Future[Ack] = {
+      val result = for {
+        _ <- stopSignalStream()
+        _ <- actorRouter.stop()
+        allStopped <- kafkaStreamsImpl.stop()
+      } yield {
+        surgeEngineStatus = SurgeEngineStatus.Stopped
+        log.info(s"surge engine status: $surgeEngineStatus")
+        allStopped
+      }
+
+      result.andThen(unRegistrationCallback())
+    }
+
+    override def shutdown(): Future[Ack] = stop()
   }
 }

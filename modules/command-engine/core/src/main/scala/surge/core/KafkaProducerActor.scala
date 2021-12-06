@@ -27,6 +27,7 @@ import scala.util.{ Failure, Success, Try }
 object KafkaProducerActor {
   private val dispatcherName: String = "kafka-publisher-actor-dispatcher"
 
+  //scalastyle:off parameter.number
   def apply(
       actorSystem: ActorSystem,
       assignedPartition: TopicPartition,
@@ -174,7 +175,6 @@ class KafkaProducerActor(
     implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PublisherActor.publishTimeout)
     (publisherActor.ref ? KafkaProducerActorImpl.Publish(eventsToPublish = events, state = state)).mapTo[KafkaProducerActor.PublishResult]
   }
-
   def terminate(): Unit = {
     publisherActor.ref ! PoisonPill
   }
@@ -201,30 +201,11 @@ class KafkaProducerActor(
       }(ExecutionContext.global)
   }
 
-  override def restart(): Future[Ack] = {
-    for {
-      _ <- stop()
-      started <- start()
-    } yield {
-      started
-    }
-  }
-
-  override def start(): Future[Ack] = {
-    publisherActor.start().andThen(registrationCallback())
-  }
-
-  override def stop(): Future[Ack] = {
-    publisherActor.stop()
-  }
-
-  override def shutdown(): Future[Ack] = stop()
-
   private def registrationCallback(): PartialFunction[Try[Ack], Unit] = {
     case Success(_) =>
       signalBus
         .register(
-          control = this,
+          control = controllable,
           componentName = s"kafka-producer-actor-${assignedPartition.topic()}-${assignedPartition.partition()}",
           restartSignalPatterns = restartSignalPatterns())
         .onComplete {
@@ -235,5 +216,27 @@ class KafkaProducerActor(
         }
     case Failure(error) =>
       log.error(s"Unable to register $getClass for supervision", error)
+  }
+
+  private[surge] override val controllable: Controllable = new Controllable {
+
+    override def start(): Future[Ack] = {
+      publisherActor.start().andThen(registrationCallback())
+    }
+
+    override def restart(): Future[Ack] = {
+      for {
+        _ <- stop()
+        started <- start()
+      } yield {
+        started
+      }
+    }
+
+    override def stop(): Future[Ack] = {
+      publisherActor.stop()
+    }
+
+    override def shutdown(): Future[Ack] = stop()
   }
 }

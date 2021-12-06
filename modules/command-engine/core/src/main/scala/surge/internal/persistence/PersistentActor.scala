@@ -25,7 +25,7 @@ import surge.akka.cluster.{ Passivate => SurgePassivate }
 
 import java.time.Instant
 import java.util.concurrent.Executors
-import scala.concurrent.duration.{ Duration, DurationInt, FiniteDuration }
+import scala.concurrent.duration.{ Duration, FiniteDuration }
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.Try
 
@@ -42,9 +42,9 @@ object PersistentActor {
 
   case class GetState(aggregateId: String) extends RoutableActorMessage
 
-  case class ApplyEvent[E](
+  case class ApplyEvents[E](
       aggregateId: String,
-      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "eventType", visible = true) event: E)
+      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "eventType", visible = true) events: Seq[E])
       extends RoutableActorMessage
 
   case class StateResponse[S](
@@ -57,7 +57,9 @@ object PersistentActor {
       @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "aggregateType", visible = true) aggregateState: Option[S])
       extends ACK
 
-  case class ACKError(exception: Throwable) extends ACK with NoSerializationVerificationNeeded
+  case class ACKError(
+      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "exceptionType", visible = true) exception: Throwable)
+      extends ACK
 
   case class ACKRejection[R](
       @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "rejectionType", visible = true) rejection: R)
@@ -132,10 +134,10 @@ object PersistentActor {
   }
 
   val serializationThreadPoolSize: Int = ConfigFactory.load().getInt("surge.serialization.thread-pool-size")
-  val serializationExecutionContext: ExecutionContext = new DiagnosticContextFuturePropagation(
-    ExecutionContext.fromExecutor(Executors.newFixedThreadPool(serializationThreadPoolSize)))
-
+  val serializationExecutionContext: ExecutionContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(serializationThreadPoolSize))
 }
+
+// scalastyle:off number.of.methods
 class PersistentActor[S, M, R, E](
     val businessLogic: SurgeModel[S, M, R, E],
     val regionSharedResources: PersistentEntitySharedResources,
@@ -221,9 +223,9 @@ class PersistentActor[S, M, R, E](
   private def freeToProcess(state: InternalActorState): Receive = {
     case pm: ProcessMessage[M] =>
       handle(state, pm)
-    case ae: ApplyEvent[E] =>
-      val evt: E = ae.event
-      val result: Future[HandleEventResult] = callEventHandler(state, evt)
+    case ae: ApplyEvents[E] =>
+      val evts: Seq[E] = ae.events
+      val result: Future[HandleEventResult] = callEventHandler(state, evts)
       pipe(result).to(self, sender())
       context.become(waitForHandleEventResult(state))
     case GetState(_)    => sender() ! StateResponse(state.stateOpt)
@@ -277,8 +279,8 @@ class PersistentActor[S, M, R, E](
     metrics.messageHandlingTimer.timeFuture { businessLogic.model.handle(surgeContext(), state.stateOpt, ProcessMessage.message) }
   }
 
-  private def callEventHandler(state: InternalActorState, evt: E): Future[HandleEventResult] = {
-    metrics.eventHandlingTimer.time(businessLogic.model.applyAsync(surgeContext(), state.stateOpt, evt)).map { maybeS: Option[S] =>
+  private def callEventHandler(state: InternalActorState, evts: Seq[E]): Future[HandleEventResult] = {
+    metrics.eventHandlingTimer.time(businessLogic.model.applyAsync(surgeContext(), state.stateOpt, evts)).map { maybeS: Option[S] =>
       HandleEventResult(result = maybeS)
     }
   }
@@ -357,7 +359,7 @@ class PersistentActor[S, M, R, E](
 
   private def initializationFailed(error: ACKError): Receive = {
     case _: ProcessMessage[M] => sender() ! error
-    case _: ApplyEvent[E]     => sender() ! error
+    case _: ApplyEvents[E]    => sender() ! error
     case Stop                 => handleStop()
   }
 

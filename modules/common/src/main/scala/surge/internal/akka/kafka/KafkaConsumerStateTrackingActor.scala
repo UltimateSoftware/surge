@@ -7,14 +7,14 @@ import akka.pattern.ask
 import akka.util.Timeout
 import org.apache.kafka.common.TopicPartition
 import org.slf4j.LoggerFactory
-import surge.core.ControllableAdapter
+import surge.core.{ Controllable, ControllableAdapter }
 import surge.internal.config.TimeoutConfig
 import surge.kafka.streams.{ HealthCheck, HealthCheckStatus, HealthyActor, HealthyComponent }
 import surge.kafka.{ HostPort, PartitionAssignments }
 
 import scala.concurrent.Future
 
-class KafkaConsumerPartitionAssignmentTracker(val underlyingActor: ActorRef) extends ControllableAdapter with HealthyComponent {
+class KafkaConsumerPartitionAssignmentTracker(val underlyingActor: ActorRef) extends HealthyComponent {
   def register(implicit actorRef: ActorRef): Unit = {
     underlyingActor ! KafkaConsumerStateTrackingActor.Register(actorRef)
   }
@@ -26,6 +26,8 @@ class KafkaConsumerPartitionAssignmentTracker(val underlyingActor: ActorRef) ext
   override def healthCheck(): Future[HealthCheck] = {
     underlyingActor.ask(HealthyActor.GetHealth)(TimeoutConfig.HealthCheck.actorAskTimeout).mapTo[HealthCheck]
   }
+
+  override val controllable: Controllable = new ControllableAdapter()
 }
 
 class KafkaConsumerPartitionAssignmentTrackerWithSelection(val underlyingActor: ActorSelection) {

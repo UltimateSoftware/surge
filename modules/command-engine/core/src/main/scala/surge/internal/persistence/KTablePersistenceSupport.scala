@@ -73,6 +73,7 @@ trait KTablePersistenceSupport[Agg, Event] {
           case KafkaProducerActor.PublishFailure(t) => PersistenceFailure(state, t, currentFailureCount + 1, serializedEvents, serializedState, startTime)
         }
         .recover { case t =>
+          log.error("Failed to publish messages", t)
           EventPublishTimedOut(t, startTime)
         }
     }

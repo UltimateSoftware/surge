@@ -48,7 +48,7 @@ class SurgeHealthCheck(healthCheckId: String, components: HealthyComponent*)(imp
   }
 }
 
-trait HealthyComponent extends Controllable {
+trait HealthyComponent {
 
   /**
    * Perform a Health Check
@@ -70,6 +70,8 @@ trait HealthyComponent extends Controllable {
    *   Seq[Pattern]
    */
   def shutdownSignalPatterns(): Seq[Pattern] = Seq.empty
+
+  private[surge] def controllable: Controllable
 }
 
 case class HealthCheck(
