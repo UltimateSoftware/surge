@@ -23,7 +23,7 @@ import surge.core.{ KafkaProducerActor, TestBoundedContext }
 import surge.exceptions.{ AggregateInitializationException, KafkaPublishTimeoutException }
 import surge.health.HealthSignalBusTrait
 import surge.internal.kafka.HeadersHelper
-import surge.internal.persistence.PersistentActor.{ ACKError, ApplyEvent, Stop }
+import surge.internal.persistence.PersistentActor.{ ACKError, ApplyEvents, Stop }
 import surge.internal.tracing.RoutableMessage
 import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, ExpectedTestException }
 import surge.metrics.Metrics

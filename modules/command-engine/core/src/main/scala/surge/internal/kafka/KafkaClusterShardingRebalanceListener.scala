@@ -2,7 +2,7 @@
 
 package surge.internal.kafka
 
-import akka.actor.{ Actor, ActorRef, PoisonPill, Props }
+import akka.actor.{ Actor, ActorRef, Props }
 import akka.cluster.Cluster
 import akka.cluster.sharding.external.ExternalShardAllocation
 import org.apache.kafka.common.TopicPartition
@@ -96,7 +96,7 @@ class KafkaClusterShardingRebalanceListener(
         .get(partition)
         .map { _ =>
           val kafkaProducerRegion = partitionToKafkaProducerActor(partition)
-          kafkaProducerRegion.start()
+          kafkaProducerRegion.controllable.start()
           state.addRegionForPartition(partition, kafkaProducerRegion)
         }
         .getOrElse {

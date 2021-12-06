@@ -176,8 +176,8 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
       val result = for {
         _ <- startSignalStream()
         _ <- startClusterManagementAndRebalanceListener()
-        _ <- actorRouter.start()
-        allStarted <- kafkaStreamsImpl.start()
+        _ <- actorRouter.controllable.start()
+        allStarted <- kafkaStreamsImpl.controllable.start()
       } yield {
         surgeEngineStatus = SurgeEngineStatus.Running
         log.info(s"surge engine status: $surgeEngineStatus")
@@ -202,8 +202,8 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     override def stop(): Future[Ack] = {
       val result = for {
         _ <- stopSignalStream()
-        _ <- actorRouter.stop()
-        allStopped <- kafkaStreamsImpl.stop()
+        _ <- actorRouter.controllable.stop()
+        allStopped <- kafkaStreamsImpl.controllable.stop()
       } yield {
         surgeEngineStatus = SurgeEngineStatus.Stopped
         log.info(s"surge engine status: $surgeEngineStatus")
