@@ -63,7 +63,6 @@ lazy val `surge-engine-command-core` = (project in file("modules/command-engine/
   .settings(libraryDependencies ++= Seq(
     Akka.actor,
     Akka.remote,
-    Akka.persistenceTyped,
     Kafka.kafkaClients,
     Akka.testKit,
     Akka.akkaStreamTestKit,
@@ -161,7 +160,7 @@ lazy val `surge` = project
     `surge-engine-multilanguage`,
     `surge-engine-multilanguage-scala-sdk`,
     `surge-engine-multilanguage-scala-sdk-sample`)
-  .settings(skip in publish := true, ReleaseSettings.settings)
+  .settings(publish / skip := true, ReleaseSettings.settings)
   .disablePlugins(MimaPlugin)
 
 addCommandAlias("codeFormat", ";headerCreate;test:headerCreate;scalafmtAll;scalafmtSbt")

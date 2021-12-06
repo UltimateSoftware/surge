@@ -2,7 +2,7 @@
 
 package surge.internal.persistence
 
-import akka.actor.{ Actor, ActorContext, NoSerializationVerificationNeeded, Props, ReceiveTimeout, Stash, Status }
+import akka.actor.{ NoSerializationVerificationNeeded, Props, ReceiveTimeout, Stash, Status }
 import akka.cluster.sharding.ShardRegion.Passivate
 import akka.pattern.pipe
 import com.fasterxml.jackson.annotation.JsonTypeInfo
@@ -16,9 +16,7 @@ import surge.internal.akka.ActorWithTracing
 import surge.internal.config.{ RetryConfig, TimeoutConfig }
 import surge.internal.domain.{ Callback, SurgeContextImpl, SurgeSideEffect }
 import surge.internal.kafka.HeadersHelper
-import surge.internal.persistence.PersistentActor._
 import surge.internal.tracing.RoutableMessage
-import surge.internal.utils.DiagnosticContextFuturePropagation
 import surge.kafka.streams.AggregateStateStoreKafkaStreams
 import surge.metrics.{ MetricInfo, Metrics, Timer }
 
@@ -49,11 +47,8 @@ object PersistentActor {
       @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "aggregateType", visible = true) aggregateState: Option[S])
       extends JacksonSerializable
 
-  sealed trait ACK
-      extends ActorMessage
-      with JacksonSerializable
+  sealed trait ACK extends ActorMessage with JacksonSerializable
 
-      // FIXME This is an explicit response type now
   case class ACKSuccess[S](
       @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "aggregateType", visible = true) aggregateState: Option[S])
       extends ACK
@@ -117,40 +112,54 @@ object PersistentActor {
       businessLogic: SurgeModel[S, M, E],
       regionSharedResources: PersistentEntitySharedResources,
       config: Config,
-      aggregateIdOpt: Option[String]): Props = {
+      aggregateIdOpt: Option[String] = None): Props = {
     Props(new PersistentActor(businessLogic, regionSharedResources, config, aggregateIdOpt))
   }
 
   val serializationThreadPoolSize: Int = ConfigFactory.load().getInt("surge.serialization.thread-pool-size")
-  val serializationExecutionContext: ExecutionContext = new DiagnosticContextFuturePropagation(
-    ExecutionContext.fromExecutor(Executors.newFixedThreadPool(serializationThreadPoolSize)))
-
+  val serializationExecutionContext: ExecutionContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(serializationThreadPoolSize))
 }
 
-case class SurgeBehaviorContext[State](actorContext: ActorContext, initialState: State)
-
-class PersistentActor[State, Message, Event, BehaviorState](
-    businessLogic: SurgeModel[State, Message, Event],
-    regionSharedResources: PersistentEntitySharedResources,
+// scalastyle:off number.of.methods
+class PersistentActor[S, M, E](
+    val businessLogic: SurgeModel[S, M, E],
+    val regionSharedResources: PersistentEntitySharedResources,
     config: Config,
-    initialState: Option[State] => BehaviorState,
-    behaviorCreator: SurgeBehaviorContext[BehaviorState] => Actor.Receive,
-    aggregateIdOpt: Option[String])
+    val aggregateIdOpt: Option[String])
     extends ActorWithTracing
     with Stash
-    with KTablePersistenceSupport[State, Event, BehaviorState]
-    with KTableInitializationSupport[State] {
+    with KTablePersistenceSupport[S, E]
+    with KTableInitializationSupport[S] {
 
   import PersistentActor._
   import context.dispatcher
 
-  val aggregateId: String = aggregateIdOpt.getOrElse(self.path.name)
+  def aggregateId: String = aggregateIdOpt.getOrElse(self.path.name)
+
+  private val metrics = regionSharedResources.metrics
+
+  private val isAkkaClusterEnabled: Boolean = config.getBoolean("surge.feature-flags.experimental.enable-akka-cluster")
 
   private sealed trait Internal extends NoSerializationVerificationNeeded
 
-  private case class InitializeWithState(stateOpt: Option[State]) extends Internal
+  private case class InitializeWithState(stateOpt: Option[S]) extends Internal
+
+  private case class PersistenceSuccess(newState: InternalActorState, startTime: Instant) extends Internal
+
+  private case class PersistenceFailure(
+      newState: InternalActorState,
+      reason: Throwable,
+      numberOfFailures: Int,
+      serializedEvents: Seq[KafkaProducerActor.MessageToPublish],
+      serializedState: KafkaProducerActor.MessageToPublish,
+      startTime: Instant)
+      extends Internal
 
   private case class EventPublishTimedOut(reason: Throwable, startTime: Instant) extends Internal
+
+  protected case class InternalActorState(stateOpt: Option[S])
+
+  override type ActorState = InternalActorState
 
   override val initializationMetrics: KTableInitializationMetrics = regionSharedResources.metrics
 
@@ -160,7 +169,7 @@ class PersistentActor[State, Message, Event, BehaviorState](
 
   override val kafkaStreamsCommand: AggregateStateStoreKafkaStreams[_] = regionSharedResources.stateStore
 
-  override def deserializeState(bytes: Array[Byte]): Option[State] = businessLogic.aggregateReadFormatting.readState(bytes)
+  override def deserializeState(bytes: Array[Byte]): Option[S] = businessLogic.aggregateReadFormatting.readState(bytes)
 
   override def retryConfig: RetryConfig = new RetryConfig(config)
 
@@ -174,6 +183,10 @@ class PersistentActor[State, Message, Event, BehaviorState](
 
   protected val log: Logger = LoggerFactory.getLogger(getClass)
 
+  private val publishStateOnly: Boolean = businessLogic.kafka.eventsTopicOpt.isEmpty
+
+  assert(publishStateOnly || businessLogic.eventWriteFormattingOpt.nonEmpty, "businessLogic.eventWriteFormattingOpt may not be none when publishing events")
+
   override def messageNameForTracedMessages: MessageNameExtractor = { case t: ProcessMessage[_] =>
     s"ProcessMessage[${t.message.getClass.getSimpleName}]"
   }
@@ -185,135 +198,35 @@ class PersistentActor[State, Message, Event, BehaviorState](
 
   override def receive: Receive = uninitialized
 
-  private def handle(initializeWithState: InitializeWithState): Unit = {
-    log.debug(s"Actor state for aggregate $aggregateId successfully initialized")
-    unstashAll()
-
-    val nextState = behaviorCreator(SurgeBehaviorContext(context, initialState(initializeWithState.stateOpt)))
-
-    context.setReceiveTimeout(receiveTimeout)
-    context.become(nextState)
-  }
-
-  private def uninitialized: Receive = {
-    case msg: InitializeWithState => handle(msg)
-    case ReceiveTimeout           =>
-      // Ignore and drop ReceiveTimeout messages from this state
-      log.warn(
-        s"Aggregate actor for $aggregateId received a ReceiveTimeout message in uninitialized state. " +
-          "This should not happen and is likely a logic error. Dropping the ReceiveTimeout message.")
-    case other =>
-      log.debug(s"PersistentActor actor for $aggregateId stashing a message with class [{}] from the 'uninitialized' state", other.getClass)
-      activeSpan.addEvent("stashed")
-      stash()
-  }
-
-  private def handleStop(): Unit = {
-    log.trace(s"PersistentActor for aggregate ${businessLogic.aggregateName} $aggregateId is stopping gracefully")
-    context.stop(self)
-  }
-
-  private def handleCommandError(state: BehaviorState, error: ACKError): Unit = {
-    log.debug(s"The command for ${businessLogic.aggregateName} $aggregateId resulted in an error", error.exception)
-    context.setReceiveTimeout(receiveTimeout)
-    context.become(behaviorCreator(SurgeBehaviorContext(context, state)))
-
-    sender() ! error
-  }
-
-  override def receiveWhilePersistingEvents(state: BehaviorState): Receive = {
-    case msg: ACKError  => handleCommandError(state, msg)
-    case ReceiveTimeout => // Ignore and drop ReceiveTimeout messages from this state
-    case Status.Failure(e) =>
-      log.error(s"Aggregate actor for $aggregateId saw an unexpected exception from the 'persistingEvents' state", e)
-      self.forward(ACKError(e))
-    case other =>
-      log.info(s"Aggregate actor for $aggregateId stashing a message with class [{}] from the 'persistingEvents' state", other.getClass)
-      stash()
-  }
-
-  private def initializationFailed(error: ACKError): Receive = {
-    case _: ProcessMessage[Message] => sender() ! error
-    case _: ApplyEvents[Event]      => sender() ! error
-    case Stop                       => handleStop()
-  }
-
-  def onInitializationFailed(cause: Throwable): Unit = {
-    log.error(s"Could not initialize actor for $aggregateId after ${retryConfig.AggregateActor.maxInitializationAttempts} attempts. Stopping actor", cause)
-    context.become(initializationFailed(ACKError(cause)))
-    unstashAll() // Handle any pending messages before stopping so we can reply with an explicit error instead of timing out
-    self ! Stop
-  }
-
-  override def onInitializationSuccess(model: Option[State]): Unit = {
-    self ! InitializeWithState(model)
-  }
-
-  override def onPersistenceSuccess(newState: BehaviorState, surgeContext: SurgeContextImpl[State, Event]): Unit = {
-    activeSpan.log("Successfully persisted events + state")
-    context.setReceiveTimeout(receiveTimeout)
-    context.become(freeToProcess(newState))
-
-    surgeContext.sideEffects.foreach(effect => applySideEffect(newState.stateOpt, effect))
-
-    unstashAll()
-  }
-
-  private def applySideEffect(state: Option[State], effect: SurgeSideEffect[State]): Unit = {
-    effect match {
-      case callback: Callback[State] => callback.sideEffect(state)
-      case _ =>
-        throw new IllegalArgumentException(s"Unsupported side effect detected [${effect.getClass.getName}]")
-    }
-  }
-
-  override def onPersistenceFailure(state: BehaviorState, cause: Throwable): Unit = {
-    log.error(s"Error while trying to publish to Kafka, crashing actor for $aggregateName $aggregateId", cause)
-    activeSpan.log("Failed to persist events + state")
-    activeSpan.error(cause)
-    sender() ! ACKError(cause)
-    context.stop(self)
-  }
-}
-
-// FIXME This should live somewhere else
-case class CQRSPersistenceBehaviorActorState[State](stateOpt: Option[State])
-
-class CQRSPersistenceBehavior[State, Message, Event](
-    aggregateId: String,
-    businessLogic: SurgeModel[State, Message, Event],
-    regionSharedResources: PersistentEntitySharedResources,
-    becomePersistingEvents: CQRSPersistenceBehaviorActorState[State] => Actor.Receive,
-    persistenceSupport: KTablePersistenceSupport[State, Event, CQRSPersistenceBehaviorActorState[State]],
-    context: ActorContext) {
-  private val log = LoggerFactory.getLogger(getClass)
-  import regionSharedResources._
-
-  private val config = ConfigFactory.load() // FIXME inject this config
-  private val isAkkaClusterEnabled: Boolean = config.getBoolean("surge.feature-flags.experimental.enable-akka-cluster")
-  private val publishStateOnly: Boolean = businessLogic.kafka.eventsTopicOpt.isEmpty
-  assert(publishStateOnly || businessLogic.eventWriteFormattingOpt.nonEmpty, "businessLogic.eventWriteFormattingOpt may not be none when publishing events")
-
-  import context._
-  def statefulReceive(state: CQRSPersistenceBehaviorActorState[State]): Actor.Receive = {
-    case pm: ProcessMessage[Message] =>
+  private def freeToProcess(state: InternalActorState): Receive = {
+    case pm: ProcessMessage[M] =>
       handle(state, pm)
-    case ae: ApplyEvents[Event] =>
+    case ae: ApplyEvents[E] =>
       doApplyEvent(state, ae)
     case GetState(_)    => sender() ! StateResponse(state.stateOpt)
     case ReceiveTimeout => handlePassivate()
     case Stop           => handleStop()
   }
 
-  def handle(state: CQRSPersistenceBehaviorActorState[State], msg: ProcessMessage[Message]): Unit = {
+  private def handle(initializeWithState: InitializeWithState): Unit = {
+    log.debug(s"Actor state for aggregate $aggregateId successfully initialized")
+    unstashAll()
+
+    val internalActorState = InternalActorState(stateOpt = initializeWithState.stateOpt)
+
+    context.setReceiveTimeout(receiveTimeout)
+    context.become(freeToProcess(internalActorState))
+  }
+
+  def handle(state: InternalActorState, msg: ProcessMessage[M]): Unit = {
     context.setReceiveTimeout(Duration.Inf)
-    context.become(becomePersistingEvents(state))
+    context.become(persistingEvents(state))
 
     processMessage(state, msg)
       .flatMap { result =>
         if (result.isRejected) {
           // FIXME Temporary no-op publish to trigger side effects later
-          persistenceSupport.doPublish(
+          doPublish(
             state,
             result,
             Seq.empty,
@@ -329,7 +242,7 @@ class CQRSPersistenceBehavior[State, Message, Event](
           for {
             serializedState <- businessLogic.serializeState(aggregateId, result.state)
             serializedEvents <- serializingFut
-            publishResult <- persistenceSupport.doPublish(
+            publishResult <- doPublish(
               state.copy(stateOpt = result.state),
               result,
               serializedEvents,
@@ -347,22 +260,22 @@ class CQRSPersistenceBehavior[State, Message, Event](
       .pipeTo(self)(sender())
   }
 
-  def processMessage(state: CQRSPersistenceBehaviorActorState[State], ProcessMessage: ProcessMessage[Message]): Future[SurgeContextImpl[State, Event]] = {
+  def processMessage(state: InternalActorState, ProcessMessage: ProcessMessage[M]): Future[SurgeContextImpl[S, E]] = {
     metrics.messageHandlingTimer
       .timeFuture {
         businessLogic.model.handle(SurgeContextImpl(sender()), state.stateOpt, ProcessMessage.message)
       }
-      .mapTo[SurgeContextImpl[State, Event]]
+      .mapTo[SurgeContextImpl[S, E]]
   }
 
-  def doApplyEvent(state: CQRSPersistenceBehaviorActorState[State], value: PersistentActor.ApplyEvents[Event]): Unit = {
+  def doApplyEvent(state: InternalActorState, value: PersistentActor.ApplyEvents[E]): Unit = {
     context.setReceiveTimeout(Duration.Inf)
-    context.become(becomePersistingEvents(state))
+    context.become(persistingEvents(state))
 
-    callEventHandler(state, value.event)
+    callEventHandler(state, value.events)
       .flatMap { context =>
         businessLogic.serializeState(aggregateId, context.state).flatMap { serializedState =>
-          persistenceSupport.doPublish(
+          doPublish(
             state.copy(stateOpt = context.state),
             context,
             serializedEvents = Seq.empty,
@@ -377,11 +290,24 @@ class CQRSPersistenceBehavior[State, Message, Event](
       .pipeTo(self)(sender())
   }
 
-  def callEventHandler(state: CQRSPersistenceBehaviorActorState[State], evt: Event): Future[SurgeContextImpl[State, Event]] = {
-    metrics.eventHandlingTimer.timeFuture(businessLogic.model.applyAsync(SurgeContextImpl(sender()), state.stateOpt, evt)).mapTo[SurgeContextImpl[State, Event]]
+  def callEventHandler(state: InternalActorState, evt: Seq[E]): Future[SurgeContextImpl[S, E]] = {
+    metrics.eventHandlingTimer.timeFuture(businessLogic.model.applyAsync(SurgeContextImpl(sender()), state.stateOpt, evt)).mapTo[SurgeContextImpl[S, E]]
   }
 
-  def handlePassivate(): Unit = {
+  private def uninitialized: Receive = {
+    case msg: InitializeWithState => handle(msg)
+    case ReceiveTimeout           =>
+      // Ignore and drop ReceiveTimeout messages from this state
+      log.warn(
+        s"Aggregate actor for $aggregateId received a ReceiveTimeout message in uninitialized state. " +
+          "This should not happen and is likely a logic error. Dropping the ReceiveTimeout message.")
+    case other =>
+      log.debug(s"PersistentActor actor for $aggregateId stashing a message with class [{}] from the 'uninitialized' state", other.getClass)
+      activeSpan.addEvent("stashed")
+      stash()
+  }
+
+  private def handlePassivate(): Unit = {
     log.trace(s"PersistentActor for aggregate ${businessLogic.aggregateName} $aggregateId is passivating gracefully")
 
     //FIXME: temporary fix to support switch between akka and existing shard allocation strategy
@@ -392,8 +318,70 @@ class CQRSPersistenceBehavior[State, Message, Event](
     }
   }
 
-  def handleStop(): Unit = {
+  private def handleStop(): Unit = {
     log.trace(s"PersistentActor for aggregate ${businessLogic.aggregateName} $aggregateId is stopping gracefully")
+    context.stop(self)
+  }
+
+  private def handleCommandError(state: InternalActorState, error: ACKError): Unit = {
+    log.debug(s"The command for ${businessLogic.aggregateName} $aggregateId resulted in an error", error.exception)
+    context.setReceiveTimeout(receiveTimeout)
+    context.become(freeToProcess(state))
+
+    sender() ! error
+  }
+
+  override def receiveWhilePersistingEvents(state: InternalActorState): Receive = {
+    case msg: ACKError  => handleCommandError(state, msg)
+    case ReceiveTimeout => // Ignore and drop ReceiveTimeout messages from this state
+    case Status.Failure(e) =>
+      log.error(s"Aggregate actor for $aggregateId saw an unexpected exception from the 'persistingEvents' state", e)
+      self.forward(ACKError(e))
+    case other =>
+      log.info(s"Aggregate actor for $aggregateId stashing a message with class [{}] from the 'persistingEvents' state", other.getClass)
+      stash()
+  }
+
+  private def initializationFailed(error: ACKError): Receive = {
+    case _: ProcessMessage[M] => sender() ! error
+    case _: ApplyEvents[E]    => sender() ! error
+    case Stop                 => handleStop()
+  }
+
+  def onInitializationFailed(cause: Throwable): Unit = {
+    log.error(s"Could not initialize actor for $aggregateId after ${retryConfig.AggregateActor.maxInitializationAttempts} attempts. Stopping actor", cause)
+    context.become(initializationFailed(ACKError(cause)))
+    unstashAll() // Handle any pending messages before stopping so we can reply with an explicit error instead of timing out
+    self ! Stop
+  }
+
+  override def onInitializationSuccess(model: Option[S]): Unit = {
+    self ! InitializeWithState(model)
+  }
+
+  override def onPersistenceSuccess(newState: InternalActorState, surgeContext: SurgeContextImpl[S, E]): Unit = {
+    activeSpan.log("Successfully persisted events + state")
+    context.setReceiveTimeout(receiveTimeout)
+    context.become(freeToProcess(newState))
+
+    surgeContext.sideEffects.foreach(effect => applySideEffect(newState.stateOpt, effect))
+
+    unstashAll()
+  }
+
+  private def applySideEffect(state: Option[S], effect: SurgeSideEffect[S]): Unit = {
+    effect match {
+      case callback: Callback[S] => callback.sideEffect(state)
+      case _ =>
+        throw new IllegalArgumentException(s"Unsupported side effect detected [${effect.getClass.getName}]")
+    }
+  }
+
+  override def onPersistenceFailure(state: InternalActorState, cause: Throwable): Unit = {
+    log.error(s"Error while trying to publish to Kafka, crashing actor for $aggregateName $aggregateId", cause)
+    activeSpan.log("Failed to persist events + state")
+    activeSpan.error(cause)
+    sender() ! ACKError(cause)
     context.stop(self)
   }
 }

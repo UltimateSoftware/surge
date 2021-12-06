@@ -22,9 +22,9 @@ trait AggregateCommandModel[Agg, Cmd, Evt] extends SurgeProcessingModelCoreTrait
         }
       }
 
-      // FIXME applyAsync everywhere needs a Future.fromTry to handle exceptions thrown by the domain
-      override def applyAsync(ctx: SurgeContext[Agg, Evt], state: Option[Agg], event: Evt): Future[SurgeContext[Agg, Evt]] = {
-        Future.fromTry(Try(ctx.updateState(handleEvent(state, event)).reply(state => state)))
+      override def applyAsync(ctx: SurgeContext[Agg, Evt], state: Option[Agg], events: Seq[Evt]): Future[SurgeContext[Agg, Evt]] = {
+        val newState = events.foldLeft(state)((stateAccum, evt) => handleEvent(stateAccum, evt))
+        Future.fromTry(Try(ctx.updateState(newState).reply(state => state)))
       }
     }
   }
@@ -47,8 +47,8 @@ trait AsyncAggregateCommandModel[Agg, Cmd, Evt] extends SurgeProcessingModelCore
 
       // FIXME Does applyEvents make sense any more? In the core model state updates should happen via the handle method now.
       //  We probably still do need something for applying events directly though...
-      override def applyAsync(ctx: SurgeContext[Agg, Evt], state: Option[Agg], event: Evt): Future[SurgeContext[Agg, Evt]] = {
-        handleEvents(state, Seq(event)).map { newState =>
+      override def applyAsync(ctx: SurgeContext[Agg, Evt], state: Option[Agg], events: Seq[Evt]): Future[SurgeContext[Agg, Evt]] = {
+        handleEvents(state, events).map { newState =>
           ctx.updateState(newState).reply(state => state)
         }(ExecutionContext.global)
       }
@@ -66,8 +66,8 @@ trait ContextAwareAggregateCommandModel[Agg, Cmd, Evt] extends SurgeProcessingMo
         processCommand(Context(ctx), state, msg).map(_.toCore)
       }
 
-      override def applyAsync(ctx: SurgeContext[Agg, Evt], state: Option[Agg], event: Evt): Future[SurgeContext[Agg, Evt]] = {
-        val newState = handleEvent(state, event)
+      override def applyAsync(ctx: SurgeContext[Agg, Evt], state: Option[Agg], events: Seq[Evt]): Future[SurgeContext[Agg, Evt]] = {
+        val newState = events.foldLeft(state)((stateAccum, evt) => handleEvent(stateAccum, evt))
         Future.successful(ctx.updateState(newState))
       }
     }

@@ -8,22 +8,31 @@ import surge.internal.domain.{ SurgeContext, SurgeProcessingModel }
 import scala.concurrent.{ ExecutionContext, Future }
 
 trait AggregateEventModel[Agg, Evt] extends SurgeProcessingModelCoreTrait[Agg, Nothing, Evt] {
-  def handleEvent(state: Option[Agg], event: Evt): Option[Agg]
+  def handleEvents(state: Option[Agg], events: Seq[Evt]): Option[Agg]
 
   override def toCore: SurgeProcessingModel[Agg, Nothing, Evt] = new SurgeProcessingModel[Agg, Nothing, Evt] {
     override def handle(ctx: SurgeContext[Agg, Evt], state: Option[Agg], msg: Nothing)(implicit ec: ExecutionContext): Future[SurgeContext[Agg, Evt]] = {
       throw new UnsupportedOperationException("Should not attempt to handle commands via AggregateEventModel")
     }
-trait AggregateEventModel[Agg, Evt] extends AggregateEventModelCoreTrait[Agg, Evt] {
-  def handleEvents(ctx: Context, state: Option[Agg], events: Seq[Evt]): Option[Agg]
 
-  override def toCore: EventHandler[Agg, Evt] =
-    (ctx: persistence.Context, state: Option[Agg], events: Seq[Evt]) => AggregateEventModel.this.handleEvents(Context(ctx), state, events)
+    override def applyAsync(ctx: SurgeContext[Agg, Evt], state: Option[Agg], events: Seq[Evt]): Future[SurgeContext[Agg, Evt]] = {
+      Future.successful(ctx.updateState(handleEvents(state, events)).reply(state => state))
+    }
+  }
 }
 
-trait AsyncAggregateEventModel[Agg, Evt] extends AggregateEventModelCoreTrait[Agg, Evt] {
-  def handleEvents(ctx: Context, state: Option[Agg], events: Seq[Evt]): Future[Option[Agg]]
+trait AsyncAggregateEventModel[Agg, Evt] extends SurgeProcessingModelCoreTrait[Agg, Nothing, Evt] {
+  def handleEvents(state: Option[Agg], events: Seq[Evt]): Future[Option[Agg]]
 
-  override final def toCore: AsyncEventHandler[Agg, Evt] =
-    (ctx: persistence.Context, state: Option[Agg], events: Seq[Evt]) => AsyncAggregateEventModel.this.handleEvents(Context(ctx), state, events)
+  override def toCore: SurgeProcessingModel[Agg, Nothing, Evt] = new SurgeProcessingModel[Agg, Nothing, Evt] {
+    override def handle(ctx: SurgeContext[Agg, Evt], state: Option[Agg], msg: Nothing)(implicit ec: ExecutionContext): Future[SurgeContext[Agg, Evt]] = {
+      throw new UnsupportedOperationException("Should not attempt to handle commands via AggregateEventModel")
+    }
+
+    override def applyAsync(ctx: SurgeContext[Agg, Evt], state: Option[Agg], events: Seq[Evt]): Future[SurgeContext[Agg, Evt]] = {
+      handleEvents(state, events).map { newState =>
+        ctx.updateState(newState).reply(state => state)
+      }(ExecutionContext.global)
+    }
+  }
 }

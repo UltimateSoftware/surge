@@ -85,8 +85,14 @@ trait TestBoundedContext {
 
   trait BusinessLogicTrait extends SurgeProcessingModel[State, BaseTestCommand, BaseTestEvent] {
 
-    override def applyAsync(ctx: SurgeContext[State, BaseTestEvent], state: Option[State], event: BaseTestEvent): Future[SurgeContext[State, BaseTestEvent]] = {
-      Future.fromTry(Try(ctx.updateState(handleEvent(state, event)).reply(s => s)))
+    override def applyAsync(
+        ctx: SurgeContext[State, BaseTestEvent],
+        state: Option[State],
+        events: Seq[BaseTestEvent]): Future[SurgeContext[State, BaseTestEvent]] = {
+
+      val newState = events.foldLeft(Try(ctx))((stateAccum, evt) => stateAccum.map(_.updateState(handleEvent(state, evt))))
+
+      Future.fromTry(newState)
     }
     def handleEvent(agg: Option[State], evt: BaseTestEvent): Option[State] = {
 

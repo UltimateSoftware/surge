@@ -33,7 +33,7 @@ object KafkaProducerActor {
       actorSystem: ActorSystem,
       assignedPartition: TopicPartition,
       metrics: Metrics,
-      businessLogic: SurgeModel[_, _, _],
+      businessLogic: BusinessLogic,
       kStreams: AggregateStateStoreKafkaStreams[_],
       partitionTracker: KafkaConsumerPartitionAssignmentTracker,
       signalBus: HealthSignalBusTrait,

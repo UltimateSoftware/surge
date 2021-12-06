@@ -15,7 +15,8 @@ private[surge] class ReplyEffect[State, Reply](replyTo: ActorRef, replyWithMessa
 trait SurgeProcessingModel[State, Message, Event] {
   def handle(ctx: SurgeContext[State, Event], state: Option[State], msg: Message)(implicit ec: ExecutionContext): Future[SurgeContext[State, Event]]
 
-  def applyAsync(ctx: SurgeContext[State, Event], state: Option[State], event: Event): Future[SurgeContext[State, Event]]
+  // FIXME This should be a singular event and event based models should leverage the new context support for just an "updateState" call
+  def applyAsync(ctx: SurgeContext[State, Event], state: Option[State], events: Seq[Event]): Future[SurgeContext[State, Event]]
 }
 
 trait SurgeContext[State, Event] {
