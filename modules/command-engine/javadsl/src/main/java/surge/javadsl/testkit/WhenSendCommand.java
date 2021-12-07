@@ -14,15 +14,15 @@ import java.util.concurrent.CompletionStage;
 
 import static org.mockito.Mockito.when;
 
-public class WhenSendCommand<AggId, Agg, Command, Rej, Event> {
+public class WhenSendCommand<AggId, Agg, Command, Event> {
 
-    private SurgeCommand<AggId, Agg, Command, Rej, Event> mockSurgeEngine;
+    private SurgeCommand<AggId, Agg, Command, Event> mockSurgeEngine;
 
     private AggId aggId;
 
     private Command command;
 
-    public WhenSendCommand(SurgeCommand<AggId, Agg, Command, Rej, Event> mock, AggId aggId, Command command) {
+    public WhenSendCommand(SurgeCommand<AggId, Agg, Command, Event> mock, AggId aggId, Command command) {
         this.mockSurgeEngine = mock;
         this.aggId = aggId;
         this.command = command;
