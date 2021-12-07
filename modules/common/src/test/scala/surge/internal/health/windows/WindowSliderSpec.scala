@@ -16,7 +16,7 @@ class WindowSliderSpec extends AnyWordSpec with Matchers {
   "WindowSlider" should {
     "properly create next window with correct duration" in {
       val window = Window
-        .windowFor(Instant.now(), FiniteDuration(10, "seconds"))
+        .windowFor(Instant.now(), FiniteDuration(10, "seconds"), control = None)
         .copy(data = Seq(mock(classOf[HealthSignal]), mock(classOf[HealthSignal]), mock(classOf[HealthSignal])))
       val slider: WindowSlider = WindowSlider(slideAmount = 1, bufferSize = 0)
 
@@ -29,7 +29,7 @@ class WindowSliderSpec extends AnyWordSpec with Matchers {
     "advance 1 space" in {
       val slider: WindowSlider = WindowSlider(slideAmount = 1, bufferSize = 0)
       val window = Window
-        .windowFor(Instant.now(), FiniteDuration(10, "seconds"))
+        .windowFor(Instant.now(), FiniteDuration(10, "seconds"), control = None)
         .copy(data = Seq(mock(classOf[HealthSignal]), mock(classOf[HealthSignal]), mock(classOf[HealthSignal])))
       val newWindow = slider.advance(window)
       newWindow.isDefined shouldEqual true
@@ -39,7 +39,7 @@ class WindowSliderSpec extends AnyWordSpec with Matchers {
     "only advance data.size elements given slide amount larger than current window" in {
       val slider: WindowSlider = WindowSlider(slideAmount = 10, bufferSize = 0)
       val window = Window
-        .windowFor(Instant.now(), FiniteDuration(10, "seconds"))
+        .windowFor(Instant.now(), FiniteDuration(10, "seconds"), control = None)
         .copy(data = Seq(mock(classOf[HealthSignal]), mock(classOf[HealthSignal]), mock(classOf[HealthSignal])))
       val newWindow = slider.advance(window)
       newWindow.isDefined shouldEqual true
@@ -49,7 +49,7 @@ class WindowSliderSpec extends AnyWordSpec with Matchers {
     "not advance when slideAmount is negative" in {
       val slider: WindowSlider = WindowSlider(slideAmount = -1, bufferSize = 0)
       val window = Window
-        .windowFor(Instant.now(), FiniteDuration(10, "seconds"))
+        .windowFor(Instant.now(), FiniteDuration(10, "seconds"), control = None)
         .copy(data = Seq(mock(classOf[HealthSignal]), mock(classOf[HealthSignal]), mock(classOf[HealthSignal])))
       val newWindow = slider.advance(window)
       newWindow.isDefined shouldEqual true
@@ -59,7 +59,7 @@ class WindowSliderSpec extends AnyWordSpec with Matchers {
     "not advance when slideAmount is zero" in {
       val slider: WindowSlider = WindowSlider(slideAmount = 0, bufferSize = 0)
       val window = Window
-        .windowFor(Instant.now(), FiniteDuration(10, "seconds"))
+        .windowFor(Instant.now(), FiniteDuration(10, "seconds"), control = None)
         .copy(data = Seq(mock(classOf[HealthSignal]), mock(classOf[HealthSignal]), mock(classOf[HealthSignal])))
       val newWindow = slider.advance(window)
       newWindow.isDefined shouldEqual true
@@ -69,7 +69,7 @@ class WindowSliderSpec extends AnyWordSpec with Matchers {
     "not advance until buffer exceeded" in {
       val slider: WindowSlider = WindowSlider(slideAmount = 0, bufferSize = 5)
       val window = Window
-        .windowFor(Instant.now(), FiniteDuration(10, "seconds"))
+        .windowFor(Instant.now(), FiniteDuration(10, "seconds"), control = None)
         .copy(data = Seq(mock(classOf[HealthSignal]), mock(classOf[HealthSignal]), mock(classOf[HealthSignal])))
 
       val shouldBeEmpty = slider.advance(window)

@@ -4,9 +4,9 @@ package javadocs.commandapp.format;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import javadocs.commandapp.account.BankAccount;
-import scala.collection.immutable.HashMap$;
 import surge.core.SerializedAggregate;
 import surge.core.SurgeAggregateWriteFormatting;
+
 
 // #surge_format
 public class SurgeAggregateWriteFormattingBankAccount implements SurgeAggregateWriteFormatting<BankAccount> {

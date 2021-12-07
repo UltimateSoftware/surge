@@ -2,7 +2,6 @@
 
 package surge.javadsl.common
 
-import surge.internal
 import surge.internal.persistence
 
 trait Context {}

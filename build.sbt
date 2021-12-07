@@ -24,6 +24,10 @@ val multiJvmTestSettings = Seq(
     // (MultiJvm / test).value
   })
 
+lazy val `surge-serialization` =
+  (project in file("modules/serialization"))
+    .settings(multiJvmTestSettings, libraryDependencies ++= Seq(scalaCollectionCompat, scalatest, scalatestPlusMockito, mockitoCore, PlayFramework.json))
+
 lazy val `surge-common` = (project in file("modules/common"))
   .settings(
     multiJvmTestSettings,
@@ -32,8 +36,9 @@ lazy val `surge-common` = (project in file("modules/common"))
       Akka.multiNodeTestkit,
       Akka.remote,
       Akka.jacksonSerialization,
-      Alpakka.kafka,
-      Alpakka.kafkaTestKit,
+      Akka.clusterSharding,
+      Akka.kafkaStream,
+      Akka.kafkaStreamTestKit,
       Kafka.kafkaClients,
       Kafka.kafkaStreams,
       Kafka.kafkaStreamsScala,
@@ -52,7 +57,7 @@ lazy val `surge-common` = (project in file("modules/common"))
       mockitoCore))
   .enablePlugins(MultiJvmPlugin)
   .configs(MultiJvm)
-  .dependsOn(`surge-metrics`)
+  .dependsOn(`surge-metrics`, `surge-serialization`)
 
 lazy val `surge-engine-command-core` = (project in file("modules/command-engine/core"))
   .settings(libraryDependencies ++= Seq(
@@ -61,6 +66,11 @@ lazy val `surge-engine-command-core` = (project in file("modules/command-engine/
     Kafka.kafkaClients,
     Akka.testKit,
     Akka.akkaStreamTestKit,
+    Akka.kafkaClusterSharding,
+    Akka.management,
+    Akka.managementClusterHttp,
+    Akka.managementClusterBootstrap,
+    Akka.discovery,
     mockitoCore,
     scalatest,
     scalatestPlusMockito,
@@ -83,7 +93,9 @@ lazy val `surge-engine-multilanguage-protocol` =
 lazy val `surge-engine-multilanguage` =
   (project in file("modules/multilanguage"))
     .dependsOn(`surge-engine-command-scaladsl`, `surge-engine-multilanguage-protocol`)
-    .settings(libraryDependencies ++= Seq(Akka.discovery, Akka.slf4j, logback, slf4jApi), publish / skip := true)
+    .settings(
+      libraryDependencies ++= Seq(Akka.discovery, Akka.slf4j, Akka.http, logback, slf4jApi, Akka.testKit, scalatest, embeddedKafka),
+      publish / skip := true)
     .enablePlugins(JavaServerAppPackaging)
 
 lazy val `surge-engine-multilanguage-scala-sdk` =
@@ -117,7 +129,6 @@ lazy val `surge-docs` = (project in file("modules/surge-docs"))
   .dependsOn(`surge-common`, `surge-engine-command-core`, `surge-engine-command-javadsl`, `surge-engine-command-scaladsl`, `surge-metrics`)
   .enablePlugins(ParadoxPlugin, ParadoxSitePlugin, GhpagesPlugin)
   .settings(
-    javacOptions ++= Seq("-source", "15", "--enable-preview"),
     compileOrder := CompileOrder.JavaThenScala,
     publish / skip := true,
     paradoxTheme := Some(builtinParadoxTheme("generic")),
@@ -135,14 +146,10 @@ lazy val `surge-docs` = (project in file("modules/surge-docs"))
       JaegerSample.exporter,
       JaegerSample.grpc))
 
-lazy val `surge-scala-sample` = (project in file("samples/scala"))
-  .dependsOn(`surge-common`, `surge-engine-command-core`, `surge-engine-command-scaladsl`)
-  .settings(libraryDependencies ++= Seq(Akka.http, akkaHttpPlayJson), publish / skip := true)
-  .enablePlugins(JavaServerAppPackaging)
-
 lazy val `surge` = project
   .in(file("."))
   .aggregate(
+    `surge-serialization`,
     `surge-common`,
     `surge-engine-command-core`,
     `surge-engine-command-javadsl`,

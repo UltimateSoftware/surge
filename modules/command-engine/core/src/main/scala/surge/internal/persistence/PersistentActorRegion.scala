@@ -7,7 +7,7 @@ import com.typesafe.config.Config
 import org.apache.kafka.common.TopicPartition
 import play.api.libs.json.JsValue
 import surge.akka.cluster.{ EntityPropsProvider, PerShardLogicProvider }
-import surge.core.{ Ack, KafkaProducerActor }
+import surge.core.{ Ack, Controllable, KafkaProducerActor }
 import surge.health.HealthSignalBusTrait
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.persistence
@@ -17,6 +17,7 @@ import surge.kafka.{ PersistentActorRegionCreator => KafkaPersistentActorRegionC
 import surge.metrics.Metrics
 
 import scala.concurrent.{ ExecutionContext, Future }
+import scala.util.{ Failure, Success, Try }
 
 trait PersistentActorPropsFactory[M] extends {
   def props(aggregateId: String, businessLogic: BusinessLogic, resources: PersistentEntitySharedResources): Props
@@ -68,24 +69,48 @@ class PersistentActorRegion[M](
 
   override def actorProvider(context: ActorContext): EntityPropsProvider[String] = {
     val aggregateMetrics = PersistentActor.createMetrics(metrics, businessLogic.aggregateName)
-    val sharedResources = persistence.PersistentEntitySharedResources(kafkaProducerActor, aggregateMetrics, aggregateKafkaStreamsImpl)
+    //FIXME: temporary fix to support switch between akka and existing shard allocation strategy
+    val aggregateIdToKafkaProducer = (_: String) => kafkaProducerActor
+    val sharedResources = persistence.PersistentEntitySharedResources(aggregateIdToKafkaProducer, aggregateMetrics, aggregateKafkaStreamsImpl)
 
-    actorId: String => PersistentActor.props(actorId, businessLogic, signalBus, sharedResources, config)
+    actorId: String => PersistentActor.props(businessLogic, signalBus, sharedResources, config, Some(actorId))
   }
 
-  override def restart(): Future[Ack] = {
-    implicit val executionContext: ExecutionContext = system.dispatcher
-    for {
-      _ <- stop()
-      started <- start()
-    } yield {
-      started
+  private def registrationCallback(): PartialFunction[Try[Ack], Unit] = {
+    case Success(_) =>
+      val registrationResult =
+        signalBus.register(
+          control = this.controllable,
+          componentName = s"persistent-actor-region-${assignedPartition.topic()}-${assignedPartition.partition()}",
+          restartSignalPatterns = restartSignalPatterns())
+
+      registrationResult.onComplete {
+        case Failure(exception) =>
+          log.error(s"${this.getClass} registration failed", exception)
+        case Success(_) =>
+          log.debug(s"${this.getClass} registration succeeded")
+      }(ExecutionContext.global)
+    case Failure(error) =>
+      log.error(s"Unable to register ${this.getClass} for supervision", error)
+  }
+
+  private[surge] override val controllable: Controllable = new Controllable {
+    override def start(): Future[Ack] = kafkaProducerActor.controllable.start().andThen(registrationCallback())(ExecutionContext.global)
+
+    override def restart(): Future[Ack] = {
+      implicit val executionContext: ExecutionContext = system.dispatcher
+      for {
+        _ <- stop()
+        started <- start()
+      } yield {
+        started
+      }
     }
+
+    override def stop(): Future[Ack] = {
+      kafkaProducerActor.controllable.stop()
+    }
+
+    override def shutdown(): Future[Ack] = stop()
   }
-
-  override def start(): Future[Ack] = kafkaProducerActor.start()
-
-  override def stop(): Future[Ack] = kafkaProducerActor.stop()
-
-  override def shutdown(): Future[Ack] = stop()
 }

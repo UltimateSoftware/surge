@@ -17,19 +17,20 @@ import surge.core.{ Ack, TestBoundedContext }
 import surge.health.config.{ ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig }
 import surge.health.domain.{ Error, HealthSignal }
 import surge.health.matchers.{ SideEffectBuilder, SignalPatternMatcherDefinition }
+import surge.health.supervisor.Api.ShutdownComponent
 import surge.health.{ ComponentRestarted, HealthListener, HealthMessage, SignalType }
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.core.SurgePartitionRouterImpl
 import surge.internal.health.StreamMonitoringRef
-import surge.internal.health.supervisor.ShutdownComponent
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
 import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, MockPartitionTracker }
 import surge.metrics.Metrics
 
 import java.util.regex.Pattern
 import scala.concurrent.duration._
+import scala.util.Try
 
-// fix: flaky test
+// FIXME need to be able to stop the router actor for this to work
 @Ignore
 class SurgeMessagePipelineSpec
     extends TestKit(ActorSystem("SurgeMessagePipelineSpec", ConfigFactory.load("artery-test-config")))
@@ -44,7 +45,7 @@ class SurgeMessagePipelineSpec
   import TestBoundedContext._
 
   implicit override val patienceConfig: PatienceConfig =
-    PatienceConfig(timeout = scaled(Span(30, Seconds)), interval = scaled(Span(10, Milliseconds)))
+    PatienceConfig(timeout = scaled(Span(1, Seconds)), interval = scaled(Span(10, Milliseconds)))
 
   private val config: EmbeddedKafkaConfig = EmbeddedKafkaConfig(kafkaPort = 6001)
   private val defaultConfig = ConfigFactory.load()
@@ -62,29 +63,29 @@ class SurgeMessagePipelineSpec
       WindowingStreamConfig(
         advancerConfig = WindowingStreamSliderConfig(buffer = 10, advanceAmount = 1),
         throttleConfig = ThrottleConfig(elements = 100, duration = 5.seconds),
-        windowingDelay = 10.milliseconds,
-        maxWindowSize = 500,
-        frequencies = Seq(100.milliseconds)),
+        windowingInitDelay = 10.milliseconds,
+        windowingResumeDelay = 10.milliseconds,
+        maxWindowSize = 500),
       system,
       Some(new StreamMonitoringRef(probe.ref)),
-      filters = Seq(
+      patternMatchers = Seq(
         SignalPatternMatcherDefinition
-          .repeating(times = 1, Pattern.compile("baz"))
+          .repeating(times = 1, pattern = Pattern.compile("baz"), frequency = 100.milliseconds)
           .withSideEffect(
             SideEffectBuilder()
-              .addSideEffectSignal(HealthSignal(topic = "health.signal", name = "it.failed", data = Error("it.failed", None), signalType = SignalType.ERROR))
-              .buildSideEffect())
-          .toMatcher))
+              .addSideEffectSignal(
+                HealthSignal(topic = "health.signal", name = "it.failed", data = Error("it.failed", None), signalType = SignalType.ERROR, source = None))
+              .buildSideEffect())))
 
     // Create SurgeMessagePipeline
     val pipeline = createPipeline(signalStreamProvider)
     // Start Pipeline
-    pipeline.start().futureValue shouldBe an[Ack]
+    pipeline.controllable.start().futureValue shouldBe an[Ack]
 
     try {
       testFun(TestContext(probe, signalStreamProvider, pipeline))
     } finally {
-      pipeline.stop().futureValue shouldBe an[Ack]
+      pipeline.controllable.stop().futureValue shouldBe an[Ack]
     }
   }
 
@@ -101,7 +102,7 @@ class SurgeMessagePipelineSpec
           createCustomTopic(businessLogic.kafka.eventsTopic.name, Map.empty)
           createCustomTopic(businessLogic.kafka.stateTopic.name, Map.empty)
 
-          val stopped = pipeline.stop()
+          val stopped = pipeline.controllable.stop()
 
           val result = stopped.futureValue
 
@@ -117,7 +118,7 @@ class SurgeMessagePipelineSpec
           createCustomTopic(businessLogic.kafka.eventsTopic.name, Map.empty)
           createCustomTopic(businessLogic.kafka.stateTopic.name, Map.empty)
 
-          val restarted = pipeline.restart()
+          val restarted = pipeline.controllable.restart()
 
           val result = restarted.futureValue
           result shouldEqual Ack()
@@ -255,7 +256,7 @@ class SurgeMessagePipelineSpec
       }
     }
 
-    "inject signal named `it.failed` into signal stream" in {
+    "unregister all child components after stopping" in {
       withRunningKafkaOnFoundPort(config) { _ =>
         withTestContext { ctx =>
           import ctx._
@@ -263,7 +264,34 @@ class SurgeMessagePipelineSpec
           createCustomTopic(businessLogic.kafka.eventsTopic.name, Map.empty)
           createCustomTopic(businessLogic.kafka.stateTopic.name, Map.empty)
 
-          pipeline.signalBus.signalWithError(name = "baz", Error("baz happened", None)).emit()
+          // wait for router-actor to be registered
+          val beforeStopRegistrations = eventually {
+            val reg = pipeline.signalBus.registrations().futureValue
+            reg.exists(p => p.componentName == "router-actor") shouldEqual true
+            reg
+          }
+
+          val acknowledgedStop: Ack = pipeline.controllable.stop().futureValue
+          acknowledgedStop shouldEqual Ack()
+
+          val afterStopRegistrations = eventually {
+            val reg = pipeline.signalBus.registrations().futureValue
+            reg.isEmpty shouldEqual true
+            reg
+          }
+
+          afterStopRegistrations.isEmpty shouldEqual true
+        }
+      }
+    }
+
+    "inject signal named `it.failed` into signal stream" in {
+      withRunningKafkaOnFoundPort(config) { _ =>
+        withTestContext { ctx =>
+          import ctx._
+
+          createCustomTopic(businessLogic.kafka.eventsTopic.name, Map.empty)
+          createCustomTopic(businessLogic.kafka.stateTopic.name, Map.empty)
 
           var captured: Option[HealthSignal] = None
           pipeline.signalBus.subscribe(
@@ -282,6 +310,8 @@ class SurgeMessagePipelineSpec
             },
             to = pipeline.signalBus.signalTopic())
 
+          pipeline.signalBus.signalWithError(name = "baz", Error("baz happened", None)).emit()
+
           eventually {
             captured.nonEmpty shouldEqual true
           }
@@ -295,14 +325,17 @@ class SurgeMessagePipelineSpec
 
       override def actorSystem: ActorSystem = system
 
+      private val isAkkaClusterEnabled = config.getBoolean("surge.feature-flags.experimental.enable-akka-cluster")
       override protected val actorRouter: SurgePartitionRouterImpl =
         new SurgePartitionRouterImpl(
           defaultConfig,
           actorSystem,
           new KafkaConsumerPartitionAssignmentTracker(stateChangeActor),
           businessLogic,
+          kafkaStreamsImpl,
           cqrsRegionCreator,
-          signalStreamProvider.bus())
+          signalStreamProvider.bus(),
+          isAkkaClusterEnabled)
       override protected val kafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue] = new AggregateStateStoreKafkaStreams[JsValue](
         businessLogic.aggregateName,
         businessLogic.kafka.stateTopic,

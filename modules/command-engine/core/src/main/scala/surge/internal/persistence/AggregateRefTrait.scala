@@ -3,6 +3,7 @@
 package surge.internal.persistence
 
 import akka.actor.ActorRef
+import akka.actor.Status.Success
 import akka.pattern._
 import akka.util.Timeout
 import io.opentelemetry.api.trace.{ Span, Tracer }
@@ -11,8 +12,10 @@ import surge.exceptions.{ SurgeTimeoutException, SurgeUnexpectedException }
 import surge.internal.config.TimeoutConfig
 import surge.internal.tracing.TracingHelper._
 import surge.internal.tracing.{ SpanSupport, TracedMessage }
+import surge.kafka.streams.SurgeHealthCheck
 
 import scala.concurrent.{ ExecutionContext, Future }
+import scala.util.Failure
 
 /**
  * Generic reference to an aggregate that handles proxying messages to the actual aggregate actor responsible for a particular aggregate id. A single reference
@@ -64,45 +67,37 @@ private[surge] trait AggregateRefTrait[AggId, Agg, Cmd, Event] extends SpanSuppo
   }
 
   /**
-   * Asynchronously send a command envelope to the aggregate business logic actor this reference is talking to. Retries a given number of times if sending the
-   * command envelope to the business logic actor fails.
+   * Asynchronously send a command envelope to the aggregate business logic actor this reference is talking to.
    *
    * @param envelope
    *   The command envelope to send to this aggregate actor
-   * @param retriesRemaining
-   *   Number of retry attempts remaining, defaults to 0 for no retries.
    * @param ec
    *   Implicit execution context to use for transforming the raw actor response into a better typed response.
    * @return
-   *   A future of either validation errors from the business logic aggregate or the updated state of the business logic aggregate after handling the command
-   *   and applying any events that resulted from the command.
+   *   A future of the updated state of the business logic aggregate after handling the command and applying any events that resulted from the command.
    */
-  protected def sendCommandWithRetries(envelope: PersistentActor.ProcessMessage[Cmd], retriesRemaining: Int = 0)(
-      implicit ec: ExecutionContext): Future[Either[Throwable, Option[Agg]]] = {
+  protected def sendCommand(envelope: PersistentActor.ProcessMessage[Cmd])(implicit ec: ExecutionContext): Future[Option[Agg]] = {
     val askSpan = createSpan(envelope.message.getClass.getSimpleName).setTag("aggregateId", aggregateId.toString)
     askSpan.log("actor ask", Map("timeout" -> timeout.duration.toString()))
-    (region ? TracedMessage(envelope, askSpan)(tracer)).map(interpretActorResponse(askSpan)).recoverWith {
-      case _: Throwable if retriesRemaining > 0 =>
-        log.warn("Ask timed out to aggregate actor region, retrying request...")
-        sendCommandWithRetries(envelope, retriesRemaining - 1)
-      case a: AskTimeoutException =>
+    (region ? TracedMessage(envelope.aggregateId, envelope, askSpan)(tracer))
+      .map(interpretActorResponse(askSpan))
+      .flatMap {
+        case Left(exception) => Future.failed(exception)
+        case Right(state)    => Future.successful(state)
+      }
+      .recoverWith { case a: AskTimeoutException =>
         val msg = s"Ask timed out after $askTimeoutDuration to aggregate actor with id ${envelope.aggregateId} executing command " +
           s"${envelope.message.getClass.getName}. This is typically a result of other parts of the engine performing incorrectly or " +
           s"hitting exceptions"
         askSpan.error(a)
         askSpan.finish()
-        Future.successful[Either[Throwable, Option[Agg]]](Left(SurgeTimeoutException(msg)))
-      case e: Throwable =>
-        askSpan.error(e)
-        askSpan.finish()
-        Future.successful[Either[Throwable, Option[Agg]]](Left(SurgeUnexpectedException(e)))
-    }
+        Future.failed(SurgeTimeoutException(msg))
+      }
   }
 
-  protected def applyEventsWithRetries(envelope: PersistentActor.ApplyEvent[Event], retriesRemaining: Int = 0)(
-      implicit ec: ExecutionContext): Future[Option[Agg]] = {
+  protected def applyEvents(envelope: PersistentActor.ApplyEvents[Event])(implicit ec: ExecutionContext): Future[Option[Agg]] = {
     val askSpan = createSpan("send_events_to_aggregate").setTag("aggregateId", aggregateId.toString)
-    (region ? TracedMessage(envelope, askSpan)(tracer)).map(interpretActorResponse(askSpan)).flatMap {
+    (region ? TracedMessage(envelope.aggregateId, envelope, askSpan)(tracer)).map(interpretActorResponse(askSpan)).flatMap {
       case Left(exception) => Future.failed(exception)
       case Right(state)    => Future.successful(state)
     }

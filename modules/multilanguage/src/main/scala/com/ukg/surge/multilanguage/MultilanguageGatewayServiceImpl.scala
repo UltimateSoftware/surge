@@ -5,7 +5,7 @@ package com.ukg.surge.multilanguage
 import akka.actor.ActorSystem
 import akka.event.{ Logging, LoggingAdapter }
 import akka.grpc.GrpcClientSettings
-import com.typesafe.config.Config
+import com.ukg.surge.multilanguage.protobuf.HealthCheckReply.Status
 import com.ukg.surge.multilanguage.protobuf._
 import surge.metrics.{ MetricInfo, Metrics, RecordingLevel, Timer }
 import surge.scaladsl.command.SurgeCommand
@@ -15,32 +15,13 @@ import java.util.UUID
 import scala.concurrent.Future
 import scala.util.{ Failure, Success, Try }
 
-class MultilanguageGatewayServiceImpl(aggregateName: String, eventsTopicName: String, stateTopicName: String)(implicit system: ActorSystem)
+class MultilanguageGatewayServiceImpl(surgeEngine: SurgeCommand[UUID, SurgeState, SurgeCmd, Nothing, SurgeEvent])(implicit system: ActorSystem)
     extends MultilanguageGatewayService {
 
   import Implicits._
   import system.dispatcher
 
   val logger: LoggingAdapter = Logging(system, classOf[MultilanguageGatewayServiceImpl])
-
-  val businessLogicgRPCClientConfig: Config = system.settings.config.getConfig("business-logic-server")
-  val businessLogicgRPCPort: Int = businessLogicgRPCClientConfig.getInt("port")
-  val businessLogicgRPCHost: String = businessLogicgRPCClientConfig.getString("host")
-
-  logger.info(s"Business logic gRPC host and port: ${businessLogicgRPCHost}:${businessLogicgRPCPort}")
-
-  val businessLogicgRPCClientSettings: GrpcClientSettings = GrpcClientSettings.connectToServiceAt(businessLogicgRPCHost, businessLogicgRPCPort).withTls(false)
-
-  val bridgeToBusinessApp: BusinessLogicService = BusinessLogicServiceClient(businessLogicgRPCClientSettings)
-
-  val genericSurgeCommandBusinessLogic = new GenericSurgeCommandBusinessLogic(aggregateName, eventsTopicName, stateTopicName, bridgeToBusinessApp)
-
-  val surgeEngine: SurgeCommand[UUID, SurgeState, SurgeCmd, Nothing, SurgeEvent] = {
-    val engine = SurgeCommand(system, genericSurgeCommandBusinessLogic, system.settings.config)
-    engine.start()
-    logger.info("Started engine!")
-    engine
-  }
 
   private val metric: Metrics = Metrics.globalMetricRegistry
   private val forwardCommandTimerMetric: Timer =
@@ -92,4 +73,11 @@ class MultilanguageGatewayServiceImpl(aggregateName: String, eventsTopicName: St
     }
 
   }
+
+  override def healthCheck(in: HealthCheckRequest): Future[HealthCheckReply] =
+    surgeEngine.healthCheck.map { healthCheck =>
+      val status = Status.fromName(healthCheck.status.toUpperCase).getOrElse(Status.DOWN)
+      HealthCheckReply(status = status)
+    }
+
 }

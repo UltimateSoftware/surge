@@ -6,6 +6,7 @@ import akka.actor.Actor.Receive
 import akka.actor.{ ActorContext, ActorRef, NoSerializationVerificationNeeded }
 import akka.pattern._
 import com.typesafe.config.ConfigFactory
+import io.opentelemetry.api.trace.Span
 import org.slf4j.LoggerFactory
 import surge.core.KafkaProducerActor
 import surge.exceptions.KafkaPublishTimeoutException
@@ -72,6 +73,7 @@ trait KTablePersistenceSupport[Agg, Event] {
           case KafkaProducerActor.PublishFailure(t) => PersistenceFailure(state, t, currentFailureCount + 1, serializedEvents, serializedState, startTime)
         }
         .recover { case t =>
+          log.error("Failed to publish messages", t)
           EventPublishTimedOut(t, startTime)
         }
     }

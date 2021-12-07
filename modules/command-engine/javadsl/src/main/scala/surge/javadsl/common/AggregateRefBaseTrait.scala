@@ -24,9 +24,9 @@ trait AggregateRefBaseTrait[AggId, Agg, Cmd, Event] extends AggregateRefTrait[Ag
     FutureConverters.toJava(queryState.map(_.asJava))
   }
 
-  def applyEvent(event: Event): CompletionStage[ApplyEventResult[Agg]] = {
-    val envelope = PersistentActor.ApplyEvent[Event](aggregateId.toString, event)
-    val result = applyEventsWithRetries(envelope).map(aggOpt => ApplyEventSuccess[Agg](aggOpt.asJava)).recover { case e =>
+  def applyEvents(events: Seq[Event]): CompletionStage[ApplyEventResult[Agg]] = {
+    val envelope = PersistentActor.ApplyEvents[Event](aggregateId.toString, events)
+    val result = applyEvents(envelope).map(aggOpt => ApplyEventSuccess[Agg](aggOpt.asJava)).recover { case e =>
       ApplyEventFailure[Agg](e)
     }
     FutureConverters.toJava(result)

@@ -5,7 +5,7 @@ package surge.internal.kafka
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.trace.Tracer
 import surge.internal.tracing.OpenTelemetryInstrumentation
-import surge.kafka.{ KafkaPartitioner, PartitionStringUpToColon }
+import surge.kafka.KafkaPartitioner
 import surge.metrics.Metrics
 
 trait ProducerActorContext {

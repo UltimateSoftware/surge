@@ -1,4 +1,4 @@
-#Surge Metrics Integration
+Surge Metrics Integration
 -------------------------------
 If you have access to the micro meter binder (internal UKG project)  then you can use the below example reference code to bind your
 

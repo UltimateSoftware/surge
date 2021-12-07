@@ -27,9 +27,9 @@ trait AggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCoreTrai
 trait AsyncAggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCoreTrait[Agg, Cmd, Nothing, Evt] {
   def executionContext: ExecutionContext
   def processCommand(aggregate: Option[Agg], command: Cmd): Future[Seq[Evt]]
-  def handleEvents(aggregate: Option[Agg], event: Seq[Evt]): Future[Option[Agg]]
+  def handleEvents(aggregate: Option[Agg], events: Seq[Evt]): Future[Option[Agg]]
 
-  override final def toCore: CommandHandler[Agg, Cmd, Nothing, Evt] =
+  override final def toCore: AsyncCommandHandler[Agg, Cmd, Nothing, Evt] =
     new AsyncCommandHandler[Agg, Cmd, Nothing, Evt] {
       override def processCommand(ctx: persistence.Context, state: Option[Agg], cmd: Cmd): Future[CommandResult] = {
         AsyncAggregateCommandModel.this.processCommand(state, cmd).map(r => Right(r))(executionContext)
@@ -40,13 +40,15 @@ trait AsyncAggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCor
 
 trait ContextAwareAggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCoreTrait[Agg, Cmd, Nothing, Evt] {
   def processCommand(ctx: Context, aggregate: Option[Agg], command: Cmd): Future[Seq[Evt]]
-  def handleEvent(ctx: Context, aggregate: Option[Agg], event: Evt): Option[Agg]
+  def handleEvents(ctx: Context, aggregate: Option[Agg], events: Seq[Evt]): Future[Option[Agg]]
 
-  final def toCore: CommandHandler[Agg, Cmd, Nothing, Evt] =
-    new CommandHandler[Agg, Cmd, Nothing, Evt] {
-      override def processCommand(ctx: persistence.Context, state: Option[Agg], cmd: Cmd): Future[CommandResult] =
-        ContextAwareAggregateCommandModel.this.processCommand(Context(ctx), state, cmd).map(v => Right(v))(ctx.executionContext)
-      override def apply(ctx: persistence.Context, state: Option[Agg], event: Evt): Option[Agg] = handleEvent(Context(ctx), state, event)
+  override final def toCore: AsyncCommandHandler[Agg, Cmd, Nothing, Evt] =
+    new AsyncCommandHandler[Agg, Cmd, Nothing, Evt] {
+      override def processCommand(ctx: persistence.Context, state: Option[Agg], cmd: Cmd): Future[CommandResult] = {
+        ContextAwareAggregateCommandModel.this.processCommand(Context(ctx), state, cmd).map(r => Right(r))(ctx.executionContext)
+      }
+      override def applyAsync(ctx: persistence.Context, initialState: Option[Agg], events: Seq[Evt]): Future[Option[Agg]] =
+        handleEvents(Context(ctx), initialState, events)
     }
 }
 

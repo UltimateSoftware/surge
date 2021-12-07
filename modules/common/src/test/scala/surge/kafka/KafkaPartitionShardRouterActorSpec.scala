@@ -15,7 +15,7 @@ import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
 import surge.akka.cluster.{ EntityPropsProvider, PerShardLogicProvider }
 import surge.internal.akka.ActorWithTracing
-import surge.core.Ack
+import surge.core.{ Ack, Controllable, ControllableAdapter }
 import surge.internal.akka.cluster.ActorSystemHostAwareness
 import surge.internal.akka.kafka.{ KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor }
 import surge.kafka.streams.{ HealthCheck, HealthCheckStatus }
@@ -43,14 +43,10 @@ object KafkaPartitionShardRouterActorSpecModels {
         override def onShardTerminated(): Unit = {}
         override def healthCheck(): Future[HealthCheck] = Future.successful(HealthCheck("test", "test", HealthCheckStatus.UP))
 
-        override def restart(): Future[Ack] = Future.successful(Ack())
-        override def start(): Future[Ack] = Future.successful(Ack())
-        override def stop(): Future[Ack] = Future.successful(Ack())
-
-        override def shutdown(): Future[Ack] = stop()
+        override val controllable: Controllable = new ControllableAdapter
       }
 
-      provider.start()
+      provider.controllable.start()
       provider
     }
   }
@@ -138,10 +134,10 @@ class KafkaPartitionShardRouterActorSpec
 
       val newPartitionAssignments = Map[HostPort, List[TopicPartition]](hostPort1 -> List(partition0, partition1, partition2), hostPort2 -> List())
 
-      partitionProbe.send(routerActor, TracedMessage(PartitionAssignments(newPartitionAssignments)))
+      partitionProbe.send(routerActor, TracedMessage("", PartitionAssignments(newPartitionAssignments)))
 
       val command = Command("partition2")
-      probe.send(routerActor, TracedMessage(command))
+      probe.send(routerActor, TracedMessage(command.id, command))
       regionProbe.expectMsg(WrappedCmd(partition2, command))
       regionProbe.reply(command)
       probe.expectMsg(command)
@@ -176,7 +172,7 @@ class KafkaPartitionShardRouterActorSpec
       initializePartitionAssignments(partitionProbe, Map.empty)
 
       val command0 = Command("partition0")
-      probe.send(routerActor, TracedMessage(command0))
+      probe.send(routerActor, TracedMessage(command0.id, command0))
 
       partitionProbe.send(routerActor, PartitionAssignments(partitionAssignments))
 

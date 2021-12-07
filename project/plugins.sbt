@@ -9,7 +9,7 @@ addSbtPlugin("com.typesafe.sbt" % "sbt-git" % "1.0.0")
 // Static code analysis
 addSbtPlugin("org.scalastyle" %% "scalastyle-sbt-plugin" % "1.0.0")
 
-addSbtPlugin("com.typesafe" % "sbt-mima-plugin" % "0.8.1")
+addSbtPlugin("com.typesafe" % "sbt-mima-plugin" % "1.0.1")
 
 // Test Coverage
 addSbtPlugin("org.scoverage" % "sbt-scoverage" % "1.6.1")
