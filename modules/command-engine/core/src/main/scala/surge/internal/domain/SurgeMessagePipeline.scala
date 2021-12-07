@@ -3,15 +3,19 @@
 package surge.internal.domain
 
 import akka.actor.{ ActorRef, ActorSystem }
+import akka.cluster.Cluster
+import akka.management.cluster.bootstrap.ClusterBootstrap
+import akka.management.scaladsl.AkkaManagement
 import com.typesafe.config.Config
 import org.slf4j.{ Logger, LoggerFactory }
 import play.api.libs.json.JsValue
-import surge.core.{ Ack, Controllable, SurgePartitionRouter, SurgeProcessingTrait }
+import surge.core.{ Ack, Controllable, KafkaProducerActor, SurgePartitionRouter, SurgeProcessingTrait }
 import surge.health.{ HealthSignalBusAware, HealthSignalBusTrait }
 import surge.internal.SurgeModel
 import surge.internal.akka.cluster.ActorSystemHostAwareness
 import surge.internal.akka.kafka.{ CustomConsumerGroupRebalanceListener, KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor }
 import surge.internal.health.HealthSignalStreamProvider
+import surge.internal.kafka.KafkaClusterShardingRebalanceListener
 import surge.internal.persistence.PersistentActorRegionCreator
 import surge.kafka.PartitionAssignments
 import surge.kafka.streams._
@@ -38,8 +42,11 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     with ActorSystemHostAwareness {
 
   import SurgeMessagePipeline._
+  import system.dispatcher
   protected implicit val system: ActorSystem = actorSystem
-  protected val stateChangeActor: ActorRef = system.actorOf(KafkaConsumerStateTrackingActor.props)
+  protected val stateChangeActor: ActorRef = system.actorOf(KafkaConsumerStateTrackingActor.props, "state-change-actor")
+
+  private val isAkkaClusterEnabled: Boolean = config.getBoolean("surge.feature-flags.experimental.enable-akka-cluster")
 
   private val partitionTracker: KafkaConsumerPartitionAssignmentTracker = new KafkaConsumerPartitionAssignmentTracker(stateChangeActor)
 
@@ -63,7 +70,8 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
   protected val cqrsRegionCreator: PersistentActorRegionCreator[M] =
     new PersistentActorRegionCreator[M](actorSystem, businessLogic, kafkaStreamsImpl, partitionTracker, businessLogic.metrics, signalBus, config = config)
 
-  protected val actorRouter: SurgePartitionRouter = SurgePartitionRouter(config, actorSystem, partitionTracker, businessLogic, cqrsRegionCreator, signalBus)
+  protected val actorRouter: SurgePartitionRouter =
+    SurgePartitionRouter(config, actorSystem, partitionTracker, businessLogic, kafkaStreamsImpl, cqrsRegionCreator, signalBus, isAkkaClusterEnabled)
 
   protected val surgeHealthCheck: SurgeHealthCheck = new SurgeHealthCheck(businessLogic.aggregateName, kafkaStreamsImpl, actorRouter)(ExecutionContext.global)
 
@@ -73,6 +81,34 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
 
   protected def registerRebalanceCallback(callback: PartitionAssignments => Unit): Unit = {
     system.actorOf(CustomConsumerGroupRebalanceListener.props(stateChangeActor, callback))
+  }
+
+  private def startClusterManagementAndRebalanceListener(): Future[Unit] = {
+    if (isAkkaClusterEnabled) {
+      Cluster.get(system)
+      ClusterBootstrap(system).start()
+      for {
+        _ <- AkkaManagement(system).start()
+        allStarted <- startKafkaClusterRebalanceListener()
+      } yield allStarted
+    } else {
+      Future.unit
+    }
+  }
+
+  private def startKafkaClusterRebalanceListener(): Future[ActorRef] = Future.successful {
+    val partitionToKafkaProducerActor = KafkaProducerActor.createFromPartitionNumber(
+      actorSystem = system,
+      metrics = businessLogic.metrics,
+      businessLogic = businessLogic,
+      partitionTracker = partitionTracker,
+      kStreams = kafkaStreamsImpl,
+      signalBus = signalBus,
+      config = config)
+
+    system.actorOf(
+      KafkaClusterShardingRebalanceListener
+        .props(stateChangeActor, partitionToKafkaProducerActor, businessLogic.kafka.stateTopic.name, businessLogic.kafka.streamsApplicationId))
   }
 
   private def startSignalStream(): Future[Ack] = {
@@ -137,9 +173,9 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
 
   private[surge] override val controllable: Controllable = new Controllable {
     override def start(): Future[Ack] = {
-      implicit val ec: ExecutionContext = system.dispatcher
       val result = for {
         _ <- startSignalStream()
+        _ <- startClusterManagementAndRebalanceListener()
         _ <- actorRouter.controllable.start()
         allStarted <- kafkaStreamsImpl.controllable.start()
       } yield {
@@ -153,8 +189,6 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     }
 
     override def restart(): Future[Ack] = {
-      implicit val ec: ExecutionContext = system.dispatcher
-
       val result = for {
         _ <- stop()
         started <- start()
@@ -166,8 +200,6 @@ private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
     }
 
     override def stop(): Future[Ack] = {
-      implicit val ec: ExecutionContext = system.dispatcher
-
       val result = for {
         _ <- stopSignalStream()
         _ <- actorRouter.controllable.stop()

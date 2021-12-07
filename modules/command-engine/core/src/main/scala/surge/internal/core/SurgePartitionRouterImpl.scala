@@ -2,21 +2,32 @@
 
 package surge.internal.core
 
-import java.util.regex.Pattern
 import akka.actor._
+import akka.cluster.sharding.external.ExternalShardAllocationStrategy
+import akka.cluster.sharding.{ ClusterSharding, ClusterShardingSettings }
+import akka.kafka.ConsumerSettings
+import akka.kafka.cluster.sharding.KafkaClusterSharding
 import akka.pattern.ask
 import com.typesafe.config.Config
+import org.apache.kafka.clients.consumer.ConsumerConfig
+import org.apache.kafka.common.serialization.{ ByteArrayDeserializer, StringDeserializer }
 import org.slf4j.LoggerFactory
-import surge.core.{ Ack, Controllable, SurgePartitionRouter }
+import play.api.libs.json.JsValue
+import surge.core.{ Ack, Controllable, KafkaProducerActor, SurgePartitionRouter }
 import surge.health.HealthSignalBusTrait
-import surge.internal.SurgeModel
-import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
+import surge.internal.akka.kafka.{ KafkaConsumerPartitionAssignmentTracker, KafkaShardingClassicMessageExtractor }
 import surge.internal.config.TimeoutConfig
-import surge.internal.persistence.RoutableMessage
-import surge.kafka.streams.{ HealthCheck, HealthCheckStatus, HealthyActor, HealthyComponent }
-import surge.kafka.{ KafkaPartitionShardRouterActor, PersistentActorRegionCreator }
+import surge.internal.persistence.PersistentActor
+import surge.internal.tracing.RoutableMessage
+import surge.internal.{ persistence, SurgeModel }
+import surge.kafka.streams._
+import surge.kafka.{ KafkaPartitionShardRouterActor, KafkaSecurityConfigurationImpl, PersistentActorRegionCreator }
 
-import scala.concurrent.{ ExecutionContext, Future }
+import java.util.Properties
+import java.util.regex.Pattern
+import scala.collection.JavaConverters._
+import scala.concurrent.duration.DurationInt
+import scala.concurrent.{ Await, ExecutionContext, Future }
 import scala.languageFeature.postfixOps
 
 private[surge] final class SurgePartitionRouterImpl(
@@ -24,25 +35,85 @@ private[surge] final class SurgePartitionRouterImpl(
     system: ActorSystem,
     partitionTracker: KafkaConsumerPartitionAssignmentTracker,
     businessLogic: SurgeModel[_, _, _, _],
+    aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue],
     regionCreator: PersistentActorRegionCreator[String],
-    signalBus: HealthSignalBusTrait)
+    signalBus: HealthSignalBusTrait,
+    isAkkaClusterEnabled: Boolean)
     extends SurgePartitionRouter
     with HealthyComponent {
   implicit val executionContext: ExecutionContext = system.dispatcher
   private val log = LoggerFactory.getLogger(getClass)
 
-  private val shardRouterProps = KafkaPartitionShardRouterActor.props(
-    config,
-    partitionTracker,
-    businessLogic.partitioner,
-    businessLogic.kafka.stateTopic,
-    regionCreator,
-    RoutableMessage.extractEntityId)(businessLogic.tracer)
+  override val actorRegion: ActorRef = {
+    if (isAkkaClusterEnabled) {
+      createAkkaCluster()
+    } else {
+      createShardRouter()
+    }
+  }
 
-  private val routerActorName = s"${businessLogic.aggregateName}RouterActor"
+  log.info(s"Shard region: $actorRegion")
 
-  private val shardRouter = system.actorOf(shardRouterProps, name = routerActorName)
-  override val actorRegion: ActorRef = shardRouter
+  private def createShardRouter(): ActorRef = {
+    val shardRouterProps = KafkaPartitionShardRouterActor.props(
+      config,
+      partitionTracker,
+      businessLogic.partitioner,
+      businessLogic.kafka.stateTopic,
+      regionCreator,
+      RoutableMessage.extractEntityId)(businessLogic.tracer)
+
+    val routerActorName = s"${businessLogic.aggregateName}RouterActor"
+    val shardRouter = system.actorOf(shardRouterProps, name = routerActorName)
+    shardRouter
+  }
+
+  private def initializeKafkaConsumerSettings(groupId: String): ConsumerSettings[String, Array[Byte]] = {
+    val securityRelatedProps = new Properties()
+    val securityHelper = new KafkaSecurityConfigurationImpl(config)
+    securityHelper.configureSecurityProperties(securityRelatedProps)
+
+    ConsumerSettings(system, new StringDeserializer, new ByteArrayDeserializer)
+      .withBootstrapServers(config.getString("kafka.brokers"))
+      .withGroupId(groupId)
+      .withProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
+      .withProperties(securityRelatedProps.asScala.toMap)
+  }
+
+  private def createAkkaCluster(): ActorRef = {
+    val groupId = businessLogic.kafka.streamsApplicationId
+    val consumerSettings = initializeKafkaConsumerSettings(groupId)
+
+    val regionF = KafkaClusterSharding(system)
+      .messageExtractorNoEnvelope(
+        timeout = 10.seconds,
+        topic = businessLogic.kafka.stateTopic.name,
+        entityIdExtractor = (msg: RoutableMessage) => msg.aggregateId,
+        settings = consumerSettings)
+      .map(messageExtractor => {
+        val classicMessageExtractor = new KafkaShardingClassicMessageExtractor[RoutableMessage](
+          kafkaPartitions = messageExtractor.kafkaPartitions,
+          entityIdExtractor = (msg: RoutableMessage) => msg.aggregateId)
+        val aggregateIdToKafkaProducerActor = KafkaProducerActor.createWithActorSelection(
+          actorSystem = system,
+          metrics = businessLogic.metrics,
+          businessLogic = businessLogic,
+          signalBus = signalBus,
+          numberOfPartitions = messageExtractor.kafkaPartitions)
+
+        val aggregateMetrics = PersistentActor.createMetrics(businessLogic.metrics, businessLogic.aggregateName)
+        val sharedResources = persistence.PersistentEntitySharedResources(aggregateIdToKafkaProducerActor, aggregateMetrics, aggregateKafkaStreamsImpl)
+        ClusterSharding(system).start(
+          typeName = groupId,
+          entityProps = PersistentActor.props(businessLogic, signalBus, sharedResources, config),
+          settings = ClusterShardingSettings(system),
+          messageExtractor = classicMessageExtractor,
+          allocationStrategy = new ExternalShardAllocationStrategy(system, groupId),
+          handOffStopMessage = PoisonPill)
+      })
+    // FIXME This could be fixed once we drop existing router
+    Await.result(regionF, 5.seconds)
+  }
 
   override def restartSignalPatterns(): Seq[Pattern] = Seq(Pattern.compile("kafka.fatal.error"))
 

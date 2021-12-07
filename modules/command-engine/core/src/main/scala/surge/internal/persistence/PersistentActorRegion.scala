@@ -69,9 +69,11 @@ class PersistentActorRegion[M](
 
   override def actorProvider(context: ActorContext): EntityPropsProvider[String] = {
     val aggregateMetrics = PersistentActor.createMetrics(metrics, businessLogic.aggregateName)
-    val sharedResources = persistence.PersistentEntitySharedResources(kafkaProducerActor, aggregateMetrics, aggregateKafkaStreamsImpl)
+    //FIXME: temporary fix to support switch between akka and existing shard allocation strategy
+    val aggregateIdToKafkaProducer = (_: String) => kafkaProducerActor
+    val sharedResources = persistence.PersistentEntitySharedResources(aggregateIdToKafkaProducer, aggregateMetrics, aggregateKafkaStreamsImpl)
 
-    actorId: String => PersistentActor.props(actorId, businessLogic, signalBus, sharedResources, config)
+    actorId: String => PersistentActor.props(businessLogic, signalBus, sharedResources, config, Some(actorId))
   }
 
   private def registrationCallback(): PartialFunction[Try[Ack], Unit] = {

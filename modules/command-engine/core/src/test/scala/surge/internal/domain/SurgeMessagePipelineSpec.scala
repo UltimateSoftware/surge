@@ -28,6 +28,7 @@ import surge.metrics.Metrics
 
 import java.util.regex.Pattern
 import scala.concurrent.duration._
+import scala.util.Try
 
 // FIXME need to be able to stop the router actor for this to work
 @Ignore
@@ -324,14 +325,17 @@ class SurgeMessagePipelineSpec
 
       override def actorSystem: ActorSystem = system
 
+      private val isAkkaClusterEnabled = config.getBoolean("surge.feature-flags.experimental.enable-akka-cluster")
       override protected val actorRouter: SurgePartitionRouterImpl =
         new SurgePartitionRouterImpl(
           defaultConfig,
           actorSystem,
           new KafkaConsumerPartitionAssignmentTracker(stateChangeActor),
           businessLogic,
+          kafkaStreamsImpl,
           cqrsRegionCreator,
-          signalStreamProvider.bus())
+          signalStreamProvider.bus(),
+          isAkkaClusterEnabled)
       override protected val kafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue] = new AggregateStateStoreKafkaStreams[JsValue](
         businessLogic.aggregateName,
         businessLogic.kafka.stateTopic,
