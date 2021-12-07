@@ -68,7 +68,7 @@ trait ContextAwareAggregateCommandModel[Agg, Cmd, Evt] extends SurgeProcessingMo
 
       override def applyAsync(ctx: SurgeContext[Agg, Evt], state: Option[Agg], events: Seq[Evt]): Future[SurgeContext[Agg, Evt]] = {
         val newState = events.foldLeft(state)((stateAccum, evt) => handleEvent(stateAccum, evt))
-        Future.successful(ctx.updateState(newState))
+        Future.successful(ctx.updateState(newState).reply(s => s))
       }
     }
 }

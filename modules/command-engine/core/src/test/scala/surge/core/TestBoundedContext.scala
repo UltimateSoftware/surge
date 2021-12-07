@@ -92,7 +92,7 @@ trait TestBoundedContext {
 
       val newState = events.foldLeft(Try(ctx))((stateAccum, evt) => stateAccum.map(_.updateState(handleEvent(state, evt))))
 
-      Future.fromTry(newState)
+      Future.fromTry(newState.map(_.reply(s => s)))
     }
     def handleEvent(agg: Option[State], evt: BaseTestEvent): Option[State] = {
 

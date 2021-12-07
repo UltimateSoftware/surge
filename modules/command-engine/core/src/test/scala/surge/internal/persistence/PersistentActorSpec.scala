@@ -495,7 +495,7 @@ class PersistentActorSpec
 
     "Crash the actor to force reinitialization if publishing events times out" in {
       val crashingMockProducer = mock[KafkaProducerActor]
-      val expectedException = new RuntimeException("This is expected")
+      val expectedException = new ExpectedTestException
 
       when(crashingMockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.successful(true))
       when(crashingMockProducer.publish(anyString, any[KafkaProducerActor.MessageToPublish], any[Seq[KafkaProducerActor.MessageToPublish]]))
@@ -515,7 +515,7 @@ class PersistentActorSpec
 
     "Wrap and return the error from publishing to Kafka if publishing explicitly fails consistently" in {
       val failingMockProducer = mock[KafkaProducerActor]
-      val expectedException = new RuntimeException("This is expected")
+      val expectedException = new ExpectedTestException
       when(failingMockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.successful(true))
       when(failingMockProducer.publish(anyString, any[KafkaProducerActor.MessageToPublish], any[Seq[KafkaProducerActor.MessageToPublish]]))
         .thenReturn(Future.successful(KafkaProducerActor.PublishFailure(expectedException)))
@@ -534,7 +534,7 @@ class PersistentActorSpec
 
     "Retry publishing to Kafka if publishing explicitly fails" in {
       val failingMockProducer = mock[KafkaProducerActor]
-      val expectedException = new RuntimeException("This is expected")
+      val expectedException = new ExpectedTestException
       when(failingMockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.successful(true))
       when(failingMockProducer.publish(anyString, any[KafkaProducerActor.MessageToPublish], any[Seq[KafkaProducerActor.MessageToPublish]]))
         .thenReturn(Future.successful(KafkaProducerActor.PublishFailure(expectedException)))
