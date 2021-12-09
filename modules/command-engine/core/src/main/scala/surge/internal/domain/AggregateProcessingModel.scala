@@ -25,7 +25,6 @@ trait SurgeContext[State, Event] {
   def updateState(state: Option[State]): SurgeContext[State, Event]
   def reply[Reply](replyWithMessage: Option[State] => Option[Reply]): SurgeContext[State, Event]
   def reject[Rejection](rejection: Rejection): SurgeContext[State, Event]
-  def nothing: SurgeContext[State, Event]
 }
 
 case class SurgeContextImpl[State, Event](
@@ -44,6 +43,4 @@ case class SurgeContextImpl[State, Event](
     addSideEffect(new ReplyEffect(originalSender, _ => ACKRejection(rejection))).copy(isRejected = true)
 
   private def addSideEffect(sideEffect: SurgeSideEffect[State]): SurgeContextImpl[State, Event] = copy(sideEffects = this.sideEffects :+ sideEffect)
-
-  override def nothing: SurgeContext[State, Event] = this
 }
