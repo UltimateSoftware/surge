@@ -568,7 +568,7 @@ public class BankAccountUpdated implements BankAccountEvent {
   <dt>Scala</dt>
   <dd>
   <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/scala/docs/command/BankAccountEngine.scala#L10-L16" target="_blank" title="Go to snippet source"></a><code class="language-scala">object BankAccountEngine {
-  lazy val surgeEngine: SurgeCommand[UUID, BankAccount, BankAccountCommand, Nothing, BankAccountEvent] = {
+  lazy val surgeEngine: SurgeCommand[UUID, BankAccount, BankAccountCommand, BankAccountEvent] = {
     val engine = SurgeCommand(BankAccountSurgeModel)
     engine.start()
     engine
@@ -577,7 +577,7 @@ public class BankAccountUpdated implements BankAccountEvent {
   <dt>Java</dt>
   <dd>
   <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/Main.java#L27-L30" target="_blank" title="Go to snippet source"></a><code class="language-java">BankAccountSurgeModel bankAccountSurgeModel = new BankAccountSurgeModel();
-SurgeCommand&lt;UUID, BankAccount, BankAccountCommand, ?, BankAccountEvent&gt; surgeCommand =
+SurgeCommand&lt;UUID, BankAccount, BankAccountCommand, BankAccountEvent&gt; surgeCommand =
         new SurgeCommandBuilder().withBusinessLogic(bankAccountSurgeModel).build();
 surgeCommand.start();</code></pre></dd>
 </dl>
