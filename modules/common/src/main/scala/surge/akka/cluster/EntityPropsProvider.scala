@@ -3,7 +3,6 @@
 package surge.akka.cluster
 
 import akka.actor.{ ActorContext, Props }
-import surge.core.Controllable
 import surge.kafka.streams.HealthyComponent
 
 /**

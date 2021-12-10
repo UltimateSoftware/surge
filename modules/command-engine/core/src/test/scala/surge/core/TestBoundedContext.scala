@@ -5,13 +5,13 @@ package surge.core
 import io.opentelemetry.api.OpenTelemetry
 import play.api.libs.json._
 import surge.core.command.{ SurgeCommandKafkaConfig, SurgeCommandModel }
-import surge.internal.domain.CommandHandler
-import surge.internal.persistence.Context
+import surge.internal.domain.{ SurgeContext, SurgeProcessingModel }
 import surge.internal.tracing.NoopTracerFactory
 import surge.kafka.{ KafkaTopic, PartitionStringUpToColon }
 import surge.metrics.Metrics
 
-import scala.concurrent.Future
+import scala.concurrent.{ ExecutionContext, Future }
+import scala.util.Try
 
 object TestBoundedContext {
   case class State(aggregateId: String, count: Int, version: Int)
@@ -83,9 +83,17 @@ trait TestBoundedContext {
   implicit val countIncrementedFormat: Format[CountIncremented] = Json.format
   implicit val countDecrementedFormat: Format[CountDecremented] = Json.format
 
-  trait BusinessLogicTrait extends CommandHandler[State, BaseTestCommand, Nothing, BaseTestEvent] {
+  trait BusinessLogicTrait extends SurgeProcessingModel[State, BaseTestCommand, BaseTestEvent] {
 
-    override def apply(ctx: Context, agg: Option[State], evt: BaseTestEvent): Option[State] = handleEvent(agg, evt)
+    override def applyAsync(
+        ctx: SurgeContext[State, BaseTestEvent],
+        state: Option[State],
+        events: Seq[BaseTestEvent]): Future[SurgeContext[State, BaseTestEvent]] = {
+
+      val newState = events.foldLeft(Try(ctx))((stateAccum, evt) => stateAccum.map(_.updateState(handleEvent(state, evt))))
+
+      Future.fromTry(newState.map(_.reply(s => s)))
+    }
     def handleEvent(agg: Option[State], evt: BaseTestEvent): Option[State] = {
 
       val current = agg.getOrElse(State(evt.aggregateId, 0, 0))
@@ -102,22 +110,27 @@ trait TestBoundedContext {
       Some(newState)
     }
 
-    override def processCommand(ctx: Context, agg: Option[State], cmd: BaseTestCommand): Future[CommandResult] = {
+    override def handle(ctx: SurgeContext[State, BaseTestEvent], agg: Option[State], cmd: BaseTestCommand)(
+        implicit ec: ExecutionContext): Future[SurgeContext[State, BaseTestEvent]] = {
       val newSequenceNumber = agg.map(_.version).getOrElse(0) + 1
 
-      cmd match {
-        case Increment(aggregateId)       => Future.successful(Right(Seq(CountIncremented(aggregateId, incrementBy = 1, sequenceNumber = newSequenceNumber))))
-        case Decrement(aggregateId)       => Future.successful(Right(Seq(CountDecremented(aggregateId, decrementBy = 1, sequenceNumber = newSequenceNumber))))
-        case CreateNoOpEvent(aggregateId) => Future.successful(Right(Seq(NoOpEvent(aggregateId, newSequenceNumber))))
-        case _: DoNothing                 => Future.successful(Right(Seq.empty))
+      val futureEvents = cmd match {
+        case Increment(aggregateId)       => Future.successful(Seq(CountIncremented(aggregateId, incrementBy = 1, sequenceNumber = newSequenceNumber)))
+        case Decrement(aggregateId)       => Future.successful(Seq(CountDecremented(aggregateId, decrementBy = 1, sequenceNumber = newSequenceNumber)))
+        case CreateNoOpEvent(aggregateId) => Future.successful(Seq(NoOpEvent(aggregateId, newSequenceNumber)))
+        case _: DoNothing                 => Future.successful(Seq.empty)
         case fail: FailCommandProcessing =>
           Future.failed(new Exception(fail.errorMsg))
         case CreateExceptionThrowingEvent(aggregateId, errorMsg) =>
-          Future.successful(Right(Seq(ExceptionThrowingEvent(aggregateId, newSequenceNumber, errorMsg))))
+          Future.successful(Seq(ExceptionThrowingEvent(aggregateId, newSequenceNumber, errorMsg)))
         case CreateUnserializableEvent(aggregateId, errorMsg) =>
-          Future.successful(Right(Seq(UnserializableEvent(aggregateId, newSequenceNumber, new Exception(errorMsg)))))
+          Future.successful(Seq(UnserializableEvent(aggregateId, newSequenceNumber, new Exception(errorMsg))))
         case _ =>
           throw new RuntimeException("Received unexpected message in command handler! This should not happen and indicates a bad test")
+      }
+      futureEvents.map { events =>
+        val newState = events.foldLeft(agg)((s, e) => handleEvent(s, e))
+        ctx.persistEvents(events).updateState(newState).reply(s => s)
       }
     }
   }
@@ -144,7 +157,7 @@ trait TestBoundedContext {
     SerializedMessage(s"${evt.aggregateId}:${evt.sequenceNumber}", Json.toJson(evt).toString().getBytes())
   }
 
-  val businessLogic: SurgeCommandModel[State, BaseTestCommand, Nothing, BaseTestEvent] =
+  val businessLogic: SurgeCommandModel[State, BaseTestCommand, BaseTestEvent] =
     command.SurgeCommandModel(
       aggregateName = "CountAggregate",
       kafka = kafkaConfig,

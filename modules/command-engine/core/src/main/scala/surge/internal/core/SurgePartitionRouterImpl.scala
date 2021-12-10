@@ -17,24 +17,23 @@ import surge.core.{ Ack, Controllable, KafkaProducerActor, SurgePartitionRouter 
 import surge.health.HealthSignalBusTrait
 import surge.internal.akka.kafka.{ KafkaConsumerPartitionAssignmentTracker, KafkaShardingClassicMessageExtractor }
 import surge.internal.config.TimeoutConfig
-import surge.internal.persistence.PersistentActor
+import surge.internal.persistence
+import surge.internal.persistence.{ BusinessLogic, PersistentActor }
 import surge.internal.tracing.RoutableMessage
-import surge.internal.{ persistence, SurgeModel }
 import surge.kafka.streams._
 import surge.kafka.{ KafkaPartitionShardRouterActor, KafkaSecurityConfigurationImpl, PersistentActorRegionCreator }
 
 import java.util.Properties
 import java.util.regex.Pattern
-import scala.collection.JavaConverters._
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{ Await, ExecutionContext, Future }
-import scala.languageFeature.postfixOps
+import scala.jdk.CollectionConverters._
 
 private[surge] final class SurgePartitionRouterImpl(
     config: Config,
     system: ActorSystem,
     partitionTracker: KafkaConsumerPartitionAssignmentTracker,
-    businessLogic: SurgeModel[_, _, _, _],
+    businessLogic: BusinessLogic,
     aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue],
     regionCreator: PersistentActorRegionCreator[String],
     signalBus: HealthSignalBusTrait,
@@ -105,7 +104,7 @@ private[surge] final class SurgePartitionRouterImpl(
         val sharedResources = persistence.PersistentEntitySharedResources(aggregateIdToKafkaProducerActor, aggregateMetrics, aggregateKafkaStreamsImpl)
         ClusterSharding(system).start(
           typeName = groupId,
-          entityProps = PersistentActor.props(businessLogic, signalBus, sharedResources, config),
+          entityProps = PersistentActor.props(businessLogic, sharedResources, config, None),
           settings = ClusterShardingSettings(system),
           messageExtractor = classicMessageExtractor,
           allocationStrategy = new ExternalShardAllocationStrategy(system, groupId),

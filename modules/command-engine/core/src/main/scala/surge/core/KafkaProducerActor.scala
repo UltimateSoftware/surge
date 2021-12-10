@@ -2,7 +2,7 @@
 
 package surge.core
 
-import akka.actor.{ ActorRef, ActorSelection, ActorSystem, NoSerializationVerificationNeeded, PoisonPill, Props }
+import akka.actor.{ ActorSystem, NoSerializationVerificationNeeded, PoisonPill, Props }
 import akka.pattern._
 import akka.util.Timeout
 import com.typesafe.config.Config
@@ -14,8 +14,9 @@ import surge.internal.SurgeModel
 import surge.internal.akka.actor.{ ActorLifecycleManagerActor, ManagedActorRef }
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.config.TimeoutConfig
-import surge.internal.kafka.{ KTableLagCheckerImpl, KafkaProducerActorImpl, PartitionerHelper }
 import surge.internal.kafka.KafkaProducerActorImpl.ShutdownProducer
+import surge.internal.kafka.{ KTableLagCheckerImpl, KafkaProducerActorImpl, PartitionerHelper }
+import surge.internal.persistence.BusinessLogic
 import surge.kafka.streams._
 import surge.kafka.{ KafkaAdminClient, KafkaProducerTrait }
 import surge.metrics.{ MetricInfo, Metrics, Timer }
@@ -32,7 +33,7 @@ object KafkaProducerActor {
       actorSystem: ActorSystem,
       assignedPartition: TopicPartition,
       metrics: Metrics,
-      businessLogic: SurgeModel[_, _, _, _],
+      businessLogic: BusinessLogic,
       kStreams: AggregateStateStoreKafkaStreams[_],
       partitionTracker: KafkaConsumerPartitionAssignmentTracker,
       signalBus: HealthSignalBusTrait,
@@ -68,7 +69,7 @@ object KafkaProducerActor {
   def createFromPartitionNumber(
       actorSystem: ActorSystem,
       metrics: Metrics,
-      businessLogic: SurgeModel[_, _, _, _],
+      businessLogic: BusinessLogic,
       kStreams: AggregateStateStoreKafkaStreams[_],
       partitionTracker: KafkaConsumerPartitionAssignmentTracker,
       signalBus: HealthSignalBusTrait,
@@ -107,7 +108,7 @@ object KafkaProducerActor {
   def createWithActorSelection(
       actorSystem: ActorSystem,
       metrics: Metrics,
-      businessLogic: SurgeModel[_, _, _, _],
+      businessLogic: BusinessLogic,
       signalBus: HealthSignalBusTrait,
       numberOfPartitions: Int): String => KafkaProducerActor = (aggregateId: String) => {
 
@@ -171,7 +172,6 @@ class KafkaProducerActor(
       state: KafkaProducerActor.MessageToPublish,
       events: Seq[KafkaProducerActor.MessageToPublish]): Future[KafkaProducerActor.PublishResult] = {
     log.trace(s"Publishing state for {} {}", Seq(aggregateName, state.key): _*)
-    implicit val ec: ExecutionContext = ExecutionContext.global
     implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PublisherActor.publishTimeout)
     (publisherActor.ref ? KafkaProducerActorImpl.Publish(eventsToPublish = events, state = state)).mapTo[KafkaProducerActor.PublishResult]
   }

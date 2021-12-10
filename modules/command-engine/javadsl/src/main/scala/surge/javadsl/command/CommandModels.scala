@@ -2,112 +2,85 @@
 
 package surge.javadsl.command
 
-import surge.core.command.AggregateCommandModelCoreTrait
-import surge.internal.domain.{ AsyncCommandHandler, CommandHandler }
-import surge.internal.persistence
-import surge.javadsl._
+import surge.core.commondsl.SurgeProcessingModelCoreTrait
+import surge.internal.domain.{ SurgeContext, SurgeProcessingModel }
 import surge.javadsl.common.Context
 
 import java.util.concurrent.CompletableFuture
 import java.util.{ Optional, List => JList }
-import scala.compat.java8.FutureConverters
 import scala.compat.java8.OptionConverters._
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.jdk.CollectionConverters._
+import scala.compat.java8.FutureConverters._
 import scala.util.Try
 
-trait AggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCoreTrait[Agg, Cmd, Nothing, Evt] {
+trait AggregateCommandModel[Agg, Cmd, Evt] extends SurgeProcessingModelCoreTrait[Agg, Cmd, Evt] {
   def processCommand(aggregate: Optional[Agg], command: Cmd): JList[Evt]
   def handleEvent(aggregate: Optional[Agg], event: Evt): Optional[Agg]
 
-  final def toCore: CommandHandler[Agg, Cmd, Nothing, Evt] =
-    new CommandHandler[Agg, Cmd, Nothing, Evt] {
-      override def processCommand(ctx: persistence.Context, state: Option[Agg], cmd: Cmd): Future[CommandResult] =
-        Future.fromTry(Try(Right(AggregateCommandModel.this.processCommand(state.asJava, cmd).asScala.toSeq)))
-      override def apply(ctx: persistence.Context, state: Option[Agg], event: Evt): Option[Agg] = handleEvent(state.asJava, event).asScala
+  final def toCore: SurgeProcessingModel[Agg, Cmd, Evt] =
+    new SurgeProcessingModel[Agg, Cmd, Evt] {
+
+      private def newStateFromEvents(events: Seq[Evt], state: Option[Agg]): Optional[Agg] = {
+        events.foldLeft(state.asJava)((s: Optional[Agg], e: Evt) => handleEvent(s, e))
+      }
+
+      override def handle(ctx: SurgeContext[Agg, Evt], state: Option[Agg], msg: Cmd)(implicit ec: ExecutionContext): Future[SurgeContext[Agg, Evt]] = {
+        Future.fromTry(Try(AggregateCommandModel.this.processCommand(state.asJava, msg).asScala.toSeq)).map { events =>
+          val newState = newStateFromEvents(events, state)
+          ctx.persistEvents(events).updateState(newState.asScala).reply(state => state)
+        }
+      }
+
+      override def applyAsync(ctx: SurgeContext[Agg, Evt], state: Option[Agg], events: Seq[Evt]): Future[SurgeContext[Agg, Evt]] = {
+        Future.fromTry(Try(ctx.updateState(newStateFromEvents(events, state).asScala).reply(state => state)))
+      }
     }
 }
 
-trait AsyncAggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCoreTrait[Agg, Cmd, Nothing, Evt] {
+trait AsyncAggregateCommandModel[Agg, Cmd, Evt] extends SurgeProcessingModelCoreTrait[Agg, Cmd, Evt] {
   def processCommand(aggregate: Optional[Agg], command: Cmd): CompletableFuture[JList[Evt]]
   def handleEvent(aggregate: Optional[Agg], event: Evt): CompletableFuture[Optional[Agg]]
 
-  final def toCore: AsyncCommandHandler[Agg, Cmd, Nothing, Evt] =
-    new AsyncCommandHandler[Agg, Cmd, Nothing, Evt] {
-      override def processCommand(ctx: persistence.Context, state: Option[Agg], cmd: Cmd): Future[CommandResult] =
-        FutureConverters
-          .toScala(AsyncAggregateCommandModel.this.processCommand(state.asJava, cmd))
-          .map(events => Right(events.asScala.toSeq))(ExecutionContext.global)
+  final def toCore: SurgeProcessingModel[Agg, Cmd, Evt] =
+    new SurgeProcessingModel[Agg, Cmd, Evt] {
+      private def newStateFromEvents(events: Seq[Evt], state: Option[Agg])(implicit ec: ExecutionContext): Future[Optional[Agg]] = {
+        events.foldLeft(Future.successful(state.asJava))((fut, e) => fut.flatMap(s => handleEvent(s, e).toScala))
+      }
+      override def handle(ctx: SurgeContext[Agg, Evt], state: Option[Agg], msg: Cmd)(implicit ec: ExecutionContext): Future[SurgeContext[Agg, Evt]] = {
+        processCommand(state.asJava, msg).toScala.flatMap { events =>
+          newStateFromEvents(events.asScala.toSeq, state).map { newState =>
+            ctx.persistEvents(events.asScala.toSeq).updateState(newState.asScala).reply(state => state)
+          }
+        }
+      }
 
-      override def applyAsync(ctx: persistence.Context, state: Option[Agg], events: Seq[Evt]): Future[Option[Agg]] = {
-        FutureConverters
-          .toScala(events.foldLeft(CompletableFuture.completedFuture(state.asJava))((fs, event) => fs.thenComposeAsync(handleEvent(_, event))))
-          .map(_.asScala)(ctx.executionContext)
+      // FIXME Does applyEvents make sense any more? In the core model state updates should happen via the handle method now.
+      //  We probably still do need something for applying events directly though...
+      override def applyAsync(ctx: SurgeContext[Agg, Evt], state: Option[Agg], events: Seq[Evt]): Future[SurgeContext[Agg, Evt]] = {
+        implicit val ec: ExecutionContext = ExecutionContext.global
+        newStateFromEvents(events, state).map { newState =>
+          ctx.updateState(newState.asScala).reply(state => state)
+        }
       }
     }
 }
 
-trait ContextAwareAggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCoreTrait[Agg, Cmd, Nothing, Evt] {
-  def processCommand(ctx: common.Context, aggregate: Optional[Agg], command: Cmd): CompletableFuture[JList[Evt]]
-  def handleEvents(ctx: common.Context, aggregate: Optional[Agg], events: JList[Evt]): CompletableFuture[Optional[Agg]]
+trait ContextAwareAggregateCommandModel[Agg, Cmd, Evt] extends SurgeProcessingModelCoreTrait[Agg, Cmd, Evt] {
+  def processCommand(ctx: Context[Agg, Evt], aggregate: Optional[Agg], command: Cmd): CompletableFuture[Context[Agg, Evt]]
+  def handleEvent(aggregate: Optional[Agg], event: Evt): Optional[Agg]
 
-  final def toCore: AsyncCommandHandler[Agg, Cmd, Nothing, Evt] =
-    new AsyncCommandHandler[Agg, Cmd, Nothing, Evt] {
-      override def processCommand(ctx: persistence.Context, state: Option[Agg], cmd: Cmd): Future[CommandResult] = {
-        FutureConverters
-          .toScala(ContextAwareAggregateCommandModel.this.processCommand(Context(ctx), state.asJava, cmd))
-          .map(events => Right(events.asScala.toSeq))(ctx.executionContext)
-      }
-      override def applyAsync(ctx: persistence.Context, state: Option[Agg], events: Seq[Evt]): Future[Option[Agg]] = {
-        FutureConverters.toScala(handleEvents(Context(ctx), state.asJava, events.toList.asJava)).map(_.asScala)(ctx.executionContext)
+  final def toCore: SurgeProcessingModel[Agg, Cmd, Evt] =
+    new SurgeProcessingModel[Agg, Cmd, Evt] {
+      override def handle(ctx: SurgeContext[Agg, Evt], state: Option[Agg], msg: Cmd)(implicit ec: ExecutionContext): Future[SurgeContext[Agg, Evt]] = {
+        processCommand(Context(ctx), state.asJava, msg).toScala.map(_.toCore)
       }
 
+      override def applyAsync(ctx: SurgeContext[Agg, Evt], state: Option[Agg], events: Seq[Evt]): Future[SurgeContext[Agg, Evt]] = {
+        val newState = events.foldLeft(state.asJava)((s: Optional[Agg], e: Evt) => handleEvent(s, e))
+        Future.successful(ctx.updateState(newState.asScala).reply(s => s))
+      }
     }
 }
 
-/**
- * Trait for implementing a rejectable command model. Unlike `AggregateCommandModel` this type of command model may choose to accept or reject commands.
- * @tparam Agg
- *   state type
- * @tparam Cmd
- *   command type
- * @tparam Rej
- *   rejection type
- * @tparam Evt
- *   event type
- */
-trait RejectableAggregateCommandModel[Agg, Cmd, Rej, Evt] extends AggregateCommandModelCoreTrait[Agg, Cmd, Rej, Evt] {
-
-  /**
-   * Process a command
-   * @param ctx
-   *   the surge context
-   * @param aggregate
-   *   the current aggregate state
-   * @param command
-   *   the command to process
-   * @return
-   *   a CompleteableFuture of Either a rejection or a sequence or events generated by processing the command
-   */
-  def processCommand(ctx: Context, aggregate: Optional[Agg], command: Cmd): CompletableFuture[Either[Rej, Seq[Evt]]]
-
-  /**
-   * Handle an event
-   * @param ctx
-   *   the surge context
-   * @param aggregate
-   *   the current aggregate state
-   * @param event
-   *   the event to apply
-   * @return
-   *   the some resulting aggregate state or `None` to remove the state.
-   */
-  def handleEvent(ctx: Context, aggregate: Optional[Agg], event: Evt): Optional[Agg]
-
-  final def toCore: CommandHandler[Agg, Cmd, Rej, Evt] =
-    new CommandHandler[Agg, Cmd, Rej, Evt] {
-      override def processCommand(ctx: persistence.Context, state: Option[Agg], cmd: Cmd): Future[CommandResult] =
-        FutureConverters.toScala(RejectableAggregateCommandModel.this.processCommand(Context(ctx), state.asJava, cmd))
-      override def apply(ctx: persistence.Context, state: Option[Agg], event: Evt): Option[Agg] = handleEvent(Context(ctx), state.asJava, event).asScala
-    }
-}
+// TODO Add explicit reply type model to prove out the abstraction

@@ -2,7 +2,6 @@
 
 package docs.command
 
-import io.opentelemetry.api.trace.Tracer
 import io.opentelemetry.sdk.resources.Resource
 import surge.core._
 import surge.kafka.KafkaTopic

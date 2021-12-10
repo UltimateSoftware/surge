@@ -25,7 +25,7 @@ public class Main {
     public static void main(String[] args) {
         // #bank_account_engine_class
         BankAccountSurgeModel bankAccountSurgeModel = new BankAccountSurgeModel();
-        SurgeCommand<UUID, BankAccount, BankAccountCommand, ?, BankAccountEvent> surgeCommand =
+        SurgeCommand<UUID, BankAccount, BankAccountCommand, BankAccountEvent> surgeCommand =
                 new SurgeCommandBuilder().withBusinessLogic(bankAccountSurgeModel).build();
         surgeCommand.start();
         // #bank_account_engine_class
