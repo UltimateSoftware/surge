@@ -32,12 +32,6 @@ object Dependencies extends AutoPlugin {
       val jacksonSerialization = "com.typesafe.akka" %% "akka-serialization-jackson" % version
     }
 
-    object Alpakka {
-      val alpakkaVersion = "2.0.2"
-      val kafka = "com.typesafe.akka" %% "akka-stream-kafka" % alpakkaVersion
-      val kafkaTestKit = "com.typesafe.akka" %% "akka-stream-kafka-testkit" % alpakkaVersion % Test
-    }
-
     object Kafka {
       val kafkaVersion = "2.7.0"
 

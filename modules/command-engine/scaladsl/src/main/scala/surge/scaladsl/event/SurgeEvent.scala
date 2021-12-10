@@ -14,7 +14,7 @@ import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamPro
 import surge.metrics.Metric
 import surge.scaladsl.common.HealthCheckTrait
 
-trait SurgeEvent[AggId, Agg, Evt] extends core.SurgeProcessingTrait[Agg, Nothing, Nothing, Evt] with HealthCheckTrait {
+trait SurgeEvent[AggId, Agg, Evt] extends core.SurgeProcessingTrait[Agg, Nothing, Evt] with HealthCheckTrait {
   def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Evt]
   def getMetrics: Vector[Metric]
   def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Evt]): Unit

@@ -73,7 +73,7 @@ class PersistentActorRegion[M](
     val aggregateIdToKafkaProducer = (_: String) => kafkaProducerActor
     val sharedResources = persistence.PersistentEntitySharedResources(aggregateIdToKafkaProducer, aggregateMetrics, aggregateKafkaStreamsImpl)
 
-    actorId: String => PersistentActor.props(businessLogic, signalBus, sharedResources, config, Some(actorId))
+    actorId: String => PersistentActor.props(businessLogic, sharedResources, config, Some(actorId))
   }
 
   private def registrationCallback(): PartialFunction[Try[Ack], Unit] = {

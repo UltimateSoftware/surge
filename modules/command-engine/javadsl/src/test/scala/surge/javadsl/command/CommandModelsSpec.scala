@@ -6,7 +6,7 @@ import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AsyncWordSpec
 import org.scalatestplus.mockito.MockitoSugar
-import surge.internal.persistence.Context
+import surge.internal.domain.SurgeContext
 
 import java.util
 import java.util.Optional
@@ -21,7 +21,7 @@ class CommandModelsSpec extends AsyncWordSpec with Matchers with MockitoSugar wi
         override def handleEvent(aggregate: Optional[String], event: String): Optional[String] = Optional.empty()
       }
       recoverToSucceededIf[RuntimeException] {
-        exceptionThrowingModel.toCore.processCommand(mock[Context], None, "Test")
+        exceptionThrowingModel.toCore.handle(mock[SurgeContext[String, String]], None, "Test")
       }
     }
   }
