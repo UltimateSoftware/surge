@@ -7,7 +7,7 @@ import io.opentelemetry.api.trace.Tracer
 import surge.core.commondsl.SurgeEventBusinessLogicTrait
 import surge.core.{ SurgeAggregateReadFormatting, SurgeAggregateWriteFormatting, SurgeEventWriteFormatting }
 import surge.internal.SurgeModel
-import surge.internal.domain.AggregateProcessingModel
+import surge.internal.domain.SurgeProcessingModel
 import surge.internal.kafka.SurgeKafkaConfig
 import surge.kafka.{ KafkaPartitioner, KafkaTopic }
 import surge.metrics.Metrics
@@ -22,7 +22,7 @@ object SurgeEventServiceModel {
     new SurgeEventServiceModel[Agg, Event](
       aggregateName = businessLogic.aggregateName,
       kafka = businessLogic.kafkaConfig,
-      model = businessLogic.eventModel.toCore,
+      model = businessLogic.processingModel.toCore,
       aggregateWriteFormatting = businessLogic.aggregateWriteFormatting,
       aggregateReadFormatting = businessLogic.aggregateReadFormatting,
       metrics = businessLogic.metrics,
@@ -34,13 +34,13 @@ object SurgeEventServiceModel {
 private[surge] case class SurgeEventServiceModel[Agg, Event](
     override val aggregateName: String,
     override val kafka: SurgeEventKafkaConfig,
-    override val model: AggregateProcessingModel[Agg, Nothing, Nothing, Event],
+    override val model: SurgeProcessingModel[Agg, Nothing, Event],
     override val aggregateReadFormatting: SurgeAggregateReadFormatting[Agg],
     override val aggregateWriteFormatting: SurgeAggregateWriteFormatting[Agg],
     override val metrics: Metrics,
     override val openTelemetry: OpenTelemetry,
     override val tracer: Tracer,
     override val partitioner: KafkaPartitioner[String])
-    extends SurgeModel[Agg, Nothing, Nothing, Event] {
+    extends SurgeModel[Agg, Nothing, Event] {
   override def eventWriteFormattingOpt: Option[SurgeEventWriteFormatting[Event]] = None
 }

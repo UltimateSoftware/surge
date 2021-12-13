@@ -2,99 +2,73 @@
 
 package surge.scaladsl.command
 
-import surge.core.command.AggregateCommandModelCoreTrait
-import surge.internal
-import surge.internal.domain.{ AsyncCommandHandler, CommandHandler }
-import surge.internal.persistence
-import surge.scaladsl.command.Types.CommandResult
+import surge.core.commondsl.SurgeProcessingModelCoreTrait
+import surge.internal.domain.{ SurgeContext, SurgeProcessingModel }
 import surge.scaladsl.common.Context
 
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.Try
 
-trait AggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCoreTrait[Agg, Cmd, Nothing, Evt] {
+trait AggregateCommandModel[Agg, Cmd, Evt] extends SurgeProcessingModelCoreTrait[Agg, Cmd, Evt] {
   def processCommand(aggregate: Option[Agg], command: Cmd): Try[Seq[Evt]]
   def handleEvent(aggregate: Option[Agg], event: Evt): Option[Agg]
 
-  final def toCore: CommandHandler[Agg, Cmd, Nothing, Evt] =
-    new CommandHandler[Agg, Cmd, Nothing, Evt] {
-      override def processCommand(ctx: persistence.Context, state: Option[Agg], cmd: Cmd): Future[CommandResult] =
-        Future.fromTry(AggregateCommandModel.this.processCommand(state, cmd).map(v => Right(v)))
-      override def apply(ctx: persistence.Context, state: Option[Agg], event: Evt): Option[Agg] = handleEvent(state, event)
+  final def toCore: SurgeProcessingModel[Agg, Cmd, Evt] = {
+    new SurgeProcessingModel[Agg, Cmd, Evt] {
+      override def handle(ctx: SurgeContext[Agg, Evt], state: Option[Agg], msg: Cmd)(implicit ec: ExecutionContext): Future[SurgeContext[Agg, Evt]] = {
+        Future.fromTry(processCommand(state, msg)).map { events =>
+          val newState = events.foldLeft(state)((s: Option[Agg], e: Evt) => handleEvent(s, e))
+          ctx.persistEvents(events).updateState(newState).reply(state => state)
+        }
+      }
+
+      override def applyAsync(ctx: SurgeContext[Agg, Evt], state: Option[Agg], events: Seq[Evt]): Future[SurgeContext[Agg, Evt]] = {
+        val newState = events.foldLeft(state)((stateAccum, evt) => handleEvent(stateAccum, evt))
+        Future.fromTry(Try(ctx.updateState(newState).reply(state => state)))
+      }
     }
+  }
 }
 
-trait AsyncAggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCoreTrait[Agg, Cmd, Nothing, Evt] {
+trait AsyncAggregateCommandModel[Agg, Cmd, Evt] extends SurgeProcessingModelCoreTrait[Agg, Cmd, Evt] {
   def executionContext: ExecutionContext
   def processCommand(aggregate: Option[Agg], command: Cmd): Future[Seq[Evt]]
-  def handleEvents(aggregate: Option[Agg], events: Seq[Evt]): Future[Option[Agg]]
+  def handleEvents(aggregate: Option[Agg], event: Seq[Evt]): Future[Option[Agg]]
 
-  override final def toCore: AsyncCommandHandler[Agg, Cmd, Nothing, Evt] =
-    new AsyncCommandHandler[Agg, Cmd, Nothing, Evt] {
-      override def processCommand(ctx: persistence.Context, state: Option[Agg], cmd: Cmd): Future[CommandResult] = {
-        AsyncAggregateCommandModel.this.processCommand(state, cmd).map(r => Right(r))(executionContext)
+  final def toCore: SurgeProcessingModel[Agg, Cmd, Evt] = {
+    new SurgeProcessingModel[Agg, Cmd, Evt] {
+      override def handle(ctx: SurgeContext[Agg, Evt], state: Option[Agg], msg: Cmd)(implicit ec: ExecutionContext): Future[SurgeContext[Agg, Evt]] = {
+        processCommand(state, msg).flatMap { events =>
+          handleEvents(state, events).map { newState =>
+            ctx.persistEvents(events).updateState(newState).reply(state => state)
+          }
+        }
       }
-      override def applyAsync(ctx: persistence.Context, initialState: Option[Agg], events: Seq[Evt]): Future[Option[Agg]] = handleEvents(initialState, events)
+
+      // FIXME Does applyEvents make sense any more? In the core model state updates should happen via the handle method now.
+      //  We probably still do need something for applying events directly though...
+      override def applyAsync(ctx: SurgeContext[Agg, Evt], state: Option[Agg], events: Seq[Evt]): Future[SurgeContext[Agg, Evt]] = {
+        handleEvents(state, events).map { newState =>
+          ctx.updateState(newState).reply(state => state)
+        }(ExecutionContext.global)
+      }
     }
+  }
 }
 
-trait ContextAwareAggregateCommandModel[Agg, Cmd, Evt] extends AggregateCommandModelCoreTrait[Agg, Cmd, Nothing, Evt] {
-  def processCommand(ctx: Context, aggregate: Option[Agg], command: Cmd): Future[Seq[Evt]]
-  def handleEvents(ctx: Context, aggregate: Option[Agg], events: Seq[Evt]): Future[Option[Agg]]
+trait ContextAwareAggregateCommandModel[Agg, Cmd, Evt] extends SurgeProcessingModelCoreTrait[Agg, Cmd, Evt] {
+  def processCommand(ctx: Context[Agg, Evt], aggregate: Option[Agg], command: Cmd): Future[Context[Agg, Evt]]
+  def handleEvent(aggregate: Option[Agg], event: Evt): Option[Agg]
 
-  override final def toCore: AsyncCommandHandler[Agg, Cmd, Nothing, Evt] =
-    new AsyncCommandHandler[Agg, Cmd, Nothing, Evt] {
-      override def processCommand(ctx: persistence.Context, state: Option[Agg], cmd: Cmd): Future[CommandResult] = {
-        ContextAwareAggregateCommandModel.this.processCommand(Context(ctx), state, cmd).map(r => Right(r))(ctx.executionContext)
+  final def toCore: SurgeProcessingModel[Agg, Cmd, Evt] =
+    new SurgeProcessingModel[Agg, Cmd, Evt] {
+      override def handle(ctx: SurgeContext[Agg, Evt], state: Option[Agg], msg: Cmd)(implicit ec: ExecutionContext): Future[SurgeContext[Agg, Evt]] = {
+        processCommand(Context(ctx), state, msg).map(_.toCore)
       }
-      override def applyAsync(ctx: persistence.Context, initialState: Option[Agg], events: Seq[Evt]): Future[Option[Agg]] =
-        handleEvents(Context(ctx), initialState, events)
-    }
-}
 
-/**
- * Trait for implementing a rejectable command model. Unlike `AggregateCommandModel` this type of command model may choose to accept or reject commands.
- * @tparam Agg
- *   state type
- * @tparam Cmd
- *   command type
- * @tparam Rej
- *   rejection type
- * @tparam Evt
- *   event type
- */
-trait RejectableAggregateCommandModel[Agg, Cmd, Rej, Evt] extends AggregateCommandModelCoreTrait[Agg, Cmd, Rej, Evt] {
-
-  /**
-   * Process a command
-   * @param ctx
-   *   the surge context
-   * @param aggregate
-   *   the current aggregate state
-   * @param command
-   *   the command to process
-   * @return
-   *   a Future of Either a rejection or a sequence or events generated by processing the command
-   */
-  def processCommand(ctx: Context, aggregate: Option[Agg], command: Cmd): Future[Either[Rej, Seq[Evt]]]
-
-  /**
-   * Handle an event
-   * @param ctx
-   *   the surge context
-   * @param aggregate
-   *   the current aggregate state
-   * @param event
-   *   the event to apply
-   * @return
-   *   the some resulting aggregate state or `None` to remove the state.
-   */
-  def handleEvent(ctx: Context, aggregate: Option[Agg], event: Evt): Option[Agg]
-
-  final def toCore: CommandHandler[Agg, Cmd, Rej, Evt] =
-    new CommandHandler[Agg, Cmd, Rej, Evt] {
-      override def processCommand(ctx: persistence.Context, state: Option[Agg], cmd: Cmd): Future[CommandResult] =
-        RejectableAggregateCommandModel.this.processCommand(Context(ctx), state, cmd)
-      override def apply(ctx: persistence.Context, state: Option[Agg], event: Evt): Option[Agg] = handleEvent(Context(ctx), state, event)
+      override def applyAsync(ctx: SurgeContext[Agg, Evt], state: Option[Agg], events: Seq[Evt]): Future[SurgeContext[Agg, Evt]] = {
+        val newState = events.foldLeft(state)((stateAccum, evt) => handleEvent(stateAccum, evt))
+        Future.successful(ctx.updateState(newState).reply(s => s))
+      }
     }
 }

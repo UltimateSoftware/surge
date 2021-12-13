@@ -4,10 +4,9 @@ package com.ukg.surge.multilanguage
 
 import akka.actor.ActorSystem
 import akka.event.{ Logging, LoggingAdapter }
-import akka.grpc.GrpcClientSettings
 import com.ukg.surge.multilanguage.protobuf.HealthCheckReply.Status
 import com.ukg.surge.multilanguage.protobuf._
-import surge.metrics.{ MetricInfo, Metrics, RecordingLevel, Timer }
+import surge.metrics.{ MetricInfo, Metrics, Timer }
 import surge.scaladsl.command.SurgeCommand
 import surge.scaladsl.common.{ CommandFailure, CommandSuccess }
 
@@ -15,7 +14,7 @@ import java.util.UUID
 import scala.concurrent.Future
 import scala.util.{ Failure, Success, Try }
 
-class MultilanguageGatewayServiceImpl(surgeEngine: SurgeCommand[UUID, SurgeState, SurgeCmd, Nothing, SurgeEvent])(implicit system: ActorSystem)
+class MultilanguageGatewayServiceImpl(surgeEngine: SurgeCommand[UUID, SurgeState, SurgeCmd, SurgeEvent])(implicit system: ActorSystem)
     extends MultilanguageGatewayService {
 
   import Implicits._

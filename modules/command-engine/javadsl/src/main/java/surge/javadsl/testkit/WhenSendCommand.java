@@ -3,50 +3,45 @@
 package surge.javadsl.testkit;
 
 import org.mockito.Mockito;
-import surge.javadsl.command.AggregateRef;
 import surge.javadsl.command.SurgeCommand;
-import surge.javadsl.common.CommandResult;
-import surge.javadsl.common.CommandSuccess;
 
-import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
+public class MockedSurgeEngine<AggId, Agg, Command, Event> {
 
-import static org.mockito.Mockito.when;
+    private SurgeCommand<AggId, Agg, Command, Event> mockSurgeEngine;
 
-public class WhenSendCommand<AggId, Agg, Command, Rej, Event> {
-
-    private SurgeCommand<AggId, Agg, Command, Rej, Event> mockSurgeEngine;
-
-    private AggId aggId;
-
-    private Command command;
-
-    public WhenSendCommand(SurgeCommand<AggId, Agg, Command, Rej, Event> mock, AggId aggId, Command command) {
-        this.mockSurgeEngine = mock;
-        this.aggId = aggId;
-        this.command = command;
+    public MockedSurgeEngine() {
+        // empty constructor
+        mockSurgeEngine = Mockito.mock(SurgeCommand.class);
     }
 
-    public void thenReturn(Optional<Agg> optionalAgg) throws Exception {
-        AggregateRef<Agg, Command, Event> mockAggregate = Mockito.mock(AggregateRef.class);
-        CompletionStage<CommandResult<Agg>> mockCompletionStage = Mockito.mock(CompletionStage.class);
-        CompletableFuture<CommandResult<Agg>> mockCompletableFuture = Mockito.mock(CompletableFuture.class);
-        CommandSuccess<Agg> mockCommandSuccess = Mockito.mock(CommandSuccess.class);
-
-        when(mockSurgeEngine.aggregateFor(aggId)).thenReturn(mockAggregate);
-        when(mockAggregate.sendCommand(command)).thenReturn(mockCompletionStage);
-        when(mockCompletionStage.toCompletableFuture()).thenReturn(mockCompletableFuture);
-        when(mockCompletableFuture.get()).thenReturn(mockCommandSuccess);
-        when(mockCommandSuccess.aggregateState()).thenReturn(optionalAgg);
+    /**
+     * Constructor for users who want to bring in their own mocked surge engine
+     *
+     * @param mockSurgeEngine
+     */
+    public MockedSurgeEngine(SurgeCommand<AggId, Agg, Command, Event> mockSurgeEngine) {
+        this.mockSurgeEngine = mockSurgeEngine;
     }
 
-    public void returnAggregate(Agg agg) throws Exception {
-        thenReturn(Optional.of(agg));
+    /**
+     * For users who want to fetch the underlying mock and do something else with it
+     */
+    public SurgeCommand<AggId, Agg, Command, Event> get() {
+        return mockSurgeEngine;
     }
 
-    public void noSuchAggregate() throws Exception {
-        thenReturn(Optional.empty());
+
+    /**
+     * Fluent setter
+     *
+     * @param mockSurgeEngine
+     */
+    public void withMockedSurgeEngine(SurgeCommand<AggId, Agg, Command, Event> mockSurgeEngine) {
+        this.mockSurgeEngine = mockSurgeEngine;
+    }
+
+    public WhenSendCommand whenSendCommand(AggId aggId, Command command) {
+        return new WhenSendCommand(mockSurgeEngine, aggId, command);
     }
 
 }

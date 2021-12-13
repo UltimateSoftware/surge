@@ -12,4 +12,4 @@ private[surge] abstract class SurgeEventServiceImpl[Agg, Event](
     businessLogic: SurgeEventServiceModel[Agg, Event],
     signalStreamProvider: HealthSignalStreamProvider,
     config: Config)
-    extends SurgeMessagePipeline[Agg, Nothing, Nothing, Event](actorSystem, businessLogic, signalStreamProvider, config)
+    extends SurgeMessagePipeline[Agg, Nothing, Event](actorSystem, businessLogic, signalStreamProvider, config)

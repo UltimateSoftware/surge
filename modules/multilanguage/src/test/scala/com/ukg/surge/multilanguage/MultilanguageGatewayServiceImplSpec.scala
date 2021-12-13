@@ -57,7 +57,7 @@ class MultilanguageGatewayServiceImplSpec
   val testBusinessLogicService = new TestBusinessLogicService()
   val genericSurgeCommandBusinessLogic = new GenericSurgeCommandBusinessLogic(aggregateName, eventsTopicName, stateTopicName, testBusinessLogicService)
 
-  val testSurgeEngine: SurgeCommand[UUID, SurgeState, SurgeCmd, Nothing, SurgeEvent] = {
+  val testSurgeEngine: SurgeCommand[UUID, SurgeState, SurgeCmd, SurgeEvent] = {
     val engine = SurgeCommand(system, genericSurgeCommandBusinessLogic, system.settings.config)
     engine.start()
     logger.info("Started engine!")

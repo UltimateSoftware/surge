@@ -5,9 +5,9 @@ package surge.javadsl.testkit;
 import org.mockito.Mockito;
 import surge.javadsl.command.SurgeCommand;
 
-public class MockedSurgeEngine<AggId, Agg, Command, Rej, Event> {
+public class MockedSurgeEngine<AggId, Agg, Command, Event> {
 
-    private SurgeCommand<AggId, Agg, Command, Rej, Event> mockSurgeEngine;
+    private SurgeCommand<AggId, Agg, Command, Event> mockSurgeEngine;
 
     public MockedSurgeEngine() {
         // empty constructor
@@ -19,14 +19,14 @@ public class MockedSurgeEngine<AggId, Agg, Command, Rej, Event> {
      *
      * @param mockSurgeEngine
      */
-    public MockedSurgeEngine(SurgeCommand<AggId, Agg, Command, Rej, Event> mockSurgeEngine) {
+    public MockedSurgeEngine(SurgeCommand<AggId, Agg, Command, Event> mockSurgeEngine) {
         this.mockSurgeEngine = mockSurgeEngine;
     }
 
     /**
      * For users who want to fetch the underlying mock and do something else with it
      */
-    public SurgeCommand<AggId, Agg, Command, Rej, Event> get() {
+    public SurgeCommand<AggId, Agg, Command, Event> get() {
         return mockSurgeEngine;
     }
 
@@ -36,7 +36,7 @@ public class MockedSurgeEngine<AggId, Agg, Command, Rej, Event> {
      *
      * @param mockSurgeEngine
      */
-    public void withMockedSurgeEngine(SurgeCommand<AggId, Agg, Command, Rej, Event> mockSurgeEngine) {
+    public void withMockedSurgeEngine(SurgeCommand<AggId, Agg, Command, Event> mockSurgeEngine) {
         this.mockSurgeEngine = mockSurgeEngine;
     }
 

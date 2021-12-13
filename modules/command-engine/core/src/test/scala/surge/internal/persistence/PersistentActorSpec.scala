@@ -12,7 +12,7 @@ import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.header.internals.RecordHeaders
 import org.mockito.Mockito._
 import org.mockito.invocation.InvocationOnMock
-import org.mockito.{ ArgumentCaptor, ArgumentMatcher, ArgumentMatchers, Mockito }
+import org.mockito.{ ArgumentCaptor, ArgumentMatcher, ArgumentMatchers }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatest.{ BeforeAndAfterAll, PartialFunctionValues }
@@ -21,7 +21,6 @@ import play.api.libs.json.{ JsValue, Json }
 import surge.akka.cluster.Passivate
 import surge.core.{ KafkaProducerActor, TestBoundedContext }
 import surge.exceptions.{ AggregateInitializationException, KafkaPublishTimeoutException }
-import surge.health.HealthSignalBusTrait
 import surge.internal.kafka.HeadersHelper
 import surge.internal.persistence.PersistentActor.{ ACKError, ApplyEvents, Stop }
 import surge.internal.tracing.RoutableMessage
@@ -54,7 +53,7 @@ class PersistentActorSpec
   def randomUUID: String = UUID.randomUUID().toString
 
   private def testActor(
-      aggregateId: String = randomUUID,
+      aggregateId: String,
       producerActor: KafkaProducerActor,
       aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue],
       publishStateOnly: Boolean = false): ActorRef = {
@@ -64,7 +63,7 @@ class PersistentActorSpec
   }
 
   private def testActorProps(
-      aggregateId: String = randomUUID,
+      aggregateId: String,
       producerActor: KafkaProducerActor,
       aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue],
       publishStateOnly: Boolean = false): Props = {
@@ -73,7 +72,6 @@ class PersistentActorSpec
     val sharedResources = PersistentEntitySharedResources(aggregateIdToKafkaProducer, metrics, aggregateKafkaStreamsImpl)
     PersistentActor.props(
       businessLogic.copy(kafka = businessLogic.kafka.copy(publishStateOnly = publishStateOnly)),
-      Mockito.mock(classOf[HealthSignalBusTrait]),
       sharedResources,
       ConfigFactory.load(),
       Some(aggregateId))
@@ -497,7 +495,7 @@ class PersistentActorSpec
 
     "Crash the actor to force reinitialization if publishing events times out" in {
       val crashingMockProducer = mock[KafkaProducerActor]
-      val expectedException = new RuntimeException("This is expected")
+      val expectedException = new ExpectedTestException
 
       when(crashingMockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.successful(true))
       when(crashingMockProducer.publish(anyString, any[KafkaProducerActor.MessageToPublish], any[Seq[KafkaProducerActor.MessageToPublish]]))
@@ -517,7 +515,7 @@ class PersistentActorSpec
 
     "Wrap and return the error from publishing to Kafka if publishing explicitly fails consistently" in {
       val failingMockProducer = mock[KafkaProducerActor]
-      val expectedException = new RuntimeException("This is expected")
+      val expectedException = new ExpectedTestException
       when(failingMockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.successful(true))
       when(failingMockProducer.publish(anyString, any[KafkaProducerActor.MessageToPublish], any[Seq[KafkaProducerActor.MessageToPublish]]))
         .thenReturn(Future.successful(KafkaProducerActor.PublishFailure(expectedException)))
@@ -536,7 +534,7 @@ class PersistentActorSpec
 
     "Retry publishing to Kafka if publishing explicitly fails" in {
       val failingMockProducer = mock[KafkaProducerActor]
-      val expectedException = new RuntimeException("This is expected")
+      val expectedException = new ExpectedTestException
       when(failingMockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.successful(true))
       when(failingMockProducer.publish(anyString, any[KafkaProducerActor.MessageToPublish], any[Seq[KafkaProducerActor.MessageToPublish]]))
         .thenReturn(Future.successful(KafkaProducerActor.PublishFailure(expectedException)))

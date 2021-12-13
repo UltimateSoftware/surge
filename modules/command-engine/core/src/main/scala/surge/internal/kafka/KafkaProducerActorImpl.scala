@@ -406,7 +406,7 @@ class KafkaProducerActorImpl(
 
   private def publishSingleRecord(senders: Seq[ActorRef], record: ProducerRecord[String, Array[Byte]]): Future[InternalMessage] = {
     kafkaPublisherTimer.timeFuture {
-      kafkaPublisher
+      nonTransactionalStatePublisher
         .putRecord(record)
         .map { rm =>
           log.debug(s"KafkaProducerActor partition {} wrote single message without a transaction", assignedPartition)
