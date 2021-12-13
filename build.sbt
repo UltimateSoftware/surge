@@ -63,24 +63,24 @@ lazy val `surge-engine-command-core` = (project in file("modules/command-engine/
   .settings(
     multiJvmTestSettings,
     libraryDependencies ++= Seq(
-    Akka.actor,
-    Akka.remote,
-    Kafka.kafkaClients,
-    Akka.testKit,
-    Akka.multiNodeTestkit,
-    Akka.akkaStreamTestKit,
-    Akka.kafkaClusterSharding,
-    Akka.management,
-    Akka.managementClusterHttp,
-    Akka.managementClusterBootstrap,
-    Akka.discovery,
-    mockitoCore,
-    scalatest,
-    scalatestPlusMockito,
-    embeddedKafka,
-    OpenTelemetry.api,
-    logback,
-    typesafeConfig))
+      Akka.actor,
+      Akka.remote,
+      Kafka.kafkaClients,
+      Akka.testKit,
+      Akka.multiNodeTestkit,
+      Akka.akkaStreamTestKit,
+      Akka.kafkaClusterSharding,
+      Akka.management,
+      Akka.managementClusterHttp,
+      Akka.managementClusterBootstrap,
+      Akka.discovery,
+      mockitoCore,
+      scalatest,
+      scalatestPlusMockito,
+      embeddedKafka,
+      OpenTelemetry.api,
+      logback,
+      typesafeConfig))
   .enablePlugins(MultiJvmPlugin)
   .configs(MultiJvm)
   .dependsOn(`surge-common` % "compile->compile;test->test")
