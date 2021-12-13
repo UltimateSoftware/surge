@@ -4,10 +4,10 @@ package surge.core.command
 
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.trace.Tracer
-import surge.core.commondsl.{ SurgeCommandBusinessLogicTrait, SurgeRejectableCommandBusinessLogicTrait }
+import surge.core.commondsl.SurgeCommandBusinessLogicTrait
 import surge.core.{ SurgeAggregateReadFormatting, SurgeAggregateWriteFormatting, SurgeEventWriteFormatting }
 import surge.internal.SurgeModel
-import surge.internal.domain.AggregateProcessingModel
+import surge.internal.domain.SurgeProcessingModel
 import surge.internal.kafka.SurgeKafkaConfig
 import surge.kafka.{ KafkaPartitioner, KafkaTopic }
 import surge.metrics.Metrics
@@ -24,12 +24,11 @@ private[surge] case class SurgeCommandKafkaConfig(
 }
 
 private[surge] object SurgeCommandModel {
-  def apply[AggId, Agg, Command, Event](
-      businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Event]): SurgeCommandModel[Agg, Command, Nothing, Event] = {
-    new SurgeCommandModel[Agg, Command, Nothing, Event](
+  def apply[AggId, Agg, Command, Event](businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Event]): SurgeCommandModel[Agg, Command, Event] = {
+    new SurgeCommandModel[Agg, Command, Event](
       aggregateName = businessLogic.aggregateName,
       kafka = businessLogic.kafkaConfig,
-      model = businessLogic.commandModel.toCore,
+      model = businessLogic.processingModel.toCore,
       aggregateWriteFormatting = businessLogic.aggregateWriteFormatting,
       aggregateReadFormatting = businessLogic.aggregateReadFormatting,
       eventWriteFormatting = businessLogic.eventWriteFormatting,
@@ -38,26 +37,11 @@ private[surge] object SurgeCommandModel {
       tracer = businessLogic.tracer,
       partitioner = businessLogic.partitioner)
   }
-  def apply[AggId, Agg, Command, Rej, Event](
-      businessLogic: SurgeRejectableCommandBusinessLogicTrait[AggId, Agg, Command, Rej, Event]): SurgeCommandModel[Agg, Command, Rej, Event] = {
-    new SurgeCommandModel[Agg, Command, Rej, Event](
-      aggregateName = businessLogic.aggregateName,
-      kafka = businessLogic.kafkaConfig,
-      model = businessLogic.commandModel.toCore,
-      aggregateWriteFormatting = businessLogic.aggregateWriteFormatting,
-      aggregateReadFormatting = businessLogic.aggregateReadFormatting,
-      eventWriteFormatting = businessLogic.eventWriteFormatting,
-      metrics = businessLogic.metrics,
-      openTelemetry = businessLogic.openTelemetry,
-      tracer = businessLogic.tracer,
-      partitioner = businessLogic.partitioner)
-  }
-
 }
-private[surge] case class SurgeCommandModel[Agg, Command, +Rej, Event](
+private[surge] case class SurgeCommandModel[Agg, Command, Event](
     override val aggregateName: String,
     override val kafka: SurgeCommandKafkaConfig,
-    override val model: AggregateProcessingModel[Agg, Command, Rej, Event],
+    override val model: SurgeProcessingModel[Agg, Command, Event],
     override val aggregateWriteFormatting: SurgeAggregateWriteFormatting[Agg],
     override val metrics: Metrics,
     override val openTelemetry: OpenTelemetry,
@@ -65,6 +49,6 @@ private[surge] case class SurgeCommandModel[Agg, Command, +Rej, Event](
     override val partitioner: KafkaPartitioner[String],
     override val aggregateReadFormatting: SurgeAggregateReadFormatting[Agg],
     eventWriteFormatting: SurgeEventWriteFormatting[Event])
-    extends SurgeModel[Agg, Command, Rej, Event] {
+    extends SurgeModel[Agg, Command, Event] {
   override val eventWriteFormattingOpt: Option[SurgeEventWriteFormatting[Event]] = Some(eventWriteFormatting)
 }

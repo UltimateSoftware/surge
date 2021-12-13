@@ -19,7 +19,7 @@ import scala.compat.java8.FutureConverters
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.jdk.CollectionConverters._
 
-trait SurgeEvent[AggId, Agg, Evt] extends core.SurgeProcessingTrait[Agg, Nothing, Nothing, Evt] with HealthCheckTrait {
+trait SurgeEvent[AggId, Agg, Evt] extends core.SurgeProcessingTrait[Agg, Nothing, Evt] with HealthCheckTrait {
   def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Evt]
   def getMetrics: java.util.List[Metric]
   def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Evt]): Unit

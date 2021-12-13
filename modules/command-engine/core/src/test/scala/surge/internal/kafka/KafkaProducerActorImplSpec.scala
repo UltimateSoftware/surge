@@ -26,10 +26,10 @@ import surge.health.HealthSignalBusTrait
 import surge.health.domain.EmittableHealthSignal
 import surge.internal.akka.cluster.ActorSystemHostAwareness
 import surge.internal.akka.kafka.{ KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor }
-import surge.internal.kafka.KafkaProducerActorImpl.{ AggregateStateRates, KTableProgressUpdate }
+import surge.internal.kafka.KafkaProducerActorImpl.KTableProgressUpdate
+import surge.kafka._
 import surge.kafka.streams.HealthyActor.GetHealth
 import surge.kafka.streams.{ ExpectedTestException, HealthCheck, HealthCheckStatus }
-import surge.kafka._
 import surge.metrics.Metrics
 
 import java.time.Instant
@@ -524,9 +524,6 @@ class KafkaProducerActorImplSpec
   }
 
   "KafkaProducerActorState" should {
-    implicit val unusedStateParent: ActorRef = TestProbe().ref
-    implicit val rates: KafkaProducerActorImpl.AggregateStateRates = AggregateStateRates("test-aggregate", Metrics.globalMetricRegistry)
-
     val fooRecord1 = KafkaRecordMetadata(Some("foo"), createRecordMeta("testTopic", 0, 1))
     val barRecord1 = KafkaRecordMetadata(Some("bar"), createRecordMeta("testTopic", 0, 2))
     val bazRecord1 = KafkaRecordMetadata(Some("baz"), createRecordMeta("testTopic", 0, 3))

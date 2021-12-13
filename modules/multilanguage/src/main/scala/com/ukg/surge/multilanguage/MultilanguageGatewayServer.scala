@@ -34,7 +34,7 @@ class MultilanguageGatewayServer(system: ActorSystem) {
   val bridgeToBusinessApp: BusinessLogicService = BusinessLogicServiceClient(businessLogicgRPCClientSettings)
   val genericSurgeCommandBusinessLogic = new GenericSurgeCommandBusinessLogic(aggregateName, eventsTopicName, stateTopicName, bridgeToBusinessApp)
 
-  lazy val surgeEngine: SurgeCommand[UUID, SurgeState, SurgeCmd, Nothing, SurgeEvent] = {
+  lazy val surgeEngine: SurgeCommand[UUID, SurgeState, SurgeCmd, SurgeEvent] = {
     val engine = SurgeCommand(system, genericSurgeCommandBusinessLogic, system.settings.config)
     logger.info("Started engine!")
     engine.start()

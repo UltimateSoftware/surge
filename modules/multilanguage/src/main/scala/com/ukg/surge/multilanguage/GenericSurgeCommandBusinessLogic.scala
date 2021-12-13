@@ -4,7 +4,7 @@ package com.ukg.surge.multilanguage
 
 import akka.actor.ActorSystem
 import com.ukg.surge.multilanguage.protobuf.BusinessLogicService
-import surge.core.command.AggregateCommandModelCoreTrait
+import surge.core.commondsl.SurgeProcessingModelCoreTrait
 import surge.core.{ SerializedAggregate, SerializedMessage, SurgeAggregateReadFormatting, SurgeAggregateWriteFormatting, SurgeEventWriteFormatting }
 import surge.kafka.KafkaTopic
 import surge.scaladsl.command.SurgeCommandBusinessLogic
@@ -17,7 +17,7 @@ class GenericSurgeCommandBusinessLogic(aggregName: String, eventsTopicName: Stri
 
   import Implicits._
 
-  override def commandModel: AggregateCommandModelCoreTrait[SurgeState, SurgeCmd, Nothing, SurgeEvent] =
+  override def commandModel: SurgeProcessingModelCoreTrait[SurgeState, SurgeCmd, SurgeEvent] =
     new GenericAsyncAggregateCommandModel(bridgeToBusinessApp)
 
   override def eventsTopic: KafkaTopic = KafkaTopic(eventsTopicName)

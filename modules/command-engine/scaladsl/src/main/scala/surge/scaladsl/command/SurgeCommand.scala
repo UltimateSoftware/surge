@@ -7,7 +7,7 @@ import com.typesafe.config.Config
 import surge.core
 import surge.core.Ack
 import surge.core.command.SurgeCommandModel
-import surge.core.commondsl.{ SurgeCommandBusinessLogicTrait, SurgeRejectableCommandBusinessLogicTrait }
+import surge.core.commondsl.SurgeCommandBusinessLogicTrait
 import surge.health.config.WindowingStreamConfigLoader
 import surge.health.matchers.SignalPatternMatcherRegistry
 import surge.internal.domain
@@ -16,14 +16,12 @@ import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamPro
 import surge.metrics.Metric
 import surge.scaladsl.common.HealthCheckTrait
 
-import java.util.concurrent.CompletionStage
-import scala.compat.java8.FutureConverters
 import scala.concurrent.Future
 
-trait SurgeCommand[AggId, Agg, Command, Rej, Evt] extends core.SurgeProcessingTrait[Agg, Command, Rej, Evt] with HealthCheckTrait {
+trait SurgeCommand[AggId, Agg, Command, Evt] extends core.SurgeProcessingTrait[Agg, Command, Evt] with HealthCheckTrait {
   def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Command, Evt]
   def getMetrics: Seq[Metric] = businessLogic.metrics.getMetrics
-  def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Command, Rej, Evt]): Unit
+  def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Command, Evt]): Unit
 
   def start(): Future[Ack] = controllable.start()
   def stop(): Future[Ack] = controllable.stop()
@@ -32,27 +30,14 @@ trait SurgeCommand[AggId, Agg, Command, Rej, Evt] extends core.SurgeProcessingTr
 }
 
 object SurgeCommand {
-  def apply[AggId, Agg, Command, Event](
-      businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Event]): SurgeCommand[AggId, Agg, Command, Nothing, Event] = {
+  def apply[AggId, Agg, Command, Event](businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Event]): SurgeCommand[AggId, Agg, Command, Event] = {
     val actorSystem = ActorSystem(s"${businessLogic.aggregateName}ActorSystem")
     apply(actorSystem, businessLogic, businessLogic.config)
   }
   def apply[AggId, Agg, Command, Event](
       actorSystem: ActorSystem,
       businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Event],
-      config: Config): SurgeCommand[AggId, Agg, Command, Nothing, Event] = {
-    new SurgeCommandImpl(
-      actorSystem,
-      SurgeCommandModel(businessLogic),
-      new SlidingHealthSignalStreamProvider(WindowingStreamConfigLoader.load(config), actorSystem, patternMatchers = SignalPatternMatcherRegistry.load().toSeq),
-      businessLogic.aggregateIdToString,
-      config)
-  }
-
-  def apply[AggId, Agg, Command, Rej, Evt](
-      actorSystem: ActorSystem,
-      businessLogic: SurgeRejectableCommandBusinessLogicTrait[AggId, Agg, Command, Rej, Evt],
-      config: Config): SurgeCommand[AggId, Agg, Command, Rej, Evt] = {
+      config: Config): SurgeCommand[AggId, Agg, Command, Event] = {
     new SurgeCommandImpl(
       actorSystem,
       SurgeCommandModel(businessLogic),
@@ -62,14 +47,14 @@ object SurgeCommand {
   }
 }
 
-private[scaladsl] class SurgeCommandImpl[AggId, Agg, Command, Rej, Event](
+private[scaladsl] class SurgeCommandImpl[AggId, Agg, Command, Event](
     val actorSystem: ActorSystem,
-    override val businessLogic: SurgeCommandModel[Agg, Command, Rej, Event],
+    override val businessLogic: SurgeCommandModel[Agg, Command, Event],
     signalStreamProvider: HealthSignalStreamProvider,
     aggIdToString: AggId => String,
     override val config: Config)
-    extends domain.SurgeCommandImpl[Agg, Command, Rej, Event](actorSystem, businessLogic, signalStreamProvider, config)
-    with SurgeCommand[AggId, Agg, Command, Rej, Event] {
+    extends domain.SurgeCommandImpl[Agg, Command, Event](actorSystem, businessLogic, signalStreamProvider, config)
+    with SurgeCommand[AggId, Agg, Command, Event] {
 
   def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Command, Event] = {
     new AggregateRefImpl(aggIdToString(aggregateId), actorRouter.actorRegion, businessLogic.tracer)
@@ -77,7 +62,7 @@ private[scaladsl] class SurgeCommandImpl[AggId, Agg, Command, Rej, Event](
 
   override def getMetrics: Seq[Metric] = businessLogic.metrics.getMetrics
 
-  def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Command, Rej, Event]): Unit = {
+  def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Command, Event]): Unit = {
     registerRebalanceCallback { assignments => listener.onRebalance(engine = this, assignments.partitionAssignments) }
   }
 }

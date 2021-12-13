@@ -31,12 +31,12 @@ object SurgeMessagePipeline {
 /**
  * Surge message processing pipeline
  */
-private[surge] abstract class SurgeMessagePipeline[S, M, +R, E](
+private[surge] abstract class SurgeMessagePipeline[S, M, E](
     actorSystem: ActorSystem,
-    override val businessLogic: SurgeModel[S, M, R, E],
+    override val businessLogic: SurgeModel[S, M, E],
     val signalStreamProvider: HealthSignalStreamProvider,
     override val config: Config)
-    extends SurgeProcessingTrait[S, M, R, E]
+    extends SurgeProcessingTrait[S, M, E]
     with HealthyComponent
     with HealthSignalBusAware
     with ActorSystemHostAwareness {
