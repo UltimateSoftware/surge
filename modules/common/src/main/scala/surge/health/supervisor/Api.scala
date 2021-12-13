@@ -22,7 +22,8 @@ object Api {
       componentName: String,
       controlProxyRef: ActorRef,
       restartSignalPatterns: Seq[Pattern],
-      shutdownSignalPatterns: Seq[Pattern]) {
+      shutdownSignalPatterns: Seq[Pattern])
+      extends NoSerializationVerificationNeeded {
     def asSupervisedComponentRegistration(): SupervisedComponentRegistration =
       SupervisedComponentRegistration(componentName, controlProxyRef, restartSignalPatterns, shutdownSignalPatterns)
   }
