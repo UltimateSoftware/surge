@@ -16,7 +16,7 @@ public class Test {
 
     // #sample_test
     void sampleTest() throws Exception {
-        MockedSurgeEngine<UUID, BankAccount, BankAccountCommand, ?, BankAccountCommand> mockedSurgeEngine;
+        MockedSurgeEngine<UUID, BankAccount, BankAccountCommand, BankAccountCommand> mockedSurgeEngine;
         mockedSurgeEngine = new MockedSurgeEngine<>();
 
         UUID accountNumber = UUID.randomUUID();
