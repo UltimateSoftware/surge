@@ -14,7 +14,7 @@ import org.apache.kafka.streams.{ StoreQueryParameters, StreamsConfig }
 import surge.kafka.streams.AggregateStateStoreKafkaStreamsImpl._
 import surge.kafka.streams.HealthyActor.GetHealth
 import surge.kafka.{ KafkaTopic, LagInfo }
-import surge.metrics.Metrics
+import surge.metrics.{ Counter, MetricInfo, Metrics, Rate, Timer }
 
 import java.util.Properties
 import scala.concurrent.Future
@@ -54,6 +54,18 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
     StreamsConfig.STATE_DIR_CONFIG -> settings.stateDirectory,
     StreamsConfig.ROCKSDB_CONFIG_SETTER_CLASS_CONFIG -> classOf[AggregateStreamsRocksDBConfig].getName,
     StreamsConfig.APPLICATION_SERVER_CONFIG -> settings.localActorHostPort)
+
+  private val getSubStateForAggregateTimerMetric: Timer = metrics.timer(
+    MetricInfo(
+      name = s"surge.${aggregateName.toLowerCase()}.subscribe-listener-rate",
+      description = "The time taken to get the sub-state of the aggregate",
+      tags = Map("aggregate" -> aggregateName)))
+
+  private val getAggregateBytesTimerMetric: Timer = metrics.timer(
+    MetricInfo(
+      name = s"surge.${aggregateName.toLowerCase()}.get-aggregate-state-rate",
+      description = "The time taken to getting the aggregate state.",
+      tags = Map("aggregate" -> aggregateName)))
 
   override def subscribeListeners(consumer: KafkaByteStreamsConsumer): Unit = {
     // In addition to the listener added by the KafkaStreamLifeCycleManagement we need to also subscribe this one
@@ -122,7 +134,7 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
 
   def getSubstatesForAggregate(
       aggregateQueryableStateStore: KafkaStreamsKeyValueStore[String, Array[Byte]],
-      aggregateId: String): Future[List[(String, Array[Byte])]] = {
+      aggregateId: String): Future[List[(String, Array[Byte])]] = getSubStateForAggregateTimerMetric.timeFuture {
     aggregateQueryableStateStore
       .range(aggregateId, s"$aggregateId:~")
       .map { result =>
@@ -140,15 +152,28 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
       }
   }
 
-  def getAggregateBytes(aggregateQueryableStateStore: KafkaStreamsKeyValueStore[String, Array[Byte]], aggregateId: String): Future[Option[Array[Byte]]] = {
-    aggregateQueryableStateStore.get(aggregateId).recoverWith {
-      case err: InvalidStateStoreException =>
-        handleInvalidStateStore(err)
-      case err: Throwable =>
-        log.error(s"State store ${settings.storeName} threw an unexpected error", err)
-        Future.failed(err)
+  def getCurrentStateAggregate(aggregateQueryableStateStore: KafkaStreamsKeyValueStore[String, Array[Byte]], aggregateId: String): Future[Option[Array[Byte]]] =
+    getSubStateForAggregateTimerMetric.timeFuture {
+      log.info("Getting current state for aggregate: {}", aggregateId)
+      aggregateQueryableStateStore.get(aggregateId).recoverWith {
+        case err: InvalidStateStoreException =>
+          handleInvalidStateStore(err)
+        case err: Throwable =>
+          log.error(s"State store ${settings.storeName} threw an unexpected error", err)
+          Future.failed(err)
+      }
     }
-  }
+
+  def getAggregateBytes(aggregateQueryableStateStore: KafkaStreamsKeyValueStore[String, Array[Byte]], aggregateId: String): Future[Option[Array[Byte]]] =
+    getAggregateBytesTimerMetric.timeFuture {
+      aggregateQueryableStateStore.get(aggregateId).recoverWith {
+        case err: InvalidStateStoreException =>
+          handleInvalidStateStore(err)
+        case err: Throwable =>
+          log.error(s"State store ${settings.storeName} threw an unexpected error", err)
+          Future.failed(err)
+      }
+    }
 
   private def handleInvalidStateStore[T](err: InvalidStateStoreException): Future[T] = {
     log.warn(
