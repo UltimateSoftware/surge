@@ -104,7 +104,7 @@ trait SurgePartitionRouterImplSpecLike extends TestBoundedContext with MockitoSu
       partitionMappings.get(key)
     })
 
-    lazy val actorRouter: SurgePartitionRouterImpl =
+    val actorRouter: SurgePartitionRouterImpl =
       new SurgePartitionRouterImpl(
         defaultConfig,
         actorSystem,

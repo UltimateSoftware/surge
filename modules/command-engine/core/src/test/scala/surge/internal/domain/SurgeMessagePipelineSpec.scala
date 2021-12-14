@@ -196,10 +196,6 @@ class SurgeMessagePipelineSpec
         registrationNames should contain("state-store-kafka-streams")
         val kStreamsRegistration = registrations.find(r => r.componentName == "state-store-kafka-streams").get
         kStreamsRegistration.restartSignalPatterns.map(p => p.pattern()) should contain("kafka.streams.fatal.error")
-
-        registrationNames should contain("router-actor")
-        val routerActorRegistration = registrations.find(r => r.componentName == "router-actor").get
-        routerActorRegistration.restartSignalPatterns.map(p => p.pattern()) should contain("kafka.fatal.error")
       }
     }
 
@@ -213,17 +209,6 @@ class SurgeMessagePipelineSpec
 
         Option(restarted).nonEmpty shouldEqual true
         restarted.asInstanceOf[ComponentRestarted].componentName shouldEqual "state-store-kafka-streams"
-      }
-
-      // Router Actor Restart
-      pipeline.signalBus.signalWithError(name = "kafka.fatal.error", Error("boom", None)).emit()
-      eventually {
-        val restarted = probe.fishForMessage(max = FiniteDuration(3, "seconds")) { case msg: Any =>
-          msg.isInstanceOf[ComponentRestarted]
-        }
-
-        Option(restarted).nonEmpty shouldEqual true
-        restarted.asInstanceOf[ComponentRestarted].componentName shouldEqual "router-actor"
       }
     }
 
@@ -240,22 +225,6 @@ class SurgeMessagePipelineSpec
 
       val result = restarted.futureValue
       result shouldEqual Ack()
-    }
-
-    "have router-actor unregistered when terminated" in {
-      // wait for router-actor to be registered
-      val registration = eventually {
-        val reg = pipeline.signalBus.registrations().futureValue.find(_.componentName == "router-actor")
-        reg shouldBe defined
-        reg
-      }
-      // Shutdown the router-actor
-      registration.get.controlProxyRef ! ShutdownComponent("router-actor", probe.ref)
-
-      // Wait for the router-actor to be unregistered on termination.
-      eventually {
-        pipeline.signalBus.registrations().futureValue.map(_.componentName) should not contain "router-actor"
-      }
     }
 
     "shutdown when kafka streams fails to start too many times" in {
@@ -280,12 +249,6 @@ class SurgeMessagePipelineSpec
 
     "unregister all child components after stopping" in {
       pipeline.controllable.start().futureValue shouldEqual Ack()
-      // wait for router-actor to be registered
-      val beforeStopRegistrations = eventually {
-        val reg = pipeline.signalBus.registrations().futureValue
-        reg.exists(p => p.componentName == "router-actor") shouldEqual true
-        reg
-      }
 
       val acknowledgedStop: Ack = pipeline.controllable.stop().futureValue
       acknowledgedStop shouldEqual Ack()

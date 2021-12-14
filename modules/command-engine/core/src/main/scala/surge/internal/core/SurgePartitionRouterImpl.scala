@@ -3,13 +3,12 @@
 package surge.internal.core
 
 import akka.actor._
-import akka.cluster.{ Cluster, MemberStatus }
 import akka.cluster.sharding.external.ExternalShardAllocationStrategy
 import akka.cluster.sharding.{ ClusterSharding, ClusterShardingSettings }
+import akka.cluster.{ Cluster, MemberStatus }
 import akka.kafka.ConsumerSettings
 import akka.kafka.cluster.sharding.KafkaClusterSharding
 import akka.pattern.ask
-import akka.util.Timeout
 import com.typesafe.config.Config
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.serialization.{ ByteArrayDeserializer, StringDeserializer }
@@ -17,7 +16,6 @@ import org.slf4j.LoggerFactory
 import play.api.libs.json.JsValue
 import surge.core.{ Ack, Controllable, KafkaProducerActor, SurgePartitionRouter }
 import surge.health.HealthSignalBusTrait
-import surge.internal.akka.actor.ActorLifecycleManagerActor
 import surge.internal.akka.kafka.{ KafkaConsumerPartitionAssignmentTracker, KafkaShardingClassicMessageExtractor }
 import surge.internal.config.TimeoutConfig
 import surge.internal.persistence
@@ -32,7 +30,6 @@ import scala.concurrent.duration.DurationInt
 import scala.concurrent.{ Await, ExecutionContext, Future }
 import scala.jdk.CollectionConverters._
 import scala.languageFeature.postfixOps
-import scala.util.{ Failure, Success, Try }
 
 private[surge] final class SurgePartitionRouterImpl(
     config: Config,
@@ -70,13 +67,8 @@ private[surge] final class SurgePartitionRouterImpl(
       kafkaProducerOverride)(businessLogic.tracer)
 
     val routerActorName = s"${businessLogic.aggregateName}RouterActor"
-    val shardRouterManaged = ActorLifecycleManagerActor.manage(
-      actorSystem = system,
-      managedActorProps = shardRouterProps,
-      componentName = routerActorName,
-      actorLifecycleName = Some(routerActorName),
-      managedActorName = Some(routerActorName))
-    shardRouterManaged.ref
+    val shardRouter = system.actorOf(shardRouterProps, name = routerActorName)
+    shardRouter
   }
 
   private def initializeKafkaConsumerSettings(groupId: String): ConsumerSettings[String, Array[Byte]] = {
@@ -149,14 +141,7 @@ private[surge] final class SurgePartitionRouterImpl(
   }
 
   private[surge] override val controllable: Controllable = new Controllable {
-    override def start(): Future[Ack] = {
-      if (isAkkaClusterEnabled) {
-        Future.successful(Ack())
-      } else {
-        implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PartitionRouter.askTimeout)
-        actorRegion.ask(ActorLifecycleManagerActor.Start).mapTo[Ack].andThen(registrationCallback())
-      }
-    }
+    override def start(): Future[Ack] = Future.successful(Ack())
 
     override def restart(): Future[Ack] = {
       for {
@@ -167,49 +152,9 @@ private[surge] final class SurgePartitionRouterImpl(
       }
     }
 
-    override def stop(): Future[Ack] = {
-      if (isAkkaClusterEnabled) {
-        Future.successful(Ack())
-      } else {
-        implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PartitionRouter.askTimeout)
-        actorRegion.ask(ActorLifecycleManagerActor.Stop).mapTo[Ack].andThen(unRegistrationCallback())
-      }
-    }
+    override def stop(): Future[Ack] = Future.successful(Ack())
 
     override def shutdown(): Future[Ack] = stop()
 
-    private def registrationCallback(): PartialFunction[Try[Ack], Unit] = {
-      case Success(_) =>
-        val registrationResult = signalBus.register(control = this, componentName = "router-actor", restartSignalPatterns())
-        registrationResult.onComplete {
-          case Failure(exception) =>
-            log.error(s"$getClass registration failed", exception)
-          case Success(_) =>
-            log.debug(s"$getClass registration succeeded")
-        }
-      case Failure(error) =>
-        log.error(s"Unable to register $getClass for supervision", error)
-    }
-
-    private def unRegistrationCallback(): PartialFunction[Try[Ack], Unit] = {
-      case Success(_) =>
-        unregisterWithSupervisor()
-      case Failure(exception) =>
-        log.error("Failed to stop so unable to unregister from supervision", exception)
-    }
-
-    /**
-     * Unregister for Supervision via HealthSignalBus
-     */
-    private def unregisterWithSupervisor(): Unit = {
-      signalBus
-        .unregister(control = this, componentName = "router-actor")
-        .onComplete {
-          case Failure(exception) =>
-            log.error(s"$getClass registration failed", exception)
-          case Success(_) =>
-            log.debug(s"$getClass registration succeeded")
-        }(system.dispatcher)
-    }
   }
 }
