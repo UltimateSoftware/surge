@@ -3,7 +3,7 @@
 //
 package surge.javadsl.common
 
-import surge.kafka.streams.{ HealthCheck => ScalaHealthCheck }
+import surge.internal.health
 
 import java.util
 import scala.jdk.CollectionConverters._
@@ -17,7 +17,7 @@ class HealthCheck(
     val details: java.util.Map[String, String])
 
 object HealthCheck {
-  implicit class HealthCheckToJavaConverter(scalaHealthCheck: ScalaHealthCheck) {
+  implicit class HealthCheckToJavaConverter(scalaHealthCheck: health.HealthCheck) {
     def asJava: HealthCheck = {
       new HealthCheck(
         scalaHealthCheck.name,

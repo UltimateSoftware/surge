@@ -14,7 +14,7 @@ import surge.health.{ HealthSignalBusAware, HealthSignalBusTrait }
 import surge.internal.SurgeModel
 import surge.internal.akka.cluster.ActorSystemHostAwareness
 import surge.internal.akka.kafka.{ CustomConsumerGroupRebalanceListener, KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor }
-import surge.internal.health.HealthSignalStreamProvider
+import surge.internal.health.{ HealthCheck, HealthSignalStreamProvider, HealthyComponent, SurgeHealthCheck }
 import surge.internal.kafka.KafkaClusterShardingRebalanceListener
 import surge.internal.persistence.PersistentActorRegionCreator
 import surge.kafka.PartitionAssignments

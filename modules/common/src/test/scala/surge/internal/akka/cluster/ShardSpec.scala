@@ -12,8 +12,8 @@ import org.scalatestplus.mockito.MockitoSugar
 import surge.akka.cluster.{ EntityPropsProvider, Passivate, PerShardLogicProvider }
 import surge.core.{ Controllable, ControllableAdapter }
 import surge.internal.akka.ActorWithTracing
+import surge.internal.health.{ HealthCheck, HealthCheckStatus }
 import surge.internal.tracing.NoopTracerFactory
-import surge.kafka.streams.{ HealthCheck, HealthCheckStatus }
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future

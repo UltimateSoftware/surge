@@ -1,14 +1,13 @@
 // Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
 
-package surge.kafka.streams
+package surge.internal.health
 
 import akka.actor.NoSerializationVerificationNeeded
-
-import java.util.regex.Pattern
 import org.slf4j.LoggerFactory
 import play.api.libs.json.{ Format, Json }
 import surge.core.Controllable
 
+import java.util.regex.Pattern
 import scala.concurrent.{ ExecutionContext, Future }
 
 class SurgeHealthCheck(healthCheckId: String, components: HealthyComponent*)(implicit executionContext: ExecutionContext) {

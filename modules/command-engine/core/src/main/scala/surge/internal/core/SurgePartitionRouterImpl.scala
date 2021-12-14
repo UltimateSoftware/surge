@@ -17,6 +17,7 @@ import surge.core.{ Ack, Controllable, KafkaProducerActor, SurgePartitionRouter 
 import surge.health.HealthSignalBusTrait
 import surge.internal.akka.kafka.{ KafkaConsumerPartitionAssignmentTracker, KafkaShardingClassicMessageExtractor }
 import surge.internal.config.TimeoutConfig
+import surge.internal.health.{ HealthCheck, HealthCheckStatus, HealthyActor, HealthyComponent }
 import surge.internal.persistence
 import surge.internal.persistence.{ BusinessLogic, PersistentActor }
 import surge.internal.tracing.RoutableMessage

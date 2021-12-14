@@ -9,6 +9,7 @@ import surge.health.HealthSignalBusTrait
 import surge.internal.SurgeModel
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.core.SurgePartitionRouterImpl
+import surge.internal.health.HealthyComponent
 import surge.internal.persistence.BusinessLogic
 import surge.kafka.PersistentActorRegionCreator
 import surge.kafka.streams._

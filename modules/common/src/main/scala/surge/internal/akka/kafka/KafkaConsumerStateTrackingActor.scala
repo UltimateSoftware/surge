@@ -9,7 +9,7 @@ import org.apache.kafka.common.TopicPartition
 import org.slf4j.LoggerFactory
 import surge.core.{ Controllable, ControllableAdapter }
 import surge.internal.config.TimeoutConfig
-import surge.kafka.streams.{ HealthCheck, HealthCheckStatus, HealthyActor, HealthyComponent }
+import surge.internal.health.{ HealthCheck, HealthCheckStatus, HealthyActor, HealthyComponent }
 import surge.kafka.{ HostPort, PartitionAssignments }
 
 import scala.concurrent.Future

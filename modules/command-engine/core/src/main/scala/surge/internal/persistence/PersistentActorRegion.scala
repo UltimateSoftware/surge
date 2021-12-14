@@ -10,9 +10,10 @@ import surge.akka.cluster.{ EntityPropsProvider, PerShardLogicProvider }
 import surge.core.{ Ack, Controllable, KafkaProducerActor }
 import surge.health.HealthSignalBusTrait
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
+import surge.internal.health.HealthCheck
 import surge.internal.persistence
 import surge.internal.utils.Logging
-import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, HealthCheck }
+import surge.kafka.streams.AggregateStateStoreKafkaStreams
 import surge.kafka.{ PersistentActorRegionCreator => KafkaPersistentActorRegionCreator }
 import surge.metrics.Metrics
 

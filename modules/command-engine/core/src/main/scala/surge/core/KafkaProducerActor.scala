@@ -14,6 +14,7 @@ import surge.internal.SurgeModel
 import surge.internal.akka.actor.{ ActorLifecycleManagerActor, ManagedActorRef }
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.config.TimeoutConfig
+import surge.internal.health.{ HealthCheck, HealthCheckStatus, HealthyActor, HealthyComponent }
 import surge.internal.kafka.KafkaProducerActorImpl.ShutdownProducer
 import surge.internal.kafka.{ KTableLagCheckerImpl, KafkaProducerActorImpl, PartitionerHelper }
 import surge.internal.persistence.BusinessLogic

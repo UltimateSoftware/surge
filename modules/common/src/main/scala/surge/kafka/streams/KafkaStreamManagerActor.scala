@@ -6,7 +6,8 @@ import akka.actor.{ Actor, NoSerializationVerificationNeeded, Props, Stash }
 import akka.pattern.pipe
 import org.apache.kafka.streams.KafkaStreams
 import org.slf4j.LoggerFactory
-import surge.kafka.streams.HealthyActor.GetHealth
+import surge.internal.health.{ HealthCheck, HealthCheckStatus }
+import surge.internal.health.HealthyActor.GetHealth
 import surge.kafka.streams.KafkaStreamsUncaughtExceptionHandler.KafkaStreamsUncaughtException
 import surge.kafka.streams.KafkaStreamsUpdatePartitionsOnStateChangeListener.KafkaStateChange
 import surge.metrics.Metrics
