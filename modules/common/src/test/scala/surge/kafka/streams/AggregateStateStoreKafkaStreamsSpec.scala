@@ -19,7 +19,6 @@ import org.scalatestplus.mockito.MockitoSugar
 import play.api.libs.json.{ Format, JsValue, Json }
 import surge.internal.kafka.JsonSerdes
 import surge.kafka.KafkaTopic
-import surge.kafka.streams.AggregateStateStoreKafkaStreamsImpl.AggregateStateStoreKafkaStreamsImplSettings
 import surge.metrics.Metrics
 
 class MockPartitionTrackerProvider extends KafkaStreamsPartitionTrackerProvider {
@@ -104,8 +103,9 @@ class AggregateStateStoreKafkaStreamsSpec
           system,
           Metrics.globalMetricRegistry,
           defaultConfig) {
-          override lazy val settings: AggregateStateStoreKafkaStreamsImplSettings =
-            AggregateStateStoreKafkaStreamsImplSettings(defaultConfig, appId, testAggregateName, "").copy(brokers = Seq(s"localhost:${actualConfig.kafkaPort}"))
+          override lazy val settings: SurgeAggregateStoreSettings =
+            SurgeAggregateStoreSettings(defaultConfig, appId, testAggregateName, "", Some("localhost:1234")).copy(brokers =
+              Seq(s"localhost:${actualConfig.kafkaPort}"))
         }
 
         aggStoreKafkaStreams.controllable.start()
@@ -144,8 +144,9 @@ class AggregateStateStoreKafkaStreamsSpec
           system,
           Metrics.globalMetricRegistry,
           exceptionThrowingConfig) {
-          override lazy val settings: AggregateStateStoreKafkaStreamsImplSettings =
-            AggregateStateStoreKafkaStreamsImplSettings(defaultConfig, appId, testAggregateName, "").copy(brokers = Seq(s"localhost:${actualConfig.kafkaPort}"))
+          override lazy val settings: SurgeAggregateStoreSettings =
+            SurgeAggregateStoreSettings(defaultConfig, appId, testAggregateName, "", Some("localhost:1234")).copy(brokers =
+              Seq(s"localhost:${actualConfig.kafkaPort}"))
         }
 
         aggStoreKafkaStreams.controllable.start()
