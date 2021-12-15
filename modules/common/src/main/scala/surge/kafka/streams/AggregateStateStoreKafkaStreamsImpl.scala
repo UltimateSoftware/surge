@@ -57,13 +57,13 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
 
   private val getSubStateForAggregateTimerMetric: Timer = metrics.timer(
     MetricInfo(
-      name = s"surge.${aggregateName.toLowerCase()}.subscribe-listener-rate",
+      name = s"surge.${aggregateName.toLowerCase()}.get-subState-aggregate",
       description = "The time taken to get the sub-state of the aggregate",
       tags = Map("aggregate" -> aggregateName)))
 
   private val getAggregateBytesTimerMetric: Timer = metrics.timer(
     MetricInfo(
-      name = s"surge.${aggregateName.toLowerCase()}.get-aggregate-state-rate",
+      name = s"surge.${aggregateName.toLowerCase()}.get-aggregate-state",
       description = "The time taken to getting the aggregate state.",
       tags = Map("aggregate" -> aggregateName)))
 
