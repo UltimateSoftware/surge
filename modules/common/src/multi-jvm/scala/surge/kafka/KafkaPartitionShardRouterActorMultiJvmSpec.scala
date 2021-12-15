@@ -95,29 +95,5 @@ class KafkaPartitionShardRouterActorSpecBase
         probe.expectMsg(command0)
       }
     }
-
-    "Forward message and fail" in {
-      val testContext = setupTestContext()
-      import testContext._
-      val probe = TestProbe()
-      // Create actor with different names
-      val routerActor = system.actorOf(shardRouterProps, Random.alphanumeric.dropWhile(_.isDigit).take(3).mkString)
-
-      initializePartitionAssignments(partitionProbe)
-
-      val deadLetterProbe = TestProbe()
-      system.eventStream.subscribe(deadLetterProbe.ref, classOf[DeadLetter])
-      val command0 = Command("partition0")
-      runOn(node2) {
-        probe.send(routerActor, command0)
-      }
-      runOn(node1) {
-        regionProbe.expectNoMessage()
-        deadLetterProbe.expectMsgClass(classOf[DeadLetter])
-      }
-      runOn(node2) {
-        probe.expectNoMessage()
-      }
-    }
   }
 }
