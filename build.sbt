@@ -60,24 +60,29 @@ lazy val `surge-common` = (project in file("modules/common"))
   .dependsOn(`surge-metrics`, `surge-serialization`)
 
 lazy val `surge-engine-command-core` = (project in file("modules/command-engine/core"))
-  .settings(libraryDependencies ++= Seq(
-    Akka.actor,
-    Akka.remote,
-    Kafka.kafkaClients,
-    Akka.testKit,
-    Akka.akkaStreamTestKit,
-    Akka.kafkaClusterSharding,
-    Akka.management,
-    Akka.managementClusterHttp,
-    Akka.managementClusterBootstrap,
-    Akka.discovery,
-    mockitoCore,
-    scalatest,
-    scalatestPlusMockito,
-    embeddedKafka,
-    OpenTelemetry.api,
-    logback,
-    typesafeConfig))
+  .settings(
+    multiJvmTestSettings,
+    libraryDependencies ++= Seq(
+      Akka.actor,
+      Akka.remote,
+      Kafka.kafkaClients,
+      Akka.testKit,
+      Akka.multiNodeTestkit,
+      Akka.akkaStreamTestKit,
+      Akka.kafkaClusterSharding,
+      Akka.management,
+      Akka.managementClusterHttp,
+      Akka.managementClusterBootstrap,
+      Akka.discovery,
+      mockitoCore,
+      scalatest,
+      scalatestPlusMockito,
+      embeddedKafka,
+      OpenTelemetry.api,
+      logback,
+      typesafeConfig))
+  .enablePlugins(MultiJvmPlugin)
+  .configs(MultiJvm)
   .dependsOn(`surge-common` % "compile->compile;test->test")
 
 lazy val `surge-engine-command-scaladsl` = (project in file("modules/command-engine/scaladsl")).dependsOn(`surge-engine-command-core`)
