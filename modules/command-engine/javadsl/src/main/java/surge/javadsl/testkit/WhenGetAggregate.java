@@ -4,8 +4,6 @@ package surge.javadsl.testkit;
 import org.mockito.Mockito;
 import surge.javadsl.command.AggregateRef;
 import surge.javadsl.command.SurgeCommand;
-import surge.javadsl.common.CommandResult;
-import surge.javadsl.common.CommandSuccess;
 
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
