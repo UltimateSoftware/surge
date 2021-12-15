@@ -25,7 +25,6 @@ object SurgePartitionRouterImplSpecModels extends TestBoundedContext {
   }
 
   class ProbeInterceptorRegionCreator(probe: TestProbe) extends PersistentActorRegionCreator[String] {
-
     override def regionFromTopicPartition(topicPartition: TopicPartition): PerShardLogicProvider[String] = {
       val provider = new PerShardLogicProvider[String] {
         override def actorProvider(context: ActorContext): EntityPropsProvider[String] = (_: String) => Props(new ProbeInterceptorActor(topicPartition, probe))
