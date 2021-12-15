@@ -2,7 +2,7 @@
 <html class="no-js" lang="en">
 
 <head>
-<title>Utilities · Surge</title>
+<title>Testing · Surge</title>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <meta name="description" content='surge-docs'/>
@@ -39,8 +39,8 @@
   <li><a href="command-usage.html" class="page">Command Side Usage</a></li>
   <li><a href="tracing-usage.html" class="page">Open Telemetry Integration</a></li>
   <li><a href="repository-tour.html" class="page">Repository Tour</a></li>
-  <li><a href="utilities.html" class="active page">Utilities</a></li>
-  <li><a href="testing.html" class="page">Testing</a></li>
+  <li><a href="utilities.html" class="page">Utilities</a></li>
+  <li><a href="testing.html" class="active page">Testing</a></li>
 </ul>
 </div>
 
@@ -81,8 +81,8 @@ C16.952,7,17,6.553,17,6c0-0.553-0.048-1-0.6-1H3.6C3.048,5,3,5.447,3,6C3,6.553,3.
   <li><a href="command-usage.html" class="page">Command Side Usage</a></li>
   <li><a href="tracing-usage.html" class="page">Open Telemetry Integration</a></li>
   <li><a href="repository-tour.html" class="page">Repository Tour</a></li>
-  <li><a href="utilities.html" class="active page">Utilities</a></li>
-  <li><a href="testing.html" class="page">Testing</a></li>
+  <li><a href="utilities.html" class="page">Utilities</a></li>
+  <li><a href="testing.html" class="active page">Testing</a></li>
 </ul>
 </div>
 
@@ -99,7 +99,7 @@ C16.952,7,17,6.553,17,6c0-0.553-0.048-1-0.6-1H3.6C3.048,5,3,5.447,3,6C3,6.553,3.
 <div class="nav-breadcrumbs">
 <ul>
   <li><a href="index.html">Surge</a></li>
-  <li>Utilities</li>
+  <li>Testing</li>
 </ul>
 </div>
 </div>
@@ -107,50 +107,61 @@ C16.952,7,17,6.553,17,6c0-0.553-0.048-1-0.6-1H3.6C3.048,5,3,5.447,3,6C3,6.553,3.
 
 <div class="page-content row">
 <div class="small-12 large-9 column" id="docs">
-<h1><a href="#utilities" name="utilities" class="anchor"><span class="anchor-link"></span></a>Utilities</h1>
-<p>The following utilities may be useful when developing Surge applications.</p>
-<h2><a href="#mdc-logging" name="mdc-logging" class="anchor"><span class="anchor-link"></span></a>MDC Logging</h2>
-<ul>
-  <li>The Mapped Diagnostic Context(MDC) allows us to put context to all log statements for a single thread.</li>
-  <li>It is exposed via <strong>org.slf4j.MDC</strong> if you are using slf4j but other logging systems (such as log4j and logback) have similar concepts that slf4j wraps.</li>
-</ul>
-<h2><a href="#mdc-propagation-across-futures" name="mdc-propagation-across-futures" class="anchor"><span class="anchor-link"></span></a>MDC Propagation Across Futures</h2>
-<ul>
-  <li>
-  <p>To propagate MDC across Futures, first we need to import the <strong>mdcExecutionContext</strong> which copies the MDC to any new thread that is being used giving us multi-thread MDC logging.</p>
-  <pre class="prettyprint"><code class="language-scala">import surge.internal.utils.MdcExecutionContext.mdcExecutionContext
-</code></pre>
-  <p>By default, <strong>mdcExecutionContext</strong> wraps the default <strong>global</strong> ExecutionContext and adds MDC propagation support to it. But if you want to use your own <strong>ExecutionContext</strong>, then you can do so by passing it in as an argument to the <strong>DiagnosticContextFuturePropagation</strong> constructor:</p>
-  <pre class="prettyprint"><code class="language-scala">  implicit lazy val mdcExecutionContext: ExecutionContext = new DiagnosticContextFuturePropagation(yourOwnExecutionContext)
-</code></pre><strong>Note:</strong> DiagnosticContextFuturePropagation is exposed via <strong>surge.internal.utils.DiagnosticContextFuturePropagation</strong></li>
-  <li>
-  <p>Next, we need to put the context in our log statements:</p>
-  <pre class="prettyprint"><code class="language-scala">MDC.put(&quot;requestId&quot;, UUID.randomUUID().toString())
-</code></pre>That&rsquo;s all. Using these two simple steps, we can propagate our MDC from the caller thread to the execution thread.</li>
-</ul>
+<h1><a href="#testing" name="testing" class="anchor"><span class="anchor-link"></span></a>Testing</h1>
+<p>We provide a helper class to aid users of the Java DSL mock a Surge Engine. </p>
+<dl>
+  <dt>Java</dt>
+  <dd>
+  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/Test.java#L19-L40" target="_blank" title="Go to snippet source"></a><code class="language-java">void testSendCommand() throws Exception {
+
+    MockedSurgeEngine&lt;UUID, BankAccount, BankAccountCommand, BankAccountCommand&gt; mockedSurgeEngine;
+    mockedSurgeEngine = new MockedSurgeEngine&lt;&gt;();
+
+    UUID accountNumber = UUID.randomUUID();
+    UUID otherAccountNumber = UUID.randomUUID();
+
+    CreateAccount createAccount = new CreateAccount(accountNumber, &quot;Jane&quot;, &quot;Doe&quot;, 1000);
+    DebitAccount debitAccount = new DebitAccount(otherAccountNumber, 50);
+    BankAccount expectedBankAccount = new BankAccount(accountNumber, &quot;Jane&quot;, &quot;Doe&quot;, 1000);
+
+    mockedSurgeEngine.whenSendCommand(accountNumber, createAccount).returnAggregate(expectedBankAccount);
+    mockedSurgeEngine.whenSendCommand(otherAccountNumber, debitAccount).noSuchAggregate();
+
+    CompletionStage&lt;CommandResult&lt;BankAccount&gt;&gt; actualResult;
+    actualResult = mockedSurgeEngine.get()
+            .aggregateFor(accountNumber).sendCommand(createAccount);
+
+    // compare actual result to expected result
+    // NOTE: must resolve/block the CompletionStage/CompletableFuture
+}</code></pre></dd>
+  <dt>Java</dt>
+  <dd>
+  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/Test.java#L44-L62" target="_blank" title="Go to snippet source"></a><code class="language-java">void testGetAggregate() throws Exception {
+
+    MockedSurgeEngine&lt;UUID, BankAccount, BankAccountCommand, BankAccountCommand&gt; mockedSurgeEngine;
+    mockedSurgeEngine = new MockedSurgeEngine&lt;&gt;();
+
+    UUID accountNumber = UUID.randomUUID();
+
+    BankAccount fakeBankAccount = new BankAccount(accountNumber, &quot;Jane&quot;, &quot;Doe&quot;, 1000);
+
+    mockedSurgeEngine.whenGetAggregate(accountNumber).returnAggregate(fakeBankAccount);
+
+    CompletionStage&lt;Optional&lt;BankAccount&gt;&gt; result;
+    result = mockedSurgeEngine.get()
+            .aggregateFor(accountNumber).getState();
+
+    // compare result to expected result
+    // NOTE: must resolve/block the CompletionStage/CompletableFuture
+
+}</code></pre></dd>
+</dl>
 <div class="source-github">
-The source code for this page can be found <a href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/main/paradox/utilities.md">here</a>.
+The source code for this page can be found <a href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/main/paradox/testing.md">here</a>.
 </div>
 
-<div class="nav-next">
-<p><strong>Next:</strong> <a href="testing.html">Testing</a></p>
-</div>
 </div>
 <div class="large-3 show-for-large column" data-sticky-container>
-<nav class="sidebar sticky" data-sticky data-anchor="docs" data-sticky-on="large">
-<div class="page-nav">
-<div class="nav-title">On this page:</div>
-<div class="nav-toc">
-<ul>
-  <li><a href="utilities.html#utilities" class="header">Utilities</a>
-  <ul>
-    <li><a href="utilities.html#mdc-logging" class="header">MDC Logging</a></li>
-    <li><a href="utilities.html#mdc-propagation-across-futures" class="header">MDC Propagation Across Futures</a></li>
-  </ul></li>
-</ul>
-</div>
-</div>
-</nav>
 </div>
 </div>
 
