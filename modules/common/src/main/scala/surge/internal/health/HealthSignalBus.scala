@@ -221,8 +221,8 @@ private[surge] class HealthSignalBusImpl(
               log.debug("Health Registration received {}", registration)
             case HealthSignalReceived(signal: HealthSignal) =>
               log.debug("Health Signal received {}", signal)
-            case Stop  => context.stop(self)
-            case other => log.debug(s"Unhandled message $other")
+            case Stop() => context.stop(self)
+            case other  => log.debug(s"Unhandled message $other")
           }
         }))
         new HealthSignalStreamMonitoringRefWithSupervisionSupport(actor)
@@ -326,7 +326,7 @@ private[surge] class HealthSignalBusImpl(
   override def registrations(): Future[Seq[SupervisedComponentRegistration]] = {
     supervisorRef match {
       case Some(ref) =>
-        val result = ref.actor.ask(HealthRegistrationDetailsRequest)(timeout = 10.seconds)
+        val result = ref.actor.ask(HealthRegistrationDetailsRequest())(timeout = 10.seconds)
 
         result.map(a => a.asInstanceOf[List[SupervisedComponentRegistration]])(actorSystem.dispatcher)
       case None => Future.successful(Seq.empty)

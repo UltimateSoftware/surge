@@ -13,12 +13,12 @@ import surge.internal.akka.actor.ActorLifecycleManagerActor
 import surge.internal.akka.cluster.{ ActorHostAwareness, Shard }
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.config.TimeoutConfig
-import surge.internal.tracing.{ RoutableMessage, TracedMessage }
+import surge.internal.tracing.TracedMessage
 import surge.kafka.streams.HealthyActor.GetHealth
-import surge.kafka.streams.{ HealthCheck, HealthCheckStatus, HealthyActor, HealthyComponent }
+import surge.kafka.streams.{ HealthCheck, HealthCheckStatus, HealthyActor }
 
 import java.time.Instant
-import scala.concurrent.{ Await, Future }
+import scala.concurrent.Future
 import scala.concurrent.duration._
 
 object KafkaPartitionShardRouterActor {
@@ -28,11 +28,17 @@ object KafkaPartitionShardRouterActor {
       partitioner: KafkaPartitioner[String],
       trackedTopic: KafkaTopic,
       regionCreator: PersistentActorRegionCreator[String],
-      extractEntityId: PartialFunction[Any, String])(tracer: Tracer): Props = {
+      extractEntityId: PartialFunction[Any, String],
+      kafkaProducerOverride: Option[KafkaProducerTrait[String, Array[Byte]]] = None)(tracer: Tracer): Props = {
 
-    val brokers = config.getString("kafka.brokers").split(",").toVector
     // This producer is only used for determining partition assignments, not actually producing
-    val producer = KafkaProducer.bytesProducer(config, brokers, trackedTopic, partitioner)
+    val producer = kafkaProducerOverride match {
+      case Some(kafkaProducer) => kafkaProducer
+      case None =>
+        val brokers = config.getString("kafka.brokers").split(",").toVector
+        KafkaProducer.bytesProducer(config, brokers, trackedTopic, partitioner)
+    }
+
     Props(new KafkaPartitionShardRouterActor(config, partitionTracker, producer, regionCreator, extractEntityId)(tracer))
   }
   case object GetPartitionRegionAssignments
