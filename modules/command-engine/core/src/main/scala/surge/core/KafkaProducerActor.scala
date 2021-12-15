@@ -10,7 +10,6 @@ import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.header.Headers
 import org.slf4j.LoggerFactory
 import surge.health.{ HealthSignalBusAware, HealthSignalBusTrait }
-import surge.internal.SurgeModel
 import surge.internal.akka.actor.{ ActorLifecycleManagerActor, ManagedActorRef }
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.config.TimeoutConfig
@@ -35,7 +34,7 @@ object KafkaProducerActor {
       assignedPartition: TopicPartition,
       metrics: Metrics,
       businessLogic: BusinessLogic,
-      kStreams: AggregateStateStoreKafkaStreams[_],
+      kStreams: AggregateStateStoreKafkaStreams,
       partitionTracker: KafkaConsumerPartitionAssignmentTracker,
       signalBus: HealthSignalBusTrait,
       config: Config,
@@ -71,7 +70,7 @@ object KafkaProducerActor {
       actorSystem: ActorSystem,
       metrics: Metrics,
       businessLogic: BusinessLogic,
-      kStreams: AggregateStateStoreKafkaStreams[_],
+      kStreams: AggregateStateStoreKafkaStreams,
       partitionTracker: KafkaConsumerPartitionAssignmentTracker,
       signalBus: HealthSignalBusTrait,
       config: Config,

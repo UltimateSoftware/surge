@@ -58,10 +58,7 @@ class AggregateStateStoreKafkaStreamsSpec
   private val defaultConfig = ConfigFactory.load()
 
   "AggregateStateStoreKafkaStreams" should {
-    def assertStoreKeyValue(
-        testDriver: TopologyTestDriver,
-        stateTopic: KafkaTopic,
-        aggStoreKafkaStreams: AggregateStateStoreKafkaStreams[MockState]): Assertion = {
+    def assertStoreKeyValue(testDriver: TopologyTestDriver, stateTopic: KafkaTopic, aggStoreKafkaStreams: AggregateStateStoreKafkaStreams): Assertion = {
       val state1 = MockState("state1", 1)
       val state2 = MockState("state2", 2)
       val state3 = MockState("state3", 3)
@@ -92,7 +89,7 @@ class AggregateStateStoreKafkaStreamsSpec
 
         val testAggregateName = "test"
         val appId = s"aggregate-streams-spec-${UUID.randomUUID()}"
-        val aggStoreKafkaStreams = new AggregateStateStoreKafkaStreams[MockState](
+        val aggStoreKafkaStreams = new AggregateStateStoreKafkaStreams(
           aggregateName = testAggregateName,
           stateTopic = stateTopic,
           partitionTrackerProvider = new MockPartitionTrackerProvider,
@@ -133,7 +130,7 @@ class AggregateStateStoreKafkaStreamsSpec
 
         val testAggregateName = "test"
         val appId = s"aggregate-streams-spec-${UUID.randomUUID()}"
-        val aggStoreKafkaStreams = new AggregateStateStoreKafkaStreams[MockState](
+        val aggStoreKafkaStreams = new AggregateStateStoreKafkaStreams(
           aggregateName = testAggregateName,
           stateTopic = stateTopic,
           partitionTrackerProvider = new MockPartitionTrackerProvider,

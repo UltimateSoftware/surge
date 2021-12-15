@@ -4,9 +4,10 @@ package surge.kafka.streams
 
 import com.typesafe.config.Config
 import org.apache.kafka.clients.consumer.ConsumerConfig
+import org.apache.kafka.common.serialization.Serdes
 import org.apache.kafka.common.serialization.Serdes.ByteArraySerde
 import org.apache.kafka.streams.{ KafkaStreams, StoreQueryParameters, StreamsConfig, Topology }
-import org.apache.kafka.streams.kstream.Materialized
+import org.apache.kafka.streams.kstream.{ Consumed, Materialized }
 import org.apache.kafka.streams.scala.StreamsBuilder
 import org.apache.kafka.streams.state.QueryableStoreTypes
 import org.slf4j.LoggerFactory
@@ -20,8 +21,7 @@ private[surge] class SurgeStateStoreConsumer(stateTopic: KafkaTopic, val setting
 
   private val log = LoggerFactory.getLogger(getClass)
 
-  import DefaultSerdes._
-  import ImplicitConversions._
+  private implicit val consumedKeyValue: Consumed[String, Array[Byte]] = Consumed.`with`(Serdes.String(), Serdes.ByteArray())
 
   private val persistencePlugin = SurgeKafkaStreamsPersistencePluginLoader.load(config)
 

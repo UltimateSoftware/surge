@@ -13,7 +13,6 @@ import com.typesafe.config.Config
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.serialization.{ ByteArrayDeserializer, StringDeserializer }
 import org.slf4j.LoggerFactory
-import play.api.libs.json.JsValue
 import surge.core.{ Ack, Controllable, KafkaProducerActor, SurgePartitionRouter }
 import surge.health.HealthSignalBusTrait
 import surge.internal.akka.kafka.{ KafkaConsumerPartitionAssignmentTracker, KafkaShardingClassicMessageExtractor }
@@ -37,7 +36,7 @@ private[surge] final class SurgePartitionRouterImpl(
     system: ActorSystem,
     partitionTracker: KafkaConsumerPartitionAssignmentTracker,
     businessLogic: BusinessLogic,
-    aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue],
+    aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams,
     regionCreator: PersistentActorRegionCreator[String],
     signalBus: HealthSignalBusTrait,
     isAkkaClusterEnabled: Boolean,

@@ -5,7 +5,6 @@ package surge.internal.persistence
 import akka.actor.{ ActorContext, ActorSystem, Props }
 import com.typesafe.config.Config
 import org.apache.kafka.common.TopicPartition
-import play.api.libs.json.JsValue
 import surge.akka.cluster.{ EntityPropsProvider, PerShardLogicProvider }
 import surge.core.{ Ack, Controllable, KafkaProducerActor }
 import surge.health.HealthSignalBusTrait
@@ -27,7 +26,7 @@ trait PersistentActorPropsFactory[M] extends {
 class PersistentActorRegionCreator[M](
     system: ActorSystem,
     businessLogic: BusinessLogic,
-    kafkaStreamsCommand: AggregateStateStoreKafkaStreams[JsValue],
+    kafkaStreamsCommand: AggregateStateStoreKafkaStreams,
     partitionTracker: KafkaConsumerPartitionAssignmentTracker,
     metrics: Metrics,
     signalBus: HealthSignalBusTrait,
@@ -41,7 +40,7 @@ class PersistentActorRegion[M](
     system: ActorSystem,
     assignedPartition: TopicPartition,
     businessLogic: BusinessLogic,
-    aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue],
+    aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams,
     partitionTracker: KafkaConsumerPartitionAssignmentTracker,
     metrics: Metrics,
     signalBus: HealthSignalBusTrait,

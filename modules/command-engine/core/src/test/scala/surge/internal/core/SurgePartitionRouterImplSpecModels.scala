@@ -4,21 +4,22 @@ package surge.internal.core
 
 import akka.actor.{ ActorContext, Props }
 import akka.testkit.TestProbe
+import io.opentelemetry.api.trace.Tracer
 import org.apache.kafka.common.TopicPartition
 import surge.akka.cluster.{ EntityPropsProvider, PerShardLogicProvider }
 import surge.core.TestBoundedContext.{ BaseTestCommand, WrappedTestCommand }
 import surge.core.{ Controllable, ControllableAdapter, TestBoundedContext }
 import surge.internal.akka.ActorWithTracing
+import surge.internal.health.{ HealthCheck, HealthCheckStatus }
 import surge.internal.tracing.NoopTracerFactory
 import surge.kafka.PersistentActorRegionCreator
-import surge.kafka.streams.{ HealthCheck, HealthCheckStatus }
 
 import scala.concurrent.Future
 
 object SurgePartitionRouterImplSpecModels extends TestBoundedContext {
 
   class ProbeInterceptorActor(topicPartition: TopicPartition, probe: TestProbe) extends ActorWithTracing {
-    implicit val tracer = NoopTracerFactory.create()
+    implicit val tracer: Tracer = NoopTracerFactory.create()
     override def receive: Receive = { case cmd: BaseTestCommand =>
       probe.ref.forward(WrappedTestCommand(topicPartition, cmd))
     }

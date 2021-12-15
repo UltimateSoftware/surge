@@ -51,10 +51,8 @@ class AggregateStreamsRocksDBConfig
      * @param applicationHostPort
      *   Optional string to use for a host/port exposed by this application. This information is exposed to the partition tracker provider as mappings from
      *   application host/port to assigned partitions.
-     * @tparam Agg
-     *   Aggregate type being read from Kafka - business logic type of the Kafka values in the state topic
      */
-class AggregateStateStoreKafkaStreams[Agg >: Null](
+class AggregateStateStoreKafkaStreams(
     aggregateName: String,
     stateTopic: KafkaTopic,
     partitionTrackerProvider: KafkaStreamsPartitionTrackerProvider,
@@ -161,9 +159,9 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
 
       unRegistrationResult.onComplete {
         case Failure(exception) =>
-          log.error(s"$getClass registeration failed", exception)
+          log.error(s"$getClass registration failed", exception)
         case Success(_) =>
-          log.debug(s"$getClass registeration succeeded")
+          log.debug(s"$getClass registration succeeded")
       }(system.dispatcher)
     case Failure(exception) =>
       log.error("Failed to stop so unable to unregister from supervision", exception)
