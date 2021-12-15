@@ -65,7 +65,7 @@ private[javadsl] class SurgeCommandImpl[AggId, Agg, Command, Evt](
   }
 
   def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Command, Evt] = {
-    new AggregateRefImpl(aggIdToString(aggregateId), actorRouter.actorRegion, businessLogic.tracer)
+    new AggregateRefImpl(aggIdToString(aggregateId), actorRouter.actorRegion, businessLogic.tracer, surgeEngineStatus)
   }
 
   def getMetrics: java.util.List[Metric] = businessLogic.metrics.getMetrics.asJava

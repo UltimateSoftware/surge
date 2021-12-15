@@ -25,7 +25,6 @@ import scala.util.{ Failure, Success, Try }
 
 object SurgeMessagePipeline {
   val log: Logger = LoggerFactory.getLogger(getClass)
-  var surgeEngineStatus: SurgeEngineStatus = SurgeEngineStatus.Stopped
 }
 
 /**
@@ -40,6 +39,10 @@ private[surge] abstract class SurgeMessagePipeline[S, M, E](
     with HealthyComponent
     with HealthSignalBusAware
     with ActorSystemHostAwareness {
+
+  private var _surgeEngineStatus: SurgeEngineStatus = SurgeEngineStatus.Stopped
+
+  def surgeEngineStatus() = _surgeEngineStatus
 
   import SurgeMessagePipeline._
   import system.dispatcher
@@ -179,8 +182,8 @@ private[surge] abstract class SurgeMessagePipeline[S, M, E](
         _ <- actorRouter.controllable.start()
         allStarted <- kafkaStreamsImpl.controllable.start()
       } yield {
-        surgeEngineStatus = SurgeEngineStatus.Running
-        log.info(s"surge engine status: $surgeEngineStatus")
+        _surgeEngineStatus = SurgeEngineStatus.Running
+        log.info(s"surge engine status: ${_surgeEngineStatus}")
         allStarted
       }
 
@@ -205,8 +208,8 @@ private[surge] abstract class SurgeMessagePipeline[S, M, E](
         _ <- actorRouter.controllable.stop()
         allStopped <- kafkaStreamsImpl.controllable.stop()
       } yield {
-        surgeEngineStatus = SurgeEngineStatus.Stopped
-        log.info(s"surge engine status: $surgeEngineStatus")
+        _surgeEngineStatus = SurgeEngineStatus.Stopped
+        log.info(s"surge engine status: ${_surgeEngineStatus}")
         allStopped
       }
 
