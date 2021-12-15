@@ -22,10 +22,10 @@ import surge.kafka.streams._
 
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.{ Failure, Success, Try }
+import java.util.concurrent.atomic.AtomicReference
 
 object SurgeMessagePipeline {
   val log: Logger = LoggerFactory.getLogger(getClass)
-  var surgeEngineStatus: SurgeEngineStatus = SurgeEngineStatus.Stopped
 }
 
 /**
@@ -40,6 +40,10 @@ private[surge] abstract class SurgeMessagePipeline[S, M, E](
     with HealthyComponent
     with HealthSignalBusAware
     with ActorSystemHostAwareness {
+
+  private val surgeEngineStatus: AtomicReference[SurgeEngineStatus] = new AtomicReference(SurgeEngineStatus.Stopped)
+
+  def getEngineStatus() = surgeEngineStatus.get()
 
   import SurgeMessagePipeline._
   import system.dispatcher
@@ -179,8 +183,8 @@ private[surge] abstract class SurgeMessagePipeline[S, M, E](
         _ <- actorRouter.controllable.start()
         allStarted <- kafkaStreamsImpl.controllable.start()
       } yield {
-        surgeEngineStatus = SurgeEngineStatus.Running
-        log.info(s"surge engine status: $surgeEngineStatus")
+        surgeEngineStatus.set(SurgeEngineStatus.Running)
+        log.info(s"surge engine status: ${surgeEngineStatus}")
         allStarted
       }
 
@@ -205,8 +209,8 @@ private[surge] abstract class SurgeMessagePipeline[S, M, E](
         _ <- actorRouter.controllable.stop()
         allStopped <- kafkaStreamsImpl.controllable.stop()
       } yield {
-        surgeEngineStatus = SurgeEngineStatus.Stopped
-        log.info(s"surge engine status: $surgeEngineStatus")
+        surgeEngineStatus.set(SurgeEngineStatus.Stopped)
+        log.info(s"surge engine status: ${surgeEngineStatus}")
         allStopped
       }
 
