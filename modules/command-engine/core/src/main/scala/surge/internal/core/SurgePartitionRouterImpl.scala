@@ -5,6 +5,7 @@ package surge.internal.core
 import akka.actor._
 import akka.cluster.sharding.external.ExternalShardAllocationStrategy
 import akka.cluster.sharding.{ ClusterSharding, ClusterShardingSettings }
+import akka.cluster.{ Cluster, MemberStatus }
 import akka.kafka.ConsumerSettings
 import akka.kafka.cluster.sharding.KafkaClusterSharding
 import akka.pattern.ask
@@ -22,13 +23,14 @@ import surge.internal.persistence
 import surge.internal.persistence.{ BusinessLogic, PersistentActor }
 import surge.internal.tracing.RoutableMessage
 import surge.kafka.streams._
-import surge.kafka.{ KafkaPartitionShardRouterActor, KafkaSecurityConfigurationImpl, PersistentActorRegionCreator }
+import surge.kafka.{ KafkaPartitionShardRouterActor, KafkaProducerTrait, KafkaSecurityConfigurationImpl, PersistentActorRegionCreator }
 
 import java.util.Properties
 import java.util.regex.Pattern
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{ Await, ExecutionContext, Future }
 import scala.jdk.CollectionConverters._
+import scala.languageFeature.postfixOps
 
 private[surge] final class SurgePartitionRouterImpl(
     config: Config,
@@ -38,7 +40,8 @@ private[surge] final class SurgePartitionRouterImpl(
     aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue],
     regionCreator: PersistentActorRegionCreator[String],
     signalBus: HealthSignalBusTrait,
-    isAkkaClusterEnabled: Boolean)
+    isAkkaClusterEnabled: Boolean,
+    kafkaProducerOverride: Option[KafkaProducerTrait[String, Array[Byte]]])
     extends SurgePartitionRouter
     with HealthyComponent {
   implicit val executionContext: ExecutionContext = system.dispatcher
@@ -61,7 +64,8 @@ private[surge] final class SurgePartitionRouterImpl(
       businessLogic.partitioner,
       businessLogic.kafka.stateTopic,
       regionCreator,
-      RoutableMessage.extractEntityId)(businessLogic.tracer)
+      RoutableMessage.extractEntityId,
+      kafkaProducerOverride)(businessLogic.tracer)
 
     val routerActorName = s"${businessLogic.aggregateName}RouterActor"
     val shardRouter = system.actorOf(shardRouterProps, name = routerActorName)
@@ -111,6 +115,7 @@ private[surge] final class SurgePartitionRouterImpl(
           allocationStrategy = new ExternalShardAllocationStrategy(system, groupId),
           handOffStopMessage = PoisonPill)
       })
+
     // FIXME This could be fixed once we drop existing router
     Await.result(regionF, 5.seconds)
   }
@@ -118,22 +123,26 @@ private[surge] final class SurgePartitionRouterImpl(
   override def restartSignalPatterns(): Seq[Pattern] = Seq(Pattern.compile("kafka.fatal.error"))
 
   override def healthCheck(): Future[HealthCheck] = {
-    actorRegion
-      .ask(HealthyActor.GetHealth)(TimeoutConfig.HealthCheck.actorAskTimeout * 3) // * 3 since this rolls up 2 additional health checks below
-      .mapTo[HealthCheck]
-      .recoverWith { case err: Throwable =>
-        log.error(s"Failed to get router-actor health check", err)
-        Future.successful(HealthCheck(name = "router-actor", id = s"router-actor-${actorRegion.hashCode}", status = HealthCheckStatus.DOWN))
+    if (isAkkaClusterEnabled) {
+      val cluster = Cluster.get(system)
+      val status = cluster.selfMember.status match {
+        case MemberStatus.Up => HealthCheckStatus.UP
+        case _               => HealthCheckStatus.DOWN
       }
+      Future.successful(HealthCheck(name = "router-actor", id = s"router-actor-${actorRegion.hashCode}", status = status))
+    } else {
+      actorRegion
+        .ask(HealthyActor.GetHealth)(TimeoutConfig.HealthCheck.actorAskTimeout * 3) // * 3 since this rolls up 2 additional health checks below
+        .mapTo[HealthCheck]
+        .recoverWith { case err: Throwable =>
+          log.error(s"Failed to get router-actor health check", err)
+          Future.successful(HealthCheck(name = "router-actor", id = s"router-actor-${actorRegion.hashCode}", status = HealthCheckStatus.DOWN))
+        }
+    }
   }
 
   private[surge] override val controllable: Controllable = new Controllable {
-    override def start(): Future[Ack] = {
-      // TODO explicit start/stop for router actor
-      //implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PartitionRouter.askTimeout)
-      //actorRegion.ask(ActorLifecycleManagerActor.Start).mapTo[Ack].andThen(registrationCallback())
-      Future.successful(Ack())
-    }
+    override def start(): Future[Ack] = Future.successful(Ack())
 
     override def restart(): Future[Ack] = {
       for {
@@ -144,13 +153,9 @@ private[surge] final class SurgePartitionRouterImpl(
       }
     }
 
-    override def stop(): Future[Ack] = {
-      // TODO explicit start/stop for router actor
-      //implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PartitionRouter.askTimeout)
-      //actorRegion.ask(ActorLifecycleManagerActor.Stop).mapTo[Ack]
-      Future.successful(Ack())
-    }
+    override def stop(): Future[Ack] = Future.successful(Ack())
 
     override def shutdown(): Future[Ack] = stop()
+
   }
 }

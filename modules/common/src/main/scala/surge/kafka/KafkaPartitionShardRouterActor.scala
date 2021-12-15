@@ -28,11 +28,17 @@ object KafkaPartitionShardRouterActor {
       partitioner: KafkaPartitioner[String],
       trackedTopic: KafkaTopic,
       regionCreator: PersistentActorRegionCreator[String],
-      extractEntityId: PartialFunction[Any, String])(tracer: Tracer): Props = {
+      extractEntityId: PartialFunction[Any, String],
+      kafkaProducerOverride: Option[KafkaProducerTrait[String, Array[Byte]]] = None)(tracer: Tracer): Props = {
 
-    val brokers = config.getString("kafka.brokers").split(",").toVector
     // This producer is only used for determining partition assignments, not actually producing
-    val producer = KafkaProducer.bytesProducer(config, brokers, trackedTopic, partitioner)
+    val producer = kafkaProducerOverride match {
+      case Some(kafkaProducer) => kafkaProducer
+      case None =>
+        val brokers = config.getString("kafka.brokers").split(",").toVector
+        KafkaProducer.bytesProducer(config, brokers, trackedTopic, partitioner)
+    }
+
     Props(new KafkaPartitionShardRouterActor(config, partitionTracker, producer, regionCreator, extractEntityId)(tracer))
   }
   case object GetPartitionRegionAssignments
