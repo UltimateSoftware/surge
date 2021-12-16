@@ -40,8 +40,12 @@ public class MockedSurgeEngine<AggId, Agg, Command, Event> {
         this.mockSurgeEngine = mockSurgeEngine;
     }
 
-    public WhenSendCommand whenSendCommand(AggId aggId, Command command) {
-        return new WhenSendCommand(mockSurgeEngine, aggId, command);
+    public WhenSendCommand<AggId, Agg, Command, Event> whenSendCommand(AggId aggId, Command command) {
+        return new WhenSendCommand<AggId, Agg, Command, Event>(mockSurgeEngine, aggId, command);
+    }
+
+    public WhenGetAggregate<AggId, Agg, Command, Event> whenGetAggregate(AggId aggId) {
+        return new WhenGetAggregate<AggId, Agg, Command, Event>(mockSurgeEngine, aggId);
     }
 
 }
