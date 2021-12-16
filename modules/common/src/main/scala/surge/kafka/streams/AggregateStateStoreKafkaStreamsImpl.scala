@@ -55,7 +55,7 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
     StreamsConfig.STATE_DIR_CONFIG -> settings.stateDirectory,
     StreamsConfig.ROCKSDB_CONFIG_SETTER_CLASS_CONFIG -> classOf[AggregateStreamsRocksDBConfig].getName,
     StreamsConfig.APPLICATION_SERVER_CONFIG -> settings.localActorHostPort)
-  
+
   private val getSubStateForAggregateTimerMetric: Timer = metrics.timer(
     MetricInfo(
       name = s"surge.${aggregateName.toLowerCase()}.get-subState-aggregate",
@@ -145,7 +145,7 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
 
   def getSubstatesForAggregate(
       aggregateQueryableStateStore: KafkaStreamsKeyValueStore[String, Array[Byte]],
-      aggregateId: String): Future[List[(String, Array[Byte])]] =  {
+      aggregateId: String): Future[List[(String, Array[Byte])]] = {
     log.info("Getting sub state for aggregate: {}", aggregateId)
     aggregateQueryableStateStore
       .range(aggregateId, s"$aggregateId:~")
