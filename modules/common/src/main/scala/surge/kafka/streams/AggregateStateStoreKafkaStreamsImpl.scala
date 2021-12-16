@@ -14,10 +14,11 @@ import org.apache.kafka.streams.{ StoreQueryParameters, StreamsConfig }
 import surge.kafka.streams.AggregateStateStoreKafkaStreamsImpl._
 import surge.kafka.streams.HealthyActor.GetHealth
 import surge.kafka.{ KafkaTopic, LagInfo }
-import surge.metrics.{ Counter, MetricInfo, Metrics, Rate, Timer }
+import surge.metrics.{ MetricInfo, Metrics, Rate, Timer }
 
 import java.util.Properties
 import scala.concurrent.Future
+import scala.util.{ Failure, Success }
 
 private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
     aggregateName: String,
@@ -54,7 +55,7 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
     StreamsConfig.STATE_DIR_CONFIG -> settings.stateDirectory,
     StreamsConfig.ROCKSDB_CONFIG_SETTER_CLASS_CONFIG -> classOf[AggregateStreamsRocksDBConfig].getName,
     StreamsConfig.APPLICATION_SERVER_CONFIG -> settings.localActorHostPort)
-
+  
   private val getSubStateForAggregateTimerMetric: Timer = metrics.timer(
     MetricInfo(
       name = s"surge.${aggregateName.toLowerCase()}.get-subState-aggregate",
@@ -65,6 +66,12 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
     MetricInfo(
       name = s"surge.${aggregateName.toLowerCase()}.get-aggregate-state",
       description = "The time taken to getting the aggregate state.",
+      tags = Map("aggregate" -> aggregateName)))
+
+  val current: Rate = metrics.rate(
+    MetricInfo(
+      name = s"surge.${aggregateName.toLowerCase()}.aggregate-state-current-rate",
+      description = "The per-second rate of aggregates that are up-to-date in and can be loaded immediately from the KTable",
       tags = Map("aggregate" -> aggregateName)))
 
   override def subscribeListeners(consumer: KafkaByteStreamsConsumer): Unit = {
@@ -126,6 +133,10 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
     case GetHealth =>
       val status = if (consumer.streams.state().isRunningOrRebalancing) HealthCheckStatus.UP else HealthCheckStatus.DOWN
       sender() ! getHealth(status)
+    case GetCurrentStateAggregate(aggregateId) =>
+      getCurrentStateAggregate(aggregateQueryableStateStore, aggregateId)
+    case GetKTableRecordsCount() =>
+      getKTableRecordsCount(aggregateQueryableStateStore)
   }
 
   def stashIt: Receive = { case _: GetAggregateBytes | _: GetSubstatesForAggregate | GetTopology =>
@@ -134,7 +145,8 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
 
   def getSubstatesForAggregate(
       aggregateQueryableStateStore: KafkaStreamsKeyValueStore[String, Array[Byte]],
-      aggregateId: String): Future[List[(String, Array[Byte])]] = getSubStateForAggregateTimerMetric.timeFuture {
+      aggregateId: String): Future[List[(String, Array[Byte])]] =  {
+    log.info("Getting sub state for aggregate: {}", aggregateId)
     aggregateQueryableStateStore
       .range(aggregateId, s"$aggregateId:~")
       .map { result =>
@@ -164,8 +176,22 @@ private[streams] class AggregateStateStoreKafkaStreamsImpl[Agg >: Null](
       }
     }
 
+  def getKTableRecordsCount(aggregateQueryableStateStore: KafkaStreamsKeyValueStore[String, Array[Byte]]): Int = {
+    log.info("Getting number of records from kTable: {}")
+    var count: Int = 0
+    aggregateQueryableStateStore.allValues().map(_.size).onComplete {
+      case Success(value) =>
+        log.info("Total number of records in the KTable are : {}", current.mark(value))
+        count = value
+      case Failure(exception) => log.error("Exception occurred :{}", exception)
+    }
+    //    current.mark(count)
+    count
+  }
+
   def getAggregateBytes(aggregateQueryableStateStore: KafkaStreamsKeyValueStore[String, Array[Byte]], aggregateId: String): Future[Option[Array[Byte]]] =
     getAggregateBytesTimerMetric.timeFuture {
+      log.info("Getting aggregate bytes for : {}", aggregateId)
       aggregateQueryableStateStore.get(aggregateId).recoverWith {
         case err: InvalidStateStoreException =>
           handleInvalidStateStore(err)
@@ -189,6 +215,8 @@ private[streams] object AggregateStateStoreKafkaStreamsImpl {
   case object GetTopology extends AggregateStateStoreKafkaStreamsCommand
   case class GetSubstatesForAggregate(aggregateId: String) extends AggregateStateStoreKafkaStreamsCommand
   case class GetAggregateBytes(aggregateId: String) extends AggregateStateStoreKafkaStreamsCommand
+  case class GetCurrentStateAggregate(aggregateId: String) extends AggregateStateStoreKafkaStreamsCommand
+  case class GetKTableRecordsCount() extends AggregateStateStoreKafkaStreamsCommand
 
   case class PartitionLagResponse(lag: Option[LagInfo])
 
