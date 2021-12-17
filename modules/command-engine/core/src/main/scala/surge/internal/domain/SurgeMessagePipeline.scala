@@ -177,11 +177,16 @@ private[surge] abstract class SurgeMessagePipeline[S, M, E](
 
   private[surge] override val controllable: Controllable = new Controllable {
     override def start(): Future[Ack] = {
+      surgeEngineStatus.set(SurgeEngineStatus.Starting)
+      val f1 = startSignalStream()
+      val f2 = startClusterManagementAndRebalanceListener()
+      val f3 = actorRouter.controllable.start()
+      val f4 = kafkaStreamsImpl.controllable.start()
       val result = for {
-        _ <- startSignalStream()
-        _ <- startClusterManagementAndRebalanceListener()
-        _ <- actorRouter.controllable.start()
-        allStarted <- kafkaStreamsImpl.controllable.start()
+        _ <- f1
+        _ <- f2
+        _ <- f3
+        allStarted <- f4
       } yield {
         surgeEngineStatus.set(SurgeEngineStatus.Running)
         log.info(s"surge engine status: ${surgeEngineStatus}")

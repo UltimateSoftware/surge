@@ -6,7 +6,7 @@ import akka.actor.ActorRef
 import io.opentelemetry.api.trace.Tracer
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.exceptions.SurgeEngineNotRunningException
-import surge.internal.domain.{ SurgeEngineStatus, SurgeMessagePipeline }
+import surge.internal.domain.SurgeEngineStatus
 import surge.internal.persistence.{ AggregateRefTrait, PersistentActor }
 import surge.javadsl.common.{ AggregateRefBaseTrait, _ }
 
@@ -15,6 +15,9 @@ import java.util.concurrent.CompletionStage
 import scala.compat.java8.FutureConverters
 import scala.compat.java8.OptionConverters._
 import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.duration._
+import akka.actor.ActorSystem
+import surge.exceptions.SurgeTimeoutException
 
 trait AggregateRef[Agg, Cmd, Event] {
   def getState: CompletionStage[Optional[Agg]]
@@ -29,7 +32,7 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event](
     val aggregateId: AggId,
     protected val region: ActorRef,
     protected val tracer: Tracer,
-    engineStatus: () => SurgeEngineStatus)
+    getEngineStatus: () => SurgeEngineStatus)(implicit actorSystem: ActorSystem)
     extends AggregateRef[Agg, Cmd, Event]
     with AggregateRefBaseTrait[AggId, Agg, Cmd, Event]
     with AggregateRefTrait[AggId, Agg, Cmd, Event] {
@@ -38,31 +41,51 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event](
   private val log: Logger = LoggerFactory.getLogger(getClass)
 
   override def getState: CompletionStage[Optional[Agg]] = {
-    val status = engineStatus()
+    val result = retryWithDelay(5).flatMap { _ =>
+      val status = getEngineStatus()
 
-    val result = if (status == SurgeEngineStatus.Running) {
-      queryState
-    } else {
-      log.error(s"Engine Status: $status")
-      Future.failed(SurgeEngineNotRunningException("The engine is not running, please call .start() on the engine before interacting with it"))
+      if (status == SurgeEngineStatus.Running) {
+        queryState
+      } else {
+        log.error(s"Engine Status: $status")
+        Future.failed(
+          SurgeEngineNotRunningException("The engine is not running, please call .start()" +
+            " on the engine before interacting with it"))
+      }
     }
-
     FutureConverters.toJava(result.map(_.asJava))
   }
 
   def sendCommand(command: Cmd): CompletionStage[CommandResult[Agg]] = {
-    val status = engineStatus()
-
-    val result = if (status == SurgeEngineStatus.Running) {
-      val envelope = PersistentActor.ProcessMessage[Cmd](aggregateId.toString, command)
-      sendCommand(envelope).map(aggOpt => CommandSuccess[Agg](aggOpt.asJava)).recover { case error =>
-        CommandFailure[Agg](error)
+    val r = retryWithDelay(5).flatMap { _ =>
+      val status = getEngineStatus()
+      if (status == SurgeEngineStatus.Running) {
+        val envelope = PersistentActor.ProcessMessage[Cmd](aggregateId.toString, command)
+        sendCommand(envelope).map(aggOpt => CommandSuccess[Agg](aggOpt.asJava)).recover { case error =>
+          CommandFailure[Agg](error)
+        }
+      } else {
+        log.error(s"Engine Status: $status")
+        Future.failed(
+          SurgeEngineNotRunningException("The engine is not running, please call .start() " +
+            "on the engine before interacting with it"))
       }
-    } else {
-      log.error(s"Engine Status: $status")
-      Future.failed(SurgeEngineNotRunningException("The engine is not running, please call .start() on the engine before interacting with it"))
     }
 
-    FutureConverters.toJava(result)
+    FutureConverters.toJava(r)
   }
+
+  private def retryWithDelay(numTries: Int, delay: FiniteDuration = 50.millis): Future[Unit] = {
+    def loop(num: Int): Future[Unit] = if (num > 0)
+      if (getEngineStatus() == SurgeEngineStatus.Starting) for {
+        _ <- Future.successful(log.debug(s"retry attempt ${(numTries - num) + 1}"))
+        _ <- akka.pattern.after(delay)(Future.unit)
+        _ <- loop(num - 1)
+      } yield ()
+      else Future.unit
+    else Future.failed(SurgeTimeoutException("Engine was not ready in time"))
+
+    loop(numTries)
+  }
+
 }
