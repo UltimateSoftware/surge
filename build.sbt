@@ -7,6 +7,8 @@ ThisBuild / scalaVersion := "2.13.5"
 
 ThisBuild / crossScalaVersions := Seq("2.13.5", "2.12.12")
 
+ThisBuild / dynverSonatypeSnapshots := true
+
 publish / skip := true
 
 lazy val unitTest = taskKey[Unit]("Runs only the unit tests")
@@ -165,7 +167,7 @@ lazy val `surge` = project
     `surge-engine-multilanguage`,
     `surge-engine-multilanguage-scala-sdk`,
     `surge-engine-multilanguage-scala-sdk-sample`)
-  .settings(publish / skip := true, ReleaseSettings.settings)
+  .settings(publish / skip := true)
   .disablePlugins(MimaPlugin)
 
 addCommandAlias("codeFormat", ";headerCreate;test:headerCreate;scalafmtAll;scalafmtSbt")
