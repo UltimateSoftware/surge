@@ -9,7 +9,6 @@ import com.typesafe.config.{ Config, ConfigFactory }
 import org.apache.kafka.streams.Topology
 import surge.core.{ Ack, Controllable }
 import surge.health.HealthSignalBusTrait
-import surge.internal.akka.actor.ActorLifecycleManagerActor
 import surge.internal.config.{ BackoffConfig, TimeoutConfig }
 import surge.internal.health.{ HealthCheck, HealthyActor, HealthyComponent }
 import surge.internal.utils.{ BackoffChildActorTerminationWatcher, Logging }
@@ -115,18 +114,8 @@ class AggregateStateStoreKafkaStreams(
           randomFactor = BackoffConfig.StateStoreKafkaStreamActor.randomFactor)
         .withMaxNrOfRetries(BackoffConfig.StateStoreKafkaStreamActor.maxRetries))
 
-    val underlyingCreatedActor =
-      ActorLifecycleManagerActor
-        .manage(
-          system,
-          underlyingActorProps,
-          componentName = s"state-store-kafka-streams-$aggregateName",
-          managedActorName = None,
-          startMessageAdapter = Some(() => KafkaStreamManagerActor.Start),
-          stopMessageAdapter = Some(() => KafkaStreamManagerActor.Stop))
-        .ref
+    val underlyingCreatedActor = system.actorOf(aggregateStateStoreKafkaStreamsImplProps)
 
-    // FIXME When the KafkaStreamManagerActor dies I don't think the ActorLifecycleManagerActor stops with it, so this termination watcher won't be triggered
     system.actorOf(BackoffChildActorTerminationWatcher.props(underlyingCreatedActor, () => onMaxRetries()))
 
     underlyingCreatedActor
@@ -170,7 +159,7 @@ class AggregateStateStoreKafkaStreams(
   override val controllable: Controllable = new Controllable {
     override def start(): Future[Ack] = {
       implicit val ec: ExecutionContext = system.dispatcher
-      underlyingActor.ask(ActorLifecycleManagerActor.Start).mapTo[Ack].andThen(registrationCallback())
+      underlyingActor.ask(KafkaStreamManagerActor.Start).mapTo[Ack].andThen(registrationCallback())
     }
 
     override def restart(): Future[Ack] = {
@@ -185,7 +174,7 @@ class AggregateStateStoreKafkaStreams(
 
     override def stop(): Future[Ack] = {
       implicit val ec: ExecutionContext = system.dispatcher
-      underlyingActor.ask(ActorLifecycleManagerActor.Stop).mapTo[Ack].andThen(unregistrationCallback())
+      underlyingActor.ask(KafkaStreamManagerActor.Stop).mapTo[Ack].andThen(unregistrationCallback())
     }
 
     override def shutdown(): Future[Ack] = stop()

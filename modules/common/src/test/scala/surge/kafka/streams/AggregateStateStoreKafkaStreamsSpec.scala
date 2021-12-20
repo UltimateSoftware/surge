@@ -17,6 +17,7 @@ import org.scalatest.wordspec.AnyWordSpec
 import org.scalatest.{ Assertion, BeforeAndAfterAll }
 import org.scalatestplus.mockito.MockitoSugar
 import play.api.libs.json.{ Format, JsValue, Json }
+import surge.core.Ack
 import surge.internal.kafka.JsonSerdes
 import surge.kafka.KafkaTopic
 import surge.metrics.Metrics
@@ -112,6 +113,7 @@ class AggregateStateStoreKafkaStreamsSpec
         withTopologyTestDriver(topology) { testDriver =>
           assertStoreKeyValue(testDriver, stateTopic, aggStoreKafkaStreams)
         }
+        aggStoreKafkaStreams.controllable.stop().futureValue shouldBe an[Ack]
       }
     }
     "Restart the stream on any errors" in {
@@ -155,6 +157,7 @@ class AggregateStateStoreKafkaStreamsSpec
           // if we make it to use the stream it means it restarted correctly after the crash
           assertStoreKeyValue(testDriver, stateTopic, aggStoreKafkaStreams)
         }
+        aggStoreKafkaStreams.controllable.stop().futureValue shouldBe an[Ack]
       }
     }
   }

@@ -6,6 +6,7 @@ import akka.actor.{ Actor, NoSerializationVerificationNeeded, Props, Stash }
 import akka.pattern.pipe
 import org.apache.kafka.streams.KafkaStreams
 import org.slf4j.LoggerFactory
+import surge.core.Ack
 import surge.internal.health.{ HealthCheck, HealthCheckStatus }
 import surge.internal.health.HealthyActor.GetHealth
 import surge.kafka.streams.KafkaStreamsUncaughtExceptionHandler.KafkaStreamsUncaughtException
@@ -20,7 +21,6 @@ private[surge] object KafkaStreamManagerActor {
   sealed trait StreamManagerCommand extends NoSerializationVerificationNeeded
 
   case object Start extends StreamManagerCommand
-  case object Restart extends StreamManagerCommand
   case object Stop extends StreamManagerCommand
   case object Run extends StreamManagerCommand
   case class GetAggregateBytes(aggregateId: String)
@@ -53,10 +53,11 @@ class KafkaStreamManagerActor(surgeConsumer: SurgeStateStoreConsumer, partitionT
   private def stopped: Receive = {
     case Start =>
       start()
+      sender() ! Ack()
     case GetHealth =>
       sender() ! getHealth(HealthCheckStatus.DOWN)
-    case Stop | Restart =>
-    // TODO Can't stop or restart from the stopped state, just ACK back?
+    case Stop =>
+      sender() ! Ack()
     case KafkaStreamError(t) =>
       handleError(t)
   }
@@ -69,8 +70,7 @@ class KafkaStreamManagerActor(surgeConsumer: SurgeStateStoreConsumer, partitionT
       context.become(running(stream, queryableStore))
     case Stop =>
       stop(stream)
-    case Restart =>
-      restart()
+      sender() ! Ack()
     case GetHealth =>
       val status = if (stream.state().isRunningOrRebalancing) HealthCheckStatus.UP else HealthCheckStatus.DOWN
       sender() ! getHealth(status)
@@ -90,9 +90,9 @@ class KafkaStreamManagerActor(surgeConsumer: SurgeStateStoreConsumer, partitionT
       sender() ! getHealth(status)
     case Stop =>
       stop(stream)
-    case Restart =>
-      restart()
-    case Start => // Ignore
+      sender() ! Ack()
+    case Start =>
+      sender() ! Ack()
     case KafkaStreamError(t) =>
       handleError(t)
   }
@@ -139,12 +139,8 @@ class KafkaStreamManagerActor(surgeConsumer: SurgeStateStoreConsumer, partitionT
         System.exit(1)
     }
     log.info(s"Kafka streams ${surgeConsumer.storeName} is stopped")
+    lastConsumerSeen = None
     context.become(stopped)
-  }
-
-  private def restart(): Unit = {
-    self ! Stop
-    self ! Start
   }
 
   private def receiveUnhandledExceptions(uncaughtException: KafkaStreamsUncaughtException): Unit = {
@@ -174,11 +170,6 @@ class KafkaStreamManagerActor(surgeConsumer: SurgeStateStoreConsumer, partitionT
 
   private def getHealth(streamStatus: String): HealthCheck = {
     HealthCheck(name = healthCheckName, id = surgeConsumer.storeName, status = streamStatus)
-  }
-
-  override def preStart(): Unit = {
-    self ! Start
-    super.preStart()
   }
 
   override def preRestart(reason: Throwable, message: Option[Any]): Unit = {
