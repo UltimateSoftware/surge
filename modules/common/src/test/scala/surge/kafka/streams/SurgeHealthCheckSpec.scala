@@ -5,6 +5,7 @@ package surge.kafka.streams
 import org.scalatest.PrivateMethodTester
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
+import surge.internal.health.{ HealthCheck, HealthCheckStatus, SurgeHealthCheck }
 
 import scala.concurrent.ExecutionContext.Implicits.global
 

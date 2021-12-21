@@ -18,8 +18,8 @@ import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
 import surge.health.{ HealthSignalBusTrait, InvokableHealthRegistration }
 import surge.internal.akka.actor.ManagedActorRef
+import surge.internal.health.{ HealthCheck, HealthCheckStatus, HealthyActor }
 import surge.internal.kafka.KafkaProducerActorImpl
-import surge.kafka.streams.{ HealthCheck, HealthCheckStatus, HealthyActor }
 import surge.metrics.Metrics
 
 import scala.concurrent.duration._

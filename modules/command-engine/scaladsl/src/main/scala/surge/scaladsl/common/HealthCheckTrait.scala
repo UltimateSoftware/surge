@@ -3,7 +3,7 @@
 //
 package surge.scaladsl.common
 
-import surge.kafka.streams.HealthCheck
+import surge.internal.health.HealthCheck
 
 import scala.concurrent.Future
 
