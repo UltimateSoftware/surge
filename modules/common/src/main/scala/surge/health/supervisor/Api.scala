@@ -5,6 +5,7 @@ package surge.health.supervisor
 import akka.actor.{ ActorRef, NoSerializationVerificationNeeded }
 import surge.health.supervisor.Domain.SupervisedComponentRegistration
 
+import java.util.UUID
 import java.util.regex.Pattern
 
 object Api {
@@ -19,13 +20,14 @@ object Api {
 
   case class UnregisterSupervisedComponentRequest(componentName: String) extends NoSerializationVerificationNeeded
   case class RegisterSupervisedComponentRequest(
+      id: UUID,
       componentName: String,
       controlProxyRef: ActorRef,
       restartSignalPatterns: Seq[Pattern],
       shutdownSignalPatterns: Seq[Pattern])
       extends NoSerializationVerificationNeeded {
     def asSupervisedComponentRegistration(): SupervisedComponentRegistration =
-      SupervisedComponentRegistration(componentName, controlProxyRef, restartSignalPatterns, shutdownSignalPatterns)
+      SupervisedComponentRegistration(id, componentName, controlProxyRef, restartSignalPatterns, shutdownSignalPatterns)
   }
 
   case class HealthRegistrationDetailsRequest() extends NoSerializationVerificationNeeded

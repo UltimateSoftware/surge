@@ -334,7 +334,7 @@ private[surge] class HealthSignalBusImpl(
   }
 
   override def registrations(matching: Pattern): Future[Seq[SupervisedComponentRegistration]] = {
-    registrations().map(r => r.filter(f => matching.matcher(f.componentName).matches()))(ExecutionContext.global)
+    registrations().map(r => r.filter(f => matching.matcher(f.id.toString).matches()))(ExecutionContext.global)
   }
 
   override def signalWithError(name: String, error: Error, metadata: Map[String, String] = Map.empty): EmittableHealthSignal = {

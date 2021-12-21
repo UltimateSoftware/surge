@@ -173,6 +173,7 @@ class HealthSupervisorActorRef(val actor: ActorRef, askTimeout: FiniteDuration, 
     val result = actor
       .ask(
         RegisterSupervisedComponentRequest(
+          registration.id,
           registration.componentName,
           controlProxy,
           restartSignalPatterns = registration.restartSignalPatterns,
@@ -310,7 +311,7 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, config: 
     case reg: RegisterSupervisedComponentRequest =>
       state.replyTo.foreach(r => r ! HealthRegistrationReceived(reg))
       context.watch(reg.controlProxyRef)
-      context.become(monitoring(state.copy(registered = state.registered + (reg.componentName -> reg.asSupervisedComponentRegistration()))))
+      context.become(monitoring(state.copy(registered = state.registered + (reg.id.toString -> reg.asSupervisedComponentRegistration()))))
       sender() ! Ack()
       getJmxActor.foreach(a => a ! AddComponent(HealthRegistrationDetail(reg.componentName, reg.controlProxyRef.path.toStringWithoutAddress)))
     case remove: UnregisterSupervisedComponentRequest =>
