@@ -33,7 +33,7 @@ object Dependencies extends AutoPlugin {
     }
 
     object Kafka {
-      val kafkaVersion = "2.7.0"
+      val kafkaVersion = "2.7.2"
 
       val kafkaClients = "org.apache.kafka" % "kafka-clients" % kafkaVersion
       val kafkaStreams = "org.apache.kafka" % "kafka-streams" % kafkaVersion
@@ -47,7 +47,7 @@ object Dependencies extends AutoPlugin {
       val api = "io.opentelemetry" % "opentelemetry-api" % version
       val sdk = "io.opentelemetry" % "opentelemetry-sdk" % OpenTelemetry.version % Test
       val sdkTesting = "io.opentelemetry" % "opentelemetry-sdk-testing" % OpenTelemetry.version % Test
-      val grpcChannel = "io.grpc" % "grpc-netty-shaded" % "1.39.0" % Test
+      val grpcChannel = "io.grpc" % "grpc-netty-shaded" % "1.43.1" % Test
 
       object HoneycombSample {
         val sdk = OpenTelemetry.sdk
@@ -62,17 +62,17 @@ object Dependencies extends AutoPlugin {
     }
 
     object PlayFramework {
-      val json = "com.typesafe.play" %% "play-json" % "2.9.1"
+      val json = "com.typesafe.play" %% "play-json" % "2.9.2"
     }
 
     val akkaHttpPlayJson = "de.heikoseeberger" %% "akka-http-play-json" % "1.38.2"
-    val scalaCollectionCompat = "org.scala-lang.modules" %% "scala-collection-compat" % "2.4.2"
+    val scalaCollectionCompat = "org.scala-lang.modules" %% "scala-collection-compat" % "2.4.4"
     val java8Compat = "org.scala-lang.modules" %% "scala-java8-compat" % "0.9.1"
     val embeddedKafka = "io.github.embeddedkafka" %% "embedded-kafka" % Kafka.kafkaVersion % Test
     val junit = "junit" % "junit" % "4.13.1" % Test
     val logback = "ch.qos.logback" % "logback-classic" % "1.2.9"
     val json4s = "org.json4s" %% "json4s-native" % "4.0.3"
-    val mockitoCore = "org.mockito" % "mockito-core" % "3.6.28"
+    val mockitoCore = "org.mockito" % "mockito-core" % "3.12.4"
     val scalatest = "org.scalatest" %% "scalatest" % "3.2.7" % Test
     val scalatestPlusMockito = "org.scalatestplus" %% "mockito-3-4" % "3.2.10.0" % Test
     val slf4jApi = "org.slf4j" % "slf4j-api" % "1.7.32"
