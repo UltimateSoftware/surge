@@ -2,9 +2,10 @@
 
 package surge.kafka
 
-import akka.actor.{ Actor, ActorContext, ActorSystem, DeadLetter, Props }
+import akka.actor.{ ActorContext, ActorSystem, Props }
 import akka.testkit.{ TestKit, TestProbe }
 import com.typesafe.config.ConfigFactory
+import io.opentelemetry.api.trace.Tracer
 import org.apache.kafka.common.TopicPartition
 import org.mockito.ArgumentMatchers.anyString
 import org.mockito.Mockito.when
@@ -14,22 +15,21 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
 import surge.akka.cluster.{ EntityPropsProvider, PerShardLogicProvider }
+import surge.core.{ Controllable, ControllableAdapter }
 import surge.internal.akka.ActorWithTracing
-import surge.core.{ Ack, Controllable, ControllableAdapter }
 import surge.internal.akka.cluster.ActorSystemHostAwareness
 import surge.internal.akka.kafka.{ KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor }
-import surge.kafka.streams.{ HealthCheck, HealthCheckStatus }
+import surge.internal.health.{ HealthCheck, HealthCheckStatus }
 import surge.internal.tracing.{ NoopTracerFactory, TracedMessage }
 
 import scala.concurrent.Future
-import scala.concurrent.duration.DurationInt
 
 object KafkaPartitionShardRouterActorSpecModels {
   case class Command(id: String)
   case class WrappedCmd(topicPartition: TopicPartition, cmd: Command)
 
   class ProbeInterceptorActor(topicPartition: TopicPartition, probe: TestProbe) extends ActorWithTracing {
-    implicit val tracer = NoopTracerFactory.create()
+    implicit val tracer: Tracer = NoopTracerFactory.create()
     override def receive: Receive = { case cmd: Command =>
       probe.ref.forward(WrappedCmd(topicPartition, cmd))
     }

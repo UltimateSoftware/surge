@@ -12,14 +12,12 @@ import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Milliseconds, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
-import org.scalatest.{ Assertion, BeforeAndAfterAll, Ignore, PrivateMethodTester }
-import play.api.libs.json.JsValue
+import org.scalatest.{ BeforeAndAfterAll, PrivateMethodTester }
 import surge.core.TestBoundedContext.{ BaseTestCommand, BaseTestEvent, State }
 import surge.core.{ Ack, TestBoundedContext }
 import surge.health.config.{ ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig }
 import surge.health.domain.{ Error, HealthSignal }
 import surge.health.matchers.{ SideEffectBuilder, SignalPatternMatcherDefinition }
-import surge.health.supervisor.Api.ShutdownComponent
 import surge.health.{ ComponentRestarted, HealthListener, HealthMessage, SignalType }
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.core.SurgePartitionRouterImpl
@@ -86,7 +84,7 @@ trait SurgeMessagePipelineSpecLike extends TestBoundedContext {
           signalStreamProvider.bus(),
           isAkkaClusterEnabled,
           None)
-      override protected val kafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue] = new AggregateStateStoreKafkaStreams[JsValue](
+      override protected val kafkaStreamsImpl: AggregateStateStoreKafkaStreams = new AggregateStateStoreKafkaStreams(
         businessLogic.aggregateName,
         businessLogic.kafka.stateTopic,
         (streams: KafkaStreams) => new MockPartitionTracker(streams),

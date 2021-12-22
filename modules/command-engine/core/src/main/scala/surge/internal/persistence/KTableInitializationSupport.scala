@@ -26,7 +26,7 @@ trait KTableInitializationSupport[Model] {
   def aggregateName: String
   def initializationMetrics: KTableInitializationMetrics
   def kafkaProducerActor: KafkaProducerActor
-  def kafkaStreamsCommand: AggregateStateStoreKafkaStreams[_]
+  def kafkaStreamsCommand: AggregateStateStoreKafkaStreams
   def deserializeState(bytes: Array[Byte]): Option[Model]
 
   def retryConfig: RetryConfig

@@ -167,7 +167,7 @@ class PersistentActor[S, M, E](
 
   override val kafkaProducerActor: KafkaProducerActor = regionSharedResources.aggregateIdToKafkaProducer(aggregateId)
 
-  override val kafkaStreamsCommand: AggregateStateStoreKafkaStreams[_] = regionSharedResources.stateStore
+  override val kafkaStreamsCommand: AggregateStateStoreKafkaStreams = regionSharedResources.stateStore
 
   override def deserializeState(bytes: Array[Byte]): Option[S] = businessLogic.aggregateReadFormatting.readState(bytes)
 

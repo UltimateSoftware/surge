@@ -26,10 +26,11 @@ import surge.health.HealthSignalBusTrait
 import surge.health.domain.EmittableHealthSignal
 import surge.internal.akka.cluster.ActorSystemHostAwareness
 import surge.internal.akka.kafka.{ KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor }
+import surge.internal.health.{ HealthCheck, HealthCheckStatus }
 import surge.internal.kafka.KafkaProducerActorImpl.KTableProgressUpdate
 import surge.kafka._
-import surge.kafka.streams.HealthyActor.GetHealth
-import surge.kafka.streams.{ ExpectedTestException, HealthCheck, HealthCheckStatus }
+import surge.internal.health.HealthyActor.GetHealth
+import surge.kafka.streams.ExpectedTestException
 import surge.metrics.Metrics
 
 import java.time.Instant
