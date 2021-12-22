@@ -9,6 +9,7 @@ import com.ukg.surge.multilanguage.protobuf._
 import play.api.libs.json._
 
 import scala.concurrent.Future
+import scala.util.control.NoStackTrace
 import scala.util.{ Failure, Success, Try }
 
 object TestBoundedContext {
@@ -25,22 +26,7 @@ object TestBoundedContext {
     implicit val incrementFormat: Format[Increment] = Json.format
     implicit val decrementFormat: Format[Decrement] = Json.format
     implicit val exceptionThrowingCommandFormat: Format[ExceptionThrowingCommand] = Json.format
-    implicit val format: Format[BaseTestCommand] = Format[BaseTestCommand](
-      Reads { js =>
-        val commandType = (JsPath \ "commandType").read[String].reads(js)
-        commandType.fold(
-          errors => JsError("undefined commandType"),
-          {
-            case "increment" => (JsPath \ "data").read[Increment].reads(js)
-            case "decrement" => (JsPath \ "data").read[Decrement].reads(js)
-          })
-      },
-      Writes {
-        case i: Increment => JsObject(Seq("commandType" -> JsString("increment"), "data" -> incrementFormat.writes(i)))
-        case d: Decrement => JsObject(Seq("commandType" -> JsString("decrement"), "data" -> decrementFormat.writes(d)))
-        case e: ExceptionThrowingCommand =>
-          JsObject(Seq("commandType" -> JsString("exceptionThrowingCommand"), "data" -> exceptionThrowingCommandFormat.writes(e)))
-      })
+    implicit val format: Format[BaseTestCommand] = Json.format
   }
 
   case class Increment(aggregateId: String) extends BaseTestCommand
@@ -95,8 +81,9 @@ trait TestBoundedContext {
     private def applyCommand(state: Option[AggregateState], cmd: BaseTestCommand) = {
       val newSequenceNumber = state.map(_.version).getOrElse(0) + 1
       val events: Either[String, Seq[BaseTestEvent]] = Right(cmd match {
-        case Increment(aggregateId) => Seq(CountIncremented(aggregateId, incrementBy = 1, sequenceNumber = newSequenceNumber))
-        case Decrement(aggregateId) => Seq(CountDecremented(aggregateId, decrementBy = 1, sequenceNumber = newSequenceNumber))
+        case Increment(aggregateId)      => Seq(CountIncremented(aggregateId, incrementBy = 1, sequenceNumber = newSequenceNumber))
+        case Decrement(aggregateId)      => Seq(CountDecremented(aggregateId, decrementBy = 1, sequenceNumber = newSequenceNumber))
+        case _: ExceptionThrowingCommand => throw new RuntimeException("This is expected") with NoStackTrace
       })
       val result = events.map(evts => (evts, applyEvents(state, evts)))
       result
