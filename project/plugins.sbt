@@ -26,7 +26,7 @@ addSbtPlugin("de.heikoseeberger" % "sbt-header" % "5.6.0")
 addSbtPlugin("com.github.sbt" % "sbt-release" % "1.1.0")
 
 // Docs Site plugins
-addSbtPlugin("com.lightbend.paradox" % "sbt-paradox" % "0.9.1")
+addSbtPlugin("com.lightbend.paradox" % "sbt-paradox" % "0.9.2")
 addSbtPlugin("com.lightbend.paradox" % "sbt-paradox-dependencies" % "0.2.1")
 addSbtPlugin("com.typesafe.sbt" % "sbt-site" % "1.4.1")
 addSbtPlugin("com.typesafe.sbt" % "sbt-ghpages" % "0.6.3")
