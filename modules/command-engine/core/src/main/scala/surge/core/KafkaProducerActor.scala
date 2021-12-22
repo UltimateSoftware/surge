@@ -28,7 +28,7 @@ import scala.util.{ Failure, Success, Try }
 object KafkaProducerActor {
   private val dispatcherName: String = "kafka-publisher-actor-dispatcher"
 
-  //scalastyle:off parameter.number
+  // scalastyle:off parameter.number
   def apply(
       actorSystem: ActorSystem,
       assignedPartition: TopicPartition,

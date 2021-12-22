@@ -108,7 +108,7 @@ class KafkaProducerActorImpl(
   private val transactionalId = s"$transactionalIdPrefix-${assignedPartition.topic()}-${assignedPartition.partition()}"
   private val kafkaPublisherMetricsName = transactionalId
 
-  //noinspection ActorMutableStateInspection
+  // noinspection ActorMutableStateInspection
   private var kafkaPublisher = getPublisher
 
   private val nonTransactionalStatePublisher =

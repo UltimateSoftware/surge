@@ -32,25 +32,24 @@ object AggregateStreamsBlockCacheSettings extends BlockCacheSettings {
   override def cacheIndexAndFilterBlocks: Boolean = true
 }
 
-class AggregateStreamsRocksDBConfig
-    extends CustomRocksDBConfigSetter(AggregateStreamsBlockCacheSettings, AggregateStreamsWriteBufferSettings)
+class AggregateStreamsRocksDBConfig extends CustomRocksDBConfigSetter(AggregateStreamsBlockCacheSettings, AggregateStreamsWriteBufferSettings)
 
-    /**
-     * Creates a state store exposed as a Kafka Streams KTable for a particular Kafka Topic. The state in the KTable are key value pairs based on the Kafka Key
-     * and Kafka Value for each record read from the given topic.
-     *
-     * @param aggregateName
-     *   Name of the aggregate being consumed. Used to define consumer group and the name of the state store backing the KTable.
-     * @param stateTopic
-     *   The topic of state key/value pairs to consume and expose via a KTable. This topic should be compacted.
-     * @param partitionTrackerProvider
-     *   Registered within a Kafka Streams state change listener to track updates to the Kafka Streams consumer group. When the consumer group transitions from
-     *   rebalancing to running, the partition tracker provided will be notified automatically. This can be used for notifying other processes/interested
-     *   parties that a consumer group change has occurred.
-     * @param applicationHostPort
-     *   Optional string to use for a host/port exposed by this application. This information is exposed to the partition tracker provider as mappings from
-     *   application host/port to assigned partitions.
-     */
+/**
+ * Creates a state store exposed as a Kafka Streams KTable for a particular Kafka Topic. The state in the KTable are key value pairs based on the Kafka Key and
+ * Kafka Value for each record read from the given topic.
+ *
+ * @param aggregateName
+ *   Name of the aggregate being consumed. Used to define consumer group and the name of the state store backing the KTable.
+ * @param stateTopic
+ *   The topic of state key/value pairs to consume and expose via a KTable. This topic should be compacted.
+ * @param partitionTrackerProvider
+ *   Registered within a Kafka Streams state change listener to track updates to the Kafka Streams consumer group. When the consumer group transitions from
+ *   rebalancing to running, the partition tracker provided will be notified automatically. This can be used for notifying other processes/interested parties
+ *   that a consumer group change has occurred.
+ * @param applicationHostPort
+ *   Optional string to use for a host/port exposed by this application. This information is exposed to the partition tracker provider as mappings from
+ *   application host/port to assigned partitions.
+ */
 class AggregateStateStoreKafkaStreams(
     aggregateName: String,
     stateTopic: KafkaTopic,
@@ -114,7 +113,7 @@ class AggregateStateStoreKafkaStreams(
           randomFactor = BackoffConfig.StateStoreKafkaStreamActor.randomFactor)
         .withMaxNrOfRetries(BackoffConfig.StateStoreKafkaStreamActor.maxRetries))
 
-    val underlyingCreatedActor = system.actorOf(aggregateStateStoreKafkaStreamsImplProps)
+    val underlyingCreatedActor = system.actorOf(underlyingActorProps)
 
     system.actorOf(BackoffChildActorTerminationWatcher.props(underlyingCreatedActor, () => onMaxRetries()))
 
