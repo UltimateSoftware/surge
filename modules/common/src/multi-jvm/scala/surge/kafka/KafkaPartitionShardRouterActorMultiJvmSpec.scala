@@ -4,9 +4,9 @@ package surge.kafka
 
 import akka.actor.DeadLetter
 import akka.remote.testconductor.RoleName
-import akka.remote.testkit.{MultiNodeConfig, MultiNodeSpec, MultiNodeSpecCallbacks}
-import akka.testkit.{ImplicitSender, TestProbe}
-import com.typesafe.config.{Config, ConfigFactory}
+import akka.remote.testkit.{ MultiNodeConfig, MultiNodeSpec, MultiNodeSpecCallbacks }
+import akka.testkit.{ ImplicitSender, TestProbe }
+import com.typesafe.config.{ Config, ConfigFactory }
 import org.apache.kafka.common.TopicPartition
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers

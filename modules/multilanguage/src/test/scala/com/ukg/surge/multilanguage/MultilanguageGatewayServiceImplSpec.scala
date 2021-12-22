@@ -18,6 +18,7 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Milliseconds, Seconds, Span }
 import org.scalatest.wordspec.AsyncWordSpecLike
 import play.api.libs.json.Json
+import surge.core.Ack
 import surge.scaladsl.command.SurgeCommand
 
 import java.util.UUID
@@ -40,8 +41,8 @@ class MultilanguageGatewayServiceImplSpec
   }
 
   override def afterAll(): Unit = {
+    testSurgeEngine.stop().futureValue shouldBe an[Ack]
     EmbeddedKafka.stop()
-    testSurgeEngine.stop()
     TestKit.shutdownActorSystem(system)
   }
 
