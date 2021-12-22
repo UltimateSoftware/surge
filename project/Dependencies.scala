@@ -68,7 +68,7 @@ object Dependencies extends AutoPlugin {
     val akkaHttpPlayJson = "de.heikoseeberger" %% "akka-http-play-json" % "1.38.2"
     val scalaCollectionCompat = "org.scala-lang.modules" %% "scala-collection-compat" % "2.6.0"
     val java8Compat = "org.scala-lang.modules" %% "scala-java8-compat" % "0.9.1"
-    val embeddedKafka = "io.github.embeddedkafka" %% "embedded-kafka" % "2.8.1" % Test
+    val embeddedKafka = "io.github.embeddedkafka" %% "embedded-kafka" % "3.0.0" % Test
     val junit = "junit" % "junit" % "4.13.2" % Test
     val logback = "ch.qos.logback" % "logback-classic" % "1.2.9"
     val json4s = "org.json4s" %% "json4s-native" % "4.0.3"
