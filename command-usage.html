@@ -11,6 +11,7 @@
 <script type="text/javascript" src="js/page.js"></script>
 <script type="text/javascript" src="js/warnOldVersion.js"></script>
 <script type="text/javascript" src="js/groups.js"></script>
+<script type="text/javascript" src="js/snippets.js"></script>
 <link rel="stylesheet" type="text/css" href="lib/foundation/dist/foundation.min.css"/>
 <link rel="stylesheet" type="text/css" href="css/page.css"/>
 
@@ -134,13 +135,13 @@ dependencies {
 <dl>
   <dt>Scala</dt>
   <dd>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/scala/docs/command/BankAccountCommandModel.scala#L17-L20" target="_blank" title="Go to snippet source"></a><code class="language-scala">object BankAccount {
+  <pre class="prettyprint"><button class="snippet-button copy-snippet" title="Copy snippet to clipboard">copy</button><a class="snippet-button go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/scala/docs/command/BankAccountCommandModel.scala#L17-L20" target="_blank" title="Go to snippet source">source</a><code class="language-scala">object BankAccount {
   implicit val format: Format[BankAccount] = Json.format
 }
 case class BankAccount(accountNumber: UUID, accountOwner: String, securityCode: String, balance: Double)</code></pre></dd>
   <dt>Java</dt>
   <dd>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/account/BankAccount.java#L11-L41" target="_blank" title="Go to snippet source"></a><code class="language-java">@JsonSerialize
+  <pre class="prettyprint"><button class="snippet-button copy-snippet" title="Copy snippet to clipboard">copy</button><a class="snippet-button go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/account/BankAccount.java#L11-L41" target="_blank" title="Go to snippet source">source</a><code class="language-java">@JsonSerialize
 @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
 public class BankAccount {
     private final UUID accountNumber;
@@ -177,7 +178,7 @@ public class BankAccount {
 <dl>
   <dt>Scala</dt>
   <dd>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/scala/docs/command/BankAccountCommandModel.scala#L24-L30" target="_blank" title="Go to snippet source"></a><code class="language-scala">sealed trait BankAccountCommand {
+  <pre class="prettyprint"><button class="snippet-button copy-snippet" title="Copy snippet to clipboard">copy</button><a class="snippet-button go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/scala/docs/command/BankAccountCommandModel.scala#L24-L30" target="_blank" title="Go to snippet source">source</a><code class="language-scala">sealed trait BankAccountCommand {
   def accountNumber: UUID
 }
 case class CreateAccount(accountNumber: UUID, accountOwner: String, securityCode: String, initialBalance: Double) extends BankAccountCommand
@@ -186,10 +187,10 @@ case class DebitAccount(accountNumber: UUID, amount: Double)
     extends BankAccountCommand</code></pre></dd>
   <dt>Java</dt>
   <dd>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/command/BankAccountCommand.java#L8-L10" target="_blank" title="Go to snippet source"></a><code class="language-java">public interface BankAccountCommand {
+  <pre class="prettyprint"><button class="snippet-button copy-snippet" title="Copy snippet to clipboard">copy</button><a class="snippet-button go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/command/BankAccountCommand.java#L8-L10" target="_blank" title="Go to snippet source">source</a><code class="language-java">public interface BankAccountCommand {
     UUID getAccountNumber();
 }</code></pre>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/command/CreateAccount.java#L7-L36" target="_blank" title="Go to snippet source"></a><code class="language-java">public class CreateAccount implements BankAccountCommand {
+  <pre class="prettyprint"><button class="snippet-button copy-snippet" title="Copy snippet to clipboard">copy</button><a class="snippet-button go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/command/CreateAccount.java#L7-L36" target="_blank" title="Go to snippet source">source</a><code class="language-java">public class CreateAccount implements BankAccountCommand {
     private final UUID accountNumber;
     private final String accountOwner;
     private final double balance;
@@ -219,7 +220,7 @@ case class DebitAccount(accountNumber: UUID, amount: Double)
         return securityCode;
     }
 }</code></pre>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/command/CreditAccount.java#L8-L23" target="_blank" title="Go to snippet source"></a><code class="language-java">public class CreditAccount implements BankAccountCommand {
+  <pre class="prettyprint"><button class="snippet-button copy-snippet" title="Copy snippet to clipboard">copy</button><a class="snippet-button go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/command/CreditAccount.java#L8-L23" target="_blank" title="Go to snippet source">source</a><code class="language-java">public class CreditAccount implements BankAccountCommand {
     private final UUID accountNumber;
     private final double amount;
     public CreditAccount(UUID accountNumber, double amount) {
@@ -235,7 +236,7 @@ case class DebitAccount(accountNumber: UUID, amount: Double)
         return amount;
     }
 }</code></pre>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/command/DebitAccount.java#L8-L24" target="_blank" title="Go to snippet source"></a><code class="language-java">public class DebitAccount implements BankAccountCommand {
+  <pre class="prettyprint"><button class="snippet-button copy-snippet" title="Copy snippet to clipboard">copy</button><a class="snippet-button go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/command/DebitAccount.java#L8-L24" target="_blank" title="Go to snippet source">source</a><code class="language-java">public class DebitAccount implements BankAccountCommand {
     private final UUID accountNumber;
     private final double amount;
     public DebitAccount(UUID accountNumber, double amount) {
@@ -258,7 +259,7 @@ case class DebitAccount(accountNumber: UUID, amount: Double)
 <dl>
   <dt>Scala</dt>
   <dd>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/scala/docs/command/BankAccountCommandModel.scala#L34-L50" target="_blank" title="Go to snippet source"></a><code class="language-scala">sealed trait BankAccountEvent {
+  <pre class="prettyprint"><button class="snippet-button copy-snippet" title="Copy snippet to clipboard">copy</button><a class="snippet-button go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/scala/docs/command/BankAccountCommandModel.scala#L34-L50" target="_blank" title="Go to snippet source">source</a><code class="language-scala">sealed trait BankAccountEvent {
   def accountNumber: UUID
   def toJson: JsValue
 }
@@ -277,7 +278,7 @@ case class BankAccountUpdated(accountNumber: UUID, newBalance: Double) extends B
 }</code></pre></dd>
   <dt>Java</dt>
   <dd>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/event/BankAccountEvent.java#L10-L19" target="_blank" title="Go to snippet source"></a><code class="language-java">@JsonTypeInfo(use = JsonTypeInfo.Id.NAME,
+  <pre class="prettyprint"><button class="snippet-button copy-snippet" title="Copy snippet to clipboard">copy</button><a class="snippet-button go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/event/BankAccountEvent.java#L10-L19" target="_blank" title="Go to snippet source">source</a><code class="language-java">@JsonTypeInfo(use = JsonTypeInfo.Id.NAME,
         property = &quot;name&quot;)
 @JsonSubTypes({
         @JsonSubTypes.Type(value = BankAccountCreated.class, name = &quot;BankAccountCreated&quot;),
@@ -287,7 +288,7 @@ public interface BankAccountEvent {
 
     UUID getAccountNumber();
 }</code></pre>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/event/BankAccountCreated.java#L12-L46" target="_blank" title="Go to snippet source"></a><code class="language-java">@JsonSerialize
+  <pre class="prettyprint"><button class="snippet-button copy-snippet" title="Copy snippet to clipboard">copy</button><a class="snippet-button go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/event/BankAccountCreated.java#L12-L46" target="_blank" title="Go to snippet source">source</a><code class="language-java">@JsonSerialize
 @JsonTypeName(&quot;BankAccountCreated&quot;)
 @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
 public class BankAccountCreated implements BankAccountEvent {
@@ -322,7 +323,7 @@ public class BankAccountCreated implements BankAccountEvent {
         return balance;
     }
 }</code></pre>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/event/BankAccountUpdated.java#L11-L32" target="_blank" title="Go to snippet source"></a><code class="language-java">@JsonSerialize
+  <pre class="prettyprint"><button class="snippet-button copy-snippet" title="Copy snippet to clipboard">copy</button><a class="snippet-button go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/event/BankAccountUpdated.java#L11-L32" target="_blank" title="Go to snippet source">source</a><code class="language-java">@JsonSerialize
 @JsonTypeName(&quot;BankAccountUpdated&quot;)
 @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
 public class BankAccountUpdated implements BankAccountEvent {
@@ -351,7 +352,7 @@ public class BankAccountUpdated implements BankAccountEvent {
 <dl>
   <dt>Scala</dt>
   <dd>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/scala/docs/command/BankAccountCommandModel.scala#L54-L89" target="_blank" title="Go to snippet source"></a><code class="language-scala">object BankAccountCommandModel extends AggregateCommandModel[BankAccount, BankAccountCommand, BankAccountEvent] {
+  <pre class="prettyprint"><button class="snippet-button copy-snippet" title="Copy snippet to clipboard">copy</button><a class="snippet-button go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/scala/docs/command/BankAccountCommandModel.scala#L54-L89" target="_blank" title="Go to snippet source">source</a><code class="language-scala">object BankAccountCommandModel extends AggregateCommandModel[BankAccount, BankAccountCommand, BankAccountEvent] {
   override def processCommand(aggregate: Option[BankAccount], command: BankAccountCommand): Try[Seq[BankAccountEvent]] = {
     command match {
       case create: CreateAccount =&gt;
@@ -389,7 +390,7 @@ public class BankAccountUpdated implements BankAccountEvent {
 }</code></pre></dd>
   <dt>Java</dt>
   <dd>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/BankAccountCommandModel.java#L20-L91" target="_blank" title="Go to snippet source"></a><code class="language-java">public class BankAccountCommandModel implements AggregateCommandModel&lt;BankAccount, BankAccountCommand, BankAccountEvent&gt; {
+  <pre class="prettyprint"><button class="snippet-button copy-snippet" title="Copy snippet to clipboard">copy</button><a class="snippet-button go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/BankAccountCommandModel.java#L20-L91" target="_blank" title="Go to snippet source">source</a><code class="language-java">public class BankAccountCommandModel implements AggregateCommandModel&lt;BankAccount, BankAccountCommand, BankAccountEvent&gt; {
 
     @Override
     public List&lt;BankAccountEvent&gt; processCommand(Optional&lt;BankAccount&gt; aggregate, BankAccountCommand command) {
@@ -466,7 +467,7 @@ public class BankAccountUpdated implements BankAccountEvent {
 <dl>
   <dt>Scala</dt>
   <dd>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/scala/docs/command/BankAccountSurgeModel.scala#L13-L33" target="_blank" title="Go to snippet source"></a><code class="language-scala">object BankAccountSurgeModel extends SurgeCommandBusinessLogic[UUID, BankAccount, BankAccountCommand, BankAccountEvent] {
+  <pre class="prettyprint"><button class="snippet-button copy-snippet" title="Copy snippet to clipboard">copy</button><a class="snippet-button go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/scala/docs/command/BankAccountSurgeModel.scala#L13-L33" target="_blank" title="Go to snippet source">source</a><code class="language-scala">object BankAccountSurgeModel extends SurgeCommandBusinessLogic[UUID, BankAccount, BankAccountCommand, BankAccountEvent] {
   override def commandModel: AggregateCommandModel[BankAccount, BankAccountCommand, BankAccountEvent] = BankAccountCommandModel
 
   override def aggregateName: String = &quot;bank-account&quot;
@@ -489,7 +490,7 @@ public class BankAccountUpdated implements BankAccountEvent {
 }</code></pre></dd>
   <dt>Java</dt>
   <dd>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/BankAccountSurgeModel.java#L20-L56" target="_blank" title="Go to snippet source"></a><code class="language-java">public class BankAccountSurgeModel extends SurgeCommandBusinessLogic&lt;UUID, BankAccount, BankAccountCommand,
+  <pre class="prettyprint"><button class="snippet-button copy-snippet" title="Copy snippet to clipboard">copy</button><a class="snippet-button go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/BankAccountSurgeModel.java#L20-L56" target="_blank" title="Go to snippet source">source</a><code class="language-java">public class BankAccountSurgeModel extends SurgeCommandBusinessLogic&lt;UUID, BankAccount, BankAccountCommand,
         BankAccountEvent&gt; {
     @Override
     public AggregateCommandModel&lt;BankAccount, BankAccountCommand, BankAccountEvent&gt; commandModel() {
@@ -526,7 +527,7 @@ public class BankAccountUpdated implements BankAccountEvent {
         return new SurgeAggregateWriteFormattingBankAccount();
     }
 }</code></pre>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/format/SurgeAggregateReadFormattingBankAccount.java#L13-L23" target="_blank" title="Go to snippet source"></a><code class="language-java">public class SurgeAggregateReadFormattingBankAccount implements SurgeAggregateReadFormatting&lt;BankAccount&gt; {
+  <pre class="prettyprint"><button class="snippet-button copy-snippet" title="Copy snippet to clipboard">copy</button><a class="snippet-button go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/format/SurgeAggregateReadFormattingBankAccount.java#L13-L23" target="_blank" title="Go to snippet source">source</a><code class="language-java">public class SurgeAggregateReadFormattingBankAccount implements SurgeAggregateReadFormatting&lt;BankAccount&gt; {
     @Override
     public Option&lt;BankAccount&gt; readState(byte[] bytes) {
         ObjectMapper objectMapper = new ObjectMapper();
@@ -537,7 +538,7 @@ public class BankAccountUpdated implements BankAccountEvent {
         }
     }
 }</code></pre>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/format/SurgeAggregateWriteFormattingBankAccount.java#L12-L24" target="_blank" title="Go to snippet source"></a><code class="language-java">public class SurgeAggregateWriteFormattingBankAccount implements SurgeAggregateWriteFormatting&lt;BankAccount&gt; {
+  <pre class="prettyprint"><button class="snippet-button copy-snippet" title="Copy snippet to clipboard">copy</button><a class="snippet-button go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/format/SurgeAggregateWriteFormattingBankAccount.java#L12-L24" target="_blank" title="Go to snippet source">source</a><code class="language-java">public class SurgeAggregateWriteFormattingBankAccount implements SurgeAggregateWriteFormatting&lt;BankAccount&gt; {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
@@ -550,7 +551,7 @@ public class BankAccountUpdated implements BankAccountEvent {
         }
     }
 }</code></pre>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/format/SurgeEventWriteFormattingBankEvent.java#L11-L23" target="_blank" title="Go to snippet source"></a><code class="language-java">public class SurgeEventWriteFormattingBankEvent implements SurgeEventWriteFormatting&lt;BankAccountEvent&gt; {
+  <pre class="prettyprint"><button class="snippet-button copy-snippet" title="Copy snippet to clipboard">copy</button><a class="snippet-button go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/format/SurgeEventWriteFormattingBankEvent.java#L11-L23" target="_blank" title="Go to snippet source">source</a><code class="language-java">public class SurgeEventWriteFormattingBankEvent implements SurgeEventWriteFormatting&lt;BankAccountEvent&gt; {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
@@ -569,7 +570,7 @@ public class BankAccountUpdated implements BankAccountEvent {
 <dl>
   <dt>Scala</dt>
   <dd>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/scala/docs/command/BankAccountEngine.scala#L10-L16" target="_blank" title="Go to snippet source"></a><code class="language-scala">object BankAccountEngine {
+  <pre class="prettyprint"><button class="snippet-button copy-snippet" title="Copy snippet to clipboard">copy</button><a class="snippet-button go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/scala/docs/command/BankAccountEngine.scala#L10-L16" target="_blank" title="Go to snippet source">source</a><code class="language-scala">object BankAccountEngine {
   lazy val surgeEngine: SurgeCommand[UUID, BankAccount, BankAccountCommand, BankAccountEvent] = {
     val engine = SurgeCommand(BankAccountSurgeModel)
     engine.start()
@@ -578,7 +579,7 @@ public class BankAccountUpdated implements BankAccountEvent {
 }</code></pre></dd>
   <dt>Java</dt>
   <dd>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/Main.java#L27-L30" target="_blank" title="Go to snippet source"></a><code class="language-java">BankAccountSurgeModel bankAccountSurgeModel = new BankAccountSurgeModel();
+  <pre class="prettyprint"><button class="snippet-button copy-snippet" title="Copy snippet to clipboard">copy</button><a class="snippet-button go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/Main.java#L27-L30" target="_blank" title="Go to snippet source">source</a><code class="language-java">BankAccountSurgeModel bankAccountSurgeModel = new BankAccountSurgeModel();
 SurgeCommand&lt;UUID, BankAccount, BankAccountCommand, BankAccountEvent&gt; surgeCommand =
         new SurgeCommandBuilder().withBusinessLogic(bankAccountSurgeModel).build();
 surgeCommand.start();</code></pre></dd>
@@ -587,7 +588,7 @@ surgeCommand.start();</code></pre></dd>
 <dl>
   <dt>Scala</dt>
   <dd>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/scala/docs/command/BankAccountCommandEngineSpec.scala#L43-L60" target="_blank" title="Go to snippet source"></a><code class="language-scala">val accountNumber = UUID.randomUUID()
+  <pre class="prettyprint"><button class="snippet-button copy-snippet" title="Copy snippet to clipboard">copy</button><a class="snippet-button go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/scala/docs/command/BankAccountCommandEngineSpec.scala#L43-L60" target="_blank" title="Go to snippet source">source</a><code class="language-scala">val accountNumber = UUID.randomUUID()
 val createAccount = CreateAccount(accountNumber, &quot;Jane Doe&quot;, &quot;1234&quot;, 1000.0)
 
 val createdAccount: Future[Option[BankAccount]] = BankAccountEngine.surgeEngine.aggregateFor(accountNumber).sendCommand(createAccount).map {
@@ -602,7 +603,7 @@ val creditedAccount: Future[Option[BankAccount]] = BankAccountEngine.surgeEngine
 }</code></pre></dd>
   <dt>Java</dt>
   <dd>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/Main.java#L34-L54" target="_blank" title="Go to snippet source"></a><code class="language-java">UUID accountNumber = UUID.randomUUID();
+  <pre class="prettyprint"><button class="snippet-button copy-snippet" title="Copy snippet to clipboard">copy</button><a class="snippet-button go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/Main.java#L34-L54" target="_blank" title="Go to snippet source">source</a><code class="language-java">UUID accountNumber = UUID.randomUUID();
 logger.info(&quot;Account number is: {}&quot;, accountNumber);
 CreateAccount createAccount = new CreateAccount(accountNumber, &quot;Jane Doe&quot;,
         &quot;1234&quot;, 1000.0);
@@ -628,10 +629,10 @@ completionStageCreateAccount.whenComplete((CommandResult&lt;BankAccount&gt; resu
 <dl>
   <dt>Scala</dt>
   <dd>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/scala/docs/command/BankAccountCommandEngineSpec.scala#L65" target="_blank" title="Go to snippet source"></a><code class="language-scala">val currentState: Future[Option[BankAccount]] = BankAccountEngine.surgeEngine.aggregateFor(accountNumber).getState</code></pre></dd>
+  <pre class="prettyprint"><button class="snippet-button copy-snippet" title="Copy snippet to clipboard">copy</button><a class="snippet-button go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/scala/docs/command/BankAccountCommandEngineSpec.scala#L65" target="_blank" title="Go to snippet source">source</a><code class="language-scala">val currentState: Future[Option[BankAccount]] = BankAccountEngine.surgeEngine.aggregateFor(accountNumber).getState</code></pre></dd>
   <dt>Java</dt>
   <dd>
-  <pre class="prettyprint"><a class="icon go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/Main.java#L58-L66" target="_blank" title="Go to snippet source"></a><code class="language-java">CompletionStage&lt;Optional&lt;BankAccount&gt;&gt; currentState = surgeCommand.aggregateFor(accountNumber).getState();
+  <pre class="prettyprint"><button class="snippet-button copy-snippet" title="Copy snippet to clipboard">copy</button><a class="snippet-button go-to-source" href="https://github.com/UltimateSoftware/surge/tree/master/modules/surge-docs/src/test/java/javadocs/commandapp/Main.java#L58-L66" target="_blank" title="Go to snippet source">source</a><code class="language-java">CompletionStage&lt;Optional&lt;BankAccount&gt;&gt; currentState = surgeCommand.aggregateFor(accountNumber).getState();
 currentState.whenComplete((bankAccount, throwable) -&gt;
 {
     if (throwable != null) {
