@@ -33,7 +33,7 @@ object Dependencies extends AutoPlugin {
     }
 
     object Kafka {
-      val kafkaVersion = "2.7.0"
+      val kafkaVersion = "2.7.2"
 
       val kafkaClients = "org.apache.kafka" % "kafka-clients" % kafkaVersion
       val kafkaStreams = "org.apache.kafka" % "kafka-streams" % kafkaVersion
