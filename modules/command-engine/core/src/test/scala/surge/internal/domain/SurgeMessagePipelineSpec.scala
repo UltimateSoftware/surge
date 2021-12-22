@@ -5,7 +5,7 @@ package surge.internal.domain
 import akka.actor.ActorSystem
 import akka.testkit.{ TestKit, TestProbe }
 import com.typesafe.config.{ Config, ConfigFactory }
-import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
+import io.github.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.common.config.TopicConfig
 import org.apache.kafka.streams.KafkaStreams
 import org.scalatest.concurrent.{ Eventually, ScalaFutures }
