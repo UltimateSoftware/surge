@@ -11,7 +11,7 @@ import surge.internal.health.{ HealthCheck, HealthCheckStatus }
 import surge.internal.health.HealthyActor.GetHealth
 import surge.kafka.streams.KafkaStreamsUncaughtExceptionHandler.KafkaStreamsUncaughtException
 import surge.kafka.streams.KafkaStreamsUpdatePartitionsOnStateChangeListener.KafkaStateChange
-import surge.metrics.Metrics
+import surge.metrics.{ MetricInfo, Metrics }
 
 import java.time.Duration
 import java.time.temporal.ChronoUnit
@@ -40,6 +40,12 @@ class KafkaStreamManagerActor(surgeConsumer: SurgeStateStoreConsumer, partitionT
     with Stash {
   import KafkaStreamManagerActor._
   import context.dispatcher
+
+  private val getAggregateBytesTimer = metrics.timer(
+    MetricInfo(
+      name = s"surge.state-store.get-aggregate-state-timer",
+      description = "The time taken to fetch aggregate state from the KTable",
+      tags = Map("storeName" -> surgeConsumer.storeName)))
 
   private var lastConsumerSeen: Option[KafkaStreams] = None
 
@@ -84,7 +90,7 @@ class KafkaStreamManagerActor(surgeConsumer: SurgeStateStoreConsumer, partitionT
 
   private def running(stream: KafkaStreams, stateStore: SurgeAggregateStore): Receive = {
     case GetAggregateBytes(aggregateId) =>
-      stateStore.getAggregateBytes(aggregateId).pipeTo(sender())
+      getAggregateBytesTimer.timeFuture(stateStore.getAggregateBytes(aggregateId)).pipeTo(sender())
     case GetHealth =>
       val status = if (stream.state().isRunningOrRebalancing) HealthCheckStatus.UP else HealthCheckStatus.DOWN
       sender() ! getHealth(status)

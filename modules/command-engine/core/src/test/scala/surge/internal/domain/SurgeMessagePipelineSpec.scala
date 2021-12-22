@@ -132,9 +132,9 @@ class SurgeMessagePipelineSpec
   }
 
   override def afterAll(): Unit = {
+    pipeline.controllable.stop().futureValue shouldBe an[Ack]
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
     EmbeddedKafka.stop()
-    // FIXME verifySystemShutdown should be true, but this does not shut down in a reasonable amount of time
-    TestKit.shutdownActorSystem(system, duration = 30.seconds, verifySystemShutdown = false)
     super.afterAll()
   }
 
@@ -247,17 +247,11 @@ class SurgeMessagePipelineSpec
 
     "unregister all child components after stopping" in {
       pipeline.controllable.start().futureValue shouldEqual Ack()
+      pipeline.controllable.stop().futureValue shouldEqual Ack()
 
-      val acknowledgedStop: Ack = pipeline.controllable.stop().futureValue
-      acknowledgedStop shouldEqual Ack()
-
-      val afterStopRegistrations = eventually {
-        val reg = pipeline.signalBus.registrations().futureValue
-        reg.isEmpty shouldEqual true
-        reg
+      eventually {
+        pipeline.signalBus.registrations().futureValue shouldBe empty
       }
-
-      afterStopRegistrations.isEmpty shouldEqual true
     }
   }
 

@@ -17,12 +17,13 @@ class DiagnosticContextFuturePropagation(executionContext: ExecutionContext) ext
     executionContext.execute(new Runnable {
       def run(): Unit = {
         callerMdc.foreach(MDC.setContextMap)
-        callerSpan.makeCurrent()
+        val scope = callerSpan.makeCurrent()
         try {
           runnable.run()
         } finally {
           // the thread might be reused, so we clean up for the next use
           MDC.clear()
+          scope.close()
         }
       }
     })
