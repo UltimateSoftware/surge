@@ -10,7 +10,7 @@ import com.typesafe.config.ConfigFactory
 import com.ukg.surge.multilanguage.TestBoundedContext._
 import com.ukg.surge.multilanguage.protobuf.HealthCheckReply.Status
 import com.ukg.surge.multilanguage.protobuf.{ Command, ForwardCommandReply, ForwardCommandRequest, GetStateRequest, HealthCheckReply, HealthCheckRequest }
-import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
+import io.github.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.common.config.TopicConfig
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.ScalaFutures
