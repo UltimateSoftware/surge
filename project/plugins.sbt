@@ -23,7 +23,7 @@ addSbtPlugin("net.virtual-void" % "sbt-dependency-graph" % "0.10.0-RC1")
 
 addSbtPlugin("de.heikoseeberger" % "sbt-header" % "5.6.0")
 
-addSbtPlugin("com.github.sbt" % "sbt-release" % "1.0.15")
+addSbtPlugin("com.github.sbt" % "sbt-release" % "1.1.0")
 
 // Docs Site plugins
 addSbtPlugin("com.lightbend.paradox" % "sbt-paradox" % "0.9.1")
