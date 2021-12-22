@@ -70,12 +70,12 @@ object Dependencies extends AutoPlugin {
     val java8Compat = "org.scala-lang.modules" %% "scala-java8-compat" % "0.9.1"
     val embeddedKafka = "io.github.embeddedkafka" %% "embedded-kafka" % Kafka.kafkaVersion % Test
     val junit = "junit" % "junit" % "4.13.1" % Test
-    val logback = "ch.qos.logback" % "logback-classic" % "1.2.3"
+    val logback = "ch.qos.logback" % "logback-classic" % "1.2.9"
     val json4s = "org.json4s" %% "json4s-native" % "4.0.3"
     val mockitoCore = "org.mockito" % "mockito-core" % "3.6.28"
     val scalatest = "org.scalatest" %% "scalatest" % "3.2.7" % Test
     val scalatestPlusMockito = "org.scalatestplus" %% "mockito-3-4" % "3.2.10.0" % Test
-    val slf4jApi = "org.slf4j" % "slf4j-api" % "1.7.30"
+    val slf4jApi = "org.slf4j" % "slf4j-api" % "1.7.32"
     val typesafeConfig = "com.typesafe" % "config" % "1.4.1"
   }
 }
