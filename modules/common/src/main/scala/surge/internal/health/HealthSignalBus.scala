@@ -195,7 +195,7 @@ private[surge] class HealthSignalBusImpl(
     buffer.clear()
   }
 
-  //Note: Bug Fix for EventBus - for NullPointerException when no subscribers exist that match the classification.
+  // Note: Bug Fix for EventBus - for NullPointerException when no subscribers exist that match the classification.
   override def publish(event: Event): Unit = {
     val i = Try { subscribers.valueIterator(classify(event)) }.toOption.getOrElse(Seq.empty.iterator)
     while (i.hasNext) publish(event, i.next())

@@ -18,7 +18,7 @@ addSbtPlugin("org.scoverage" % "sbt-scoverage" % "1.9.2")
 addSbtPlugin("com.typesafe.sbt" % "sbt-multi-jvm" % "0.4.0")
 
 // Dependency helper plugins
-addSbtPlugin("com.timushev.sbt" % "sbt-updates" % "0.5.3")
+addSbtPlugin("com.timushev.sbt" % "sbt-updates" % "0.6.1")
 addSbtPlugin("net.virtual-void" % "sbt-dependency-graph" % "0.10.0-RC1")
 
 addSbtPlugin("de.heikoseeberger" % "sbt-header" % "5.6.0")
@@ -31,6 +31,6 @@ addSbtPlugin("com.lightbend.paradox" % "sbt-paradox-dependencies" % "0.2.1")
 addSbtPlugin("com.typesafe.sbt" % "sbt-site" % "1.4.1")
 addSbtPlugin("com.typesafe.sbt" % "sbt-ghpages" % "0.6.3")
 
-addSbtPlugin("com.lightbend.akka.grpc" % "sbt-akka-grpc" % "2.0.0")
+addSbtPlugin("com.lightbend.akka.grpc" % "sbt-akka-grpc" % "2.1.2")
 
-addSbtPlugin("com.github.sbt" % "sbt-native-packager" % "1.9.0")
+addSbtPlugin("com.github.sbt" % "sbt-native-packager" % "1.9.7")
