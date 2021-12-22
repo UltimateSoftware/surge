@@ -4,7 +4,7 @@
 addSbtPlugin("org.scalameta" % "sbt-scalafmt" % "2.4.5")
 
 // Git Commands - Access to Git repo information
-addSbtPlugin("com.typesafe.sbt" % "sbt-git" % "1.0.0")
+addSbtPlugin("com.typesafe.sbt" % "sbt-git" % "1.0.2")
 
 // Static code analysis
 addSbtPlugin("org.scalastyle" %% "scalastyle-sbt-plugin" % "1.0.0")
