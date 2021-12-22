@@ -10,8 +10,7 @@ import surge.scaladsl.command.AggregateCommandModel
 import scala.util.{ Failure, Success, Try }
 
 class InsufficientFundsException(accountNumber: UUID) extends RuntimeException(s"Insufficient Funds in account $accountNumber to complete this transaction")
-class AccountDoesNotExistException(accountNumber: UUID)
-    extends RuntimeException(s"Account with id $accountNumber does not exist")
+class AccountDoesNotExistException(accountNumber: UUID) extends RuntimeException(s"Account with id $accountNumber does not exist")
 
 // #aggregate_class
 object BankAccount {
@@ -26,8 +25,7 @@ sealed trait BankAccountCommand {
 }
 case class CreateAccount(accountNumber: UUID, accountOwner: String, securityCode: String, initialBalance: Double) extends BankAccountCommand
 case class CreditAccount(accountNumber: UUID, amount: Double) extends BankAccountCommand
-case class DebitAccount(accountNumber: UUID, amount: Double)
-    extends BankAccountCommand
+case class DebitAccount(accountNumber: UUID, amount: Double) extends BankAccountCommand
 // #command_class
 
 // #event_class
