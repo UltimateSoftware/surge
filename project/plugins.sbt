@@ -18,7 +18,7 @@ addSbtPlugin("org.scoverage" % "sbt-scoverage" % "1.9.2")
 addSbtPlugin("com.typesafe.sbt" % "sbt-multi-jvm" % "0.4.0")
 
 // Dependency helper plugins
-addSbtPlugin("com.timushev.sbt" % "sbt-updates" % "0.5.3")
+addSbtPlugin("com.timushev.sbt" % "sbt-updates" % "0.6.1")
 addSbtPlugin("net.virtual-void" % "sbt-dependency-graph" % "0.10.0-RC1")
 
 addSbtPlugin("de.heikoseeberger" % "sbt-header" % "5.6.0")
