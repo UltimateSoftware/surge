@@ -7,7 +7,7 @@ import akka.remote.testconductor.RoleName
 import akka.remote.testkit.{ MultiNodeConfig, MultiNodeSpec, MultiNodeSpecCallbacks }
 import akka.testkit.{ ImplicitSender, TestProbe }
 import com.typesafe.config.{ Config, ConfigFactory }
-import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
+import io.github.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.streams.KafkaStreams
 import org.mockito.ArgumentMatchers.anyString
@@ -19,7 +19,6 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Milliseconds, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
-import play.api.libs.json.JsValue
 import surge.core.{ Ack, TestBoundedContext }
 import surge.health.SignalType
 import surge.health.config.{ ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig }
@@ -79,7 +78,7 @@ trait SurgePartitionRouterImplSpecLike extends TestBoundedContext with MockitoSu
   def createTestContext(): TestContext = {
     val signalStreamProvider = createSignalStream()
 
-    val kafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue] = new AggregateStateStoreKafkaStreams[JsValue](
+    val kafkaStreamsImpl: AggregateStateStoreKafkaStreams = new AggregateStateStoreKafkaStreams(
       businessLogic.aggregateName,
       businessLogic.kafka.stateTopic,
       (streams: KafkaStreams) => new MockPartitionTracker(streams),
