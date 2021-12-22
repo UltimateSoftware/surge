@@ -35,6 +35,19 @@ class DiagnosticContextFuturePropagationSpec extends AnyFlatSpec with ScalaFutur
     whenReady(futureRequestId) { requestId =>
       requestId mustEqual id
     }
+
+    val doubleFutureRequestId = Future {
+      "something"
+    }.flatMap { _ =>
+      Future {
+        logger.info(s"future requestId propagated: ${MDC.get("requestId")}")
+        MDC.get("requestId")
+      }
+    }
+
+    whenReady(doubleFutureRequestId) { requestId =>
+      requestId mustEqual id
+    }
   }
 
 }
