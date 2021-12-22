@@ -310,7 +310,7 @@ class PersistentActor[S, M, E](
   private def handlePassivate(): Unit = {
     log.trace(s"PersistentActor for aggregate ${businessLogic.aggregateName} $aggregateId is passivating gracefully")
 
-    //FIXME: temporary fix to support switch between akka and existing shard allocation strategy
+    // FIXME: temporary fix to support switch between akka and existing shard allocation strategy
     if (isAkkaClusterEnabled) {
       context.parent ! Passivate(Stop)
     } else {
