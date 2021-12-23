@@ -2,7 +2,6 @@
 
 package surge.internal.persistence
 
-import play.api.libs.json.JsValue
 import surge.core.KafkaProducerActor
 import surge.internal.persistence.PersistentActor.MetricsQuiver
 import surge.kafka.streams.AggregateStateStoreKafkaStreams
@@ -10,4 +9,4 @@ import surge.kafka.streams.AggregateStateStoreKafkaStreams
 case class PersistentEntitySharedResources(
     aggregateIdToKafkaProducer: String => KafkaProducerActor,
     metrics: MetricsQuiver,
-    stateStore: AggregateStateStoreKafkaStreams[JsValue])
+    stateStore: AggregateStateStoreKafkaStreams)

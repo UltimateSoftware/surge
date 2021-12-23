@@ -4,13 +4,12 @@ package surge.core
 
 import akka.actor._
 import com.typesafe.config.Config
-import play.api.libs.json.JsValue
 import surge.health.HealthSignalBusTrait
-import surge.internal.SurgeModel
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.core.SurgePartitionRouterImpl
+import surge.internal.health.HealthyComponent
 import surge.internal.persistence.BusinessLogic
-import surge.kafka.PersistentActorRegionCreator
+import surge.kafka.{ KafkaProducerTrait, PersistentActorRegionCreator }
 import surge.kafka.streams._
 
 trait SurgePartitionRouter extends HealthyComponent {
@@ -23,10 +22,20 @@ object SurgePartitionRouter {
       system: ActorSystem,
       partitionTracker: KafkaConsumerPartitionAssignmentTracker,
       businessLogic: BusinessLogic,
-      kafkaStreamsCommand: AggregateStateStoreKafkaStreams[JsValue],
+      kafkaStreamsCommand: AggregateStateStoreKafkaStreams,
       regionCreator: PersistentActorRegionCreator[String],
       signalBus: HealthSignalBusTrait,
-      isAkkaClusterEnabled: Boolean): SurgePartitionRouter = {
-    new SurgePartitionRouterImpl(config, system, partitionTracker, businessLogic, kafkaStreamsCommand, regionCreator, signalBus, isAkkaClusterEnabled)
+      isAkkaClusterEnabled: Boolean,
+      kafkaProducerOverride: Option[KafkaProducerTrait[String, Array[Byte]]] = None): SurgePartitionRouter = {
+    new SurgePartitionRouterImpl(
+      config,
+      system,
+      partitionTracker,
+      businessLogic,
+      kafkaStreamsCommand,
+      regionCreator,
+      signalBus,
+      isAkkaClusterEnabled,
+      kafkaProducerOverride)
   }
 }

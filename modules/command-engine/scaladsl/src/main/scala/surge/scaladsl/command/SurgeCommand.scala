@@ -57,7 +57,7 @@ private[scaladsl] class SurgeCommandImpl[AggId, Agg, Command, Event](
     with SurgeCommand[AggId, Agg, Command, Event] {
 
   def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Command, Event] = {
-    new AggregateRefImpl(aggIdToString(aggregateId), actorRouter.actorRegion, businessLogic.tracer)
+    new AggregateRefImpl(aggIdToString(aggregateId), actorRouter.actorRegion, businessLogic.tracer, getEngineStatus)
   }
 
   override def getMetrics: Seq[Metric] = businessLogic.metrics.getMetrics

@@ -9,12 +9,10 @@ import com.typesafe.config.{ Config, ConfigFactory }
 import org.apache.kafka.streams.Topology
 import surge.core.{ Ack, Controllable }
 import surge.health.HealthSignalBusTrait
-import surge.internal.akka.actor.ActorLifecycleManagerActor
 import surge.internal.config.{ BackoffConfig, TimeoutConfig }
+import surge.internal.health.{ HealthCheck, HealthyActor, HealthyComponent }
 import surge.internal.utils.{ BackoffChildActorTerminationWatcher, Logging }
 import surge.kafka.KafkaTopic
-import surge.kafka.streams.AggregateStateStoreKafkaStreamsImpl._
-import surge.kafka.streams.KafkaStreamLifeCycleManagement.{ Start, Stop }
 import surge.metrics.Metrics
 
 import java.util.regex.Pattern
@@ -34,28 +32,25 @@ object AggregateStreamsBlockCacheSettings extends BlockCacheSettings {
   override def cacheIndexAndFilterBlocks: Boolean = true
 }
 
-class AggregateStreamsRocksDBConfig
-    extends CustomRocksDBConfigSetter(AggregateStreamsBlockCacheSettings, AggregateStreamsWriteBufferSettings)
+class AggregateStreamsRocksDBConfig extends CustomRocksDBConfigSetter(AggregateStreamsBlockCacheSettings, AggregateStreamsWriteBufferSettings)
 
-    /**
-     * Creates a state store exposed as a Kafka Streams KTable for a particular Kafka Topic. The state in the KTable are key value pairs based on the Kafka Key
-     * and Kafka Value for each record read from the given topic.
-     *
-     * @param aggregateName
-     *   Name of the aggregate being consumed. Used to define consumer group and the name of the state store backing the KTable.
-     * @param stateTopic
-     *   The topic of state key/value pairs to consume and expose via a KTable. This topic should be compacted.
-     * @param partitionTrackerProvider
-     *   Registered within a Kafka Streams state change listener to track updates to the Kafka Streams consumer group. When the consumer group transitions from
-     *   rebalancing to running, the partition tracker provided will be notified automatically. This can be used for notifying other processes/interested
-     *   parties that a consumer group change has occurred.
-     * @param applicationHostPort
-     *   Optional string to use for a host/port exposed by this application. This information is exposed to the partition tracker provider as mappings from
-     *   application host/port to assigned partitions.
-     * @tparam Agg
-     *   Aggregate type being read from Kafka - business logic type of the Kafka values in the state topic
-     */
-class AggregateStateStoreKafkaStreams[Agg >: Null](
+/**
+ * Creates a state store exposed as a Kafka Streams KTable for a particular Kafka Topic. The state in the KTable are key value pairs based on the Kafka Key and
+ * Kafka Value for each record read from the given topic.
+ *
+ * @param aggregateName
+ *   Name of the aggregate being consumed. Used to define consumer group and the name of the state store backing the KTable.
+ * @param stateTopic
+ *   The topic of state key/value pairs to consume and expose via a KTable. This topic should be compacted.
+ * @param partitionTrackerProvider
+ *   Registered within a Kafka Streams state change listener to track updates to the Kafka Streams consumer group. When the consumer group transitions from
+ *   rebalancing to running, the partition tracker provided will be notified automatically. This can be used for notifying other processes/interested parties
+ *   that a consumer group change has occurred.
+ * @param applicationHostPort
+ *   Optional string to use for a host/port exposed by this application. This information is exposed to the partition tracker provider as mappings from
+ *   application host/port to assigned partitions.
+ */
+class AggregateStateStoreKafkaStreams(
     aggregateName: String,
     stateTopic: KafkaTopic,
     partitionTrackerProvider: KafkaStreamsPartitionTrackerProvider,
@@ -68,7 +63,9 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
     config: Config)
     extends HealthyComponent
     with Logging {
-  private[streams] lazy val settings = AggregateStateStoreKafkaStreamsImplSettings(config, applicationId, aggregateName, clientId)
+
+  private[streams] lazy val settings = SurgeAggregateStoreSettings(config, applicationId, aggregateName, clientId, applicationHostPort)
+  private lazy val kStreamConsumer = new SurgeStateStoreConsumer(stateTopic, settings, config)
 
   private[streams] val underlyingActor = createUnderlyingActorWithBackOff()
 
@@ -84,7 +81,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
    */
 
   def getAggregateBytes(aggregateId: String): Future[Option[Array[Byte]]] = {
-    underlyingActor.ask(GetAggregateBytes(aggregateId)).mapTo[Option[Array[Byte]]]
+    underlyingActor.ask(KafkaStreamManagerActor.GetAggregateBytes(aggregateId)).mapTo[Option[Array[Byte]]]
   }
 
   override def healthCheck(): Future[HealthCheck] = {
@@ -92,7 +89,9 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
   }
 
   def substatesForAggregate(aggregateId: String)(implicit ec: ExecutionContext): Future[List[(String, Array[Byte])]] = {
-    underlyingActor.ask(GetSubstatesForAggregate(aggregateId)).mapTo[List[(String, Array[Byte])]]
+    // FIXME Is this actually still a useful concept? In practice nobody is using this since it's not actually exposed
+    // underlyingActor.ask(KafkaStreamManagerActor.GetSubstatesForAggregate(aggregateId)).mapTo[List[(String, Array[Byte])]]
+    Future.failed(new UnsupportedOperationException("substatesForAggregate is not supported"))
   }
 
   private def createUnderlyingActorWithBackOff(): ActorRef = {
@@ -102,7 +101,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
     }
 
     val aggregateStateStoreKafkaStreamsImplProps =
-      AggregateStateStoreKafkaStreamsImpl.props(aggregateName, stateTopic, partitionTrackerProvider, applicationHostPort, settings, metrics, config)
+      KafkaStreamManagerActor.props(kStreamConsumer, partitionTrackerProvider, metrics)
 
     val underlyingActorProps = BackoffSupervisor.props(
       BackoffOpts
@@ -114,16 +113,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
           randomFactor = BackoffConfig.StateStoreKafkaStreamActor.randomFactor)
         .withMaxNrOfRetries(BackoffConfig.StateStoreKafkaStreamActor.maxRetries))
 
-    val underlyingCreatedActor =
-      ActorLifecycleManagerActor
-        .manage(
-          system,
-          underlyingActorProps,
-          componentName = s"state-store-kafka-streams-$aggregateName",
-          managedActorName = None,
-          startMessageAdapter = Some(() => Start),
-          stopMessageAdapter = Some(() => Stop))
-        .ref
+    val underlyingCreatedActor = system.actorOf(underlyingActorProps)
 
     system.actorOf(BackoffChildActorTerminationWatcher.props(underlyingCreatedActor, () => onMaxRetries()))
 
@@ -131,7 +121,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
   }
 
   private[streams] def getTopology: Future[Topology] = {
-    underlyingActor.ask(GetTopology).mapTo[Topology]
+    Future.successful(kStreamConsumer.ktableIndexingTopology)
   }
 
   private def registrationCallback(): PartialFunction[Try[Ack], Unit] = {
@@ -157,9 +147,9 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
 
       unRegistrationResult.onComplete {
         case Failure(exception) =>
-          log.error(s"$getClass registeration failed", exception)
+          log.error(s"$getClass registration failed", exception)
         case Success(_) =>
-          log.debug(s"$getClass registeration succeeded")
+          log.debug(s"$getClass registration succeeded")
       }(system.dispatcher)
     case Failure(exception) =>
       log.error("Failed to stop so unable to unregister from supervision", exception)
@@ -168,7 +158,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
   override val controllable: Controllable = new Controllable {
     override def start(): Future[Ack] = {
       implicit val ec: ExecutionContext = system.dispatcher
-      underlyingActor.ask(ActorLifecycleManagerActor.Start).mapTo[Ack].andThen(registrationCallback())
+      underlyingActor.ask(KafkaStreamManagerActor.Start).mapTo[Ack].andThen(registrationCallback())
     }
 
     override def restart(): Future[Ack] = {
@@ -183,7 +173,7 @@ class AggregateStateStoreKafkaStreams[Agg >: Null](
 
     override def stop(): Future[Ack] = {
       implicit val ec: ExecutionContext = system.dispatcher
-      underlyingActor.ask(ActorLifecycleManagerActor.Stop).mapTo[Ack].andThen(unregistrationCallback())
+      underlyingActor.ask(KafkaStreamManagerActor.Stop).mapTo[Ack].andThen(unregistrationCallback())
     }
 
     override def shutdown(): Future[Ack] = stop()

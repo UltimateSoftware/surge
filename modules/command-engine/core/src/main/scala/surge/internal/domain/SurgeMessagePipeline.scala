@@ -8,13 +8,12 @@ import akka.management.cluster.bootstrap.ClusterBootstrap
 import akka.management.scaladsl.AkkaManagement
 import com.typesafe.config.Config
 import org.slf4j.{ Logger, LoggerFactory }
-import play.api.libs.json.JsValue
-import surge.core.{ Ack, Controllable, KafkaProducerActor, SurgePartitionRouter, SurgeProcessingTrait }
+import surge.core._
 import surge.health.{ HealthSignalBusAware, HealthSignalBusTrait }
 import surge.internal.SurgeModel
 import surge.internal.akka.cluster.ActorSystemHostAwareness
 import surge.internal.akka.kafka.{ CustomConsumerGroupRebalanceListener, KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor }
-import surge.internal.health.HealthSignalStreamProvider
+import surge.internal.health.{ HealthCheck, HealthSignalStreamProvider, HealthyComponent, SurgeHealthCheck }
 import surge.internal.kafka.KafkaClusterShardingRebalanceListener
 import surge.internal.persistence.PersistentActorRegionCreator
 import surge.kafka.PartitionAssignments
@@ -22,10 +21,10 @@ import surge.kafka.streams._
 
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.{ Failure, Success, Try }
+import java.util.concurrent.atomic.AtomicReference
 
 object SurgeMessagePipeline {
   val log: Logger = LoggerFactory.getLogger(getClass)
-  var surgeEngineStatus: SurgeEngineStatus = SurgeEngineStatus.Stopped
 }
 
 /**
@@ -41,6 +40,10 @@ private[surge] abstract class SurgeMessagePipeline[S, M, E](
     with HealthSignalBusAware
     with ActorSystemHostAwareness {
 
+  private val surgeEngineStatus: AtomicReference[SurgeEngineStatus] = new AtomicReference(SurgeEngineStatus.Stopped)
+
+  def getEngineStatus() = surgeEngineStatus.get()
+
   import SurgeMessagePipeline._
   import system.dispatcher
   protected implicit val system: ActorSystem = actorSystem
@@ -55,7 +58,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, E](
   //  Delegate start to pipeline lifecycle.
   override val signalBus: HealthSignalBusTrait = signalStreamProvider.bus()
 
-  protected val kafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue] = new AggregateStateStoreKafkaStreams[JsValue](
+  protected val kafkaStreamsImpl: AggregateStateStoreKafkaStreams = new AggregateStateStoreKafkaStreams(
     aggregateName = businessLogic.aggregateName,
     stateTopic = businessLogic.kafka.stateTopic,
     partitionTrackerProvider = new KafkaStreamsPartitionTrackerActorProvider(stateChangeActor),
@@ -70,7 +73,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, E](
   protected val cqrsRegionCreator: PersistentActorRegionCreator[M] =
     new PersistentActorRegionCreator[M](actorSystem, businessLogic, kafkaStreamsImpl, partitionTracker, businessLogic.metrics, signalBus, config = config)
 
-  protected val actorRouter: SurgePartitionRouter =
+  protected lazy val actorRouter: SurgePartitionRouter =
     SurgePartitionRouter(config, actorSystem, partitionTracker, businessLogic, kafkaStreamsImpl, cqrsRegionCreator, signalBus, isAkkaClusterEnabled)
 
   protected val surgeHealthCheck: SurgeHealthCheck = new SurgeHealthCheck(businessLogic.aggregateName, kafkaStreamsImpl, actorRouter)(ExecutionContext.global)
@@ -179,8 +182,8 @@ private[surge] abstract class SurgeMessagePipeline[S, M, E](
         _ <- actorRouter.controllable.start()
         allStarted <- kafkaStreamsImpl.controllable.start()
       } yield {
-        surgeEngineStatus = SurgeEngineStatus.Running
-        log.info(s"surge engine status: $surgeEngineStatus")
+        surgeEngineStatus.set(SurgeEngineStatus.Running)
+        log.info(s"surge engine status: ${surgeEngineStatus}")
         allStarted
       }
 
@@ -205,8 +208,8 @@ private[surge] abstract class SurgeMessagePipeline[S, M, E](
         _ <- actorRouter.controllable.stop()
         allStopped <- kafkaStreamsImpl.controllable.stop()
       } yield {
-        surgeEngineStatus = SurgeEngineStatus.Stopped
-        log.info(s"surge engine status: $surgeEngineStatus")
+        surgeEngineStatus.set(SurgeEngineStatus.Stopped)
+        log.info(s"surge engine status: ${surgeEngineStatus}")
         allStopped
       }
 

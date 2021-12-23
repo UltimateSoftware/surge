@@ -3,10 +3,11 @@
 package surge.core
 
 import io.opentelemetry.api.OpenTelemetry
+import org.apache.kafka.common.TopicPartition
 import play.api.libs.json._
 import surge.core.command.{ SurgeCommandKafkaConfig, SurgeCommandModel }
 import surge.internal.domain.{ SurgeContext, SurgeProcessingModel }
-import surge.internal.tracing.NoopTracerFactory
+import surge.internal.tracing.{ NoopTracerFactory, RoutableMessage }
 import surge.kafka.{ KafkaTopic, PartitionStringUpToColon }
 import surge.metrics.Metrics
 
@@ -17,10 +18,12 @@ object TestBoundedContext {
   case class State(aggregateId: String, count: Int, version: Int)
   implicit val stateFormat: Format[State] = Json.format
 
-  sealed trait BaseTestCommand {
+  sealed trait BaseTestCommand extends RoutableMessage {
     def aggregateId: String
     def expectedVersion: Int = 0
   }
+
+  case class WrappedTestCommand(topicPartition: TopicPartition, cmd: BaseTestCommand)
 
   case class Increment(incrementAggregateId: String) extends BaseTestCommand {
     val aggregateId: String = incrementAggregateId

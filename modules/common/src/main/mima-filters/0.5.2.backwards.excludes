@@ -1,10 +1,10 @@
 ProblemFilters.exclude[ReversedMissingMethodProblem]("surge.streams.KafkaEventSource.surge$streams$KafkaEventSource$$super$to")
 ProblemFilters.exclude[DirectMissingMethodProblem]("surge.kafka.streams.AggregateStateStoreKafkaStreams.this")
 
-ProblemFilters.exclude[InheritedNewAbstractMethodProblem]("surge.kafka.streams.HealthyComponent.restart")
-ProblemFilters.exclude[InheritedNewAbstractMethodProblem]("surge.kafka.streams.HealthyComponent.start")
-ProblemFilters.exclude[InheritedNewAbstractMethodProblem]("surge.kafka.streams.HealthyComponent.stop")
-ProblemFilters.exclude[InheritedNewAbstractMethodProblem]("surge.kafka.streams.HealthyComponent.shutdown")
+ProblemFilters.exclude[InheritedNewAbstractMethodProblem]("surge.internal.health.HealthyComponent.restart")
+ProblemFilters.exclude[InheritedNewAbstractMethodProblem]("surge.internal.health.HealthyComponent.start")
+ProblemFilters.exclude[InheritedNewAbstractMethodProblem]("surge.internal.health.HealthyComponent.stop")
+ProblemFilters.exclude[InheritedNewAbstractMethodProblem]("surge.internal.health.HealthyComponent.shutdown")
 
 ProblemFilters.exclude[InheritedNewAbstractMethodProblem]("surge.akka.cluster.PerShardLogicProvider.restart")
 ProblemFilters.exclude[InheritedNewAbstractMethodProblem]("surge.akka.cluster.PerShardLogicProvider.start")

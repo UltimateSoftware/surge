@@ -7,7 +7,7 @@ import surge.internal.domain.{ SurgeContext, SurgeProcessingModel }
 import surge.javadsl.common.Context
 
 import java.util.concurrent.CompletableFuture
-import java.util.{ Optional, List => JList }
+import java.util.{ List => JList, Optional }
 import scala.compat.java8.OptionConverters._
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.jdk.CollectionConverters._

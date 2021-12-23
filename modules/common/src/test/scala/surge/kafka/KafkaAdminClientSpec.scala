@@ -3,7 +3,7 @@
 package surge.kafka
 
 import com.typesafe.config.ConfigFactory
-import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
+import io.github.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.serialization.{ Serializer, StringSerializer }

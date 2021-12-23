@@ -12,7 +12,3 @@ object RoutableMessage {
     routableMessage.aggregateId
   }
 }
-
-trait SurgePersistentEntity[BaseMsg <: RoutableMessage, Model] {
-  def receiveMessage: PartialFunction[Any, Unit]
-}

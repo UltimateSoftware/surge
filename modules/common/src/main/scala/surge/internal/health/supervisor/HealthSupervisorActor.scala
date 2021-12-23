@@ -140,7 +140,7 @@ class HealthSupervisorActorRef(val actor: ActorRef, askTimeout: FiniteDuration, 
   }
 
   override def stop(): HealthSupervisorTrait = {
-    actor ! Stop
+    actor ! Stop()
     started = false
     this
   }
@@ -259,7 +259,7 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, config: 
         getJmxActor.foreach(a => a ! StartManagement())
         context.become(monitoring(state.copy(replyTo = replyTo)))
       }))
-    case Stop =>
+    case Stop() =>
       stop()
   }
 
@@ -304,7 +304,7 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, config: 
   }
 
   def monitoring(state: HealthState): Receive = {
-    case Stop =>
+    case Stop() =>
       context.become(receive)
       context.self ! Stop
     case reg: RegisterSupervisedComponentRequest =>
@@ -317,7 +317,7 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, config: 
       context.become(monitoring(state.copy(registered = state.registered - remove.componentName)))
       sender() ! Ack()
       getJmxActor.foreach(a => a ! RemoveComponent(remove.componentName))
-    case HealthRegistrationDetailsRequest =>
+    case HealthRegistrationDetailsRequest() =>
       sender() ! state.registered.values.toList
     case signal: HealthSignal =>
       state.replyTo.foreach(r => r ! HealthSignalReceived(signal))

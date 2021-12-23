@@ -2,6 +2,7 @@
 
 package surge.kafka
 
+import akka.actor.DeadLetter
 import akka.remote.testconductor.RoleName
 import akka.remote.testkit.{ MultiNodeConfig, MultiNodeSpec, MultiNodeSpecCallbacks }
 import akka.testkit.{ ImplicitSender, TestProbe }
@@ -10,6 +11,9 @@ import org.apache.kafka.common.TopicPartition
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
+import surge.internal.tracing.TracedMessage
+
+import scala.util.Random
 
 trait STMultiNodeSpec extends MultiNodeSpecCallbacks with AnyWordSpecLike with Matchers with BeforeAndAfterAll {
   self: MultiNodeSpec =>

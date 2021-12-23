@@ -6,7 +6,7 @@ import java.util.UUID
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import com.typesafe.config.ConfigFactory
-import net.manub.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
+import io.github.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.common.serialization.StringSerializer
 import org.apache.kafka.streams.state.KeyValueBytesStoreSupplier
 import org.apache.kafka.streams.{ KafkaStreams, TopologyTestDriver }
@@ -17,9 +17,9 @@ import org.scalatest.wordspec.AnyWordSpec
 import org.scalatest.{ Assertion, BeforeAndAfterAll }
 import org.scalatestplus.mockito.MockitoSugar
 import play.api.libs.json.{ Format, JsValue, Json }
+import surge.core.Ack
 import surge.internal.kafka.JsonSerdes
 import surge.kafka.KafkaTopic
-import surge.kafka.streams.AggregateStateStoreKafkaStreamsImpl.AggregateStateStoreKafkaStreamsImplSettings
 import surge.metrics.Metrics
 
 class MockPartitionTrackerProvider extends KafkaStreamsPartitionTrackerProvider {
@@ -59,10 +59,7 @@ class AggregateStateStoreKafkaStreamsSpec
   private val defaultConfig = ConfigFactory.load()
 
   "AggregateStateStoreKafkaStreams" should {
-    def assertStoreKeyValue(
-        testDriver: TopologyTestDriver,
-        stateTopic: KafkaTopic,
-        aggStoreKafkaStreams: AggregateStateStoreKafkaStreams[MockState]): Assertion = {
+    def assertStoreKeyValue(testDriver: TopologyTestDriver, stateTopic: KafkaTopic, aggStoreKafkaStreams: AggregateStateStoreKafkaStreams): Assertion = {
       val state1 = MockState("state1", 1)
       val state2 = MockState("state2", 2)
       val state3 = MockState("state3", 3)
@@ -93,7 +90,7 @@ class AggregateStateStoreKafkaStreamsSpec
 
         val testAggregateName = "test"
         val appId = s"aggregate-streams-spec-${UUID.randomUUID()}"
-        val aggStoreKafkaStreams = new AggregateStateStoreKafkaStreams[MockState](
+        val aggStoreKafkaStreams = new AggregateStateStoreKafkaStreams(
           aggregateName = testAggregateName,
           stateTopic = stateTopic,
           partitionTrackerProvider = new MockPartitionTrackerProvider,
@@ -104,8 +101,9 @@ class AggregateStateStoreKafkaStreamsSpec
           system,
           Metrics.globalMetricRegistry,
           defaultConfig) {
-          override lazy val settings: AggregateStateStoreKafkaStreamsImplSettings =
-            AggregateStateStoreKafkaStreamsImplSettings(defaultConfig, appId, testAggregateName, "").copy(brokers = Seq(s"localhost:${actualConfig.kafkaPort}"))
+          override lazy val settings: SurgeAggregateStoreSettings =
+            SurgeAggregateStoreSettings(defaultConfig, appId, testAggregateName, "", Some("localhost:1234")).copy(brokers =
+              Seq(s"localhost:${actualConfig.kafkaPort}"))
         }
 
         aggStoreKafkaStreams.controllable.start()
@@ -115,6 +113,7 @@ class AggregateStateStoreKafkaStreamsSpec
         withTopologyTestDriver(topology) { testDriver =>
           assertStoreKeyValue(testDriver, stateTopic, aggStoreKafkaStreams)
         }
+        aggStoreKafkaStreams.controllable.stop().futureValue shouldBe an[Ack]
       }
     }
     "Restart the stream on any errors" in {
@@ -133,7 +132,7 @@ class AggregateStateStoreKafkaStreamsSpec
 
         val testAggregateName = "test"
         val appId = s"aggregate-streams-spec-${UUID.randomUUID()}"
-        val aggStoreKafkaStreams = new AggregateStateStoreKafkaStreams[MockState](
+        val aggStoreKafkaStreams = new AggregateStateStoreKafkaStreams(
           aggregateName = testAggregateName,
           stateTopic = stateTopic,
           partitionTrackerProvider = new MockPartitionTrackerProvider,
@@ -144,8 +143,9 @@ class AggregateStateStoreKafkaStreamsSpec
           system,
           Metrics.globalMetricRegistry,
           exceptionThrowingConfig) {
-          override lazy val settings: AggregateStateStoreKafkaStreamsImplSettings =
-            AggregateStateStoreKafkaStreamsImplSettings(defaultConfig, appId, testAggregateName, "").copy(brokers = Seq(s"localhost:${actualConfig.kafkaPort}"))
+          override lazy val settings: SurgeAggregateStoreSettings =
+            SurgeAggregateStoreSettings(defaultConfig, appId, testAggregateName, "", Some("localhost:1234")).copy(brokers =
+              Seq(s"localhost:${actualConfig.kafkaPort}"))
         }
 
         aggStoreKafkaStreams.controllable.start()
@@ -157,6 +157,7 @@ class AggregateStateStoreKafkaStreamsSpec
           // if we make it to use the stream it means it restarted correctly after the crash
           assertStoreKeyValue(testDriver, stateTopic, aggStoreKafkaStreams)
         }
+        aggStoreKafkaStreams.controllable.stop().futureValue shouldBe an[Ack]
       }
     }
   }
