@@ -11,8 +11,8 @@ import java.net.URLEncoder
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.akka.cluster.{ Passivate, PerShardLogicProvider }
 import surge.internal.akka.ActorWithTracing
-import surge.kafka.streams.HealthyActor.GetHealth
-import surge.kafka.streams.{ HealthCheck, HealthCheckStatus }
+import surge.internal.health.{ HealthCheck, HealthCheckStatus }
+import surge.internal.health.HealthyActor.GetHealth
 import surge.internal.tracing.TracedMessage
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -147,7 +147,7 @@ class Shard[IdType](shardId: String, regionLogicProvider: PerShardLogicProvider[
   }
 
   private def sendMsgBuffer(entityId: IdType): Unit = {
-    //Get the buffered messages and remove the buffer
+    // Get the buffered messages and remove the buffer
     val messages = messageBuffers.getOrEmpty(entityId)
     messageBuffers.remove(entityId)
 

@@ -15,9 +15,9 @@ import surge.core.KafkaProducerActor
 import surge.health.{ HealthSignalBusTrait, HealthyPublisher }
 import surge.internal.akka.cluster.ActorHostAwareness
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
+import surge.internal.health.{ HealthCheck, HealthCheckStatus }
 import surge.kafka._
-import surge.kafka.streams.HealthyActor.GetHealth
-import surge.kafka.streams.{ HealthCheck, HealthCheckStatus }
+import surge.internal.health.HealthyActor.GetHealth
 import surge.metrics.{ MetricInfo, Metrics, Rate, Timer }
 
 import java.time.Instant
@@ -108,7 +108,7 @@ class KafkaProducerActorImpl(
   private val transactionalId = s"$transactionalIdPrefix-${assignedPartition.topic()}-${assignedPartition.partition()}"
   private val kafkaPublisherMetricsName = transactionalId
 
-  //noinspection ActorMutableStateInspection
+  // noinspection ActorMutableStateInspection
   private var kafkaPublisher = getPublisher
 
   private val nonTransactionalStatePublisher =

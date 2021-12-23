@@ -3,7 +3,7 @@
 package surge.akka.cluster
 
 import akka.actor.{ ActorContext, Props }
-import surge.kafka.streams.HealthyComponent
+import surge.internal.health.HealthyComponent
 
 /**
  * A shard is an independently operating unit for scaling. The shard acts as a parent to a cluster of business logic implementing actors and potentially other
