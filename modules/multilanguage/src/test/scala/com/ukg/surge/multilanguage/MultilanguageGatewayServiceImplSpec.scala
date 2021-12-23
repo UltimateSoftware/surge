@@ -49,7 +49,6 @@ class MultilanguageGatewayServiceImplSpec
   override implicit val patienceConfig: PatienceConfig = PatienceConfig(timeout = Span(15, Seconds), interval = Span(50, Milliseconds))
 
   private val config = ConfigFactory.load()
-  implicit val kafkaConfig: EmbeddedKafkaConfig = EmbeddedKafkaConfig(kafkaPort = config.getInt("kafka.port"))
   private val logger: LoggingAdapter = Logging(system, classOf[MultilanguageGatewayServiceImplSpec])
 
   val aggregateName: String = config.getString("surge-server.aggregate-name")
