@@ -35,7 +35,7 @@ class MultilanguageGatewayServiceImplSpec
   import system.dispatcher
 
   override def beforeAll(): Unit = {
-    EmbeddedKafka.start()
+    EmbeddedKafka.start()(EmbeddedKafkaConfig(kafkaPort = 2021, zooKeeperPort = 2022))
     createCustomTopic(eventsTopicName, partitions = 3)
     createCustomTopic(stateTopicName, partitions = 3, topicConfig = Map(TopicConfig.CLEANUP_POLICY_CONFIG -> TopicConfig.CLEANUP_POLICY_COMPACT))
   }
