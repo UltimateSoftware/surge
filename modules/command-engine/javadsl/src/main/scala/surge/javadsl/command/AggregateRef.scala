@@ -41,7 +41,7 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event](
   private val log: Logger = LoggerFactory.getLogger(getClass)
 
   override def getState: CompletionStage[Optional[Agg]] = {
-    val result = retryWithDelay(5).flatMap { _ =>
+    val result = whenEngineReady() {
       val status = getEngineStatus()
 
       if (status == SurgeEngineStatus.Running) {
@@ -57,7 +57,7 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event](
   }
 
   def sendCommand(command: Cmd): CompletionStage[CommandResult[Agg]] = {
-    val r = retryWithDelay(5).flatMap { _ =>
+    val r = whenEngineReady() {
       val status = getEngineStatus()
       if (status == SurgeEngineStatus.Running) {
         val envelope = PersistentActor.ProcessMessage[Cmd](aggregateId.toString, command)
@@ -75,7 +75,7 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event](
     FutureConverters.toJava(r)
   }
 
-  private def retryWithDelay(numTries: Int, delay: FiniteDuration = 50.millis): Future[Unit] = {
+  private def whenEngineReady[T](numTries: Int = 5, delay: FiniteDuration = 50.millis)(cb: => Future[T]): Future[T] = {
     def loop(num: Int): Future[Unit] = if (num > 0)
       if (getEngineStatus() == SurgeEngineStatus.Starting) for {
         _ <- Future.successful(log.debug(s"retry attempt ${(numTries - num) + 1}"))
@@ -85,7 +85,7 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event](
       else Future.unit
     else Future.failed(SurgeTimeoutException("Engine was not ready in time"))
 
-    loop(numTries)
+    loop(numTries).flatMap(_ => cb)
   }
 
 }
