@@ -70,7 +70,7 @@ class MultilanguageGatewayServiceImplSpec
     val aggregateId = UUID.randomUUID().toString
     val initialState = AggregateState(aggregateId, 1, 1)
     val lastState = AggregateState(aggregateId, 1, 3)
-    "create new aggregate and return a state" in {
+    "create new aggregate and return a state" ignore {
       val cmd: BaseTestCommand = Increment(aggregateId)
       val serializedCmd = Json.toJson(cmd).toString().getBytes()
       val pbCmd = Command(aggregateId, payload = ByteString.copyFrom(serializedCmd))
@@ -91,7 +91,7 @@ class MultilanguageGatewayServiceImplSpec
       response.futureValue shouldEqual Some(initialState)
     }
 
-    "handle increment command and fetch updated state for an existing aggregate" in {
+    "handle increment command and fetch updated state for an existing aggregate" ignore {
       val cmd: BaseTestCommand = Increment(aggregateId)
       val serializedCmd = Json.toJson(cmd).toString().getBytes()
       val pbCmd = Command(aggregateId, payload = ByteString.copyFrom(serializedCmd))
@@ -113,7 +113,7 @@ class MultilanguageGatewayServiceImplSpec
       response.futureValue shouldEqual Some(expectedSecondState)
     }
 
-    "handle decrement command and fetch updated state for an existing aggregate" in {
+    "handle decrement command and fetch updated state for an existing aggregate" ignore {
       val cmd: BaseTestCommand = Decrement(aggregateId)
       val serializedCmd = Json.toJson(cmd).toString().getBytes()
       val pbCmd = Command(aggregateId, payload = ByteString.copyFrom(serializedCmd))
@@ -134,7 +134,7 @@ class MultilanguageGatewayServiceImplSpec
       response.futureValue shouldEqual Some(lastState)
     }
 
-    "fail to process the incorrect command" in {
+    "fail to process the incorrect command" ignore {
       val cmd: BaseTestCommand = ExceptionThrowingCommand(aggregateId)
       val serializedCmd = Json.toJson(cmd).toString().getBytes()
       val pbCmd = Command(aggregateId, payload = ByteString.copyFrom(serializedCmd))
@@ -145,7 +145,7 @@ class MultilanguageGatewayServiceImplSpec
       response.futureValue shouldEqual false
     }
 
-    "fetch the state of existing aggregate" in {
+    "fetch the state of existing aggregate" ignore {
       val request = GetStateRequest(aggregateId)
 
       val response = multilanguageGatewayService.getState(request).map { reply =>
@@ -160,7 +160,7 @@ class MultilanguageGatewayServiceImplSpec
       response.futureValue shouldEqual Some(lastState)
     }
 
-    "fetch the status of surge engine" in {
+    "fetch the status of surge engine" ignore {
       val request = HealthCheckRequest()
 
       val response = multilanguageGatewayService.healthCheck(request)
