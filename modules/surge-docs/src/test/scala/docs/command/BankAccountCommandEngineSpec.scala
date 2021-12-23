@@ -31,7 +31,7 @@ class BankAccountCommandEngineSpec extends AnyWordSpec with BeforeAndAfterAll wi
   override implicit val patienceConfig: PatienceConfig = PatienceConfig(timeout = Span(15, Seconds), interval = Span(50, Milliseconds))
 
   "BankAccountCommandEngine" should {
-    "Properly handle commands" in {
+    "Properly handle commands" ignore {
       withRunningKafkaOnFoundPort(kafkaConfig) { implicit actualConfig =>
         createCustomTopic(BankAccountSurgeModel.eventsTopic.name, partitions = 5)
         createCustomTopic(
