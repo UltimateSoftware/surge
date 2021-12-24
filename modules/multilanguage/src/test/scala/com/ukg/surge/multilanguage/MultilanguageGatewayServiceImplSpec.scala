@@ -10,6 +10,7 @@ import com.typesafe.config.ConfigFactory
 import com.ukg.surge.multilanguage.TestBoundedContext._
 import com.ukg.surge.multilanguage.protobuf.HealthCheckReply.Status
 import com.ukg.surge.multilanguage.protobuf.{ Command, ForwardCommandReply, ForwardCommandRequest, GetStateRequest, HealthCheckReply, HealthCheckRequest }
+import io.github.embeddedkafka.EmbeddedKafka.createCustomTopic
 import io.github.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.common.config.TopicConfig
 import org.scalatest.BeforeAndAfterAll
@@ -29,20 +30,19 @@ class MultilanguageGatewayServiceImplSpec
     with Matchers
     with ScalaFutures
     with BeforeAndAfterAll
-    with EmbeddedKafka
     with TestBoundedContext {
 
   import system.dispatcher
 
   override implicit val patienceConfig: PatienceConfig = PatienceConfig(timeout = Span(15, Seconds), interval = Span(50, Milliseconds))
 
-  private val config = ConfigFactory.load()
+  private val defaultConfig = ConfigFactory.load()
   private val logger: LoggingAdapter = Logging(system, classOf[MultilanguageGatewayServiceImplSpec])
-  implicit val kafkaConfig: EmbeddedKafkaConfig = EmbeddedKafkaConfig(kafkaPort = config.getInt("kafka.port"))
+  implicit val config: EmbeddedKafkaConfig = EmbeddedKafkaConfig(kafkaPort = defaultConfig.getInt("kafka.port"))
 
-  val aggregateName: String = config.getString("surge-server.aggregate-name")
-  val eventsTopicName: String = config.getString("surge-server.events-topic")
-  val stateTopicName: String = config.getString("surge-server.state-topic")
+  val aggregateName: String = defaultConfig.getString("surge-server.aggregate-name")
+  val eventsTopicName: String = defaultConfig.getString("surge-server.events-topic")
+  val stateTopicName: String = defaultConfig.getString("surge-server.state-topic")
   val testBusinessLogicService = new TestBusinessLogicService()
   val genericSurgeCommandBusinessLogic = new GenericSurgeCommandBusinessLogic(aggregateName, eventsTopicName, stateTopicName, testBusinessLogicService)
 
