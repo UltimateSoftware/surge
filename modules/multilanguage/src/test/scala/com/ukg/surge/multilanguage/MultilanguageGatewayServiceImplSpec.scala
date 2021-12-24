@@ -34,22 +34,11 @@ class MultilanguageGatewayServiceImplSpec
 
   import system.dispatcher
 
-  override def beforeAll(): Unit = {
-    EmbeddedKafka.start()(EmbeddedKafkaConfig(kafkaPort = 2021, zooKeeperPort = 2022))
-    createCustomTopic(eventsTopicName, partitions = 3)
-    createCustomTopic(stateTopicName, partitions = 3, topicConfig = Map(TopicConfig.CLEANUP_POLICY_CONFIG -> TopicConfig.CLEANUP_POLICY_COMPACT))
-  }
-
-  override def afterAll(): Unit = {
-    testSurgeEngine.stop().futureValue shouldBe an[Ack]
-    EmbeddedKafka.stop()
-    TestKit.shutdownActorSystem(system)
-  }
-
   override implicit val patienceConfig: PatienceConfig = PatienceConfig(timeout = Span(15, Seconds), interval = Span(50, Milliseconds))
 
   private val config = ConfigFactory.load()
   private val logger: LoggingAdapter = Logging(system, classOf[MultilanguageGatewayServiceImplSpec])
+  implicit val kafkaConfig: EmbeddedKafkaConfig = EmbeddedKafkaConfig(kafkaPort = config.getInt("kafka.port"))
 
   val aggregateName: String = config.getString("surge-server.aggregate-name")
   val eventsTopicName: String = config.getString("surge-server.events-topic")
@@ -66,11 +55,23 @@ class MultilanguageGatewayServiceImplSpec
 
   val multilanguageGatewayService = new MultilanguageGatewayServiceImpl(testSurgeEngine)
 
+  override def beforeAll(): Unit = {
+    EmbeddedKafka.start()
+    createCustomTopic(eventsTopicName, partitions = 3)
+    createCustomTopic(stateTopicName, partitions = 3, topicConfig = Map(TopicConfig.CLEANUP_POLICY_CONFIG -> TopicConfig.CLEANUP_POLICY_COMPACT))
+  }
+
+  override def afterAll(): Unit = {
+    testSurgeEngine.stop().futureValue shouldBe an[Ack]
+    EmbeddedKafka.stop()
+    TestKit.shutdownActorSystem(system)
+  }
+
   "MultilanguageGatewayServiceImpl" should {
     val aggregateId = UUID.randomUUID().toString
     val initialState = AggregateState(aggregateId, 1, 1)
     val lastState = AggregateState(aggregateId, 1, 3)
-    "create new aggregate and return a state" ignore {
+    "create new aggregate and return a state" in {
       val cmd: BaseTestCommand = Increment(aggregateId)
       val serializedCmd = Json.toJson(cmd).toString().getBytes()
       val pbCmd = Command(aggregateId, payload = ByteString.copyFrom(serializedCmd))
@@ -91,7 +92,7 @@ class MultilanguageGatewayServiceImplSpec
       response.futureValue shouldEqual Some(initialState)
     }
 
-    "handle increment command and fetch updated state for an existing aggregate" ignore {
+    "handle increment command and fetch updated state for an existing aggregate" in {
       val cmd: BaseTestCommand = Increment(aggregateId)
       val serializedCmd = Json.toJson(cmd).toString().getBytes()
       val pbCmd = Command(aggregateId, payload = ByteString.copyFrom(serializedCmd))
@@ -113,7 +114,7 @@ class MultilanguageGatewayServiceImplSpec
       response.futureValue shouldEqual Some(expectedSecondState)
     }
 
-    "handle decrement command and fetch updated state for an existing aggregate" ignore {
+    "handle decrement command and fetch updated state for an existing aggregate" in {
       val cmd: BaseTestCommand = Decrement(aggregateId)
       val serializedCmd = Json.toJson(cmd).toString().getBytes()
       val pbCmd = Command(aggregateId, payload = ByteString.copyFrom(serializedCmd))
@@ -134,7 +135,7 @@ class MultilanguageGatewayServiceImplSpec
       response.futureValue shouldEqual Some(lastState)
     }
 
-    "fail to process the incorrect command" ignore {
+    "fail to process the incorrect command" in {
       val cmd: BaseTestCommand = ExceptionThrowingCommand(aggregateId)
       val serializedCmd = Json.toJson(cmd).toString().getBytes()
       val pbCmd = Command(aggregateId, payload = ByteString.copyFrom(serializedCmd))
@@ -145,7 +146,7 @@ class MultilanguageGatewayServiceImplSpec
       response.futureValue shouldEqual false
     }
 
-    "fetch the state of existing aggregate" ignore {
+    "fetch the state of existing aggregate" in {
       val request = GetStateRequest(aggregateId)
 
       val response = multilanguageGatewayService.getState(request).map { reply =>
@@ -160,7 +161,7 @@ class MultilanguageGatewayServiceImplSpec
       response.futureValue shouldEqual Some(lastState)
     }
 
-    "fetch the status of surge engine" ignore {
+    "fetch the status of surge engine" in {
       val request = HealthCheckRequest()
 
       val response = multilanguageGatewayService.healthCheck(request)
