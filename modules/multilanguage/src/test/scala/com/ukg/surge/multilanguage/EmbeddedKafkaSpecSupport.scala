@@ -13,9 +13,6 @@ import scala.util.{ Failure, Success, Try }
 
 trait EmbeddedKafkaSpecSupport extends AnyWordSpecLike with Matchers with Eventually with IntegrationPatience {
 
-  implicit val config: PatienceConfig =
-    PatienceConfig(Span(1, Seconds), Span(100, Milliseconds))
-
   def expectedServerStatus(port: Int, expectedStatus: ServerStatus): Assertion =
     eventually {
       status(port) shouldBe expectedStatus

@@ -36,13 +36,13 @@ class MultilanguageGatewayServiceImplSpec
 
   import system.dispatcher
 
-  override implicit val config: PatienceConfig = PatienceConfig(timeout = Span(15, Seconds), interval = Span(50, Milliseconds))
+  override implicit val patienceConfig: PatienceConfig = PatienceConfig(timeout = Span(15, Seconds), interval = Span(50, Milliseconds))
 
   private val defaultConfig = ConfigFactory.load()
   private val logger: LoggingAdapter = Logging(system, classOf[MultilanguageGatewayServiceImplSpec])
   private val kafkaPort = defaultConfig.getInt("kafka.port")
   private val zookeeperPort = defaultConfig.getInt("zookeeper.port")
-  implicit val kafkaConfig: EmbeddedKafkaConfig = EmbeddedKafkaConfig(kafkaPort = kafkaPort, zooKeeperPort = zookeeperPort)
+  implicit val config: EmbeddedKafkaConfig = EmbeddedKafkaConfig(kafkaPort = kafkaPort, zooKeeperPort = zookeeperPort)
 
   val aggregateName: String = defaultConfig.getString("surge-server.aggregate-name")
   val eventsTopicName: String = defaultConfig.getString("surge-server.events-topic")
@@ -62,6 +62,11 @@ class MultilanguageGatewayServiceImplSpec
   override def beforeAll(): Unit = {
     super.beforeAll()
     val _ = EmbeddedKafka.start()
+    expectedServerStatus(kafkaPort, Available)
+    expectedServerStatus(zookeeperPort, Available)
+
+    createCustomTopic(eventsTopicName, partitions = 3)
+    createCustomTopic(stateTopicName, partitions = 3, topicConfig = Map(TopicConfig.CLEANUP_POLICY_CONFIG -> TopicConfig.CLEANUP_POLICY_COMPACT))
   }
 
   override def afterAll(): Unit = {
@@ -72,12 +77,6 @@ class MultilanguageGatewayServiceImplSpec
   }
 
   "MultilanguageGatewayServiceImpl" should {
-    expectedServerStatus(kafkaPort, Available)
-    expectedServerStatus(zookeeperPort, Available)
-
-    createCustomTopic(eventsTopicName, partitions = 3)
-    createCustomTopic(stateTopicName, partitions = 3, topicConfig = Map(TopicConfig.CLEANUP_POLICY_CONFIG -> TopicConfig.CLEANUP_POLICY_COMPACT))
-
     val aggregateId = UUID.randomUUID().toString
     val initialState = AggregateState(aggregateId, 1, 1)
     val lastState = AggregateState(aggregateId, 1, 3)

@@ -132,9 +132,9 @@ class SurgeMessagePipelineSpec
   }
 
   override def afterAll(): Unit = {
-    pipeline.controllable.stop().futureValue shouldBe an[Ack]
-    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
     EmbeddedKafka.stop()
+    pipeline.controllable.stop().futureValue shouldBe an[Ack]
+    TestKit.shutdownActorSystem(system)
     super.afterAll()
   }
 
