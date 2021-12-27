@@ -7,20 +7,17 @@ import akka.event.{ Logging, LoggingAdapter }
 import akka.testkit.TestKit
 import com.google.protobuf.ByteString
 import com.typesafe.config.ConfigFactory
-import com.ukg.surge.multilanguage.EmbeddedKafkaSpecSupport.Available
 import com.ukg.surge.multilanguage.TestBoundedContext._
 import com.ukg.surge.multilanguage.protobuf.HealthCheckReply.Status
-import com.ukg.surge.multilanguage.protobuf.{ Command, ForwardCommandReply, ForwardCommandRequest, GetStateRequest, HealthCheckReply, HealthCheckRequest }
+import com.ukg.surge.multilanguage.protobuf._
 import io.github.embeddedkafka.EmbeddedKafka._
 import io.github.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.common.config.TopicConfig
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
-import org.scalatest.time.{ Milliseconds, Seconds, Span }
 import org.scalatest.wordspec.AsyncWordSpecLike
 import play.api.libs.json.Json
-import surge.core.Ack
 import surge.scaladsl.command.SurgeCommand
 
 import java.util.UUID
@@ -31,8 +28,7 @@ class MultilanguageGatewayServiceImplSpec
     with Matchers
     with ScalaFutures
     with BeforeAndAfterAll
-    with TestBoundedContext
-    with EmbeddedKafkaSpecSupport {
+    with TestBoundedContext {
 
   import system.dispatcher
 
@@ -60,16 +56,13 @@ class MultilanguageGatewayServiceImplSpec
   override def beforeAll(): Unit = {
     super.beforeAll()
     val _ = EmbeddedKafka.start()
-    expectedServerStatus(kafkaPort, Available)
-    expectedServerStatus(zookeeperPort, Available)
-
     createCustomTopic(eventsTopicName, partitions = 3)
     createCustomTopic(stateTopicName, partitions = 3, topicConfig = Map(TopicConfig.CLEANUP_POLICY_CONFIG -> TopicConfig.CLEANUP_POLICY_COMPACT))
   }
 
   override def afterAll(): Unit = {
+    testSurgeEngine.stop()
     EmbeddedKafka.stop()
-    testSurgeEngine.stop().futureValue shouldBe an[Ack]
     TestKit.shutdownActorSystem(system)
     super.afterAll()
   }
