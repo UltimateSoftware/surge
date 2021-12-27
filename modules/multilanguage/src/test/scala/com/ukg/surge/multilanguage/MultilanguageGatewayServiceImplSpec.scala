@@ -36,13 +36,13 @@ class MultilanguageGatewayServiceImplSpec
 
   import system.dispatcher
 
-  override implicit val patienceConfig: PatienceConfig = PatienceConfig(timeout = Span(15, Seconds), interval = Span(50, Milliseconds))
+  override implicit val config: PatienceConfig = PatienceConfig(timeout = Span(15, Seconds), interval = Span(50, Milliseconds))
 
   private val defaultConfig = ConfigFactory.load()
   private val logger: LoggingAdapter = Logging(system, classOf[MultilanguageGatewayServiceImplSpec])
   private val kafkaPort = defaultConfig.getInt("kafka.port")
   private val zookeeperPort = defaultConfig.getInt("zookeeper.port")
-  implicit val config: EmbeddedKafkaConfig = EmbeddedKafkaConfig(kafkaPort = kafkaPort, zooKeeperPort = zookeeperPort)
+  implicit val kafkaConfig: EmbeddedKafkaConfig = EmbeddedKafkaConfig(kafkaPort = kafkaPort, zooKeeperPort = zookeeperPort)
 
   val aggregateName: String = defaultConfig.getString("surge-server.aggregate-name")
   val eventsTopicName: String = defaultConfig.getString("surge-server.events-topic")
@@ -52,6 +52,7 @@ class MultilanguageGatewayServiceImplSpec
 
   val testSurgeEngine: SurgeCommand[UUID, SurgeState, SurgeCmd, SurgeEvent] = {
     val engine = SurgeCommand(system, genericSurgeCommandBusinessLogic, system.settings.config)
+    engine.start()
     logger.info("Started engine!")
     engine
   }
@@ -61,7 +62,6 @@ class MultilanguageGatewayServiceImplSpec
   override def beforeAll(): Unit = {
     super.beforeAll()
     val _ = EmbeddedKafka.start()
-    testSurgeEngine.start().futureValue shouldBe an[Ack]
   }
 
   override def afterAll(): Unit = {
