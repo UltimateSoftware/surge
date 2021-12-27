@@ -7,6 +7,7 @@ import akka.event.{ Logging, LoggingAdapter }
 import akka.testkit.TestKit
 import com.google.protobuf.ByteString
 import com.typesafe.config.ConfigFactory
+import com.ukg.surge.multilanguage.EmbeddedKafkaSpecSupport.Available
 import com.ukg.surge.multilanguage.TestBoundedContext._
 import com.ukg.surge.multilanguage.protobuf.HealthCheckReply.Status
 import com.ukg.surge.multilanguage.protobuf._
@@ -28,7 +29,8 @@ class MultilanguageGatewayServiceImplSpec
     with Matchers
     with ScalaFutures
     with BeforeAndAfterAll
-    with TestBoundedContext {
+    with TestBoundedContext
+    with EmbeddedKafkaSpecSupport {
 
   import system.dispatcher
 
@@ -56,13 +58,16 @@ class MultilanguageGatewayServiceImplSpec
   override def beforeAll(): Unit = {
     super.beforeAll()
     val _ = EmbeddedKafka.start()
+    expectedServerStatus(kafkaPort, Available)
+    expectedServerStatus(zookeeperPort, Available)
+
     createCustomTopic(eventsTopicName, partitions = 3)
     createCustomTopic(stateTopicName, partitions = 3, topicConfig = Map(TopicConfig.CLEANUP_POLICY_CONFIG -> TopicConfig.CLEANUP_POLICY_COMPACT))
   }
 
   override def afterAll(): Unit = {
-    testSurgeEngine.stop()
     EmbeddedKafka.stop()
+    testSurgeEngine.stop()
     TestKit.shutdownActorSystem(system)
     super.afterAll()
   }
