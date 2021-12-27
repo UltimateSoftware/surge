@@ -62,8 +62,8 @@ class MultilanguageGatewayServiceImplSpec
   }
 
   override def afterAll(): Unit = {
-    testSurgeEngine.stop().futureValue shouldBe an[Ack]
     EmbeddedKafka.stop()
+    testSurgeEngine.stop().futureValue shouldBe an[Ack]
     TestKit.shutdownActorSystem(system)
   }
 
