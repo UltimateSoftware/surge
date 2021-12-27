@@ -132,10 +132,9 @@ class SurgeMessagePipelineSpec
   }
 
   override def afterAll(): Unit = {
-    EmbeddedKafka.stop()
     pipeline.controllable.stop().futureValue shouldBe an[Ack]
-    // FIXME verifySystemShutdown should be true, but this does not shut down in a reasonable amount of time
-    TestKit.shutdownActorSystem(system, duration = 30.seconds, verifySystemShutdown = false)
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
+    EmbeddedKafka.stop()
     super.afterAll()
   }
 
