@@ -36,8 +36,6 @@ class MultilanguageGatewayServiceImplSpec
 
   import system.dispatcher
 
-  override implicit val patienceConfig: PatienceConfig = PatienceConfig(timeout = Span(15, Seconds), interval = Span(50, Milliseconds))
-
   private val defaultConfig = ConfigFactory.load()
   private val logger: LoggingAdapter = Logging(system, classOf[MultilanguageGatewayServiceImplSpec])
   private val kafkaPort = defaultConfig.getInt("kafka.port")

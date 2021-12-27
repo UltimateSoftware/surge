@@ -1,14 +1,12 @@
 package com.ukg.surge.multilanguage
 
 import com.ukg.surge.multilanguage.EmbeddedKafkaSpecSupport.{ Available, NotAvailable, ServerStatus }
-
-import java.net.{ InetAddress, Socket }
 import org.scalatest.Assertion
 import org.scalatest.concurrent.{ Eventually, IntegrationPatience }
 import org.scalatest.matchers.should.Matchers
-import org.scalatest.time.{ Milliseconds, Seconds, Span }
-import org.scalatest.wordspec.AnyWordSpecLike
+import org.scalatest.wordspec.{ AnyWordSpecLike, AsyncWordSpecLike }
 
+import java.net.{ InetAddress, Socket }
 import scala.util.{ Failure, Success, Try }
 
 trait EmbeddedKafkaSpecSupport extends AnyWordSpecLike with Matchers with Eventually with IntegrationPatience {
