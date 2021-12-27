@@ -7,10 +7,11 @@ import akka.event.{ Logging, LoggingAdapter }
 import akka.testkit.TestKit
 import com.google.protobuf.ByteString
 import com.typesafe.config.ConfigFactory
+import com.ukg.surge.multilanguage.EmbeddedKafkaSpecSupport.Available
 import com.ukg.surge.multilanguage.TestBoundedContext._
 import com.ukg.surge.multilanguage.protobuf.HealthCheckReply.Status
 import com.ukg.surge.multilanguage.protobuf.{ Command, ForwardCommandReply, ForwardCommandRequest, GetStateRequest, HealthCheckReply, HealthCheckRequest }
-import io.github.embeddedkafka.EmbeddedKafka.createCustomTopic
+import io.github.embeddedkafka.EmbeddedKafka._
 import io.github.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.common.config.TopicConfig
 import org.scalatest.BeforeAndAfterAll
@@ -30,7 +31,8 @@ class MultilanguageGatewayServiceImplSpec
     with Matchers
     with ScalaFutures
     with BeforeAndAfterAll
-    with TestBoundedContext {
+    with TestBoundedContext
+    with EmbeddedKafkaSpecSupport {
 
   import system.dispatcher
 
@@ -38,7 +40,9 @@ class MultilanguageGatewayServiceImplSpec
 
   private val defaultConfig = ConfigFactory.load()
   private val logger: LoggingAdapter = Logging(system, classOf[MultilanguageGatewayServiceImplSpec])
-  implicit val config: EmbeddedKafkaConfig = EmbeddedKafkaConfig(kafkaPort = defaultConfig.getInt("kafka.port"))
+  private val kafkaPort = defaultConfig.getInt("kafka.port")
+  private val zookeeperPort = defaultConfig.getInt("zookeeper.port")
+  implicit val config: EmbeddedKafkaConfig = EmbeddedKafkaConfig(kafkaPort = kafkaPort, zooKeeperPort = zookeeperPort)
 
   val aggregateName: String = defaultConfig.getString("surge-server.aggregate-name")
   val eventsTopicName: String = defaultConfig.getString("surge-server.events-topic")
@@ -48,7 +52,6 @@ class MultilanguageGatewayServiceImplSpec
 
   val testSurgeEngine: SurgeCommand[UUID, SurgeState, SurgeCmd, SurgeEvent] = {
     val engine = SurgeCommand(system, genericSurgeCommandBusinessLogic, system.settings.config)
-    engine.start()
     logger.info("Started engine!")
     engine
   }
@@ -56,18 +59,25 @@ class MultilanguageGatewayServiceImplSpec
   val multilanguageGatewayService = new MultilanguageGatewayServiceImpl(testSurgeEngine)
 
   override def beforeAll(): Unit = {
-    EmbeddedKafka.start()
-    createCustomTopic(eventsTopicName, partitions = 3)
-    createCustomTopic(stateTopicName, partitions = 3, topicConfig = Map(TopicConfig.CLEANUP_POLICY_CONFIG -> TopicConfig.CLEANUP_POLICY_COMPACT))
+    super.beforeAll()
+    val _ = EmbeddedKafka.start()
+    testSurgeEngine.start().futureValue shouldBe an[Ack]
   }
 
   override def afterAll(): Unit = {
     EmbeddedKafka.stop()
     testSurgeEngine.stop().futureValue shouldBe an[Ack]
     TestKit.shutdownActorSystem(system)
+    super.afterAll()
   }
 
   "MultilanguageGatewayServiceImpl" should {
+    expectedServerStatus(kafkaPort, Available)
+    expectedServerStatus(zookeeperPort, Available)
+
+    createCustomTopic(eventsTopicName, partitions = 3)
+    createCustomTopic(stateTopicName, partitions = 3, topicConfig = Map(TopicConfig.CLEANUP_POLICY_CONFIG -> TopicConfig.CLEANUP_POLICY_COMPACT))
+
     val aggregateId = UUID.randomUUID().toString
     val initialState = AggregateState(aggregateId, 1, 1)
     val lastState = AggregateState(aggregateId, 1, 3)
