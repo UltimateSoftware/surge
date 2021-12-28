@@ -4,5 +4,6 @@ sealed trait SurgeEngineStatus
 
 object SurgeEngineStatus {
   case object Running extends SurgeEngineStatus
+  case object Starting extends SurgeEngineStatus
   case object Stopped extends SurgeEngineStatus
 }
