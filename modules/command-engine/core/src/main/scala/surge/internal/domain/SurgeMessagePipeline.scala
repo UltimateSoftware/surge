@@ -119,13 +119,13 @@ private[surge] abstract class SurgeMessagePipeline[S, M, E](
     log.debug("Starting Health Signal Stream")
     signalStream.start()
 
-    Future.successful[Ack](Ack())
+    Future.successful[Ack](Ack)
   }
 
   private def stopSignalStream(): Future[Ack] = {
     log.debug("Stopping Health Signal Stream")
     signalBus.signalStream().unsubscribe().stop()
-    Future.successful[Ack](Ack())
+    Future.successful[Ack](Ack)
   }
 
   private def unRegistrationCallback(): PartialFunction[Try[Ack], Unit] = {

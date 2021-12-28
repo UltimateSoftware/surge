@@ -215,14 +215,14 @@ class SurgeMessagePipelineSpec
 
       val result = stopped.futureValue
 
-      result shouldEqual Ack()
+      result shouldEqual Ack
     }
 
     "restart successfully" in {
       val restarted = pipeline.controllable.restart()
 
       val result = restarted.futureValue
-      result shouldEqual Ack()
+      result shouldEqual Ack
     }
 
     "shutdown when kafka streams fails to start too many times" in {
@@ -246,8 +246,8 @@ class SurgeMessagePipelineSpec
     }
 
     "unregister all child components after stopping" in {
-      pipeline.controllable.start().futureValue shouldEqual Ack()
-      pipeline.controllable.stop().futureValue shouldEqual Ack()
+      pipeline.controllable.start().futureValue shouldEqual Ack
+      pipeline.controllable.stop().futureValue shouldEqual Ack
 
       eventually {
         pipeline.signalBus.registrations().futureValue shouldBe empty

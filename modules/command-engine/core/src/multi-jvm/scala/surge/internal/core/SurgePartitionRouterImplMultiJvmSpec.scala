@@ -175,7 +175,7 @@ class SurgePartitionRouterImplSpecBase
     val testContext = createTestContext()
     import testContext._
     "Start router actor successfully" in {
-      partitionRouter.controllable.start().futureValue shouldBe Ack()
+      partitionRouter.controllable.start().futureValue shouldBe Ack
       initializePartitionAssignments(partitionProbe)
     }
 

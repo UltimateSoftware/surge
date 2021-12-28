@@ -81,9 +81,9 @@ class ActorLifecycleManagerActor(
       log.info("Lifecycle manager starting actor named {} for component {}", Seq(actor.prettyPrintPath, componentName): _*)
       context.watch(actor)
       context.become(running(actor))
-      sender() ! Ack()
+      sender() ! Ack
     case ActorLifecycleManagerActor.Stop =>
-      sender() ! Ack()
+      sender() ! Ack
     case ActorLifecycleManagerActor.GetManagedActorPath =>
       sender() ! None
     case msg =>
@@ -94,7 +94,7 @@ class ActorLifecycleManagerActor(
     case ActorLifecycleManagerActor.GetManagedActorPath =>
       sender() ! Some(managedActor.path)
     case ActorLifecycleManagerActor.Start =>
-      sender() ! Ack()
+      sender() ! Ack
     case ActorLifecycleManagerActor.Stop =>
       log.info("Lifecycle manager stopping actor named {} for component {}", Seq(managedActor.prettyPrintPath, componentName): _*)
       stopMessageAdapter match {
@@ -103,7 +103,7 @@ class ActorLifecycleManagerActor(
         case None =>
           gracefulStop(managedActor, defaultStopTimeout)
       }
-      sender() ! Ack()
+      sender() ! Ack
       context.become(stopped)
     case Terminated(actorRef) if actorRef == managedActor =>
       log.info("Lifecycle manager saw actor named {} stop for component {}", Seq(managedActor.prettyPrintPath, componentName): _*)
