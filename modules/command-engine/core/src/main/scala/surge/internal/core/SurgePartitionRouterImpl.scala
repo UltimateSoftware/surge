@@ -141,7 +141,7 @@ private[surge] final class SurgePartitionRouterImpl(
   }
 
   private[surge] override val controllable: Controllable = new Controllable {
-    override def start(): Future[Ack] = Future.successful(Ack())
+    override def start(): Future[Ack] = Future.successful(Ack)
 
     override def restart(): Future[Ack] = {
       for {
@@ -152,7 +152,7 @@ private[surge] final class SurgePartitionRouterImpl(
       }
     }
 
-    override def stop(): Future[Ack] = Future.successful(Ack())
+    override def stop(): Future[Ack] = Future.successful(Ack)
 
     override def shutdown(): Future[Ack] = stop()
 
