@@ -4,7 +4,8 @@ package surge.core
 
 import scala.concurrent.Future
 
-final case class Ack()
+sealed trait Ack
+case object Ack extends Ack
 
 trait ControllableLookup {
   def lookup(identifier: String): Option[Controllable]
@@ -23,11 +24,11 @@ trait Controllable {
 
 class ControllableAdapter extends Controllable {
 
-  override def start(): Future[Ack] = Future.successful[Ack](Ack())
+  override def start(): Future[Ack] = Future.successful[Ack](Ack)
 
-  override def restart(): Future[Ack] = Future.successful[Ack](Ack())
+  override def restart(): Future[Ack] = Future.successful[Ack](Ack)
 
-  override def stop(): Future[Ack] = Future.successful[Ack](Ack())
+  override def stop(): Future[Ack] = Future.successful[Ack](Ack)
 
-  override def shutdown(): Future[Ack] = Future.successful(Ack())
+  override def shutdown(): Future[Ack] = Future.successful(Ack)
 }

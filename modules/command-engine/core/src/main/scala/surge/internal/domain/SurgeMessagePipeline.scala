@@ -8,13 +8,12 @@ import akka.management.cluster.bootstrap.ClusterBootstrap
 import akka.management.scaladsl.AkkaManagement
 import com.typesafe.config.Config
 import org.slf4j.{ Logger, LoggerFactory }
-import play.api.libs.json.JsValue
-import surge.core.{ Ack, Controllable, KafkaProducerActor, SurgePartitionRouter, SurgeProcessingTrait }
+import surge.core._
 import surge.health.{ HealthSignalBusAware, HealthSignalBusTrait }
 import surge.internal.SurgeModel
 import surge.internal.akka.cluster.ActorSystemHostAwareness
 import surge.internal.akka.kafka.{ CustomConsumerGroupRebalanceListener, KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor }
-import surge.internal.health.HealthSignalStreamProvider
+import surge.internal.health.{ HealthCheck, HealthSignalStreamProvider, HealthyComponent, SurgeHealthCheck }
 import surge.internal.kafka.KafkaClusterShardingRebalanceListener
 import surge.internal.persistence.PersistentActorRegionCreator
 import surge.kafka.PartitionAssignments
@@ -59,7 +58,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, E](
   //  Delegate start to pipeline lifecycle.
   override val signalBus: HealthSignalBusTrait = signalStreamProvider.bus()
 
-  protected val kafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue] = new AggregateStateStoreKafkaStreams[JsValue](
+  protected val kafkaStreamsImpl: AggregateStateStoreKafkaStreams = new AggregateStateStoreKafkaStreams(
     aggregateName = businessLogic.aggregateName,
     stateTopic = businessLogic.kafka.stateTopic,
     partitionTrackerProvider = new KafkaStreamsPartitionTrackerActorProvider(stateChangeActor),
@@ -120,13 +119,13 @@ private[surge] abstract class SurgeMessagePipeline[S, M, E](
     log.debug("Starting Health Signal Stream")
     signalStream.start()
 
-    Future.successful[Ack](Ack())
+    Future.successful[Ack](Ack)
   }
 
   private def stopSignalStream(): Future[Ack] = {
     log.debug("Stopping Health Signal Stream")
     signalBus.signalStream().unsubscribe().stop()
-    Future.successful[Ack](Ack())
+    Future.successful[Ack](Ack)
   }
 
   private def unRegistrationCallback(): PartialFunction[Try[Ack], Unit] = {

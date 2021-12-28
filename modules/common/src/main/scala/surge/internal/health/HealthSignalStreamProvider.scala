@@ -4,7 +4,7 @@ package surge.internal.health
 
 import akka.Done
 import akka.actor.{ ActorRef, ActorSystem }
-import surge.health.config.{ HealthSupervisorConfig }
+import surge.health.config.HealthSupervisorConfig
 
 import surge.health.domain.HealthSignal
 import surge.health.matchers.SignalPatternMatcherDefinition

@@ -17,7 +17,7 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatest.{ BeforeAndAfterAll, PartialFunctionValues }
 import org.scalatestplus.mockito.MockitoSugar
-import play.api.libs.json.{ JsValue, Json }
+import play.api.libs.json.Json
 import surge.akka.cluster.Passivate
 import surge.core.{ KafkaProducerActor, TestBoundedContext }
 import surge.exceptions.{ AggregateInitializationException, KafkaPublishTimeoutException }
@@ -30,6 +30,7 @@ import surge.metrics.Metrics
 import java.util.UUID
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
+
 class IsAtLeastOneElementSeq extends ArgumentMatcher[Seq[KafkaProducerActor.MessageToPublish]] {
   def matches(seq: Seq[KafkaProducerActor.MessageToPublish]): Boolean = seq.nonEmpty
 }
@@ -55,7 +56,7 @@ class PersistentActorSpec
   private def testActor(
       aggregateId: String,
       producerActor: KafkaProducerActor,
-      aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue],
+      aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams,
       publishStateOnly: Boolean = false): ActorRef = {
 
     val props = testActorProps(aggregateId, producerActor, aggregateKafkaStreamsImpl, publishStateOnly)
@@ -65,7 +66,7 @@ class PersistentActorSpec
   private def testActorProps(
       aggregateId: String,
       producerActor: KafkaProducerActor,
-      aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue],
+      aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams,
       publishStateOnly: Boolean = false): Props = {
     val metrics = PersistentActor.createMetrics(Metrics.globalMetricRegistry, "testAggregate")
     val aggregateIdToKafkaProducer = (_: String) => producerActor
@@ -85,8 +86,8 @@ class PersistentActorSpec
     PersistentActor.ApplyEvents[BaseTestEvent](event.aggregateId, List(event))
   }
 
-  private def mockKafkaStreams(state: State): AggregateStateStoreKafkaStreams[JsValue] = {
-    val mockStreams = mock[AggregateStateStoreKafkaStreams[JsValue]]
+  private def mockKafkaStreams(state: State): AggregateStateStoreKafkaStreams = {
+    val mockStreams = mock[AggregateStateStoreKafkaStreams]
     when(mockStreams.getAggregateBytes(anyString)).thenReturn(Future.successful(Some(Json.toJson(state).toString().getBytes())))
     when(mockStreams.substatesForAggregate(anyString)(any[ExecutionContext])).thenReturn(Future.successful(List()))
 
@@ -341,7 +342,7 @@ class PersistentActorSpec
 
         val mockProducer = defaultMockProducer
 
-        val mockStreams = mock[AggregateStateStoreKafkaStreams[JsValue]]
+        val mockStreams = mock[AggregateStateStoreKafkaStreams]
         when(mockStreams.getAggregateBytes(anyString)).thenReturn(
           Future.failed[Option[Array[Byte]]](new RuntimeException("This is expected")),
           Future.successful(Some(Json.toJson(baseState).toString().getBytes())))
@@ -356,7 +357,7 @@ class PersistentActorSpec
         val expectedException = new RuntimeException("This is expected")
         val testAggregateId = UUID.randomUUID().toString
         val mockProducer = defaultMockProducer
-        val mockStreams = mock[AggregateStateStoreKafkaStreams[JsValue]]
+        val mockStreams = mock[AggregateStateStoreKafkaStreams]
         when(mockStreams.getAggregateBytes(anyString)).thenReturn(Future.failed[Option[Array[Byte]]](expectedException))
 
         val terminationWatcherProbe = TestProbe()

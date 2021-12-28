@@ -5,14 +5,14 @@ package surge.internal.persistence
 import akka.actor.{ ActorContext, ActorSystem, Props }
 import com.typesafe.config.Config
 import org.apache.kafka.common.TopicPartition
-import play.api.libs.json.JsValue
 import surge.akka.cluster.{ EntityPropsProvider, PerShardLogicProvider }
 import surge.core.{ Ack, Controllable, KafkaProducerActor }
 import surge.health.HealthSignalBusTrait
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
+import surge.internal.health.HealthCheck
 import surge.internal.persistence
 import surge.internal.utils.Logging
-import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, HealthCheck }
+import surge.kafka.streams.AggregateStateStoreKafkaStreams
 import surge.kafka.{ PersistentActorRegionCreator => KafkaPersistentActorRegionCreator }
 import surge.metrics.Metrics
 
@@ -26,7 +26,7 @@ trait PersistentActorPropsFactory[M] extends {
 class PersistentActorRegionCreator[M](
     system: ActorSystem,
     businessLogic: BusinessLogic,
-    kafkaStreamsCommand: AggregateStateStoreKafkaStreams[JsValue],
+    kafkaStreamsCommand: AggregateStateStoreKafkaStreams,
     partitionTracker: KafkaConsumerPartitionAssignmentTracker,
     metrics: Metrics,
     signalBus: HealthSignalBusTrait,
@@ -40,7 +40,7 @@ class PersistentActorRegion[M](
     system: ActorSystem,
     assignedPartition: TopicPartition,
     businessLogic: BusinessLogic,
-    aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams[JsValue],
+    aggregateKafkaStreamsImpl: AggregateStateStoreKafkaStreams,
     partitionTracker: KafkaConsumerPartitionAssignmentTracker,
     metrics: Metrics,
     signalBus: HealthSignalBusTrait,
@@ -69,7 +69,7 @@ class PersistentActorRegion[M](
 
   override def actorProvider(context: ActorContext): EntityPropsProvider[String] = {
     val aggregateMetrics = PersistentActor.createMetrics(metrics, businessLogic.aggregateName)
-    //FIXME: temporary fix to support switch between akka and existing shard allocation strategy
+    // FIXME: temporary fix to support switch between akka and existing shard allocation strategy
     val aggregateIdToKafkaProducer = (_: String) => kafkaProducerActor
     val sharedResources = persistence.PersistentEntitySharedResources(aggregateIdToKafkaProducer, aggregateMetrics, aggregateKafkaStreamsImpl)
 

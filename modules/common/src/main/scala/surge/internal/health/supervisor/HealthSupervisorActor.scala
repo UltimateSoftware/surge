@@ -311,11 +311,11 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, config: 
       state.replyTo.foreach(r => r ! HealthRegistrationReceived(reg))
       context.watch(reg.controlProxyRef)
       context.become(monitoring(state.copy(registered = state.registered + (reg.componentName -> reg.asSupervisedComponentRegistration()))))
-      sender() ! Ack()
+      sender() ! Ack
       getJmxActor.foreach(a => a ! AddComponent(HealthRegistrationDetail(reg.componentName, reg.controlProxyRef.path.toStringWithoutAddress)))
     case remove: UnregisterSupervisedComponentRequest =>
       context.become(monitoring(state.copy(registered = state.registered - remove.componentName)))
-      sender() ! Ack()
+      sender() ! Ack
       getJmxActor.foreach(a => a ! RemoveComponent(remove.componentName))
     case HealthRegistrationDetailsRequest() =>
       sender() ! state.registered.values.toList

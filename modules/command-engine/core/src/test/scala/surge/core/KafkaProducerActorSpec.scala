@@ -18,8 +18,8 @@ import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
 import surge.health.{ HealthSignalBusTrait, InvokableHealthRegistration }
 import surge.internal.akka.actor.ManagedActorRef
+import surge.internal.health.{ HealthCheck, HealthCheckStatus, HealthyActor }
 import surge.internal.kafka.KafkaProducerActorImpl
-import surge.kafka.streams.{ HealthCheck, HealthCheckStatus, HealthyActor }
 import surge.metrics.Metrics
 
 import scala.concurrent.duration._
@@ -45,7 +45,7 @@ class KafkaProducerActorSpec
     def producerMock(testProbe: TestProbe): KafkaProducerActor = {
       val signalBus: HealthSignalBusTrait = Mockito.mock(classOf[HealthSignalBusTrait])
       val invokable: InvokableHealthRegistration = Mockito.mock(classOf[InvokableHealthRegistration])
-      when(invokable.invoke()).thenReturn(Future.successful(Ack()))
+      when(invokable.invoke()).thenReturn(Future.successful(Ack))
       when(signalBus.registration(ArgumentMatchers.any(classOf[Controllable]), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any()))
         .thenReturn(invokable)
       new KafkaProducerActor(ManagedActorRef(testProbe.ref), Metrics.globalMetricRegistry, "test-aggregate-name", new TopicPartition("testTopic", 1), signalBus)

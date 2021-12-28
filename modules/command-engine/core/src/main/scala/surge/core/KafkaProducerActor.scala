@@ -10,10 +10,10 @@ import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.header.Headers
 import org.slf4j.LoggerFactory
 import surge.health.{ HealthSignalBusAware, HealthSignalBusTrait }
-import surge.internal.SurgeModel
 import surge.internal.akka.actor.{ ActorLifecycleManagerActor, ManagedActorRef }
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.config.TimeoutConfig
+import surge.internal.health.{ HealthCheck, HealthCheckStatus, HealthyActor, HealthyComponent }
 import surge.internal.kafka.KafkaProducerActorImpl.ShutdownProducer
 import surge.internal.kafka.{ KTableLagCheckerImpl, KafkaProducerActorImpl, PartitionerHelper }
 import surge.internal.persistence.BusinessLogic
@@ -28,13 +28,13 @@ import scala.util.{ Failure, Success, Try }
 object KafkaProducerActor {
   private val dispatcherName: String = "kafka-publisher-actor-dispatcher"
 
-  //scalastyle:off parameter.number
+  // scalastyle:off parameter.number
   def apply(
       actorSystem: ActorSystem,
       assignedPartition: TopicPartition,
       metrics: Metrics,
       businessLogic: BusinessLogic,
-      kStreams: AggregateStateStoreKafkaStreams[_],
+      kStreams: AggregateStateStoreKafkaStreams,
       partitionTracker: KafkaConsumerPartitionAssignmentTracker,
       signalBus: HealthSignalBusTrait,
       config: Config,
@@ -70,7 +70,7 @@ object KafkaProducerActor {
       actorSystem: ActorSystem,
       metrics: Metrics,
       businessLogic: BusinessLogic,
-      kStreams: AggregateStateStoreKafkaStreams[_],
+      kStreams: AggregateStateStoreKafkaStreams,
       partitionTracker: KafkaConsumerPartitionAssignmentTracker,
       signalBus: HealthSignalBusTrait,
       config: Config,
