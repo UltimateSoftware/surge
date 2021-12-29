@@ -59,11 +59,11 @@ class KafkaStreamManagerActor(surgeConsumer: SurgeStateStoreConsumer, partitionT
   private def stopped: Receive = {
     case Start =>
       start()
-      sender() ! Ack()
+      sender() ! Ack
     case GetHealth =>
       sender() ! getHealth(HealthCheckStatus.DOWN)
     case Stop =>
-      sender() ! Ack()
+      sender() ! Ack
     case KafkaStreamError(t) =>
       handleError(t)
   }
@@ -76,7 +76,7 @@ class KafkaStreamManagerActor(surgeConsumer: SurgeStateStoreConsumer, partitionT
       context.become(running(stream, queryableStore))
     case Stop =>
       stop(stream)
-      sender() ! Ack()
+      sender() ! Ack
     case GetHealth =>
       val status = if (stream.state().isRunningOrRebalancing) HealthCheckStatus.UP else HealthCheckStatus.DOWN
       sender() ! getHealth(status)
@@ -96,9 +96,9 @@ class KafkaStreamManagerActor(surgeConsumer: SurgeStateStoreConsumer, partitionT
       sender() ! getHealth(status)
     case Stop =>
       stop(stream)
-      sender() ! Ack()
+      sender() ! Ack
     case Start =>
-      sender() ! Ack()
+      sender() ! Ack
     case KafkaStreamError(t) =>
       handleError(t)
   }
