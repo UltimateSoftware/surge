@@ -56,8 +56,10 @@ object HostAssignmentTracker {
     override def receive: Receive = uninitialized()
 
     private def uninitialized(): Receive = {
-      case msg: UpdateState => handleUpdateState(ClusterState(Map.empty), msg)
-      case _                => stash()
+      case msg: UpdateState =>
+        handleUpdateState(ClusterState(Map.empty), msg)
+        unstashAll()
+      case _ => stash()
     }
 
     private def receiveWithState(state: ClusterState): Receive = {
@@ -73,7 +75,6 @@ object HostAssignmentTracker {
       val newStateMap = clusterState.state + (update.partition -> update.hostPort)
       val newClusterState = clusterState.copy(state = newStateMap)
       context.become(receiveWithState(newClusterState))
-      unstashAll()
     }
   }
 }
