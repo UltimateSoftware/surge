@@ -3,9 +3,9 @@
 import Dependencies.autoImport.OpenTelemetry.{ HoneycombSample, JaegerSample }
 import sbt.Keys._
 
-ThisBuild / scalaVersion := "2.13.5"
+ThisBuild / scalaVersion := "2.13.7"
 
-ThisBuild / crossScalaVersions := Seq("2.13.5", "2.12.15")
+ThisBuild / crossScalaVersions := Seq("2.13.7", "2.12.15")
 
 ThisBuild / dynverSonatypeSnapshots := true
 
