@@ -118,7 +118,7 @@ class HealthSupervisorActorSpec
       val control = new ControllableAdapter() {
         override def stop(): Future[Ack] = Future {
           stopProbe.ref ! ShutdownComponent(componentName, probe.ref)
-          Ack()
+          Ack
         }(system.dispatcher)
       }
 
@@ -181,7 +181,7 @@ class HealthSupervisorActorSpec
       val control = new ControllableAdapter() {
         override def restart(): Future[Ack] = Future {
           restartProbe.ref ! RestartComponent(componentName, probe.ref)
-          Ack()
+          Ack
         }(system.dispatcher)
       }
 

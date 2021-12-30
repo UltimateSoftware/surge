@@ -69,7 +69,7 @@ class PersistentActorRegion[M](
 
   override def actorProvider(context: ActorContext): EntityPropsProvider[String] = {
     val aggregateMetrics = PersistentActor.createMetrics(metrics, businessLogic.aggregateName)
-    //FIXME: temporary fix to support switch between akka and existing shard allocation strategy
+    // FIXME: temporary fix to support switch between akka and existing shard allocation strategy
     val aggregateIdToKafkaProducer = (_: String) => kafkaProducerActor
     val sharedResources = persistence.PersistentEntitySharedResources(aggregateIdToKafkaProducer, aggregateMetrics, aggregateKafkaStreamsImpl)
 

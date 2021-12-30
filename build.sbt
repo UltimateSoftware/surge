@@ -7,6 +7,8 @@ ThisBuild / scalaVersion := "2.13.7"
 
 ThisBuild / crossScalaVersions := Seq("2.13.7", "2.12.12")
 
+ThisBuild / dynverSonatypeSnapshots := true
+
 publish / skip := true
 
 lazy val unitTest = taskKey[Unit]("Runs only the unit tests")
@@ -51,7 +53,7 @@ lazy val `surge-common` = (project in file("modules/common"))
       Akka.akkaStreamTestKit,
       embeddedKafka,
       junit,
-      logback,
+      logbackForTesting,
       scalatest,
       scalatestPlusMockito,
       mockitoCore))
@@ -79,7 +81,7 @@ lazy val `surge-engine-command-core` = (project in file("modules/command-engine/
       scalatestPlusMockito,
       embeddedKafka,
       OpenTelemetry.api,
-      logback,
+      logbackForTesting,
       typesafeConfig))
   .enablePlugins(MultiJvmPlugin)
   .configs(MultiJvm)
@@ -99,7 +101,7 @@ lazy val `surge-engine-multilanguage` =
   (project in file("modules/multilanguage"))
     .dependsOn(`surge-engine-command-scaladsl`, `surge-engine-multilanguage-protocol`)
     .settings(
-      libraryDependencies ++= Seq(Akka.discovery, Akka.slf4j, Akka.http, logback, slf4jApi, Akka.testKit, scalatest, embeddedKafka),
+      libraryDependencies ++= Seq(Akka.discovery, Akka.slf4j, Akka.http, logbackForTesting, slf4jApi, Akka.testKit, scalatest, embeddedKafka),
       publish / skip := true)
     .enablePlugins(JavaServerAppPackaging)
 
@@ -112,7 +114,7 @@ lazy val `surge-engine-multilanguage-scala-sdk` =
 lazy val `surge-engine-multilanguage-scala-sdk-sample` =
   (project in file("modules/multilanguage-scala-sdk-sample"))
     .settings(
-      libraryDependencies ++= Seq(Akka.http, Akka.discovery, Akka.stream, Akka.protobufV3, Akka.slf4j, logback, slf4jApi, json4s),
+      libraryDependencies ++= Seq(Akka.http, Akka.discovery, Akka.stream, Akka.protobufV3, Akka.slf4j, logbackForTesting, slf4jApi, json4s),
       publish / skip := true)
     .dependsOn(`surge-engine-multilanguage-scala-sdk`)
     .enablePlugins(JavaServerAppPackaging)
@@ -140,7 +142,7 @@ lazy val `surge-docs` = (project in file("modules/surge-docs"))
     libraryDependencies ++= Seq(
       typesafeConfig,
       embeddedKafka,
-      logback,
+      logbackForTesting,
       scalatest,
       scalatestPlusMockito,
       mockitoCore,
@@ -165,7 +167,7 @@ lazy val `surge` = project
     `surge-engine-multilanguage`,
     `surge-engine-multilanguage-scala-sdk`,
     `surge-engine-multilanguage-scala-sdk-sample`)
-  .settings(publish / skip := true, ReleaseSettings.settings)
+  .settings(publish / skip := true)
   .disablePlugins(MimaPlugin)
 
 addCommandAlias("codeFormat", ";headerCreate;test:headerCreate;scalafmtAll;scalafmtSbt")

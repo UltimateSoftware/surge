@@ -147,7 +147,7 @@ class Shard[IdType](shardId: String, regionLogicProvider: PerShardLogicProvider[
   }
 
   private def sendMsgBuffer(entityId: IdType): Unit = {
-    //Get the buffered messages and remove the buffer
+    // Get the buffered messages and remove the buffer
     val messages = messageBuffers.getOrEmpty(entityId)
     messageBuffers.remove(entityId)
 

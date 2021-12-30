@@ -94,7 +94,7 @@ object NoopInvokableHealthRegistration {
 
 private class NoopInvokableHealthRegistration(healthRegistration: HealthRegistration) extends InvokableHealthRegistration {
   override def invoke(): Future[Ack] = {
-    Future.successful[Ack](Ack())
+    Future.successful[Ack](Ack)
   }
 
   override def underlyingRegistration(): HealthRegistration = healthRegistration
@@ -195,7 +195,7 @@ private[surge] class HealthSignalBusImpl(
     buffer.clear()
   }
 
-  //Note: Bug Fix for EventBus - for NullPointerException when no subscribers exist that match the classification.
+  // Note: Bug Fix for EventBus - for NullPointerException when no subscribers exist that match the classification.
   override def publish(event: Event): Unit = {
     val i = Try { subscribers.valueIterator(classify(event)) }.toOption.getOrElse(Seq.empty.iterator)
     while (i.hasNext) publish(event, i.next())
@@ -291,7 +291,7 @@ private[surge] class HealthSignalBusImpl(
       case Some(exists) =>
         exists.unregister(componentName)
       case None =>
-        Future.successful(Ack())
+        Future.successful(Ack)
     }
   }
 
