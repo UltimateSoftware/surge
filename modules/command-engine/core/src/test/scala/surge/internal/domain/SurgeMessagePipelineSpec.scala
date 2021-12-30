@@ -12,7 +12,7 @@ import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Milliseconds, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
-import org.scalatest.{ BeforeAndAfterAll, PrivateMethodTester }
+import org.scalatest.{ BeforeAndAfterAll, Ignore, PrivateMethodTester }
 import surge.core.TestBoundedContext.{ BaseTestCommand, BaseTestEvent, State }
 import surge.core.{ Ack, TestBoundedContext }
 import surge.health.config.{ ThrottleConfig, WindowingStreamConfig, WindowingStreamSliderConfig }
@@ -99,8 +99,9 @@ trait SurgeMessagePipelineSpecLike extends TestBoundedContext {
       override def shutdownSignalPatterns(): Seq[Pattern] = Seq(Pattern.compile("kafka.streams.fatal.retries.exceeded.error"))
     }
   }
-
 }
+
+@Ignore
 class SurgeMessagePipelineSpec
     extends TestKit(ActorSystem("SurgeMessagePipelineSpec", ConfigFactory.load("artery-test-config")))
     with AnyWordSpecLike
