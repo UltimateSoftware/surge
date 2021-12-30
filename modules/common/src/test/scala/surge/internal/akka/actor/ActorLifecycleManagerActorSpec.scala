@@ -39,7 +39,7 @@ class ActorLifecycleManagerActorSpec
         stopMessageAdapter = Some(() => StopIt),
         componentName = "testComponent")
 
-      managed.start().futureValue shouldEqual Ack()
+      managed.start().futureValue shouldEqual Ack
     }
 
     "gracefully stop actor" in {
