@@ -48,7 +48,6 @@ class MultilanguageGatewayServiceImplSpec
 
   val testSurgeEngine: SurgeCommand[UUID, SurgeState, SurgeCmd, SurgeEvent] = {
     val engine = SurgeCommand(system, genericSurgeCommandBusinessLogic, system.settings.config)
-    engine.start()
     logger.info("Started engine!")
     engine
   }
@@ -63,11 +62,12 @@ class MultilanguageGatewayServiceImplSpec
 
     createCustomTopic(eventsTopicName, partitions = 3)
     createCustomTopic(stateTopicName, partitions = 3, topicConfig = Map(TopicConfig.CLEANUP_POLICY_CONFIG -> TopicConfig.CLEANUP_POLICY_COMPACT))
+    testSurgeEngine.start()
   }
 
   override def afterAll(): Unit = {
-    EmbeddedKafka.stop()
     testSurgeEngine.stop()
+    EmbeddedKafka.stop()
     TestKit.shutdownActorSystem(system)
     super.afterAll()
   }
