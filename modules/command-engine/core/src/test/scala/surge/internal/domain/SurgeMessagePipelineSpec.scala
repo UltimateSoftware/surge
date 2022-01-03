@@ -101,6 +101,7 @@ trait SurgeMessagePipelineSpecLike extends TestBoundedContext {
   }
 }
 
+@Ignore
 class SurgeMessagePipelineSpec
     extends TestKit(ActorSystem("SurgeMessagePipelineSpec", ConfigFactory.load("artery-test-config")))
     with AnyWordSpecLike
@@ -132,10 +133,8 @@ class SurgeMessagePipelineSpec
   }
 
   override def afterAll(): Unit = {
-    EmbeddedKafka.stop()
     pipeline.controllable.stop().futureValue shouldBe an[Ack]
-    // FIXME verifySystemShutdown should be true, but this does not shut down in a reasonable amount of time
-    TestKit.shutdownActorSystem(system, duration = 30.seconds, verifySystemShutdown = false)
+    TestKit.shutdownActorSystem(system, verifySystemShutdown = true)
     super.afterAll()
   }
 
@@ -248,11 +247,10 @@ class SurgeMessagePipelineSpec
 
     "unregister all child components after stopping" in {
       pipeline.controllable.start().futureValue shouldEqual Ack
-      val acknowledgedStop: Ack = pipeline.controllable.stop().futureValue
-      acknowledgedStop shouldEqual Ack
+      pipeline.controllable.stop().futureValue shouldEqual Ack
 
       eventually {
-        pipeline.signalBus.registrations().futureValue.isEmpty shouldEqual true
+        pipeline.signalBus.registrations().futureValue shouldBe empty
       }
     }
   }
