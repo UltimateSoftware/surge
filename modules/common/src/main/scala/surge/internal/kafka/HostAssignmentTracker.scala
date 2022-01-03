@@ -2,7 +2,7 @@
 
 package surge.internal.kafka
 
-import akka.actor.{ Actor, ActorSystem, BootstrapSetup, Props, ProviderSelection }
+import akka.actor.{ Actor, ActorSystem, BootstrapSetup, Props, ProviderSelection, Stash }
 import akka.pattern._
 import akka.util.Timeout
 import org.apache.kafka.common.TopicPartition
@@ -52,8 +52,15 @@ object HostAssignmentTracker {
   private case object ClearState
 
   private case class ClusterState(state: Map[TopicPartition, HostPort])
-  private class HostAssignmentTrackerImpl extends Actor {
-    override def receive: Receive = receiveWithState(ClusterState(Map.empty))
+  private class HostAssignmentTrackerImpl extends Actor with Stash {
+    override def receive: Receive = uninitialized()
+
+    private def uninitialized(): Receive = {
+      case msg: UpdateState =>
+        handleUpdateState(ClusterState(Map.empty), msg)
+        unstashAll()
+      case _ => stash()
+    }
 
     private def receiveWithState(state: ClusterState): Receive = {
       case msg: UpdateState   => handleUpdateState(state, msg)

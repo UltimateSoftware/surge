@@ -25,7 +25,7 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event](
     val aggregateId: AggId,
     protected val region: ActorRef,
     protected val tracer: Tracer,
-    engineStatus: () => SurgeEngineStatus)
+    getEngineStatus: () => SurgeEngineStatus)
     extends AggregateRef[Agg, Cmd, Event]
     with AggregateRefBaseTrait[AggId, Agg, Cmd, Event]
     with AggregateRefTrait[AggId, Agg, Cmd, Event] {
@@ -34,7 +34,7 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event](
   private val log: Logger = LoggerFactory.getLogger(getClass)
 
   override def getState: Future[Option[Agg]] = {
-    val status = engineStatus()
+    val status = getEngineStatus()
 
     if (status == SurgeEngineStatus.Running) {
       queryState
@@ -45,7 +45,7 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event](
   }
 
   def sendCommand(command: Cmd): Future[CommandResult[Agg]] = {
-    val status = engineStatus()
+    val status = getEngineStatus()
 
     if (status == SurgeEngineStatus.Running) {
       val envelope = PersistentActor.ProcessMessage[Cmd](aggregateId.toString, command)
@@ -53,7 +53,7 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event](
         CommandFailure[Agg](error)
       }
     } else {
-      log.error(s"Engine Status: $engineStatus")
+      log.error(s"Engine Status: $getEngineStatus")
       Future.failed(SurgeEngineNotRunningException("The engine is not running, please call .start() on the engine before interacting with it"))
     }
   }

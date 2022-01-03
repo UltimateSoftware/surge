@@ -14,7 +14,7 @@ import com.ukg.surge.multilanguage.protobuf._
 import io.github.embeddedkafka.EmbeddedKafka._
 import io.github.embeddedkafka.{ EmbeddedKafka, EmbeddedKafkaConfig }
 import org.apache.kafka.common.config.TopicConfig
-import org.scalatest.BeforeAndAfterAll
+import org.scalatest.{ BeforeAndAfterAll, Ignore }
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AsyncWordSpecLike

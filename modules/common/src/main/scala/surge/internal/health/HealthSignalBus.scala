@@ -94,7 +94,7 @@ object NoopInvokableHealthRegistration {
 
 private class NoopInvokableHealthRegistration(healthRegistration: HealthRegistration) extends InvokableHealthRegistration {
   override def invoke(): Future[Ack] = {
-    Future.successful[Ack](Ack())
+    Future.successful[Ack](Ack)
   }
 
   override def underlyingRegistration(): HealthRegistration = healthRegistration
@@ -291,7 +291,7 @@ private[surge] class HealthSignalBusImpl(
       case Some(exists) =>
         exists.unregister(componentName)
       case None =>
-        Future.successful(Ack())
+        Future.successful(Ack)
     }
   }
 
