@@ -2,7 +2,7 @@
 
 package surge.internal.kafka
 
-import akka.actor.{ Actor, ActorRef, Props }
+import akka.actor.{ Actor, ActorRef, Address, Props }
 import akka.cluster.Cluster
 import akka.cluster.sharding.external.ExternalShardAllocation
 import org.apache.kafka.common.TopicPartition
@@ -31,7 +31,10 @@ class KafkaClusterShardingRebalanceListener(
 
   private case class StatePlusRegion(state: ActorState, kafkaProducerRegion: Option[KafkaProducerActor])
 
-  private case class ActorState(partitionAssignments: PartitionAssignments, partitionKafkaProducerRegions: Map[Int, KafkaProducerActor]) {
+  private case class ActorState(
+      partitionAssignments: PartitionAssignments,
+      partitionKafkaProducerRegions: Map[Int, KafkaProducerActor],
+      joinedSeedNodes: List[Address]) {
     def partitionsToHosts: Map[Int, HostPort] = {
       partitionAssignments.topicPartitionsToHosts.map { case (tp, host) =>
         tp.partition() -> host
@@ -133,13 +136,30 @@ class KafkaClusterShardingRebalanceListener(
 
   private def handle(partitionAssignments: PartitionAssignments): Unit = {
     if (partitionAssignments.topicPartitionsToHosts.nonEmpty) {
-      val emptyState = ActorState(PartitionAssignments.empty, Map.empty)
+      val emptyState = ActorState(PartitionAssignments.empty, Map.empty, List.empty)
       handle(emptyState, partitionAssignments)
     }
   }
 
   private def handle(state: ActorState, partitionAssignments: PartitionAssignments): Unit = {
-    val newStateWithPartitionAssignments = state.updatePartitionAssignments(partitionAssignments)
+    val cluster = Cluster.get(actorSystem)
+    val joinedSeedNodes = state.joinedSeedNodes
+    val seedNodesOfPartitionAssignment =
+      partitionAssignments.partitionAssignments.keys.map(hostPort => cluster.selfAddress.copy(host = Some(hostPort.host), port = Some(hostPort.port))).toList
+    val newSeedNodes = seedNodesOfPartitionAssignment.collect {
+      case address: Address if !isAddressThisNode(address) && !joinedSeedNodes.contains(address) => address
+    }
+    val updatedJoinSeedNodes = joinedSeedNodes.filter(seedNode => seedNodesOfPartitionAssignment.contains(seedNode)) ++ newSeedNodes
+
+    val currentClusterAddress = cluster.selfAddress
+    val isLowestAddressNode = !updatedJoinSeedNodes.flatMap(_.host).exists(host => host < currentClusterAddress.host.getOrElse("localhost"))
+    if (isLowestAddressNode && joinedSeedNodes.isEmpty) {
+      cluster.join(currentClusterAddress)
+    } else if (newSeedNodes.nonEmpty) {
+      cluster.joinSeedNodes(newSeedNodes)
+    }
+
+    val newStateWithPartitionAssignments = state.updatePartitionAssignments(partitionAssignments).copy(joinedSeedNodes = updatedJoinSeedNodes)
 
     val updatedTopicPartitions = newStateWithPartitionAssignments.partitionAssignments.partitionAssignments.collect {
       case (hostPort, topicPartitions) if isHostPortThisNode(hostPort) => topicPartitions
