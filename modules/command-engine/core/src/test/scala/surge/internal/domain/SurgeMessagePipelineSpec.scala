@@ -23,6 +23,7 @@ import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.core.SurgePartitionRouterImpl
 import surge.internal.health.StreamMonitoringRef
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
+import surge.internal.utils.DiagnosticContextFuturePropagation
 import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, MockPartitionTracker }
 import surge.metrics.Metrics
 
@@ -34,6 +35,8 @@ trait SurgeMessagePipelineSpecLike extends TestBoundedContext {
   implicit def actorSystem: ActorSystem
 
   def defaultConfig: Config
+
+  implicit val ec = DiagnosticContextFuturePropagation.global
 
   case class TestContext(
       probe: TestProbe,

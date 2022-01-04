@@ -8,6 +8,7 @@ import surge.javadsl.common._
 
 import java.util.Optional
 import java.util.concurrent.CompletionStage
+import scala.concurrent.ExecutionContext
 
 trait AggregateRef[Agg, Event] {
   def getState: CompletionStage[Optional[Agg]]
@@ -15,6 +16,7 @@ trait AggregateRef[Agg, Event] {
   def applyEvents(events: Seq[Event]): CompletionStage[ApplyEventResult[Agg]]
 }
 
-class AggregateRefImpl[AggId, Agg, Event](val aggregateId: AggId, protected val region: ActorRef, protected val tracer: Tracer)
+class AggregateRefImpl[AggId, Agg, Event](val aggregateId: AggId, protected val region: ActorRef, protected val tracer: Tracer)(
+    implicit val ec: ExecutionContext)
     extends AggregateRef[Agg, Event]
     with AggregateRefBaseTrait[AggId, Agg, Nothing, Event]

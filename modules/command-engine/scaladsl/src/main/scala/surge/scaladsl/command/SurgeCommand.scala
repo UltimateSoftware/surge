@@ -17,6 +17,7 @@ import surge.metrics.Metric
 import surge.scaladsl.common.HealthCheckTrait
 
 import scala.concurrent.Future
+import scala.concurrent.ExecutionContext
 
 trait SurgeCommand[AggId, Agg, Command, Evt] extends core.SurgeProcessingTrait[Agg, Command, Evt] with HealthCheckTrait {
   def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Command, Evt]
@@ -30,14 +31,13 @@ trait SurgeCommand[AggId, Agg, Command, Evt] extends core.SurgeProcessingTrait[A
 }
 
 object SurgeCommand {
-  def apply[AggId, Agg, Command, Event](businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Event]): SurgeCommand[AggId, Agg, Command, Event] = {
+  def apply[AggId, Agg, Command, Event](businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Event])(
+      implicit ec: ExecutionContext): SurgeCommand[AggId, Agg, Command, Event] = {
     val actorSystem = ActorSystem(s"${businessLogic.aggregateName}ActorSystem")
     apply(actorSystem, businessLogic, businessLogic.config)
   }
-  def apply[AggId, Agg, Command, Event](
-      actorSystem: ActorSystem,
-      businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Event],
-      config: Config): SurgeCommand[AggId, Agg, Command, Event] = {
+  def apply[AggId, Agg, Command, Event](actorSystem: ActorSystem, businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Event], config: Config)(
+      implicit ec: ExecutionContext): SurgeCommand[AggId, Agg, Command, Event] = {
     new SurgeCommandImpl(
       actorSystem,
       SurgeCommandModel(businessLogic),
@@ -52,7 +52,7 @@ private[scaladsl] class SurgeCommandImpl[AggId, Agg, Command, Event](
     override val businessLogic: SurgeCommandModel[Agg, Command, Event],
     signalStreamProvider: HealthSignalStreamProvider,
     aggIdToString: AggId => String,
-    override val config: Config)
+    override val config: Config)(implicit ec: ExecutionContext)
     extends domain.SurgeCommandImpl[Agg, Command, Event](actorSystem, businessLogic, signalStreamProvider, config)
     with SurgeCommand[AggId, Agg, Command, Event] {
 

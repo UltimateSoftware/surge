@@ -23,6 +23,8 @@ import surge.internal.health.{ HealthCheck, HealthCheckStatus }
 import surge.internal.tracing.{ NoopTracerFactory, TracedMessage }
 
 import scala.concurrent.Future
+import scala.concurrent.ExecutionContext
+import surge.internal.utils.DiagnosticContextFuturePropagation
 
 object KafkaPartitionShardRouterActorSpecModels {
   case class Command(id: String)
@@ -57,6 +59,8 @@ trait KafkaPartitionShardRouterActorSpecLike extends MockitoSugar {
 
   implicit val system: ActorSystem
 
+  protected implicit def ec: ExecutionContext
+
   private val defaultConfig = ConfigFactory.load()
 
   val partitionAssignments: Map[HostPort, List[TopicPartition]]
@@ -90,7 +94,7 @@ trait KafkaPartitionShardRouterActorSpecLike extends MockitoSugar {
         partitionTracker = new KafkaConsumerPartitionAssignmentTracker(partitionProbe.ref),
         kafkaStateProducer = producer,
         regionCreator = new ProbeInterceptorRegionCreator(regionProbe),
-        extractEntityId = extractEntityId)(tracer))
+        extractEntityId = extractEntityId)(tracer, ec))
 
     TestContext(partitionProbe = partitionProbe, regionProbe = regionProbe, shardRouterProps = shardRouterProps)
   }
@@ -111,6 +115,8 @@ class KafkaPartitionShardRouterActorSpec
   import KafkaPartitionShardRouterActorSpecModels._
 
   override val actorSystem: ActorSystem = system
+
+  implicit val ec = DiagnosticContextFuturePropagation.global
 
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system, verifySystemShutdown = true)

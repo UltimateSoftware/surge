@@ -18,8 +18,9 @@ import surge.metrics.Metric
 
 import java.util.concurrent.CompletionStage
 import scala.compat.java8.FutureConverters
-import scala.concurrent.ExecutionContext.Implicits.global
+
 import scala.jdk.CollectionConverters._
+import scala.concurrent.ExecutionContext
 
 trait SurgeCommand[AggId, Agg, Command, Evt] extends core.SurgeProcessingTrait[Agg, Command, Evt] with HealthCheckTrait {
   def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Command, Evt]
@@ -32,15 +33,14 @@ trait SurgeCommand[AggId, Agg, Command, Evt] extends core.SurgeProcessingTrait[A
 }
 
 object SurgeCommand {
-  def create[AggId, Agg, Command, Evt](businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Evt]): SurgeCommand[AggId, Agg, Command, Evt] = {
+  def create[AggId, Agg, Command, Evt](businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Evt])(
+      implicit ec: ExecutionContext): SurgeCommand[AggId, Agg, Command, Evt] = {
     val actorSystem = ActorSystem(s"${businessLogic.aggregateName}ActorSystem")
     create(actorSystem, businessLogic, businessLogic.config)
   }
 
-  def create[AggId, Agg, Command, Evt](
-      actorSystem: ActorSystem,
-      businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Evt],
-      config: Config): SurgeCommand[AggId, Agg, Command, Evt] = {
+  def create[AggId, Agg, Command, Evt](actorSystem: ActorSystem, businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Evt], config: Config)(
+      implicit ec: ExecutionContext): SurgeCommand[AggId, Agg, Command, Evt] = {
     new SurgeCommandImpl(
       actorSystem,
       SurgeCommandModel(businessLogic),
@@ -55,7 +55,7 @@ private[javadsl] class SurgeCommandImpl[AggId, Agg, Command, Evt](
     override val businessLogic: SurgeCommandModel[Agg, Command, Evt],
     signalStreamProvider: HealthSignalStreamProvider,
     aggIdToString: AggId => String,
-    config: Config)
+    config: Config)(implicit ec: ExecutionContext)
     extends domain.SurgeCommandImpl[Agg, Command, Evt](actorSystem, businessLogic, signalStreamProvider, config)
     with SurgeCommand[AggId, Agg, Command, Evt] {
 

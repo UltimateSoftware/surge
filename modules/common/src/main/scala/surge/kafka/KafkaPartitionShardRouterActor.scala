@@ -20,6 +20,7 @@ import surge.internal.tracing.TracedMessage
 import java.time.Instant
 import scala.concurrent.Future
 import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext
 
 object KafkaPartitionShardRouterActor {
   def props[Agg, Command, Event](
@@ -29,7 +30,7 @@ object KafkaPartitionShardRouterActor {
       trackedTopic: KafkaTopic,
       regionCreator: PersistentActorRegionCreator[String],
       extractEntityId: PartialFunction[Any, String],
-      kafkaProducerOverride: Option[KafkaProducerTrait[String, Array[Byte]]] = None)(tracer: Tracer): Props = {
+      kafkaProducerOverride: Option[KafkaProducerTrait[String, Array[Byte]]] = None)(tracer: Tracer, ec: ExecutionContext): Props = {
 
     // This producer is only used for determining partition assignments, not actually producing
     val producer = kafkaProducerOverride match {
@@ -39,7 +40,7 @@ object KafkaPartitionShardRouterActor {
         KafkaProducer.bytesProducer(config, brokers, trackedTopic, partitioner)
     }
 
-    Props(new KafkaPartitionShardRouterActor(config, partitionTracker, producer, regionCreator, extractEntityId)(tracer))
+    Props(new KafkaPartitionShardRouterActor(config, partitionTracker, producer, regionCreator, extractEntityId)(tracer, ec))
   }
   case object GetPartitionRegionAssignments
   case object Shutdown
@@ -74,7 +75,7 @@ class KafkaPartitionShardRouterActor(
     partitionTracker: KafkaConsumerPartitionAssignmentTracker,
     kafkaStateProducer: KafkaProducerTrait[String, _],
     regionCreator: PersistentActorRegionCreator[String],
-    extractEntityId: PartialFunction[Any, String])(implicit val tracer: Tracer)
+    extractEntityId: PartialFunction[Any, String])(implicit val tracer: Tracer, ec: ExecutionContext)
     extends ActorWithTracing
     with Stash
     with ActorHostAwareness {
@@ -256,7 +257,7 @@ class KafkaPartitionShardRouterActor(
           val region = regionCreator.regionFromTopicPartition(topicPartition)
           region.controllable.start()
 
-          val shardProps = Shard.props(topicPartition.toString, region, extractEntityId)(tracer)
+          val shardProps = Shard.props(topicPartition.toString, region, extractEntityId)(tracer, ec)
 
           val newActor = context.system.actorOf(shardProps)
           context.watch(newActor)

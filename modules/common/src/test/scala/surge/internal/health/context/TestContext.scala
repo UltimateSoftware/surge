@@ -11,9 +11,10 @@ import surge.health.{ HealthSignalListener, HealthSignalStream, SignalHandler }
 import surge.internal.health._
 
 import scala.util.Try
+import scala.concurrent.ExecutionContext
 
 object TestContext {
-  def testHealthSignalStreamProvider(patternMatchers: Seq[SignalPatternMatcherDefinition]): HealthSignalStreamProvider = {
+  def testHealthSignalStreamProvider(patternMatchers: Seq[SignalPatternMatcherDefinition])(implicit ec: ExecutionContext): HealthSignalStreamProvider = {
     new TestHealthSignalStreamProvider(patternMatchers)
   }
 }
@@ -51,7 +52,7 @@ class TestHealthSignalStream(bus: HealthSignalBusInternal, matchers: Seq[SignalP
 
 class TestHealthSignalStreamProvider(
     override val patternMatchers: Seq[SignalPatternMatcherDefinition] = Seq.empty,
-    override val actorSystem: ActorSystem = ActorSystem("TestHealthSignalStream"))
+    override val actorSystem: ActorSystem = ActorSystem("TestHealthSignalStream"))(implicit val ec: ExecutionContext)
     extends HealthSignalStreamProvider {
   override def provide(bus: HealthSignalBusInternal): HealthSignalStream =
     new TestHealthSignalStream(bus, this.patternMatchers, actorSystem)

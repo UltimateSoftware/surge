@@ -14,11 +14,12 @@ import surge.scaladsl.command.SurgeCommand
 import java.util.UUID
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.language.implicitConversions
+import surge.internal.utils.DiagnosticContextFuturePropagation
 
 class MultilanguageGatewayServer(system: ActorSystem) {
 
   implicit val sys: ActorSystem = system
-  implicit val ec: ExecutionContext = sys.dispatcher
+  implicit val ec = DiagnosticContextFuturePropagation.global
 
   private val logger: LoggingAdapter = Logging(system, classOf[MultilanguageGatewayServer])
   private val config = ConfigFactory.load()

@@ -18,6 +18,7 @@ import surge.health.matchers.SignalPatternMatcherDefinition.SignalNameEqualsMatc
 import surge.health.windows._
 import surge.internal.health.windows.WindowSlider
 import surge.internal.health.{ HealthSignalBus, HealthSignalBusInternal }
+import scala.concurrent.ExecutionContext.Implicits.global
 
 import scala.concurrent.duration._
 

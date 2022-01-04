@@ -13,6 +13,7 @@ import surge.internal.health.HealthSignalStreamProvider
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
 import surge.metrics.Metric
 import surge.scaladsl.common.HealthCheckTrait
+import scala.concurrent.ExecutionContext
 
 trait SurgeEvent[AggId, Agg, Evt] extends core.SurgeProcessingTrait[Agg, Nothing, Evt] with HealthCheckTrait {
   def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Evt]
@@ -21,7 +22,7 @@ trait SurgeEvent[AggId, Agg, Evt] extends core.SurgeProcessingTrait[Agg, Nothing
 }
 
 object SurgeEvent {
-  def create[AggId, Agg, Evt](businessLogic: SurgeEventBusinessLogic[AggId, Agg, Evt]): SurgeEvent[AggId, Agg, Evt] = {
+  def create[AggId, Agg, Evt](businessLogic: SurgeEventBusinessLogic[AggId, Agg, Evt])(implicit ec: ExecutionContext): SurgeEvent[AggId, Agg, Evt] = {
     val actorSystem = ActorSystem(s"${businessLogic.aggregateName}ActorSystem")
     new SurgeEventImpl(
       actorSystem,
@@ -41,7 +42,7 @@ private[scaladsl] class SurgeEventImpl[AggId, Agg, Evt](
     override val businessLogic: SurgeEventServiceModel[Agg, Evt],
     signalStreamProvider: HealthSignalStreamProvider,
     aggIdToString: AggId => String,
-    config: Config)
+    config: Config)(implicit ec: ExecutionContext)
     extends SurgeEventServiceImpl[Agg, Evt](actorSystem, businessLogic, signalStreamProvider, config)
     with SurgeEvent[AggId, Agg, Evt] {
 

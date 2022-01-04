@@ -40,10 +40,9 @@ private[surge] final class SurgePartitionRouterImpl(
     regionCreator: PersistentActorRegionCreator[String],
     signalBus: HealthSignalBusTrait,
     isAkkaClusterEnabled: Boolean,
-    kafkaProducerOverride: Option[KafkaProducerTrait[String, Array[Byte]]])
+    kafkaProducerOverride: Option[KafkaProducerTrait[String, Array[Byte]]])(implicit ec: ExecutionContext)
     extends SurgePartitionRouter
     with HealthyComponent {
-  implicit val executionContext: ExecutionContext = system.dispatcher
   private val log = LoggerFactory.getLogger(getClass)
 
   override val actorRegion: ActorRef = {
@@ -64,7 +63,7 @@ private[surge] final class SurgePartitionRouterImpl(
       businessLogic.kafka.stateTopic,
       regionCreator,
       RoutableMessage.extractEntityId,
-      kafkaProducerOverride)(businessLogic.tracer)
+      kafkaProducerOverride)(businessLogic.tracer, ec)
 
     val routerActorName = s"${businessLogic.aggregateName}RouterActor"
     val shardRouter = system.actorOf(shardRouterProps, name = routerActorName)

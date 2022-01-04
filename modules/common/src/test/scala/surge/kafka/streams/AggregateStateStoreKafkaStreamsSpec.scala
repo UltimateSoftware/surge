@@ -21,6 +21,7 @@ import surge.core.Ack
 import surge.internal.kafka.JsonSerdes
 import surge.kafka.KafkaTopic
 import surge.metrics.Metrics
+import scala.concurrent.ExecutionContext.Implicits.global
 
 class MockPartitionTrackerProvider extends KafkaStreamsPartitionTrackerProvider {
   override def create(streams: KafkaStreams): KafkaStreamsPartitionTracker = new MockPartitionTracker(streams)

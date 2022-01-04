@@ -25,12 +25,11 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event](
     val aggregateId: AggId,
     protected val region: ActorRef,
     protected val tracer: Tracer,
-    getEngineStatus: () => SurgeEngineStatus)
+    getEngineStatus: () => SurgeEngineStatus)(implicit val ec: ExecutionContext)
     extends AggregateRef[Agg, Cmd, Event]
     with AggregateRefBaseTrait[AggId, Agg, Cmd, Event]
     with AggregateRefTrait[AggId, Agg, Cmd, Event] {
 
-  private implicit val ec: ExecutionContext = ExecutionContext.global
   private val log: Logger = LoggerFactory.getLogger(getClass)
 
   override def getState: Future[Option[Agg]] = {

@@ -60,7 +60,7 @@ class AggregateStateStoreKafkaStreams(
     signalBus: HealthSignalBusTrait,
     system: ActorSystem,
     metrics: Metrics,
-    config: Config)
+    config: Config)(implicit ec: ExecutionContext)
     extends HealthyComponent
     with Logging {
 
@@ -157,12 +157,10 @@ class AggregateStateStoreKafkaStreams(
 
   override val controllable: Controllable = new Controllable {
     override def start(): Future[Ack] = {
-      implicit val ec: ExecutionContext = system.dispatcher
       underlyingActor.ask(KafkaStreamManagerActor.Start).mapTo[Ack].andThen(registrationCallback())
     }
 
     override def restart(): Future[Ack] = {
-      implicit val executionContext: ExecutionContext = system.dispatcher
       for {
         _ <- stop()
         started <- start()
@@ -172,7 +170,6 @@ class AggregateStateStoreKafkaStreams(
     }
 
     override def stop(): Future[Ack] = {
-      implicit val ec: ExecutionContext = system.dispatcher
       underlyingActor.ask(KafkaStreamManagerActor.Stop).mapTo[Ack].andThen(unregistrationCallback())
     }
 
