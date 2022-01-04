@@ -5,7 +5,6 @@ package surge.internal.akka
 import akka.AroundReceiveActor
 import akka.actor.ActorRef
 import io.opentelemetry.api.trace.{ Span, Tracer }
-import io.opentelemetry.context.Context
 import org.slf4j.MDC
 import surge.internal.tracing.{ TracePropagation, TracedMessage, TracingHelper }
 
