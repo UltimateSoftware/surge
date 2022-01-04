@@ -6,9 +6,9 @@ import akka.actor.ActorRef
 import io.opentelemetry.api.trace.Tracer
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.exceptions.SurgeEngineNotRunningException
-import surge.internal.domain.{ SurgeEngineStatus, SurgeMessagePipeline }
+import surge.internal.domain.SurgeEngineStatus
 import surge.internal.persistence.{ AggregateRefTrait, PersistentActor }
-import surge.scaladsl.common.{ AggregateRefBaseTrait, _ }
+import surge.scaladsl.common._
 
 import scala.concurrent.{ ExecutionContext, Future }
 
