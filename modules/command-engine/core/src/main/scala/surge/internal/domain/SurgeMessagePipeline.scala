@@ -89,7 +89,6 @@ private[surge] abstract class SurgeMessagePipeline[S, M, E](
   private def startClusterManagementAndRebalanceListener(): Future[Unit] = {
     if (isAkkaClusterEnabled) {
       Cluster.get(system)
-      ClusterBootstrap(system).start()
       for {
         _ <- AkkaManagement(system).start()
         allStarted <- startKafkaClusterRebalanceListener()
