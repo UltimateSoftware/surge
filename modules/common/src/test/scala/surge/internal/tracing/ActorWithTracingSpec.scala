@@ -11,11 +11,10 @@ import io.opentelemetry.sdk.OpenTelemetrySdk
 import io.opentelemetry.sdk.resources.Resource
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter._
 import io.opentelemetry.sdk.trace.SdkTracerProvider
-import io.opentelemetry.sdk.trace.`export`.{ BatchSpanProcessor, SimpleSpanProcessor }
+import io.opentelemetry.sdk.trace.`export`.SimpleSpanProcessor
 import io.opentelemetry.sdk.trace.data.SpanData
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.{ Eventually, IntegrationPatience }
-import org.scalatest.concurrent.Eventually.eventually
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.slf4j.MDC
@@ -109,7 +108,7 @@ class ActorWithTracingSpec
       parentSpan.finish()
       actor ! GetMostRecentSpan
 
-      var expectedSpan =
+      val expectedSpan =
         expectMsgPF[Span]() { case MostRecentSpan(Some(s)) =>
           s
         }
