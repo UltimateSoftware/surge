@@ -240,7 +240,7 @@ class HealthSupervisorActor(internalSignalBus: HealthSignalBusInternal, config: 
   val state: HealthState = HealthState()
 
   private[this] val jmxActor: Option[ActorRef] = if (config.jmxEnabled) {
-    Some(context.actorOf(Props(SurgeHealthActor(asActorRef())), name = "jmx"))
+    Some(context.actorOf(Props(SurgeHealthActor(asActorRef()))))
   } else {
     None
   }
