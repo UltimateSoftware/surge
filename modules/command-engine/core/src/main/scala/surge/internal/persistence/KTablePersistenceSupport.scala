@@ -12,6 +12,7 @@ import surge.internal.domain.SurgeContextImpl
 import surge.metrics.Timer
 
 import java.time.Instant
+import java.util.UUID
 import scala.concurrent.{ ExecutionContext, Future }
 
 trait KTablePersistenceMetrics {
@@ -46,7 +47,15 @@ trait KTablePersistenceSupport[Agg, Event] {
       serializedState: KafkaProducerActor.MessageToPublish,
       startTime: Instant)
       extends Internal
-  private case class EventPublishTimedOut(reason: Throwable, startTime: Instant) extends Internal
+  private case class EventPublishTimedOut(
+      trackingId: UUID,
+      aggregateId: String,
+      context: SurgeContextImpl[Agg, Event],
+      state: KafkaProducerActor.MessageToPublish,
+      events: Seq[KafkaProducerActor.MessageToPublish],
+      reason: Throwable,
+      startTime: Instant)
+      extends Internal
 
   private def handleInternal(state: ActorState): Receive = {
     case msg: PersistenceSuccess   => handle(state, msg)
@@ -67,8 +76,9 @@ trait KTablePersistenceSupport[Agg, Event] {
     if (serializedEvents.isEmpty && !didStateChange) {
       Future.successful(PersistenceSuccess(state, startTime, context))
     } else {
-      kafkaProducerActor
-        .publish(aggregateId = aggregateId, state = serializedState, events = serializedEvents)
+      val trackingId = UUID.randomUUID()
+      val futureResult = kafkaProducerActor.publish(aggregateId = aggregateId, state = serializedState, events = serializedEvents, requestId = trackingId)
+      futureResult
         .map {
           case KafkaProducerActor.PublishSuccess => PersistenceSuccess(state, startTime, context)
           case KafkaProducerActor.PublishFailure(t) =>
@@ -76,7 +86,7 @@ trait KTablePersistenceSupport[Agg, Event] {
         }
         .recover { case t =>
           log.error("Failed to publish messages", t)
-          EventPublishTimedOut(t, startTime)
+          EventPublishTimedOut(trackingId, aggregateId, context, serializedState, serializedEvents, t, startTime)
         }
     }
   }
@@ -84,8 +94,17 @@ trait KTablePersistenceSupport[Agg, Event] {
   // TODO can we handle this more gracefully? If we're unsure something published or not from the timeout the safest thing to do for now
   //  is to crash the actor and force reinitialization
   private def handlePersistenceTimedOut(state: ActorState, msg: EventPublishTimedOut): Unit = {
+    implicit val ec: ExecutionContext = context.dispatcher
     ktablePersistenceMetrics.eventPublishTimer.recordTime(publishTimeInMillis(msg.startTime))
-    onPersistenceFailure(state, KafkaPublishTimeoutException(aggregateId, msg.reason))
+    val trackerWithExpiry = kafkaProducerActor.messageTracker(msg.trackingId)
+    // Publish timed out and message was not published, publish again.
+    if (!trackerWithExpiry.messageTracker.messageWasPublished() && !trackerWithExpiry.expired) {
+      doPublish(state, msg.context, msg.events, msg.state, currentFailureCount = 0, msg.startTime, didStateChange = true).pipeTo(self)(sender())
+    } else if (trackerWithExpiry.expired) {
+      onPersistenceFailure(state, KafkaPublishTimeoutException(aggregateId, msg.reason))
+    } else {
+      onPersistenceFailure(state, KafkaPublishTimeoutException(aggregateId, msg.reason))
+    }
   }
 
   private def handleFailedToPersist(state: ActorState, eventsFailedToPersist: PersistenceFailure): Unit = {

@@ -9,6 +9,7 @@ import com.typesafe.config.Config
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.header.Headers
 import org.slf4j.LoggerFactory
+import surge.core.KafkaProducerActor.{ MessageTracker, MessageTrackerWithExpiry }
 import surge.health.{ HealthSignalBusAware, HealthSignalBusTrait }
 import surge.internal.akka.actor.{ ActorLifecycleManagerActor, ManagedActorRef }
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
@@ -21,7 +22,10 @@ import surge.kafka.streams._
 import surge.kafka.{ KafkaAdminClient, KafkaProducerTrait }
 import surge.metrics.{ MetricInfo, Metrics, Timer }
 
-import scala.concurrent.duration.DurationInt
+import java.time.Instant
+import java.util.UUID
+import scala.collection.mutable
+import scala.concurrent.duration.{ DurationInt, FiniteDuration }
 import scala.concurrent.{ Await, ExecutionContext, Future }
 import scala.util.{ Failure, Success, Try }
 
@@ -126,6 +130,34 @@ object KafkaProducerActor {
   case object PublishSuccess extends PublishResult
   case class PublishFailure(t: Throwable) extends PublishResult
   case class MessageToPublish(key: String, value: Array[Byte], headers: Headers)
+
+  object MessageTracker {
+    def apply(messageId: UUID, trackerTimeout: FiniteDuration): MessageTracker = {
+      new SurgeMessageTracker(messageId, messageWasPublished = false, ttl = trackerTimeout)
+    }
+
+    def alreadyPublished(messageId: UUID, trackerTimeout: FiniteDuration): MessageTracker = {
+      val ttl = TimeoutConfig.PublisherActor.trackerTimeout
+      new SurgeMessageTracker(messageId, messageWasPublished = true, ttl = trackerTimeout)
+    }
+  }
+
+  sealed trait MessageTracker {
+    def messageId(): UUID
+    def messageWasPublished(): Boolean
+
+    def startTime(): Instant
+    def ttl(): FiniteDuration
+  }
+
+  private class SurgeMessageTracker(
+      override val messageId: UUID,
+      override val messageWasPublished: Boolean,
+      override val startTime: Instant = Instant.now(),
+      override val ttl: FiniteDuration = 60.seconds)
+      extends MessageTracker
+
+  case class MessageTrackerWithExpiry(messageTracker: MessageTracker, expired: Boolean)
 }
 
 /**
@@ -161,22 +193,52 @@ class KafkaProducerActor(
     metrics: Metrics,
     aggregateName: String,
     val assignedPartition: TopicPartition,
-    override val signalBus: HealthSignalBusTrait)
+    override val signalBus: HealthSignalBusTrait,
+    trackerTimeout: FiniteDuration = TimeoutConfig.PublisherActor.trackerTimeout)
     extends HealthyComponent
     with HealthSignalBusAware {
   private implicit val executionContext: ExecutionContext = ExecutionContext.global
   private val log = LoggerFactory.getLogger(getClass)
+  private val inflight: mutable.Set[MessageTracker] = mutable.Set.empty
 
   def publish(
+      requestId: UUID,
       aggregateId: String,
       state: KafkaProducerActor.MessageToPublish,
       events: Seq[KafkaProducerActor.MessageToPublish]): Future[KafkaProducerActor.PublishResult] = {
     log.trace(s"Publishing state for {} {}", Seq(aggregateName, state.key): _*)
     implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PublisherActor.publishTimeout)
-    (publisherActor.ref ? KafkaProducerActorImpl.Publish(eventsToPublish = events, state = state)).mapTo[KafkaProducerActor.PublishResult]
+    // track publish requests
+    inflight.add(MessageTracker(requestId, trackerTimeout))
+
+    (publisherActor.ref ? KafkaProducerActorImpl.Publish(eventsToPublish = events, state = state))
+      .andThen {
+        case Failure(exception) => log.warn(s"Publish failed with error ${exception}")
+        case Success(_)         =>
+          // Remove from tracking upon successful publish
+          log.debug(s"Removing message tracker for message $requestId")
+          val found = inflight.find(t => t.messageId() == requestId)
+          inflight.remove(found.orNull)
+      }
+      .mapTo[KafkaProducerActor.PublishResult]
+
   }
+
   def terminate(): Unit = {
     publisherActor.ref ! PoisonPill
+  }
+
+  def messageTracker(publishRequestId: UUID): MessageTrackerWithExpiry = {
+    val now = Instant.now()
+    val maybeTracker = inflight.find(t => t.messageId() == publishRequestId)
+    maybeTracker
+      .map(t =>
+        if (t.startTime().toEpochMilli + t.ttl().toMillis > now.toEpochMilli) {
+          MessageTrackerWithExpiry(t, expired = false)
+        } else {
+          MessageTrackerWithExpiry(t, expired = true)
+        })
+      .getOrElse(MessageTrackerWithExpiry(MessageTracker.alreadyPublished(publishRequestId, trackerTimeout), expired = false))
   }
 
   private val isAggregateStateCurrentTimer: Timer = metrics.timer(

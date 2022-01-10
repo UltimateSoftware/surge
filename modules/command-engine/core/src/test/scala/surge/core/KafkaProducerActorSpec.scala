@@ -11,17 +11,21 @@ import org.apache.kafka.common.header.internals.RecordHeaders
 import org.mockito.Mockito.when
 import org.mockito.{ ArgumentMatchers, Mockito }
 import org.scalatest.BeforeAndAfterAll
+import org.scalatest.concurrent.Eventually.eventually
+import org.scalatest.concurrent.PatienceConfiguration.Timeout
 import org.scalatest.concurrent.{ PatienceConfiguration, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Millis, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
+import surge.core.KafkaProducerActor.PublishSuccess
 import surge.health.{ HealthSignalBusTrait, InvokableHealthRegistration }
 import surge.internal.akka.actor.ManagedActorRef
 import surge.internal.health.{ HealthCheck, HealthCheckStatus, HealthyActor }
 import surge.internal.kafka.KafkaProducerActorImpl
 import surge.metrics.Metrics
 
+import java.util.UUID
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
 
@@ -42,7 +46,7 @@ class KafkaProducerActorSpec
   }
 
   "KafkaProducerActor" should {
-    def producerMock(testProbe: TestProbe): KafkaProducerActor = {
+    def producerMock(testProbe: TestProbe, trackerTimeout: FiniteDuration): KafkaProducerActor = {
       val signalBus: HealthSignalBusTrait = Mockito.mock(classOf[HealthSignalBusTrait])
       val invokable: InvokableHealthRegistration = Mockito.mock(classOf[InvokableHealthRegistration])
       when(invokable.invoke()).thenReturn(Future.successful(Ack))
@@ -54,7 +58,7 @@ class KafkaProducerActorSpec
     "Terminate an underlying actor by sending a PoisonPill" in {
       val probe = TestProbe()
       val shouldBeTerminatedProbe = TestProbe()
-      val producer = producerMock(shouldBeTerminatedProbe)
+      val producer = producerMock(shouldBeTerminatedProbe, 6.seconds)
       probe.watch(shouldBeTerminatedProbe.ref)
 
       producer.terminate()
@@ -63,7 +67,7 @@ class KafkaProducerActorSpec
 
     "Check with the underlying actor if an aggregate is up to date in the KTable or not" in {
       val probe = TestProbe()
-      val producer = producerMock(probe)
+      val producer = producerMock(probe, 6.seconds)
 
       val aggId1 = "testAggId1"
       val futureResponse1 = producer.isAggregateStateCurrent(aggId1)
@@ -82,7 +86,7 @@ class KafkaProducerActorSpec
 
     "Ask the underlying actor if it's healthy when performing a health check" in {
       val probe = TestProbe()
-      val producer = producerMock(probe)
+      val producer = producerMock(probe, 6.seconds)
 
       val expectedHealthCheck = HealthCheck("test-health-check", "health-check-id", HealthCheckStatus.UP)
       val futureResult = producer.healthCheck()
@@ -93,7 +97,7 @@ class KafkaProducerActorSpec
 
     "Report unhealthy if theres an error getting health from the underlying actor" in {
       val probe = TestProbe()
-      val producer = producerMock(probe)
+      val producer = producerMock(probe, 6.seconds)
 
       val futureResult = producer.healthCheck()
       probe.expectMsg(HealthyActor.GetHealth)
@@ -104,21 +108,51 @@ class KafkaProducerActorSpec
     "Return a failed future when the ask to the underlying publisher actor times out" in {
       implicit val ec: ExecutionContext = ExecutionContext.global
       val probe = TestProbe()
-      val producer = producerMock(probe)
+      val producer = producerMock(probe, trackerTimeout = 6.seconds)
 
       val errorWatchProbe = TestProbe()
       val stateToPublish = KafkaProducerActor.MessageToPublish("test", "test".getBytes(), new RecordHeaders())
       val eventsToPublish = Seq(KafkaProducerActor.MessageToPublish("test", "test".getBytes(), new RecordHeaders()))
+      val requestId = UUID.randomUUID()
       producer
-        .publish("test", stateToPublish, eventsToPublish)
+        .publish(requestId, "test", stateToPublish, eventsToPublish)
         .map { msg =>
           fail(s"Expected a failed future but received successful future with message [$msg]")
         }
         .recover { case e =>
           errorWatchProbe.ref ! e
         }
+
       probe.expectMsg(KafkaProducerActorImpl.Publish(eventsToPublish = eventsToPublish, state = stateToPublish))
+      eventually(Timeout(61.seconds)) {
+        producer.messageTracker(requestId).expired shouldEqual true
+        producer.messageTracker(requestId).messageTracker.messageWasPublished() shouldEqual false
+      }
+
       errorWatchProbe.expectMsgType[AskTimeoutException](10.seconds)
+    }
+
+    "Tracker reports published when publish succeeds" in {
+      implicit val ec: ExecutionContext = ExecutionContext.global
+      val probe = TestProbe()
+      val producer = producerMock(probe, 6.seconds)
+
+      val errorWatchProbe = TestProbe()
+      val stateToPublish = KafkaProducerActor.MessageToPublish("test", "test".getBytes(), new RecordHeaders())
+      val eventsToPublish = Seq(KafkaProducerActor.MessageToPublish("test", "test".getBytes(), new RecordHeaders()))
+      val requestId = UUID.randomUUID()
+
+      producer.publish(requestId, "test", stateToPublish, eventsToPublish).recover { case e =>
+        errorWatchProbe.ref ! e
+      }
+
+      probe.expectMsg(KafkaProducerActorImpl.Publish(eventsToPublish = eventsToPublish, state = stateToPublish))
+      probe.reply(PublishSuccess)
+
+      eventually {
+        producer.messageTracker(requestId).messageTracker.messageWasPublished() shouldEqual true
+      }
+
     }
   }
 }
