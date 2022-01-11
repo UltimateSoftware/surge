@@ -207,14 +207,15 @@ class KafkaProducerActor(
       events: Seq[KafkaProducerActor.MessageToPublish]): Future[KafkaProducerActor.PublishResult] = {
     log.trace(s"Publishing state for {} {}", Seq(aggregateName, state.key): _*)
     implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PublisherActor.publishTimeout)
-
-//    val found = inflight.find(t => t.messageId() == requestId)
-//    inflight.remove(found.orNull)
-
     // track publish requests
     val request = KafkaProducerActorImpl.Publish(eventsToPublish = events, state = state)
-    val added = inflight.add(MessageTracker(requestId, trackerTimeout))
-    log.debug(s"Message tracker added for the tracking of publish request $requestId - $added")
+
+    val alreadyExists = inflight.exists(t => t.messageId() == requestId)
+    if (!alreadyExists) {
+      val added = inflight.add(MessageTracker(requestId, trackerTimeout))
+      log.debug(s"Message tracker added for the tracking of publish request $requestId - $added")
+    }
+
     (publisherActor.ref ? request)
       .andThen {
         case Failure(exception) =>
