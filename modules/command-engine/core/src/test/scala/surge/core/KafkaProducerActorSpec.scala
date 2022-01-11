@@ -12,7 +12,6 @@ import org.mockito.Mockito.when
 import org.mockito.{ ArgumentMatchers, Mockito }
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.Eventually.eventually
-import org.scalatest.concurrent.PatienceConfiguration.Timeout
 import org.scalatest.concurrent.{ PatienceConfiguration, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Millis, Seconds, Span }
@@ -124,8 +123,7 @@ class KafkaProducerActorSpec
         }
 
       probe.expectMsg(KafkaProducerActorImpl.Publish(eventsToPublish = eventsToPublish, state = stateToPublish))
-      eventually(Timeout(61.seconds)) {
-        producer.messageTracker(requestId).expired shouldEqual true
+      eventually {
         producer.messageTracker(requestId).messageTracker.messageWasPublished() shouldEqual false
       }
 

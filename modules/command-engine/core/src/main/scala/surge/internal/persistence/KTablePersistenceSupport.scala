@@ -98,10 +98,13 @@ trait KTablePersistenceSupport[Agg, Event] {
     ktablePersistenceMetrics.eventPublishTimer.recordTime(publishTimeInMillis(msg.startTime))
     val trackerWithExpiry = kafkaProducerActor.messageTracker(msg.trackingId)
     // Publish timed out and message was not published, publish again.
-    if (!trackerWithExpiry.messageTracker.messageWasPublished() && !trackerWithExpiry.expired) {
-      doPublish(state, msg.context, msg.events, msg.state, currentFailureCount = 0, msg.startTime, didStateChange = true).pipeTo(self)(sender())
-    } else if (trackerWithExpiry.expired) {
-      onPersistenceFailure(state, KafkaPublishTimeoutException(aggregateId, msg.reason))
+    val tracker = trackerWithExpiry.messageTracker
+    if (!tracker.messageWasPublished()) {
+      if (!trackerWithExpiry.expired) {
+        doPublish(state, msg.context, msg.events, msg.state, currentFailureCount = 0, msg.startTime, didStateChange = true).pipeTo(self)(sender())
+      } else {
+        onPersistenceFailure(state, KafkaPublishTimeoutException(aggregateId, msg.reason))
+      }
     } else {
       onPersistenceFailure(state, KafkaPublishTimeoutException(aggregateId, msg.reason))
     }
