@@ -505,7 +505,7 @@ class PersistentActorSpec
         argEquals(Seq[KafkaProducerActor.MessageToPublish]()))
     }
 
-    "Do not Crash the actor if publishing eventually succeeds" in {
+    "Not Crash the actor if publishing eventually succeeds" in {
       val crashingMockProducer = mock[KafkaProducerActor]
       val expectedException = new ExpectedTestException
 
