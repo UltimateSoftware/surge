@@ -3,7 +3,7 @@
 package surge.core
 
 trait SurgeEventReadFormatting[Event] {
-  def readEvent(bytes: Array[Byte]): Event
+  def readEvent(serialized: SerializedMessage): Event
 }
 
 trait SurgeAggregateReadFormatting[State] {
