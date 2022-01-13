@@ -5,7 +5,7 @@ package surge.javadsl.command
 import akka.actor.ActorSystem
 import com.typesafe.config.Config
 import surge.core
-import surge.core.{ Ack, Controllable }
+import surge.core.Ack
 import surge.core.command._
 import surge.core.commondsl.SurgeCommandBusinessLogicTrait
 import surge.health.config.WindowingStreamConfigLoader

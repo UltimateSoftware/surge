@@ -124,8 +124,8 @@ trait TestBoundedContext {
       SerializedMessage(s"${evt.aggregateId}:${evt.sequenceNumber}", Json.toJson(evt).toString().getBytes())
     }
 
-    override def readEvent(bytes: Array[Byte]): BaseTestEvent = {
-      Json.parse(bytes).as[BaseTestEvent]
+    override def readEvent(serialized: SerializedMessage): BaseTestEvent = {
+      Json.parse(serialized.value).as[BaseTestEvent]
     }
   }
 
