@@ -47,7 +47,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, E](
   import SurgeMessagePipeline._
   import system.dispatcher
   protected implicit val system: ActorSystem = actorSystem
-  protected val stateChangeActor: ActorRef = system.actorOf(KafkaConsumerStateTrackingActor.props, "state-change-actor")
+  protected val stateChangeActor: ActorRef = system.actorOf(KafkaConsumerStateTrackingActor.props)
 
   private val isAkkaClusterEnabled: Boolean = config.getBoolean("surge.feature-flags.experimental.enable-akka-cluster")
 
@@ -148,7 +148,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, E](
     signalBus
       .register(
         control = this.controllable,
-        componentName = "surge-message-pipeline",
+        componentName = s"surge-message-pipeline-${businessLogic.aggregateName}",
         restartSignalPatterns = restartSignalPatterns(),
         shutdownSignalPatterns = shutdownSignalPatterns())
       .onComplete {
@@ -164,7 +164,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, E](
    */
   private def unregisterWithSupervisor(): Unit = {
     signalBus
-      .unregister(control = this.controllable, componentName = "surge-message-pipeline")
+      .unregister(control = this.controllable, componentName = s"surge-message-pipeline-${businessLogic.aggregateName}")
       .onComplete {
         case Failure(exception) =>
           log.error(s"$getClass registration failed", exception)

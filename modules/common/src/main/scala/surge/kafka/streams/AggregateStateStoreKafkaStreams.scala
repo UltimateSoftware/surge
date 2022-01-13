@@ -128,7 +128,7 @@ class AggregateStateStoreKafkaStreams(
     case Success(_) =>
       val registrationResult = signalBus.register(
         control = controllable,
-        componentName = "state-store-kafka-streams",
+        componentName = s"state-store-kafka-streams-$aggregateName",
         shutdownSignalPatterns = shutdownSignalPatterns(),
         restartSignalPatterns = restartSignalPatterns())
 
@@ -143,7 +143,7 @@ class AggregateStateStoreKafkaStreams(
   }
   private def unregistrationCallback(): PartialFunction[Try[Ack], Unit] = {
     case Success(_) =>
-      val unRegistrationResult = signalBus.unregister(control = controllable, componentName = "state-store-kafka-streams")
+      val unRegistrationResult = signalBus.unregister(control = controllable, componentName = s"state-store-kafka-streams-$aggregateName")
 
       unRegistrationResult.onComplete {
         case Failure(exception) =>

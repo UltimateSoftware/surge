@@ -27,6 +27,7 @@ object ActorSystemBindingHelper {
 
   def createActorSystem(name: String): ActorSystem = {
     val advertisedHostname = getHostname("surge.advertised.hostname")
+    val bindHostname = getHostname("surge.bind.hostname")
 
     log.info("Setting advertised hostname to {}", advertisedHostname)
     val isAkkaClusterEnabled: Boolean = config.getBoolean("surge.feature-flags.experimental.enable-akka-cluster")
@@ -35,9 +36,12 @@ object ActorSystemBindingHelper {
       if (isAkkaClusterEnabled) {
         config
           .withValue("akka.remote.artery.canonical.hostname", ConfigValueFactory.fromAnyRef(advertisedHostname))
+          .withValue("akka.remote.artery.bind.hostname", ConfigValueFactory.fromAnyRef(bindHostname))
           .withValue("akka.management.http.hostname", ConfigValueFactory.fromAnyRef(advertisedHostname))
       } else {
-        config.withValue("akka.remote.artery.canonical.hostname", ConfigValueFactory.fromAnyRef(advertisedHostname))
+        config
+          .withValue("akka.remote.artery.canonical.hostname", ConfigValueFactory.fromAnyRef(advertisedHostname))
+          .withValue("akka.remote.artery.bind.hostname", ConfigValueFactory.fromAnyRef(bindHostname))
       }
 
     ActorSystem.create(name, configOverride)
