@@ -34,6 +34,7 @@ import surge.kafka.streams.ExpectedTestException
 import surge.metrics.Metrics
 
 import java.time.Instant
+import java.util.UUID
 import scala.concurrent.duration._
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.control.NoStackTrace
@@ -110,6 +111,7 @@ class KafkaProducerActorImplSpec
             mockPartitionTracker,
             signalBus,
             config,
+            trackerTimeout = 6.seconds,
             Some(mockProducer))))
     // Blocks the execution to wait until the actor is ready so we know its subscribed to the event bus
     system.actorSelection(actor.path).resolveOne()(Timeout(patienceConfig.timeout)).futureValue
@@ -171,7 +173,7 @@ class KafkaProducerActorImplSpec
       val actor = testProducerActor(assignedPartition, mockProducer, mockLagChecker)
       expectNoMessage()
       // First time beginTransaction will fail and commitTransaction won't be executed
-      probe.send(actor, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
+      probe.send(actor, KafkaProducerActorImpl.Publish(UUID.randomUUID(), testAggs1, testEvents1))
       probe.send(actor, KafkaProducerActorImpl.FlushMessages)
       expectNoMessage()
       verify(mockProducer, times(1)).beginTransaction()
@@ -179,7 +181,7 @@ class KafkaProducerActorImplSpec
       expectNoMessage()
       verify(mockProducer, times(1)).beginTransaction()
       // Actor should recover from begin transaction error and successfully commit
-      probe.send(actor, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
+      probe.send(actor, KafkaProducerActorImpl.Publish(UUID.randomUUID(), testAggs1, testEvents1))
       probe.send(actor, KafkaProducerActorImpl.FlushMessages)
       expectNoMessage()
       verify(mockProducer, times(2)).beginTransaction()
@@ -204,14 +206,14 @@ class KafkaProducerActorImplSpec
       val actor = testProducerActor(assignedPartition, mockProducer, mockLagChecker)
       expectNoMessage()
       // First time beginTransaction will fail and commitTransaction won't be executed
-      probe.send(actor, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
+      probe.send(actor, KafkaProducerActorImpl.Publish(UUID.randomUUID(), testAggs1, testEvents1))
       probe.send(actor, KafkaProducerActorImpl.FlushMessages)
       expectNoMessage()
       verify(mockProducer, times(1)).beginTransaction()
       verify(mockProducer, times(1)).commitTransaction()
       verify(mockProducer, times(1)).abortTransaction()
       verify(mockProducer, times(1)).close()
-      probe.send(actor, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
+      probe.send(actor, KafkaProducerActorImpl.Publish(UUID.randomUUID(), testAggs1, testEvents1))
       probe.send(actor, KafkaProducerActorImpl.FlushMessages)
       expectNoMessage()
       verify(mockProducer, times(2)).beginTransaction()
@@ -234,7 +236,8 @@ class KafkaProducerActorImplSpec
         ConfigFactory.load().withValue("kafka.publisher.init-transactions.authz-exception-retry-time", ConfigValueFactory.fromAnyRef("2 seconds"))
       val mockLagChecker = mockKTableLagChecker(assignedPartition, 100L, 100L)
       val actor = testProducerActor(assignedPartition, mockProducer, mockLagChecker, config = configOverride)
-      probe.send(actor, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
+      val requestId = UUID.randomUUID()
+      probe.send(actor, KafkaProducerActorImpl.Publish(requestId, testAggs1, testEvents1))
       probe.send(actor, KafkaProducerActorImpl.FlushMessages)
 
       awaitAssert(
@@ -267,7 +270,8 @@ class KafkaProducerActorImplSpec
         }
       }
       val actor = testProducerActor(assignedPartition, mockProducer, failsTwiceLagChecker)
-      probe.send(actor, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
+      val requestId = UUID.randomUUID()
+      probe.send(actor, KafkaProducerActorImpl.Publish(requestId, testAggs1, testEvents1))
       probe.send(actor, KafkaProducerActorImpl.FlushMessages)
 
       awaitAssert(
@@ -333,7 +337,8 @@ class KafkaProducerActorImplSpec
       when(mockProducer.putRecords(any[Seq[ProducerRecord[String, Array[Byte]]]])).thenReturn(Seq(Future.successful(mockMetadata)))
       val mockLagChecker = mockKTableLagChecker(assignedPartition, 100L, 100L)
       val actor = testProducerActor(assignedPartition, mockProducer, mockLagChecker)
-      probe.send(actor, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
+      val requestId = UUID.randomUUID()
+      probe.send(actor, KafkaProducerActorImpl.Publish(UUID.randomUUID(), testAggs1, testEvents1))
       // Wait until published message is committed to be sure we are processing
       awaitAssert(
         {
@@ -343,7 +348,7 @@ class KafkaProducerActorImplSpec
         1.second)
 
       val barRecord1 = KafkaRecordMetadata(Some("bar"), createRecordMeta("testTopic", 0, 101))
-      probe.send(actor, KafkaProducerActorImpl.EventsPublished(Seq(probe.ref), Seq(barRecord1)))
+      probe.send(actor, KafkaProducerActorImpl.EventsPublished(requestId, Seq(probe.ref), Seq(barRecord1)))
       val isAggregateStateCurrent = KafkaProducerActorImpl.IsAggregateStateCurrent("bar")
       actor.ask(isAggregateStateCurrent).futureValue shouldEqual false
       // Simulate the KTable processing the recently published message
@@ -361,7 +366,8 @@ class KafkaProducerActorImplSpec
       val mockLagChecker = mockKTableLagChecker(assignedPartition, 100L, 100L)
       val actor = testProducerActor(assignedPartition, mockProducer, mockLagChecker)
       // Send publish messages to stash
-      probe.send(actor, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
+      val requestId = UUID.randomUUID()
+      probe.send(actor, KafkaProducerActorImpl.Publish(requestId, testAggs1, testEvents1))
       // Verify that we haven't initialized transactions yet so we are in the uninitialized state and messages were stashed
       verify(mockProducer, times(0)).initTransactions()(any[ExecutionContext])
       // Wait until the stashed messages gets committed
@@ -385,16 +391,18 @@ class KafkaProducerActorImplSpec
       when(mockProducerFailsPutRecords.putRecords(any[Seq[ProducerRecord[String, Array[Byte]]]]))
         .thenReturn(Seq(Future.failed(runtimeException)), Seq(Future.successful(mockMetadata)))
 
-      probe.send(failingPut, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
+      val requestId1 = UUID.randomUUID()
+      probe.send(failingPut, KafkaProducerActorImpl.Publish(requestId1, testAggs1, testEvents1))
       probe.send(failingPut, KafkaProducerActorImpl.FlushMessages)
       probe.expectMsgType[PublishFailure]
       verify(mockProducerFailsPutRecords).beginTransaction()
       verify(mockProducerFailsPutRecords).putRecords(records(assignedPartition, testEvents1, testAggs1))
       verify(mockProducerFailsPutRecords).abortTransaction()
 
-      probe.send(failingPut, KafkaProducerActorImpl.Publish(testAggs2, testEvents2))
+      val requestId2 = UUID.randomUUID()
+      probe.send(failingPut, KafkaProducerActorImpl.Publish(requestId2, testAggs2, testEvents2))
       probe.send(failingPut, KafkaProducerActorImpl.FlushMessages)
-      probe.expectMsg(PublishSuccess)
+      probe.expectMsg(PublishSuccess(requestId2))
       verify(mockProducerFailsPutRecords).putRecords(records(assignedPartition, testEvents2, testAggs2))
       verify(mockProducerFailsPutRecords).commitTransaction()
     }
@@ -414,18 +422,19 @@ class KafkaProducerActorImplSpec
       val mockMetadata = mockRecordMetadata(assignedPartition)
       when(mockProducerFailsCommit.putRecords(any[Seq[ProducerRecord[String, Array[Byte]]]])).thenReturn(Seq(Future.successful(mockMetadata)))
 
-      probe.send(failingCommit, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
+      val requestId = UUID.randomUUID()
+      probe.send(failingCommit, KafkaProducerActorImpl.Publish(requestId, testAggs1, testEvents1))
       probe.send(failingCommit, KafkaProducerActorImpl.FlushMessages)
-      probe.expectMsgType[PublishFailure]
+      probe.expectMsgClass(classOf[PublishFailure])
       verify(mockProducerFailsCommit).beginTransaction()
       verify(mockProducerFailsCommit).putRecords(records(assignedPartition, testEvents1, testAggs1))
       verify(mockProducerFailsCommit).commitTransaction()
       verify(mockProducerFailsCommit).abortTransaction()
 
       // Since we can't stub the void method to throw an exception and then succeed, we just care that the actor attempts to send the next set of records
-      probe.send(failingCommit, KafkaProducerActorImpl.Publish(testAggs2, testEvents2))
+      probe.send(failingCommit, KafkaProducerActorImpl.Publish(UUID.randomUUID(), testAggs2, testEvents2))
       probe.send(failingCommit, KafkaProducerActorImpl.FlushMessages)
-      probe.expectMsgType[PublishFailure]
+      probe.expectMsgClass(classOf[PublishFailure])
       verify(mockProducerFailsCommit).putRecords(records(assignedPartition, testEvents2, testAggs2))
     }
 
@@ -458,7 +467,7 @@ class KafkaProducerActorImplSpec
       val fencedOnCommit = testProducerActor(assignedPartition, mockProducerFenceOnCommit, mockLagChecker, mockPartitionTracker, fastHealthCheckFailureConfig)
 
       terminateWatcherProbe.watch(fencedOnBegin)
-      probe.send(fencedOnBegin, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
+      probe.send(fencedOnBegin, KafkaProducerActorImpl.Publish(UUID.randomUUID(), testAggs1, testEvents1))
       probe.send(fencedOnBegin, KafkaProducerActorImpl.FlushMessages)
       probe.expectMsgType[PublishFailure]
 
@@ -473,7 +482,7 @@ class KafkaProducerActorImplSpec
       verify(mockProducerFenceOnBegin, times(0)).putRecords(records(assignedPartition, testEvents1, testAggs1))
 
       terminateWatcherProbe.watch(fencedOnCommit)
-      probe.send(fencedOnCommit, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
+      probe.send(fencedOnCommit, KafkaProducerActorImpl.Publish(UUID.randomUUID(), testAggs1, testEvents1))
       probe.send(fencedOnCommit, KafkaProducerActorImpl.FlushMessages)
       probe.expectMsgType[PublishFailure]
 
@@ -508,7 +517,7 @@ class KafkaProducerActorImplSpec
       val fencedOnCommit = testProducerActor(assignedPartition, mockProducerFenceOnCommit, mockLagChecker, mockPartitionTracker)
 
       probe.watch(fencedOnCommit)
-      probe.send(fencedOnCommit, KafkaProducerActorImpl.Publish(testAggs1, testEvents1))
+      probe.send(fencedOnCommit, KafkaProducerActorImpl.Publish(UUID.randomUUID(), testAggs1, testEvents1))
       probe.send(fencedOnCommit, KafkaProducerActorImpl.FlushMessages)
       val result = probe.fishForMessage(10.seconds) { msg => msg.isInstanceOf[PublishResult] }
       result shouldBe a[PublishFailure]
@@ -517,9 +526,9 @@ class KafkaProducerActorImplSpec
       verify(mockProducerFenceOnCommit).putRecords(records(assignedPartition, testEvents1, testAggs1))
       verify(mockProducerFenceOnCommit).commitTransaction()
 
-      probe.send(fencedOnCommit, KafkaProducerActorImpl.Publish(testAggs2, testEvents2))
+      probe.send(fencedOnCommit, KafkaProducerActorImpl.Publish(UUID.randomUUID(), testAggs2, testEvents2))
       probe.send(fencedOnCommit, KafkaProducerActorImpl.FlushMessages)
-      probe.expectMsg(PublishSuccess)
+      probe.expectMsgClass(classOf[PublishSuccess])
       verify(mockProducerFenceOnCommit).putRecords(records(assignedPartition, testEvents2, testAggs2))
     }
   }
@@ -553,7 +562,8 @@ class KafkaProducerActorImplSpec
 
       val sender = TestProbe().ref
       val dummyState = KafkaProducerActor.MessageToPublish("foo", "foo".getBytes(), new RecordHeaders())
-      val publishMsg = KafkaProducerActorImpl.Publish(dummyState, Seq(KafkaProducerActor.MessageToPublish("foo", "foo".getBytes(), new RecordHeaders())))
+      val publishMsg =
+        KafkaProducerActorImpl.Publish(UUID.randomUUID(), dummyState, Seq(KafkaProducerActor.MessageToPublish("foo", "foo".getBytes(), new RecordHeaders())))
 
       val newState = empty.addPendingWrites(sender, publishMsg)
       newState.pendingWrites should contain only KafkaProducerActorImpl.PublishWithSender(sender, publishMsg)
