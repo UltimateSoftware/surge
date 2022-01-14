@@ -17,7 +17,7 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Millis, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
-import surge.core.KafkaProducerActor.PublishSuccess
+import surge.core.KafkaProducerActor.{ PublishSuccess, RetryAwareException }
 import surge.health.{ HealthSignalBusTrait, InvokableHealthRegistration }
 import surge.internal.akka.actor.ManagedActorRef
 import surge.internal.health.{ HealthCheck, HealthCheckStatus, HealthyActor }
@@ -123,11 +123,8 @@ class KafkaProducerActorSpec
         }
 
       probe.expectMsgClass(classOf[KafkaProducerActorImpl.Publish])
-//      eventually {
-//        producer.messageTracker(requestId).messageTracker.messageWasPublished() shouldEqual false
-//      }
 
-      errorWatchProbe.expectMsgType[AskTimeoutException](10.seconds)
+      errorWatchProbe.expectMsgType[RetryAwareException](10.seconds)
     }
 
     "Tracker reports published when publish succeeds" in {
@@ -146,10 +143,6 @@ class KafkaProducerActorSpec
 
       probe.expectMsgClass(classOf[KafkaProducerActorImpl.Publish])
       probe.reply(PublishSuccess(UUID.randomUUID()))
-
-//      eventually {
-//        producer.messageTracker(requestId).messageTracker.messageWasPublished() shouldEqual true
-//      }
 
     }
   }

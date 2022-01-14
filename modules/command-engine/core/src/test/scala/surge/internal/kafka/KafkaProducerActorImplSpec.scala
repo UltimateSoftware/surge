@@ -11,7 +11,7 @@ import org.apache.kafka.clients.producer.{ ProducerRecord, RecordMetadata }
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.{ AuthorizationException, ProducerFencedException }
 import org.apache.kafka.common.header.internals.{ RecordHeader, RecordHeaders }
-import org.mockito.ArgumentMatchers.any
+import org.mockito.ArgumentMatchers.{ any, same }
 import org.mockito.Mockito._
 import org.mockito.{ ArgumentMatchers, Mockito }
 import org.scalatest.BeforeAndAfterAll
@@ -20,14 +20,14 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Millis, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
-import surge.core.KafkaProducerActor.{ PublishFailure, PublishResult, PublishSuccess }
+import surge.core.KafkaProducerActor.{ PublishFailure, PublishResult, PublishSuccess, PublishTracker, PublishTrackerWithExpiry }
 import surge.core.{ KafkaProducerActor, TestBoundedContext }
 import surge.health.HealthSignalBusTrait
 import surge.health.domain.EmittableHealthSignal
 import surge.internal.akka.cluster.ActorSystemHostAwareness
 import surge.internal.akka.kafka.{ KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor }
 import surge.internal.health.{ HealthCheck, HealthCheckStatus }
-import surge.internal.kafka.KafkaProducerActorImpl.KTableProgressUpdate
+import surge.internal.kafka.KafkaProducerActorImpl.{ KTableProgressUpdate, PublishTrackerStateManager }
 import surge.kafka._
 import surge.internal.health.HealthyActor.GetHealth
 import surge.kafka.streams.ExpectedTestException
@@ -77,10 +77,15 @@ class KafkaProducerActorImplSpec
     tracker
   }
 
+  private def mockPublishTrackerStateManager(): PublishTrackerStateManager = {
+    mock[PublishTrackerStateManager]
+  }
+
   private def testProducerActor(
       assignedPartition: TopicPartition,
       mockProducer: KafkaProducerTrait[String, Array[Byte]],
       mockLagChecker: KTableLagChecker,
+      mockPublishTrackerStateManager: PublishTrackerStateManager,
       mockPartitionTracker: KafkaConsumerPartitionAssignmentTracker = defaultMockPartitionTracker,
       config: Config = ConfigFactory.load()): ActorRef = {
     val signalBus: HealthSignalBusTrait = Mockito.mock[HealthSignalBusTrait](classOf[HealthSignalBusTrait])
@@ -111,7 +116,7 @@ class KafkaProducerActorImplSpec
             mockPartitionTracker,
             signalBus,
             config,
-            trackerTimeout = 6.seconds,
+            mockPublishTrackerStateManager,
             Some(mockProducer))))
     // Blocks the execution to wait until the actor is ready so we know its subscribed to the event bus
     system.actorSelection(actor.path).resolveOne()(Timeout(patienceConfig.timeout)).futureValue
@@ -170,7 +175,7 @@ class KafkaProducerActorImplSpec
       when(mockProducer.putRecords(any[Seq[ProducerRecord[String, Array[Byte]]]])).thenReturn(Seq(Future.successful(mockMetadata)))
 
       val mockLagChecker = mockKTableLagChecker(assignedPartition, 100L, 100L)
-      val actor = testProducerActor(assignedPartition, mockProducer, mockLagChecker)
+      val actor = testProducerActor(assignedPartition, mockProducer, mockLagChecker, new PublishTrackerStateManager())
       expectNoMessage()
       // First time beginTransaction will fail and commitTransaction won't be executed
       probe.send(actor, KafkaProducerActorImpl.Publish(UUID.randomUUID(), testAggs1, testEvents1))
@@ -203,7 +208,7 @@ class KafkaProducerActorImplSpec
       when(mockProducer.putRecords(any[Seq[ProducerRecord[String, Array[Byte]]]])).thenReturn(Seq(Future.successful(mockMetadata)))
 
       val mockLagChecker = mockKTableLagChecker(assignedPartition, 100L, 100L)
-      val actor = testProducerActor(assignedPartition, mockProducer, mockLagChecker)
+      val actor = testProducerActor(assignedPartition, mockProducer, mockLagChecker, new PublishTrackerStateManager())
       expectNoMessage()
       // First time beginTransaction will fail and commitTransaction won't be executed
       probe.send(actor, KafkaProducerActorImpl.Publish(UUID.randomUUID(), testAggs1, testEvents1))
@@ -235,7 +240,12 @@ class KafkaProducerActorImplSpec
       val configOverride =
         ConfigFactory.load().withValue("kafka.publisher.init-transactions.authz-exception-retry-time", ConfigValueFactory.fromAnyRef("2 seconds"))
       val mockLagChecker = mockKTableLagChecker(assignedPartition, 100L, 100L)
-      val actor = testProducerActor(assignedPartition, mockProducer, mockLagChecker, config = configOverride)
+      val actor = testProducerActor(
+        assignedPartition,
+        mockProducer,
+        mockLagChecker,
+        config = configOverride,
+        mockPublishTrackerStateManager = new PublishTrackerStateManager())
       val requestId = UUID.randomUUID()
       probe.send(actor, KafkaProducerActorImpl.Publish(requestId, testAggs1, testEvents1))
       probe.send(actor, KafkaProducerActorImpl.FlushMessages)
@@ -269,7 +279,7 @@ class KafkaProducerActorImplSpec
           Some(LagInfo(10, 10))
         }
       }
-      val actor = testProducerActor(assignedPartition, mockProducer, failsTwiceLagChecker)
+      val actor = testProducerActor(assignedPartition, mockProducer, failsTwiceLagChecker, new PublishTrackerStateManager())
       val requestId = UUID.randomUUID()
       probe.send(actor, KafkaProducerActorImpl.Publish(requestId, testAggs1, testEvents1))
       probe.send(actor, KafkaProducerActorImpl.FlushMessages)
@@ -295,7 +305,7 @@ class KafkaProducerActorImplSpec
       val mockLagChecker = mock[KTableLagChecker]
       when(mockLagChecker.getConsumerGroupLag(ArgumentMatchers.eq(assignedPartition))).thenReturn(Some(LagInfo(0, 10)))
 
-      val actor = testProducerActor(assignedPartition, mockProducer, mockLagChecker)
+      val actor = testProducerActor(assignedPartition, mockProducer, mockLagChecker, new PublishTrackerStateManager())
       probe.send(actor, KafkaProducerActorImpl.IsAggregateStateCurrent("bar"))
       probe.expectMsg(false)
 
@@ -315,7 +325,7 @@ class KafkaProducerActorImplSpec
       val mockLagChecker = mock[KTableLagChecker]
       when(mockLagChecker.getConsumerGroupLag(ArgumentMatchers.eq(assignedPartition))).thenReturn(Some(LagInfo(0, 10)))
 
-      val actor = testProducerActor(assignedPartition, mockProducer, mockLagChecker)
+      val actor = testProducerActor(assignedPartition, mockProducer, mockLagChecker, new PublishTrackerStateManager())
       eventually {
         probe.send(actor, GetHealth)
         val healthCheck = probe.expectMsgType[HealthCheck]
@@ -336,7 +346,7 @@ class KafkaProducerActorImplSpec
       setupTransactions(mockProducer)
       when(mockProducer.putRecords(any[Seq[ProducerRecord[String, Array[Byte]]]])).thenReturn(Seq(Future.successful(mockMetadata)))
       val mockLagChecker = mockKTableLagChecker(assignedPartition, 100L, 100L)
-      val actor = testProducerActor(assignedPartition, mockProducer, mockLagChecker)
+      val actor = testProducerActor(assignedPartition, mockProducer, mockLagChecker, new PublishTrackerStateManager())
       val requestId = UUID.randomUUID()
       probe.send(actor, KafkaProducerActorImpl.Publish(UUID.randomUUID(), testAggs1, testEvents1))
       // Wait until published message is committed to be sure we are processing
@@ -364,7 +374,7 @@ class KafkaProducerActorImplSpec
       setupTransactions(mockProducer)
       when(mockProducer.putRecords(any[Seq[ProducerRecord[String, Array[Byte]]]])).thenReturn(Seq(Future.successful(mockMetadata)))
       val mockLagChecker = mockKTableLagChecker(assignedPartition, 100L, 100L)
-      val actor = testProducerActor(assignedPartition, mockProducer, mockLagChecker)
+      val actor = testProducerActor(assignedPartition, mockProducer, mockLagChecker, new PublishTrackerStateManager())
       // Send publish messages to stash
       val requestId = UUID.randomUUID()
       probe.send(actor, KafkaProducerActorImpl.Publish(requestId, testAggs1, testEvents1))
@@ -379,12 +389,72 @@ class KafkaProducerActorImplSpec
         1.second)
     }
 
+    "Fail to publish when PublishTracker expires" in {
+      val trackerId = UUID.randomUUID()
+      val trackerTimeout: FiniteDuration = 60.seconds
+
+      val probe = TestProbe()
+      val assignedPartition = new TopicPartition("testTopic", 1)
+      val mockProducerSucceedsPutRecords = mock[GenericKafkaProducer[String, Array[Byte]]]
+      val mockLagChecker = mockKTableLagChecker(assignedPartition, 100L, 100L)
+
+      val mockPublishTrackerState: PublishTrackerStateManager = mockPublishTrackerStateManager()
+      when(mockPublishTrackerState.tracker(same(trackerId), any[KafkaProducerActorState]))
+        .thenReturn(Some(PublishTrackerWithExpiry(PublishTracker(trackerId, (testAggs1, testEvents1), trackerTimeout), expired = true)))
+
+      val succeedingPutWithExpiredTracker = testProducerActor(assignedPartition, mockProducerSucceedsPutRecords, mockLagChecker, mockPublishTrackerState)
+
+      val mockMetadata = mockRecordMetadata(assignedPartition)
+      setupTransactions(mockProducerSucceedsPutRecords)
+      when(mockProducerSucceedsPutRecords.putRecords(any[Seq[ProducerRecord[String, Array[Byte]]]]))
+        .thenReturn(Seq(Future.successful(mockMetadata)), Seq(Future.successful(mockMetadata)))
+
+      probe.send(succeedingPutWithExpiredTracker, KafkaProducerActorImpl.Publish(trackerId, testAggs1, testEvents1))
+
+      probe.expectMsgClass(classOf[PublishFailure])
+    }
+
+    "Try to publish again when data was not published" in {
+      val trackerId = UUID.randomUUID()
+      val trackerTimeout: FiniteDuration = 60.seconds
+
+      val probe = TestProbe()
+      val assignedPartition = new TopicPartition("testTopic", 1)
+      val mockProducerSucceedsPutRecords = mock[GenericKafkaProducer[String, Array[Byte]]]
+      val mockLagChecker = mockKTableLagChecker(assignedPartition, 100L, 100L)
+
+      val mockPublishTrackerState = mockPublishTrackerStateManager()
+      when(mockPublishTrackerState.trackerTimeout).thenReturn(trackerTimeout)
+      when(mockPublishTrackerState.tracker(any[UUID], any[KafkaProducerActorState]))
+        .thenReturn(None)
+        .thenReturn(Some(PublishTrackerWithExpiry(PublishTracker(trackerId, (testAggs1, testEvents1), trackerTimeout), expired = false)))
+
+      val succeedingPutWithExpiredTracker = testProducerActor(assignedPartition, mockProducerSucceedsPutRecords, mockLagChecker, mockPublishTrackerState)
+
+      val mockMetadata = mockRecordMetadata(assignedPartition)
+      val expectedTestException = new RuntimeException("This is expected")
+
+      setupTransactions(mockProducerSucceedsPutRecords)
+      when(mockProducerSucceedsPutRecords.putRecords(any[Seq[ProducerRecord[String, Array[Byte]]]]))
+        .thenReturn(Seq(Future.failed(expectedTestException)))
+        .thenReturn(Seq(Future.successful(mockMetadata)), Seq(Future.successful(mockMetadata)))
+
+      probe.send(succeedingPutWithExpiredTracker, KafkaProducerActorImpl.Publish(trackerId, testAggs1, testEvents1))
+
+      probe.expectMsg(PublishFailure(trackerId, expectedTestException))
+      probe.send(succeedingPutWithExpiredTracker, KafkaProducerActorImpl.Publish(trackerId, testAggs1, testEvents1))
+
+      probe.expectMsg(PublishSuccess(trackerId))
+
+      verify(mockProducerSucceedsPutRecords, times(2)).putRecords(records(assignedPartition, testEvents1, testAggs1))
+    }
+
     "Try to publish new incoming messages to Kafka if publishing to Kafka fails" in {
       val probe = TestProbe()
       val assignedPartition = new TopicPartition("testTopic", 1)
       val mockProducerFailsPutRecords = mock[GenericKafkaProducer[String, Array[Byte]]]
       val mockLagChecker = mockKTableLagChecker(assignedPartition, 100L, 100L)
-      val failingPut = testProducerActor(assignedPartition, mockProducerFailsPutRecords, mockLagChecker)
+      val failingPut = testProducerActor(assignedPartition, mockProducerFailsPutRecords, mockLagChecker, new PublishTrackerStateManager())
 
       val mockMetadata = mockRecordMetadata(assignedPartition)
       setupTransactions(mockProducerFailsPutRecords)
@@ -412,7 +482,7 @@ class KafkaProducerActorImplSpec
       val assignedPartition = new TopicPartition("testTopic", 1)
       val mockProducerFailsCommit = mock[GenericKafkaProducer[String, Array[Byte]]]
       val mockLagChecker = mockKTableLagChecker(assignedPartition, 100L, 100L)
-      val failingCommit = testProducerActor(assignedPartition, mockProducerFailsCommit, mockLagChecker)
+      val failingCommit = testProducerActor(assignedPartition, mockProducerFailsCommit, mockLagChecker, new PublishTrackerStateManager())
 
       when(mockProducerFailsCommit.initTransactions()(any[ExecutionContext])).thenReturn(Future.unit)
       doNothing().when(mockProducerFailsCommit).beginTransaction()
@@ -463,8 +533,14 @@ class KafkaProducerActorImplSpec
       val fastHealthCheckFailureConfig =
         ConfigFactory.parseString("kafka.publisher.fenced-unhealthy-report-time = 0 milliseconds").withFallback(ConfigFactory.load())
       val mockLagChecker = mockKTableLagChecker(assignedPartition, 100L, 100L)
-      val fencedOnBegin = testProducerActor(assignedPartition, mockProducerFenceOnBegin, mockLagChecker, mockPartitionTracker)
-      val fencedOnCommit = testProducerActor(assignedPartition, mockProducerFenceOnCommit, mockLagChecker, mockPartitionTracker, fastHealthCheckFailureConfig)
+      val fencedOnBegin = testProducerActor(assignedPartition, mockProducerFenceOnBegin, mockLagChecker, new PublishTrackerStateManager(), mockPartitionTracker)
+      val fencedOnCommit = testProducerActor(
+        assignedPartition,
+        mockProducerFenceOnCommit,
+        mockLagChecker,
+        new PublishTrackerStateManager(),
+        mockPartitionTracker,
+        fastHealthCheckFailureConfig)
 
       terminateWatcherProbe.watch(fencedOnBegin)
       probe.send(fencedOnBegin, KafkaProducerActorImpl.Publish(UUID.randomUUID(), testAggs1, testEvents1))
@@ -514,7 +590,8 @@ class KafkaProducerActorImplSpec
       when(mockProducerFenceOnCommit.putRecords(any[Seq[ProducerRecord[String, Array[Byte]]]])).thenReturn(Seq(Future.successful(mockMetadata)))
 
       val mockLagChecker = mockKTableLagChecker(assignedPartition, 100L, 100L)
-      val fencedOnCommit = testProducerActor(assignedPartition, mockProducerFenceOnCommit, mockLagChecker, mockPartitionTracker)
+      val fencedOnCommit =
+        testProducerActor(assignedPartition, mockProducerFenceOnCommit, mockLagChecker, new PublishTrackerStateManager(), mockPartitionTracker)
 
       probe.watch(fencedOnCommit)
       probe.send(fencedOnCommit, KafkaProducerActorImpl.Publish(UUID.randomUUID(), testAggs1, testEvents1))

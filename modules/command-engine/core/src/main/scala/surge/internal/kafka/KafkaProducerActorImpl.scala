@@ -20,6 +20,7 @@ import surge.internal.config.TimeoutConfig
 import surge.internal.health.{ HealthCheck, HealthCheckStatus }
 import surge.kafka._
 import surge.internal.health.HealthyActor.GetHealth
+import surge.internal.kafka.KafkaProducerActorImpl.PublishTrackerStateManager
 import surge.metrics.{ MetricInfo, Metrics, Rate, Timer }
 
 import java.time.Instant
@@ -35,6 +36,12 @@ object KafkaProducerActorImpl {
   val KAFKA_PRODUCER_FENCED_SIGNAL_NAME: String = "kafka.producer.actor.fenced"
 
   sealed trait KafkaProducerActorMessage extends NoSerializationVerificationNeeded
+
+  class PublishTrackerStateManager(val trackerTimeout: FiniteDuration = TimeoutConfig.PublisherActor.trackerTimeout) {
+    def tracker(id: UUID, state: KafkaProducerActorState): Option[PublishTrackerWithExpiry] = {
+      state.tracker(id)
+    }
+  }
 
   case class Publish(batchId: UUID, state: KafkaProducerActor.MessageToPublish, eventsToPublish: Seq[KafkaProducerActor.MessageToPublish])
       extends KafkaProducerActorMessage {}
@@ -89,7 +96,7 @@ class KafkaProducerActorImpl(
     partitionTracker: KafkaConsumerPartitionAssignmentTracker,
     override val signalBus: HealthSignalBusTrait,
     config: Config,
-    trackerTimeout: FiniteDuration = TimeoutConfig.PublisherActor.trackerTimeout,
+    publishTrackerStateManager: PublishTrackerStateManager = new PublishTrackerStateManager(TimeoutConfig.PublisherActor.trackerTimeout),
     kafkaProducerOverride: Option[KafkaProducerTrait[String, Array[Byte]]] = None)
     extends Actor
     with ActorHostAwareness
@@ -239,17 +246,30 @@ class KafkaProducerActorImpl(
   private def handleProcessingProducerMessage(message: KafkaProducerActorImpl.KafkaProducerActorMessage, state: KafkaProducerActorState): Unit = {
     message match {
       case msg: Publish =>
-        state.trackers.find(t => t.tracker.requestId() == msg.batchId) match {
-          case Some(existing) =>
-            if (existing.expired || existing.tracker.dataWasPublished()) {
-              // remove tracker
-              context.become(processing(state.stopTracking(msg)))
+        val maybeTrackerWithExpiry = publishTrackerStateManager.tracker(msg.batchId, state)
+        maybeTrackerWithExpiry match {
+          case Some(trackerWithExpiry) =>
+            if (!trackerWithExpiry.tracker.dataWasPublished()) {
+              if (!trackerWithExpiry.expired) {
+                if (!state.pendingWrites.exists(p => p.publish.batchId == msg.batchId)) {
+                  context.become(processing(state.addPendingWrites(sender(), msg)))
+                } else {
+                  context.become(processing(state))
+                }
+              } else {
+                context.become(processing(state.stopTracking(msg)))
+                context.self ! EventsFailedToPublish(
+                  msg.batchId,
+                  reason = new RuntimeException(s"PublishTracker expired, not attempting another publish for ${msg.batchId}"),
+                  originalSenders = Seq(sender()))
+              }
             } else {
               context.become(processing(state))
             }
           case None =>
-            context.become(processing(state.addPendingWrites(sender(), msg).startTracking(msg, trackerTimeout)))
+            context.become(processing(state.addPendingWrites(sender(), msg).startTracking(msg, publishTrackerStateManager.trackerTimeout)))
         }
+
       case msg: IsAggregateStateCurrent => handle(state, msg)
       case other                        => unhandled(other)
     }
@@ -261,12 +281,8 @@ class KafkaProducerActorImpl(
       case msg: KTableProgressUpdate => context.become(processing(state.processedUpTo(msg)))
       case msg: EventsPublished      => handle(state, msg)
       case msg: EventsFailedToPublish =>
-        val found = state.tracker(msg.originatingRequestId)
-        if (found.expired) {
-          handleFailedToPublish(state, msg)
-        } else {
-          handleFailedToPublish(state, msg)
-        }
+        handleFailedToPublish(state, msg)
+
       case FlushMessages               => handleFlushMessages(state)
       case msg: AbortTransactionFailed => handle(msg)
       case msg: ProducerFenced =>
@@ -613,7 +629,7 @@ private[internal] case class KafkaProducerActorState(
     this.copy(pendingWrites = pendingWrites :+ newWriteRequest)
   }
 
-  def tracker(id: UUID): PublishTrackerWithExpiry = {
+  def tracker(id: UUID): Option[PublishTrackerWithExpiry] = {
     trackers
       .find(t => t.tracker.requestId() == id)
       .map(t => {
@@ -623,7 +639,6 @@ private[internal] case class KafkaProducerActorState(
           PublishTrackerWithExpiry(t.tracker, expired = true)
         }
       })
-      .getOrElse(PublishTrackerWithExpiry(PublishTracker.alreadyPublished(id, configuredTrackerTimeout), expired = false))
   }
 
   def flushWrites(): KafkaProducerActorState = {

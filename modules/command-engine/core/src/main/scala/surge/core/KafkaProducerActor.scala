@@ -9,6 +9,7 @@ import com.typesafe.config.Config
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.header.Headers
 import org.slf4j.LoggerFactory
+import surge.core.KafkaProducerActor.RetryAwareException
 import surge.health.{ HealthSignalBusAware, HealthSignalBusTrait }
 import surge.internal.akka.actor.{ ActorLifecycleManagerActor, ManagedActorRef }
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
@@ -126,7 +127,7 @@ object KafkaProducerActor {
 
   sealed trait PublishResult extends NoSerializationVerificationNeeded
   case class PublishSuccess(publishRequestId: UUID) extends PublishResult
-  case class PublishFailure(publishRequestId: UUID, t: Throwable) extends PublishResult
+  case class PublishFailure(publishRequestId: UUID, t: Throwable, retry: Boolean = false) extends PublishResult
   case class MessageToPublish(key: String, value: Array[Byte], headers: Headers)
 
   object PublishTracker {
@@ -160,6 +161,8 @@ object KafkaProducerActor {
       extends PublishTracker
 
   case class PublishTrackerWithExpiry(tracker: PublishTracker, expired: Boolean)
+
+  class RetryAwareException(val cause: Throwable, val retry: Boolean = false) extends Throwable with NoSerializationVerificationNeeded
 }
 
 /**
@@ -210,7 +213,9 @@ class KafkaProducerActor(
     implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PublisherActor.publishTimeout)
     val request = KafkaProducerActorImpl.Publish(batchId = requestId, eventsToPublish = events, state = state)
 
-    (publisherActor.ref ? request).mapTo[KafkaProducerActor.PublishResult]
+    (publisherActor.ref ? request).mapTo[KafkaProducerActor.PublishResult].recover { case t =>
+      throw new RetryAwareException(t, retry = true)
+    }
   }
 
   def terminate(): Unit = {

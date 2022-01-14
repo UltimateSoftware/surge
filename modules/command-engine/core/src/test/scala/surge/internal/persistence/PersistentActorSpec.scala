@@ -504,56 +504,11 @@ class PersistentActorSpec
         argEquals(Seq[KafkaProducerActor.MessageToPublish]()))
     }
 
-//    "Not Crash the actor if publishing eventually succeeds" in {
-//      val crashingMockProducer = mock[KafkaProducerActor]
-//      val expectedException = new ExpectedTestException
-//
-//      when(crashingMockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.successful(true))
-//      when(crashingMockProducer.messageTracker(any[UUID]))
-//        .thenReturn(MessageTrackerWithExpiry(PublishTracker.apply(UUID.randomUUID(), 6.seconds), expired = false))
-//        .thenReturn(MessageTrackerWithExpiry(PublishTracker.apply(UUID.randomUUID(), 6.seconds), expired = false))
-//        .thenReturn(MessageTrackerWithExpiry(PublishTracker.apply(UUID.randomUUID(), 6.seconds), expired = false))
-//        .thenReturn(MessageTrackerWithExpiry(PublishTracker.apply(UUID.randomUUID(), 6.seconds), expired = false))
-//        .thenReturn(MessageTrackerWithExpiry(PublishTracker.alreadyPublished(UUID.randomUUID(), 6.seconds), expired = false))
-//
-//      when(crashingMockProducer.publish(any[UUID], anyString, any[KafkaProducerActor.MessageToPublish], any[Seq[KafkaProducerActor.MessageToPublish]]))
-//        .thenReturn(Future.failed(expectedException))
-//        .thenReturn(Future.failed(expectedException))
-//        .thenReturn(Future.failed(expectedException))
-//        .thenReturn(Future.failed(expectedException))
-//        .thenReturn(Future.successful(PublishSuccess))
-//
-//      val testContext = TestContext.setupDefault(mockProducer = crashingMockProducer)
-//      import testContext._
-//
-//      probe.watch(actor)
-//
-//      val incrementCmd = Increment(baseState.aggregateId)
-//      val testEnvelope = envelope(incrementCmd)
-//      probe.send(actor, testEnvelope)
-//
-//      probe.expectMsgClass(classOf[PersistentActor.ACKSuccess[Option[State]]])
-//
-//      // producer should retry publish
-//      verify(crashingMockProducer, times(5)).publish(
-//        any[UUID],
-//        anyString,
-//        any[KafkaProducerActor.MessageToPublish],
-//        any[Seq[KafkaProducerActor.MessageToPublish]])
-//    }
-
     "Crash the actor to force reinitialization if publishing events times out" in {
       val crashingMockProducer = mock[KafkaProducerActor]
       val expectedException = new ExpectedTestException
 
       when(crashingMockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.successful(true))
-//      when(crashingMockProducer.messageTracker(any[UUID]))
-//        .thenReturn(MessageTrackerWithExpiry(PublishTracker.apply(UUID.randomUUID(), 6.seconds), expired = false))
-//        .thenReturn(MessageTrackerWithExpiry(PublishTracker.apply(UUID.randomUUID(), 6.seconds), expired = false))
-//        .thenReturn(MessageTrackerWithExpiry(PublishTracker.apply(UUID.randomUUID(), 6.seconds), expired = false))
-//        .thenReturn(MessageTrackerWithExpiry(PublishTracker.apply(UUID.randomUUID(), 6.seconds), expired = false))
-//        .thenReturn(MessageTrackerWithExpiry(PublishTracker.apply(UUID.randomUUID(), 6.seconds), expired = true))
-
       when(crashingMockProducer.publish(any[UUID], anyString, any[KafkaProducerActor.MessageToPublish], any[Seq[KafkaProducerActor.MessageToPublish]]))
         .thenReturn(Future.failed(expectedException))
 
@@ -567,7 +522,8 @@ class PersistentActorSpec
       probe.send(actor, testEnvelope)
 
       probe.expectMsgClass(classOf[ACKError])
-      probe.expectTerminated(actor)
+
+      probe.expectTerminated(actor, 20.seconds)
 
       // producer should retry publish
 //      verify(crashingMockProducer, times(5)).publish(

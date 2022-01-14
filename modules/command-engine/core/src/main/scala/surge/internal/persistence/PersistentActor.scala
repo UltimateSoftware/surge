@@ -24,6 +24,7 @@ import java.time.Instant
 import java.util.concurrent.Executors
 import scala.concurrent.duration.{ Duration, FiniteDuration }
 import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.duration._
 
 object PersistentActor {
 
@@ -382,6 +383,7 @@ class PersistentActor[S, M, E](
     activeSpan.log("Failed to persist events + state")
     activeSpan.error(cause)
     sender() ! ACKError(cause)
+
     context.stop(self)
   }
 }

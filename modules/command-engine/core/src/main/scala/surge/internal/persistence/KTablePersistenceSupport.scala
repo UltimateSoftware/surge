@@ -7,13 +7,14 @@ import akka.actor.{ ActorContext, ActorRef, NoSerializationVerificationNeeded }
 import akka.pattern._
 import org.slf4j.LoggerFactory
 import surge.core.KafkaProducerActor
+import surge.core.KafkaProducerActor.RetryAwareException
 import surge.exceptions.KafkaPublishTimeoutException
 import surge.internal.domain.SurgeContextImpl
 import surge.metrics.Timer
 
 import java.time.Instant
 import java.util.UUID
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.{ Await, ExecutionContext, Future }
 
 trait KTablePersistenceMetrics {
   def eventPublishTimer: Timer
@@ -56,7 +57,8 @@ trait KTablePersistenceSupport[Agg, Event] {
       state: KafkaProducerActor.MessageToPublish,
       events: Seq[KafkaProducerActor.MessageToPublish],
       reason: Throwable,
-      startTime: Instant)
+      startTime: Instant,
+      retry: Boolean = false)
       extends Internal
 
   private def handleInternal(state: ActorState): Receive = {
@@ -73,9 +75,9 @@ trait KTablePersistenceSupport[Agg, Event] {
       serializedState: KafkaProducerActor.MessageToPublish,
       currentFailureCount: Int = 0,
       startTime: Instant,
-      didStateChange: Boolean)(implicit ec: ExecutionContext): Future[Any] = {
+      didStateChange: Boolean,
+      trackingId: UUID = UUID.randomUUID())(implicit ec: ExecutionContext): Future[Any] = {
     log.trace("Publishing messages for {}", aggregateId)
-    val trackingId = UUID.randomUUID()
     if (serializedEvents.isEmpty && !didStateChange) {
       Future.successful(PersistenceSuccess(trackingId, state, startTime, context))
     } else {
@@ -83,12 +85,19 @@ trait KTablePersistenceSupport[Agg, Event] {
       futureResult
         .map {
           case KafkaProducerActor.PublishSuccess(publishRequestId) => PersistenceSuccess(publishRequestId, state, startTime, context)
-          case KafkaProducerActor.PublishFailure(publishRequestId, t) =>
+          case KafkaProducerActor.PublishFailure(publishRequestId, t, _) =>
             PersistenceFailure(publishRequestId, state, context, t, currentFailureCount + 1, serializedEvents, serializedState, startTime)
         }
         .recover { case t =>
           log.error("Failed to publish messages", t)
-          EventPublishTimedOut(trackingId, aggregateId, context, serializedState, serializedEvents, t, startTime)
+
+          t match {
+            case exception: RetryAwareException =>
+              EventPublishTimedOut(trackingId, aggregateId, context, serializedState, serializedEvents, t, startTime, retry = exception.retry)
+            case _ =>
+              EventPublishTimedOut(trackingId, aggregateId, context, serializedState, serializedEvents, t, startTime)
+
+          }
         }
     }
   }
@@ -98,7 +107,13 @@ trait KTablePersistenceSupport[Agg, Event] {
   private def handlePersistenceTimedOut(state: ActorState, msg: EventPublishTimedOut): Unit = {
     implicit val ec: ExecutionContext = context.dispatcher
     ktablePersistenceMetrics.eventPublishTimer.recordTime(publishTimeInMillis(msg.startTime))
-    onPersistenceFailure(state, KafkaPublishTimeoutException(aggregateId, msg.reason))
+
+    if (msg.retry) {
+      doPublish(state, msg.context, msg.events, msg.state, currentFailureCount = 0, Instant.now(), didStateChange = true, trackingId = msg.trackingId)
+        .pipeTo(self)
+    } else {
+      onPersistenceFailure(state, KafkaPublishTimeoutException(aggregateId, msg.reason))
+    }
   }
 
   private def handleFailedToPersist(state: ActorState, eventsFailedToPersist: PersistenceFailure): Unit = {
