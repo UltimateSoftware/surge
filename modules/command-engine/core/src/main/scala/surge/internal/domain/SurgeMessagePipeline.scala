@@ -45,6 +45,13 @@ private[surge] abstract class SurgeMessagePipeline[S, M, E](
 
   def getEngineStatus() = surgeEngineStatus.get()
 
+  private def compareAndSetSync(ref: AtomicReference[SurgeEngineStatus])(newValue: SurgeEngineStatus) {
+    while (true) {
+      val snapshot = ref.get
+      if (ref.compareAndSet(snapshot, newValue)) return
+    }
+  }
+
   import SurgeMessagePipeline._
   import system.dispatcher
   protected implicit val system: ActorSystem = actorSystem
@@ -147,7 +154,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, E](
       registerWithSupervisor()
     case Failure(exception) =>
       log.error("Failed to start so unable to register for supervision", exception)
-      surgeEngineStatus.set(SurgeEngineStatus.Stopped)
+      compareAndSetSync(surgeEngineStatus)(SurgeEngineStatus.Stopped)
   }
 
   /**
@@ -189,6 +196,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, E](
         log.info("Engine already started, ignoring message")
         Future.successful(Ack)
       } else {
+        compareAndSetSync(surgeEngineStatus)(SurgeEngineStatus.Starting)
         surgeEngineStatus.set(SurgeEngineStatus.Starting)
         val f1 = startSignalStream()
         val f2 = startClusterManagementAndRebalanceListener()
@@ -200,7 +208,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, E](
           _ <- f3
           allStarted <- f4
         } yield {
-          surgeEngineStatus.set(SurgeEngineStatus.Running)
+          compareAndSetSync(surgeEngineStatus)(SurgeEngineStatus.Running)
           log.info(s"surge engine status: ${surgeEngineStatus}")
           allStarted
         }
@@ -227,7 +235,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, E](
         _ <- actorRouter.controllable.stop()
         allStopped <- kafkaStreamsImpl.controllable.stop()
       } yield {
-        surgeEngineStatus.set(SurgeEngineStatus.Stopped)
+        compareAndSetSync(surgeEngineStatus)(SurgeEngineStatus.Stopped)
         log.info(s"surge engine status: ${surgeEngineStatus}")
         allStopped
       }
