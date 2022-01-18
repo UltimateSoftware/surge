@@ -41,6 +41,10 @@ object KafkaProducerActorImpl {
     def tracker(id: UUID, state: KafkaProducerActorState): Option[PublishTrackerWithExpiry] = {
       state.tracker(id)
     }
+
+    def stateHasPendingWrites(id: UUID, state: KafkaProducerActorState): Boolean = {
+      state.pendingWrites.exists(p => p.publish.batchId == id)
+    }
   }
 
   case class Publish(batchId: UUID, state: KafkaProducerActor.MessageToPublish, eventsToPublish: Seq[KafkaProducerActor.MessageToPublish])
@@ -251,7 +255,7 @@ class KafkaProducerActorImpl(
           case Some(trackerWithExpiry) =>
             if (!trackerWithExpiry.tracker.dataWasPublished()) {
               if (!trackerWithExpiry.expired) {
-                if (!state.pendingWrites.exists(p => p.publish.batchId == msg.batchId)) {
+                if (!publishTrackerStateManager.stateHasPendingWrites(msg.batchId, state)) {
                   context.become(processing(state.addPendingWrites(sender(), msg)))
                 } else {
                   context.become(processing(state))
