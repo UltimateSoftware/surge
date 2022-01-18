@@ -4,8 +4,6 @@ package surge.internal.domain
 
 import akka.actor.{ actorRef2Scala, ActorRef, ActorSystem, InvalidActorNameException }
 import akka.cluster.Cluster
-import akka.management.cluster.bootstrap.ClusterBootstrap
-import akka.management.scaladsl.AkkaManagement
 import com.typesafe.config.Config
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.core._
@@ -20,9 +18,9 @@ import surge.internal.persistence.PersistentActorRegionCreator
 import surge.kafka.PartitionAssignments
 import surge.kafka.streams._
 
+import java.util.concurrent.atomic.AtomicReference
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.{ Failure, Success, Try }
-import java.util.concurrent.atomic.AtomicReference
 
 object SurgeMessagePipeline {
   val log: Logger = LoggerFactory.getLogger(getClass)
@@ -98,7 +96,6 @@ private[surge] abstract class SurgeMessagePipeline[S, M, E](
     if (isAkkaClusterEnabled) {
       Cluster.get(system)
       for {
-        _ <- AkkaManagement(system).start()
         allStarted <- startKafkaClusterRebalanceListener()
       } yield allStarted
     } else {
