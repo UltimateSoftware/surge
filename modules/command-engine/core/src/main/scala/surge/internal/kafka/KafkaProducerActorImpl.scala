@@ -259,6 +259,7 @@ class KafkaProducerActorImpl(
                   context.become(processing(state.addPendingWrites(sender(), msg)))
                 } else {
                   context.become(processing(state))
+                  context.self ! EventsPublished(msg.batchId, Seq(sender()), Seq.empty)
                 }
               } else {
                 context.become(processing(state.stopTracking(msg)))
@@ -269,6 +270,7 @@ class KafkaProducerActorImpl(
               }
             } else {
               context.become(processing(state))
+              context.self ! EventsPublished(msg.batchId, Seq(sender()), Seq.empty)
             }
           case None =>
             context.become(processing(state.addPendingWrites(sender(), msg).startTracking(msg, publishTrackerStateManager.trackerTimeout)))
@@ -367,8 +369,10 @@ class KafkaProducerActorImpl(
   }
 
   private def handle(state: KafkaProducerActorState, eventsPublished: EventsPublished): Unit = {
-    val newState = state.addInFlight(eventsPublished.recordMetadata).completeTransaction()
-    context.become(processing(newState))
+    if (eventsPublished.recordMetadata.nonEmpty) {
+      val newState = state.addInFlight(eventsPublished.recordMetadata).completeTransaction()
+      context.become(processing(newState))
+    }
     eventsPublished.originalSenders.foreach(_ ! KafkaProducerActor.PublishSuccess(eventsPublished.originatingRequestId))
   }
 

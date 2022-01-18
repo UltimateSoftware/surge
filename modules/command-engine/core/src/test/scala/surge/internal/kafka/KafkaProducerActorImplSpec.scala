@@ -415,6 +415,32 @@ class KafkaProducerActorImplSpec
       probe.expectMsgClass(classOf[PublishSuccess])
     }
 
+    "Ignore publish when data already published" in {
+      val trackerId = UUID.randomUUID()
+      val trackerTimeout: FiniteDuration = 6.seconds
+
+      val probe = TestProbe()
+      val assignedPartition = new TopicPartition("testTopic", 1)
+      val mockProducerSucceedsPutRecords = mock[GenericKafkaProducer[String, Array[Byte]]]
+      val mockLagChecker = mockKTableLagChecker(assignedPartition, 100L, 100L)
+
+      val mockPublishTrackerState: PublishTrackerStateManager = mockPublishTrackerStateManager()
+      when(mockPublishTrackerState.stateHasPendingWrites(same(trackerId), any[KafkaProducerActorState])).thenReturn(false)
+      when(mockPublishTrackerState.tracker(same(trackerId), any[KafkaProducerActorState]))
+        .thenReturn(Some(PublishTrackerWithExpiry(PublishTracker.alreadyPublished(trackerId, trackerTimeout), expired = false)))
+
+      val succeedingPutWithExpiredTracker = testProducerActor(assignedPartition, mockProducerSucceedsPutRecords, mockLagChecker, mockPublishTrackerState)
+
+      val mockMetadata = mockRecordMetadata(assignedPartition)
+      setupTransactions(mockProducerSucceedsPutRecords)
+      when(mockProducerSucceedsPutRecords.putRecords(any[Seq[ProducerRecord[String, Array[Byte]]]]))
+        .thenReturn(Seq(Future.successful(mockMetadata)), Seq(Future.successful(mockMetadata)))
+
+      probe.send(succeedingPutWithExpiredTracker, KafkaProducerActorImpl.Publish(trackerId, testAggs1, testEvents1))
+
+      probe.expectMsgClass(classOf[PublishSuccess])
+    }
+
     "Successfully publish when PublishTracker not expired and pending writes do not exist" in {
       val trackerId = UUID.randomUUID()
       val trackerTimeout: FiniteDuration = 6.seconds
