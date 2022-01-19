@@ -92,7 +92,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, E](
     system.actorOf(CustomConsumerGroupRebalanceListener.props(stateChangeActor, callback))
   }
 
-  private def startClusterManagementAndRebalanceListener(): Future[Unit] = {
+  private def startClusterRebalanceListener(): Future[Unit] = {
     if (isAkkaClusterEnabled) {
       Cluster.get(system)
       for {
@@ -196,7 +196,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, E](
         compareAndSetSync(surgeEngineStatus)(SurgeEngineStatus.Starting)
         surgeEngineStatus.set(SurgeEngineStatus.Starting)
         val f1 = startSignalStream()
-        val f2 = startClusterManagementAndRebalanceListener()
+        val f2 = startClusterRebalanceListener()
         val f3 = actorRouter.controllable.start()
         val f4 = kafkaStreamsImpl.controllable.start()
         val result = for {

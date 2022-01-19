@@ -146,13 +146,12 @@ class KafkaClusterShardingRebalanceListener(
     val joinedSeedNodes = state.joinedSeedNodes
     val seedNodesOfPartitionAssignment =
       partitionAssignments.partitionAssignments.keys.map(hostPort => cluster.selfAddress.copy(host = Some(hostPort.host), port = Some(hostPort.port))).toList
-    val newSeedNodes = seedNodesOfPartitionAssignment.collect {
-      case address: Address if !isAddressThisNode(address) && !joinedSeedNodes.contains(address) => address
-    }.sorted
+    val newSeedNodes = seedNodesOfPartitionAssignment.filter(address => !isAddressThisNode(address) && !joinedSeedNodes.contains(address)).sorted
+
     val updatedJoinSeedNodes = joinedSeedNodes.filter(seedNode => seedNodesOfPartitionAssignment.contains(seedNode)) ++ newSeedNodes
 
     val currentClusterAddress = cluster.selfAddress
-    val isLowestAddressNode = !updatedJoinSeedNodes.flatMap(_.host).exists(host => host < currentClusterAddress.host.getOrElse("localhost"))
+    val isLowestAddressNode = !updatedJoinSeedNodes.flatMap(_.host).exists(host => host < currentClusterAddress.host.getOrElse("127.0.0.1"))
     if (isLowestAddressNode && joinedSeedNodes.isEmpty) {
       cluster.joinSeedNodes(currentClusterAddress +: newSeedNodes)
     } else if (newSeedNodes.nonEmpty) {
