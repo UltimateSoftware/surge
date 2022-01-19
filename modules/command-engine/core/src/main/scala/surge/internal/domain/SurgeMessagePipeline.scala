@@ -7,6 +7,7 @@ import akka.cluster.Cluster
 import com.typesafe.config.Config
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.core._
+import surge.exceptions.SurgeInitializationException
 import surge.health.{ HealthSignalBusAware, HealthSignalBusTrait }
 import surge.internal.SurgeModel
 import surge.internal.akka.cluster.ActorSystemHostAwareness
@@ -121,7 +122,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, E](
     } catch {
       case e: InvalidActorNameException =>
         log.error(s"Only single instance of surge engine can be initialized per actor system, error: ${e.getMessage}")
-        throw new Exception("Only single instance of surge engine can be initialized per actor system")
+        throw SurgeInitializationException("Only single instance of surge engine can be initialized per actor system", e)
     }
   }
 
