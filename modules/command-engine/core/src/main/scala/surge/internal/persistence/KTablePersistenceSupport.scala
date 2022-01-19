@@ -102,8 +102,6 @@ trait KTablePersistenceSupport[Agg, Event] {
     }
   }
 
-  // TODO can we handle this more gracefully? If we're unsure something published or not from the timeout the safest thing to do for now
-  //  is to crash the actor and force reinitialization
   private def handlePersistenceTimedOut(state: ActorState, msg: EventPublishTimedOut): Unit = {
     implicit val ec: ExecutionContext = context.dispatcher
     ktablePersistenceMetrics.eventPublishTimer.recordTime(publishTimeInMillis(msg.startTime))
