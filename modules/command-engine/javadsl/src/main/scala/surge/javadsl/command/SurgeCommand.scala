@@ -10,6 +10,7 @@ import surge.core.command._
 import surge.core.commondsl.SurgeCommandBusinessLogicTrait
 import surge.health.config.WindowingStreamConfigLoader
 import surge.health.matchers.SignalPatternMatcherRegistry
+import surge.internal.core.ActorSystemBindingHelper
 import surge.internal.domain
 import surge.internal.health.HealthSignalStreamProvider
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
@@ -31,10 +32,9 @@ trait SurgeCommand[AggId, Agg, Command, Evt] extends core.SurgeProcessingTrait[A
   def shutdown: CompletionStage[Ack] = FutureConverters.toJava(controllable.shutdown())
 }
 
-object SurgeCommand {
+object SurgeCommand extends ActorSystemBindingHelper {
   def create[AggId, Agg, Command, Evt](businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Evt]): SurgeCommand[AggId, Agg, Command, Evt] = {
-    val actorSystem = ActorSystem(s"${businessLogic.aggregateName}ActorSystem")
-    create(actorSystem, businessLogic, businessLogic.config)
+    create(sharedActorSystem(), businessLogic, businessLogic.config)
   }
 
   def create[AggId, Agg, Command, Evt](
