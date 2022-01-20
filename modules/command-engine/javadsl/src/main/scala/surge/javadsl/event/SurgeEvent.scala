@@ -8,6 +8,7 @@ import surge.core
 import surge.core.event.SurgeEventServiceModel
 import surge.health.config.WindowingStreamConfigLoader
 import surge.health.matchers.SignalPatternMatcherRegistry
+import surge.internal.core.ActorSystemBindingHelper
 import surge.internal.domain.SurgeEventServiceImpl
 import surge.internal.health.HealthSignalStreamProvider
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
@@ -25,9 +26,9 @@ trait SurgeEvent[AggId, Agg, Evt] extends core.SurgeProcessingTrait[Agg, Nothing
   def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Evt]): Unit
 }
 
-object SurgeEvent {
+object SurgeEvent extends ActorSystemBindingHelper {
   def create[AggId, Agg, Evt](businessLogic: SurgeEventBusinessLogic[AggId, Agg, Evt]): SurgeEvent[AggId, Agg, Evt] = {
-    val actorSystem = ActorSystem(s"${businessLogic.aggregateName}ActorSystem")
+    val actorSystem = sharedActorSystem()
     new SurgeEventImpl(
       actorSystem,
       SurgeEventServiceModel.apply(businessLogic),

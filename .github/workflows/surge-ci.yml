@@ -20,6 +20,8 @@ jobs:
         run: 'sbt scalastyle && sbt "scalafmtCheckAll;scalafmtSbtCheck"'
       - name: Check cross-compile
         run: 'sbt +compile'
+      - name: Check Akka Version Compatibility
+        run: 'sbt checkAkkaModuleVersions'
       #- name: check-binary-compatibility
       #  run: 'sbt mimaReportBinaryIssues'
       - name: test
