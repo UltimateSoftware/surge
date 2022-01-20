@@ -82,6 +82,8 @@ class KafkaStreamManagerActor(surgeConsumer: SurgeStateStoreConsumer, partitionT
       sender() ! getHealth(status)
     case KafkaStreamError(t) =>
       handleError(t)
+    case _ =>
+      stash()
   }
 
   private val actorStateChangeListener = new KafkaStreamsNotifyOnStateChangeListener(surgeConsumer.storeName, List(receiveKafkaStreamStateChange))
@@ -101,6 +103,8 @@ class KafkaStreamManagerActor(surgeConsumer: SurgeStateStoreConsumer, partitionT
       sender() ! Ack
     case KafkaStreamError(t) =>
       handleError(t)
+    case Run =>
+      log.debug("KafkaStreamManagerActor is already in running state")
   }
 
   private def start(): Unit = {

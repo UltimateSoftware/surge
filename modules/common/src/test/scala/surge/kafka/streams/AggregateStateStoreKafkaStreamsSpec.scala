@@ -18,7 +18,6 @@ import org.scalatest.{ Assertion, BeforeAndAfterAll }
 import org.scalatestplus.mockito.MockitoSugar
 import play.api.libs.json.{ Format, JsValue, Json }
 import surge.core.Ack
-import surge.internal.kafka.JsonSerdes
 import surge.kafka.KafkaTopic
 import surge.metrics.Metrics
 
@@ -34,7 +33,9 @@ object MockState {
   implicit val format: Format[MockState] = Json.format
 }
 
-case class MockState(string: String, int: Int)
+case class MockState(string: String, int: Int) {
+  def toJsString: String = Json.toJson(this).toString()
+}
 class AggregateStateStoreKafkaStreamsSpec
     extends AnyWordSpec
     with Matchers
@@ -64,12 +65,12 @@ class AggregateStateStoreKafkaStreamsSpec
       val state2 = MockState("state2", 2)
       val state3 = MockState("state3", 3)
       val invalidValidationState = MockState("invalidValidation", 1)
-      val inputTopic = testDriver.createInputTopic(stateTopic.name, new StringSerializer, JsonSerdes.serdeFor[MockState].serializer())
+      val inputTopic = testDriver.createInputTopic(stateTopic.name, new StringSerializer, new StringSerializer)
 
-      inputTopic.pipeInput(state1.string, state1)
-      inputTopic.pipeInput(state2.string, state2)
-      inputTopic.pipeInput(state3.string, state3)
-      inputTopic.pipeInput(invalidValidationState.string, invalidValidationState)
+      inputTopic.pipeInput(state1.string, state1.toJsString)
+      inputTopic.pipeInput(state2.string, state2.toJsString)
+      inputTopic.pipeInput(state3.string, state3.toJsString)
+      inputTopic.pipeInput(invalidValidationState.string, invalidValidationState.toJsString)
 
       val store = testDriver.getKeyValueStore[String, JsValue](aggStoreKafkaStreams.settings.storeName)
       store.get(state1.string) shouldEqual Json.toJson(state1).toString().getBytes
@@ -78,7 +79,7 @@ class AggregateStateStoreKafkaStreamsSpec
       store.get(invalidValidationState.string) shouldEqual Json.toJson(invalidValidationState).toString().getBytes
 
       val updated1 = state1.copy(int = 3)
-      inputTopic.pipeInput(updated1.string, updated1)
+      inputTopic.pipeInput(updated1.string, updated1.toJsString)
       store.get(state1.string) shouldEqual Json.toJson(updated1).toString().getBytes
     }
 
