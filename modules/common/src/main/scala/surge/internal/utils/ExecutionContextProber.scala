@@ -64,7 +64,6 @@ class ExecutionContextProberActor(settings: ExecutionContextProberSettings) exte
   import ExecutionContextProberActor._
 
   implicit val system: ActorSystem = context.system
-  implicit val ec: ExecutionContext = settings.targetEc
 
   override def preStart(): Unit = {
     timers.startSingleTimer(SendProbesKey, SendProbes, settings.initialDelay)
@@ -79,6 +78,7 @@ class ExecutionContextProberActor(settings: ExecutionContextProberSettings) exte
   def ready(detectedIssue: Boolean): Receive = {
     case SendProbes =>
       val id = UUID.randomUUID()
+      implicit val ec: ExecutionContext = settings.targetEc
       (1 to settings.numProbes).foreach(_ => pipe(noOpFuture(id)).to(self))
       timers.startSingleTimer(TimeoutKey, msg = Timeout, settings.timeout)
       context.become(collect(count = 0, expectedId = id, detectedIssue))
