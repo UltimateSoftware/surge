@@ -21,6 +21,7 @@ import scala.compat.java8.FutureConverters
 
 import scala.jdk.CollectionConverters._
 import scala.concurrent.ExecutionContext
+import surge.internal.utils.DiagnosticContextFuturePropagation
 
 trait SurgeCommand[AggId, Agg, Command, Evt] extends core.SurgeProcessingTrait[Agg, Command, Evt] with HealthCheckTrait {
   def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Command, Evt]
@@ -33,20 +34,38 @@ trait SurgeCommand[AggId, Agg, Command, Evt] extends core.SurgeProcessingTrait[A
 }
 
 object SurgeCommand {
-  def create[AggId, Agg, Command, Evt](businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Evt])(
-      implicit ec: ExecutionContext): SurgeCommand[AggId, Agg, Command, Evt] = {
+
+  def create[AggId, Agg, Command, Evt](
+      businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Evt],
+      ec: ExecutionContext): SurgeCommand[AggId, Agg, Command, Evt] = {
     val actorSystem = ActorSystem(s"${businessLogic.aggregateName}ActorSystem")
-    create(actorSystem, businessLogic, businessLogic.config)
+    create(actorSystem, businessLogic, businessLogic.config, ec)
   }
 
-  def create[AggId, Agg, Command, Evt](actorSystem: ActorSystem, businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Evt], config: Config)(
-      implicit ec: ExecutionContext): SurgeCommand[AggId, Agg, Command, Evt] = {
+  def create[AggId, Agg, Command, Evt](businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Evt]): SurgeCommand[AggId, Agg, Command, Evt] = {
+    val actorSystem = ActorSystem(s"${businessLogic.aggregateName}ActorSystem")
+    create(actorSystem, businessLogic, businessLogic.config, DiagnosticContextFuturePropagation.global)
+  }
+
+  def create[AggId, Agg, Command, Evt](
+      actorSystem: ActorSystem,
+      businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Evt],
+      config: Config,
+      ec: ExecutionContext): SurgeCommand[AggId, Agg, Command, Evt] = {
     new SurgeCommandImpl(
       actorSystem,
       SurgeCommandModel(businessLogic),
-      new SlidingHealthSignalStreamProvider(WindowingStreamConfigLoader.load(config), actorSystem, patternMatchers = SignalPatternMatcherRegistry.load().toSeq),
+      new SlidingHealthSignalStreamProvider(WindowingStreamConfigLoader.load(config), actorSystem, patternMatchers = SignalPatternMatcherRegistry.load().toSeq)(
+        ec),
       businessLogic.aggregateIdToString,
-      config)
+      config)(ec)
+  }
+
+  def create[AggId, Agg, Command, Evt](
+      actorSystem: ActorSystem,
+      businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Evt],
+      config: Config): SurgeCommand[AggId, Agg, Command, Evt] = {
+    create(actorSystem, businessLogic, config, DiagnosticContextFuturePropagation.global)
   }
 }
 

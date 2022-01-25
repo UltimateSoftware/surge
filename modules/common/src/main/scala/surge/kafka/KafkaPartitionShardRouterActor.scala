@@ -257,7 +257,7 @@ class KafkaPartitionShardRouterActor(
           val region = regionCreator.regionFromTopicPartition(topicPartition)
           region.controllable.start()
 
-          val shardProps = Shard.props(topicPartition.toString, region, extractEntityId)(tracer, ec)
+          val shardProps = Shard.props(topicPartition.toString, region, extractEntityId)(tracer)
 
           val newActor = context.system.actorOf(shardProps)
           context.watch(newActor)

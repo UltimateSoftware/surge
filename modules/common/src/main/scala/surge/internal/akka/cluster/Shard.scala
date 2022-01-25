@@ -15,9 +15,9 @@ import surge.internal.health.{ HealthCheck, HealthCheckStatus }
 import surge.internal.health.HealthyActor.GetHealth
 import surge.internal.tracing.TracedMessage
 
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.util.{ Failure, Success }
-import scala.concurrent.ExecutionContext
 
 /**
  * A shard is a building block for scaling that is responsible for tracking & managing many child actors underneath. The child actors are what would actually
@@ -35,15 +35,13 @@ object Shard {
   sealed trait ShardMessage
 
   def props[IdType](shardId: String, regionLogicProvider: PerShardLogicProvider[IdType], extractEntityId: PartialFunction[Any, IdType])(
-      implicit tracer: Tracer,
-      ec: ExecutionContext): Props = {
-    Props(new Shard(shardId, regionLogicProvider, extractEntityId)(tracer, ec))
+      implicit tracer: Tracer): Props = {
+    Props(new Shard(shardId, regionLogicProvider, extractEntityId)(tracer))
   }
 }
 
 class Shard[IdType](shardId: String, regionLogicProvider: PerShardLogicProvider[IdType], extractEntityId: PartialFunction[Any, IdType])(
-    implicit val tracer: Tracer,
-    ec: ExecutionContext)
+    implicit val tracer: Tracer)
     extends ActorWithTracing {
 
   private val log: Logger = LoggerFactory.getLogger(getClass)

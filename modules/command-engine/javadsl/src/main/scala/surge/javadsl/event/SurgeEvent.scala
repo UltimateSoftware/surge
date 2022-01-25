@@ -19,6 +19,7 @@ import scala.compat.java8.FutureConverters
 
 import scala.jdk.CollectionConverters._
 import scala.concurrent.ExecutionContext
+import surge.internal.utils.DiagnosticContextFuturePropagation
 
 trait SurgeEvent[AggId, Agg, Evt] extends core.SurgeProcessingTrait[Agg, Nothing, Evt] with HealthCheckTrait {
   def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Evt]
@@ -39,6 +40,9 @@ object SurgeEvent {
       businessLogic.aggregateIdToString,
       businessLogic.config)(ec)
   }
+
+  def create[AggId, Agg, Evt](businessLogic: SurgeEventBusinessLogic[AggId, Agg, Evt]): SurgeEvent[AggId, Agg, Evt] =
+    create(businessLogic, DiagnosticContextFuturePropagation.global)
 
 }
 

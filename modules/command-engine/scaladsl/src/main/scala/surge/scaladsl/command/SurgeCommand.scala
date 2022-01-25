@@ -18,6 +18,7 @@ import surge.scaladsl.common.HealthCheckTrait
 
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext
+import surge.internal.utils.DiagnosticContextFuturePropagation
 
 trait SurgeCommand[AggId, Agg, Command, Evt] extends core.SurgeProcessingTrait[Agg, Command, Evt] with HealthCheckTrait {
   def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Command, Evt]
@@ -36,8 +37,12 @@ object SurgeCommand {
     val actorSystem = ActorSystem(s"${businessLogic.aggregateName}ActorSystem")
     apply(actorSystem, businessLogic, businessLogic.config)
   }
+  def apply[AggId, Agg, Command, Event](businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Event]): SurgeCommand[AggId, Agg, Command, Event] = {
+    val actorSystem = ActorSystem(s"${businessLogic.aggregateName}ActorSystem")
+    apply(actorSystem, businessLogic, businessLogic.config)(DiagnosticContextFuturePropagation.global)
+  }
   def apply[AggId, Agg, Command, Event](actorSystem: ActorSystem, businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Event], config: Config)(
-      implicit ec: ExecutionContext): SurgeCommand[AggId, Agg, Command, Event] = {
+      implicit ec: ExecutionContext = DiagnosticContextFuturePropagation.global): SurgeCommand[AggId, Agg, Command, Event] = {
     new SurgeCommandImpl(
       actorSystem,
       SurgeCommandModel(businessLogic),
@@ -45,6 +50,7 @@ object SurgeCommand {
       businessLogic.aggregateIdToString,
       config)
   }
+
 }
 
 private[scaladsl] class SurgeCommandImpl[AggId, Agg, Command, Event](

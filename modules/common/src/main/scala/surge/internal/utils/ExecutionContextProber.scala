@@ -58,12 +58,13 @@ object ExecutionContextProberActor {
 
 }
 
-class ExecutionContextProberActor(settings: ExecutionContextProberSettings)(implicit ec: ExecutionContext) extends Actor with ActorLogging with Timers {
+class ExecutionContextProberActor(settings: ExecutionContextProberSettings) extends Actor with ActorLogging with Timers {
 
   import ExecutionContextProberActor.Messages._
   import ExecutionContextProberActor._
 
   implicit val system: ActorSystem = context.system
+  implicit val ec: ExecutionContext = settings.targetEc
 
   override def preStart(): Unit = {
     timers.startSingleTimer(SendProbesKey, SendProbes, settings.initialDelay)
