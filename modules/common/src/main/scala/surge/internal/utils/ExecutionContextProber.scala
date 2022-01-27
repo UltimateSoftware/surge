@@ -24,7 +24,7 @@ final case class ExecutionContextProberSettings(
 
 object ExecutionContextProberActor {
 
-  def props(settings: ExecutionContextProberSettings)(implicit ec: ExecutionContext): Props = Props(new ExecutionContextProberActor(settings))
+  def props(settings: ExecutionContextProberSettings): Props = Props(new ExecutionContextProberActor(settings))
 
   object Messages {
 
@@ -137,7 +137,7 @@ class ExecutionContextProberActor(settings: ExecutionContextProberSettings) exte
 
 // Akka extension boilerplate
 // See: https://doc.akka.io/docs/akka/current/typed/extending.html
-class ExecutionContextProberImpl(system: ActorSystem)(implicit ec: ExecutionContext) extends Extension {
+class ExecutionContextProberImpl(system: ActorSystem) extends Extension {
 
   private val targetEcName = "akka.actor.default-dispatcher" // TODO: make this configurable and support multiple ECs
   private val targetEc = system.dispatchers.lookup(targetEcName)
@@ -167,6 +167,6 @@ object ExecutionContextProber extends ExtensionId[ExecutionContextProberImpl] wi
 
   override def lookup: ExecutionContextProber.type = ExecutionContextProber
 
-  override def createExtension(system: ExtendedActorSystem): ExecutionContextProberImpl = new ExecutionContextProberImpl(system)(ExecutionContext.global)
+  override def createExtension(system: ExtendedActorSystem): ExecutionContextProberImpl = new ExecutionContextProberImpl(system)
 
 }
