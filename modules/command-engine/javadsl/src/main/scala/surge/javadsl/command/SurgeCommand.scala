@@ -34,18 +34,18 @@ trait SurgeCommand[AggId, Agg, Command, Evt] extends core.SurgeProcessingTrait[A
   def shutdown: CompletionStage[Ack] = FutureConverters.toJava(controllable.shutdown())
 }
 
-object SurgeCommand {
+object SurgeCommand extends ActorSystemBindingHelper {
 
   def create[AggId, Agg, Command, Evt](
       businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Evt],
       ec: ExecutionContext): SurgeCommand[AggId, Agg, Command, Evt] = {
     val actorSystem = ActorSystem(s"${businessLogic.aggregateName}ActorSystem")
-    create(sharedActorSystem(), businessLogic, businessLogic.config, ec)
+    create(actorSystem, businessLogic, businessLogic.config, ec)
   }
 
   def create[AggId, Agg, Command, Evt](businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Evt]): SurgeCommand[AggId, Agg, Command, Evt] = {
     val actorSystem = ActorSystem(s"${businessLogic.aggregateName}ActorSystem")
-    create(sharedActorSystem(), businessLogic, businessLogic.config, DiagnosticContextFuturePropagation.global)
+    create(actorSystem, businessLogic, businessLogic.config, DiagnosticContextFuturePropagation.global)
   }
 
   def create[AggId, Agg, Command, Evt](

@@ -32,12 +32,7 @@ trait SurgeCommand[AggId, Agg, Command, Evt] extends core.SurgeProcessingTrait[A
   def shutdown(): Future[Ack] = controllable.shutdown()
 }
 
-object SurgeCommand {
-  def apply[AggId, Agg, Command, Event](businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Event])(
-      implicit ec: ExecutionContext): SurgeCommand[AggId, Agg, Command, Event] = {
-    val actorSystem = sharedActorSystem()
-    apply(actorSystem, businessLogic, businessLogic.config)
-  }
+object SurgeCommand extends ActorSystemBindingHelper {
   def apply[AggId, Agg, Command, Event](businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Event]): SurgeCommand[AggId, Agg, Command, Event] = {
     val actorSystem = sharedActorSystem()
     apply(actorSystem, businessLogic, businessLogic.config)(DiagnosticContextFuturePropagation.global)
@@ -45,7 +40,8 @@ object SurgeCommand {
   def apply[AggId, Agg, Command, Event](actorSystem: ActorSystem, businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Event], config: Config)(
       implicit ec: ExecutionContext = DiagnosticContextFuturePropagation.global): SurgeCommand[AggId, Agg, Command, Event] = {
     new SurgeCommandImpl(
-      sharedActorSystem().SurgeCommandModel(businessLogic),
+      sharedActorSystem(),
+      SurgeCommandModel(businessLogic),
       new SlidingHealthSignalStreamProvider(WindowingStreamConfigLoader.load(config), actorSystem, patternMatchers = SignalPatternMatcherRegistry.load().toSeq),
       businessLogic.aggregateIdToString,
       config)

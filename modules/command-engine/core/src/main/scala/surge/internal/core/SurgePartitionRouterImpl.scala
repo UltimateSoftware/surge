@@ -63,7 +63,7 @@ private[surge] final class SurgePartitionRouterImpl(
       businessLogic.kafka.stateTopic,
       regionCreator,
       RoutableMessage.extractEntityId,
-      kafkaProducerOverride)(businessLogic.tracer, ec)
+      kafkaProducerOverride)(businessLogic.tracer)
 
     val routerActorName = s"${businessLogic.aggregateName}RouterActor"
     val shardRouter = system.actorOf(shardRouterProps, name = routerActorName)

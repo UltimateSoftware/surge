@@ -22,7 +22,7 @@ trait SurgeEvent[AggId, Agg, Evt] extends core.SurgeProcessingTrait[Agg, Nothing
   def registerRebalanceListener(listener: ConsumerRebalanceListener[AggId, Agg, Evt]): Unit
 }
 
-object SurgeEvent {
+object SurgeEvent extends ActorSystemBindingHelper {
   def create[AggId, Agg, Evt](businessLogic: SurgeEventBusinessLogic[AggId, Agg, Evt])(implicit ec: ExecutionContext): SurgeEvent[AggId, Agg, Evt] = {
     val actorSystem = sharedActorSystem()
     new SurgeEventImpl(

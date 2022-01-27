@@ -30,7 +30,7 @@ object KafkaPartitionShardRouterActor {
       trackedTopic: KafkaTopic,
       regionCreator: PersistentActorRegionCreator[String],
       extractEntityId: PartialFunction[Any, String],
-      kafkaProducerOverride: Option[KafkaProducerTrait[String, Array[Byte]]] = None)(tracer: Tracer, ec: ExecutionContext): Props = {
+      kafkaProducerOverride: Option[KafkaProducerTrait[String, Array[Byte]]] = None)(tracer: Tracer): Props = {
 
     // This producer is only used for determining partition assignments, not actually producing
     val producer = kafkaProducerOverride match {
@@ -40,7 +40,7 @@ object KafkaPartitionShardRouterActor {
         KafkaProducer.bytesProducer(config, brokers, trackedTopic, partitioner)
     }
 
-    Props(new KafkaPartitionShardRouterActor(config, partitionTracker, producer, regionCreator, extractEntityId)(tracer, ec))
+    Props(new KafkaPartitionShardRouterActor(config, partitionTracker, producer, regionCreator, extractEntityId)(tracer))
   }
   case object GetPartitionRegionAssignments
   case object Shutdown
@@ -75,7 +75,7 @@ class KafkaPartitionShardRouterActor(
     partitionTracker: KafkaConsumerPartitionAssignmentTracker,
     kafkaStateProducer: KafkaProducerTrait[String, _],
     regionCreator: PersistentActorRegionCreator[String],
-    extractEntityId: PartialFunction[Any, String])(implicit val tracer: Tracer, ec: ExecutionContext)
+    extractEntityId: PartialFunction[Any, String])(implicit val tracer: Tracer)
     extends ActorWithTracing
     with Stash
     with ActorHostAwareness {
