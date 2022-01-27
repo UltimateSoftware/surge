@@ -10,6 +10,7 @@ import surge.core.command.SurgeCommandModel
 import surge.core.commondsl.SurgeCommandBusinessLogicTrait
 import surge.health.config.WindowingStreamConfigLoader
 import surge.health.matchers.SignalPatternMatcherRegistry
+import surge.internal.core.ActorSystemBindingHelper
 import surge.internal.domain
 import surge.internal.health.HealthSignalStreamProvider
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
@@ -34,18 +35,17 @@ trait SurgeCommand[AggId, Agg, Command, Evt] extends core.SurgeProcessingTrait[A
 object SurgeCommand {
   def apply[AggId, Agg, Command, Event](businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Event])(
       implicit ec: ExecutionContext): SurgeCommand[AggId, Agg, Command, Event] = {
-    val actorSystem = ActorSystem(s"${businessLogic.aggregateName}ActorSystem")
+    val actorSystem = sharedActorSystem()
     apply(actorSystem, businessLogic, businessLogic.config)
   }
   def apply[AggId, Agg, Command, Event](businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Event]): SurgeCommand[AggId, Agg, Command, Event] = {
-    val actorSystem = ActorSystem(s"${businessLogic.aggregateName}ActorSystem")
+    val actorSystem = sharedActorSystem()
     apply(actorSystem, businessLogic, businessLogic.config)(DiagnosticContextFuturePropagation.global)
   }
   def apply[AggId, Agg, Command, Event](actorSystem: ActorSystem, businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Event], config: Config)(
       implicit ec: ExecutionContext = DiagnosticContextFuturePropagation.global): SurgeCommand[AggId, Agg, Command, Event] = {
     new SurgeCommandImpl(
-      actorSystem,
-      SurgeCommandModel(businessLogic),
+      sharedActorSystem().SurgeCommandModel(businessLogic),
       new SlidingHealthSignalStreamProvider(WindowingStreamConfigLoader.load(config), actorSystem, patternMatchers = SignalPatternMatcherRegistry.load().toSeq),
       businessLogic.aggregateIdToString,
       config)

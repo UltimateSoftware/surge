@@ -2,26 +2,26 @@
 
 package surge.internal.domain
 
-import akka.actor.{ ActorRef, ActorSystem }
+import akka.actor.{ actorRef2Scala, ActorRef, ActorSystem, InvalidActorNameException }
 import akka.cluster.Cluster
-import akka.management.cluster.bootstrap.ClusterBootstrap
-import akka.management.scaladsl.AkkaManagement
 import com.typesafe.config.Config
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.core._
+import surge.exceptions.SurgeInitializationException
 import surge.health.{ HealthSignalBusAware, HealthSignalBusTrait }
 import surge.internal.SurgeModel
 import surge.internal.akka.cluster.ActorSystemHostAwareness
 import surge.internal.akka.kafka.{ CustomConsumerGroupRebalanceListener, KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor }
+import surge.internal.domain.SurgeMessagePipeline.log
 import surge.internal.health.{ HealthCheck, HealthSignalStreamProvider, HealthyComponent, SurgeHealthCheck }
 import surge.internal.kafka.KafkaClusterShardingRebalanceListener
 import surge.internal.persistence.PersistentActorRegionCreator
 import surge.kafka.PartitionAssignments
 import surge.kafka.streams._
 
+import java.util.concurrent.atomic.AtomicReference
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.{ Failure, Success, Try }
-import java.util.concurrent.atomic.AtomicReference
 
 object SurgeMessagePipeline {
   val log: Logger = LoggerFactory.getLogger(getClass)
@@ -44,10 +44,17 @@ private[surge] abstract class SurgeMessagePipeline[S, M, E](
 
   def getEngineStatus() = surgeEngineStatus.get()
 
+  private def compareAndSetSync(ref: AtomicReference[SurgeEngineStatus])(newValue: SurgeEngineStatus) {
+    while (true) {
+      val snapshot = ref.get
+      if (ref.compareAndSet(snapshot, newValue)) return
+    }
+  }
+
   import SurgeMessagePipeline._
   import system.dispatcher
   protected implicit val system: ActorSystem = actorSystem
-  protected val stateChangeActor: ActorRef = system.actorOf(KafkaConsumerStateTrackingActor.props, "state-change-actor")
+  protected val stateChangeActor: ActorRef = system.actorOf(KafkaConsumerStateTrackingActor.props)
 
   private val isAkkaClusterEnabled: Boolean = config.getBoolean("surge.feature-flags.experimental.enable-akka-cluster")
 
@@ -86,12 +93,10 @@ private[surge] abstract class SurgeMessagePipeline[S, M, E](
     system.actorOf(CustomConsumerGroupRebalanceListener.props(stateChangeActor, callback))
   }
 
-  private def startClusterManagementAndRebalanceListener(): Future[Unit] = {
+  private def startClusterRebalanceListener(): Future[Unit] = {
     if (isAkkaClusterEnabled) {
       Cluster.get(system)
-      ClusterBootstrap(system).start()
       for {
-        _ <- AkkaManagement(system).start()
         allStarted <- startKafkaClusterRebalanceListener()
       } yield allStarted
     } else {
@@ -99,7 +104,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, E](
     }
   }
 
-  private def startKafkaClusterRebalanceListener(): Future[ActorRef] = Future.successful {
+  private def startKafkaClusterRebalanceListener(): Future[ActorRef] = Future {
     val partitionToKafkaProducerActor = KafkaProducerActor.createFromPartitionNumber(
       actorSystem = system,
       metrics = businessLogic.metrics,
@@ -109,9 +114,16 @@ private[surge] abstract class SurgeMessagePipeline[S, M, E](
       signalBus = signalBus,
       config = config)
 
-    system.actorOf(
-      KafkaClusterShardingRebalanceListener
-        .props(stateChangeActor, partitionToKafkaProducerActor, businessLogic.kafka.stateTopic.name, businessLogic.kafka.streamsApplicationId))
+    try {
+      system.actorOf(
+        KafkaClusterShardingRebalanceListener
+          .props(stateChangeActor, partitionToKafkaProducerActor, businessLogic.kafka.stateTopic.name, businessLogic.kafka.streamsApplicationId),
+        "kafka-cluster-rebalance-listener")
+    } catch {
+      case e: InvalidActorNameException =>
+        log.error(s"Only single instance of surge engine can be initialized per actor system, error: ${e.getMessage}")
+        throw SurgeInitializationException("Only single instance of surge engine can be initialized per actor system", e)
+    }
   }
 
   private def startSignalStream(): Future[Ack] = {
@@ -140,6 +152,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, E](
       registerWithSupervisor()
     case Failure(exception) =>
       log.error("Failed to start so unable to register for supervision", exception)
+      compareAndSetSync(surgeEngineStatus)(SurgeEngineStatus.Stopped)
   }
 
   /**
@@ -149,7 +162,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, E](
     signalBus
       .register(
         control = this.controllable,
-        componentName = "surge-message-pipeline",
+        componentName = s"surge-message-pipeline-${businessLogic.aggregateName}",
         restartSignalPatterns = restartSignalPatterns(),
         shutdownSignalPatterns = shutdownSignalPatterns())
       .onComplete {
@@ -165,7 +178,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, E](
    */
   private def unregisterWithSupervisor(): Unit = {
     signalBus
-      .unregister(control = this.controllable, componentName = "surge-message-pipeline")
+      .unregister(control = this.controllable, componentName = s"surge-message-pipeline-${businessLogic.aggregateName}")
       .onComplete {
         case Failure(exception) =>
           log.error(s"$getClass registration failed", exception)
@@ -176,24 +189,31 @@ private[surge] abstract class SurgeMessagePipeline[S, M, E](
 
   private[surge] override val controllable: Controllable = new Controllable {
     override def start(): Future[Ack] = {
-      surgeEngineStatus.set(SurgeEngineStatus.Starting)
-      val f1 = startSignalStream()
-      val f2 = startClusterManagementAndRebalanceListener()
-      val f3 = actorRouter.controllable.start()
-      val f4 = kafkaStreamsImpl.controllable.start()
-      val result = for {
-        _ <- f1
-        _ <- f2
-        _ <- f3
-        allStarted <- f4
-      } yield {
-        surgeEngineStatus.set(SurgeEngineStatus.Running)
-        log.info(s"surge engine status: ${surgeEngineStatus}")
-        allStarted
-      }
+      val currentEngineStatus = getEngineStatus()
+      if (currentEngineStatus != SurgeEngineStatus.Stopped) {
+        log.info("Engine already started, ignoring message")
+        Future.successful(Ack)
+      } else {
+        compareAndSetSync(surgeEngineStatus)(SurgeEngineStatus.Starting)
+        surgeEngineStatus.set(SurgeEngineStatus.Starting)
+        val f1 = startSignalStream()
+        val f2 = startClusterRebalanceListener()
+        val f3 = actorRouter.controllable.start()
+        val f4 = kafkaStreamsImpl.controllable.start()
+        val result = for {
+          _ <- f1
+          _ <- f2
+          _ <- f3
+          allStarted <- f4
+        } yield {
+          compareAndSetSync(surgeEngineStatus)(SurgeEngineStatus.Running)
+          log.info(s"surge engine status: ${surgeEngineStatus}")
+          allStarted
+        }
 
-      result.andThen(registrationCallback())
-      result
+        result.andThen(registrationCallback())
+        result
+      }
     }
 
     override def restart(): Future[Ack] = {
@@ -213,7 +233,7 @@ private[surge] abstract class SurgeMessagePipeline[S, M, E](
         _ <- actorRouter.controllable.stop()
         allStopped <- kafkaStreamsImpl.controllable.stop()
       } yield {
-        surgeEngineStatus.set(SurgeEngineStatus.Stopped)
+        compareAndSetSync(surgeEngineStatus)(SurgeEngineStatus.Stopped)
         log.info(s"surge engine status: ${surgeEngineStatus}")
         allStopped
       }

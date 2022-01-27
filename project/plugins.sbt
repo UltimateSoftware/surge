@@ -12,7 +12,7 @@ addSbtPlugin("org.scalastyle" %% "scalastyle-sbt-plugin" % "1.0.0")
 addSbtPlugin("com.typesafe" % "sbt-mima-plugin" % "1.0.1")
 
 // Test Coverage
-addSbtPlugin("org.scoverage" % "sbt-scoverage" % "1.9.2")
+addSbtPlugin("org.scoverage" % "sbt-scoverage" % "1.9.3")
 
 // Multi-JVM testing
 addSbtPlugin("com.typesafe.sbt" % "sbt-multi-jvm" % "0.4.0")
@@ -34,3 +34,5 @@ addSbtPlugin("com.lightbend.akka.grpc" % "sbt-akka-grpc" % "2.1.2")
 addSbtPlugin("com.github.sbt" % "sbt-native-packager" % "1.9.7")
 
 addSbtPlugin("com.dwijnand" % "sbt-dynver" % "4.1.1")
+
+addSbtPlugin("com.lightbend.akka" % "sbt-akka-version-check" % "0.1")

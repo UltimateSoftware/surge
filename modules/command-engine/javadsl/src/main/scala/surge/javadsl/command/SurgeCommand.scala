@@ -5,11 +5,12 @@ package surge.javadsl.command
 import akka.actor.ActorSystem
 import com.typesafe.config.Config
 import surge.core
-import surge.core.{ Ack, Controllable }
+import surge.core.Ack
 import surge.core.command._
 import surge.core.commondsl.SurgeCommandBusinessLogicTrait
 import surge.health.config.WindowingStreamConfigLoader
 import surge.health.matchers.SignalPatternMatcherRegistry
+import surge.internal.core.ActorSystemBindingHelper
 import surge.internal.domain
 import surge.internal.health.HealthSignalStreamProvider
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
@@ -39,12 +40,12 @@ object SurgeCommand {
       businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Evt],
       ec: ExecutionContext): SurgeCommand[AggId, Agg, Command, Evt] = {
     val actorSystem = ActorSystem(s"${businessLogic.aggregateName}ActorSystem")
-    create(actorSystem, businessLogic, businessLogic.config, ec)
+    create(sharedActorSystem(), businessLogic, businessLogic.config, ec)
   }
 
   def create[AggId, Agg, Command, Evt](businessLogic: SurgeCommandBusinessLogicTrait[AggId, Agg, Command, Evt]): SurgeCommand[AggId, Agg, Command, Evt] = {
     val actorSystem = ActorSystem(s"${businessLogic.aggregateName}ActorSystem")
-    create(actorSystem, businessLogic, businessLogic.config, DiagnosticContextFuturePropagation.global)
+    create(sharedActorSystem(), businessLogic, businessLogic.config, DiagnosticContextFuturePropagation.global)
   }
 
   def create[AggId, Agg, Command, Evt](
