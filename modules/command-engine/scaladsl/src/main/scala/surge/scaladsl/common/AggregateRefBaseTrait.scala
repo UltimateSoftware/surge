@@ -14,7 +14,7 @@ trait AggregateRefBaseTrait[AggId, Agg, Cmd, Event] extends AggregateRefTrait[Ag
   protected val region: ActorRef
   protected val tracer: Tracer
 
-  private implicit val ec: ExecutionContext = ExecutionContext.global
+  implicit def ec: ExecutionContext
 
   def getState: Future[Option[Agg]] = {
     queryState

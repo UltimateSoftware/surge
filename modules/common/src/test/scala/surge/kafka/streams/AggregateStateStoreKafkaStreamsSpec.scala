@@ -20,6 +20,7 @@ import play.api.libs.json.{ Format, JsValue, Json }
 import surge.core.Ack
 import surge.kafka.KafkaTopic
 import surge.metrics.Metrics
+import scala.concurrent.ExecutionContext.Implicits.global
 
 class MockPartitionTrackerProvider extends KafkaStreamsPartitionTrackerProvider {
   override def create(streams: KafkaStreams): KafkaStreamsPartitionTracker = new MockPartitionTracker(streams)

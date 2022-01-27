@@ -40,7 +40,7 @@ object HealthSignalBus {
       healthSignalBusConfig: HealthSignalBusConfig,
       signalStream: HealthSignalStreamProvider,
       startOnInit: Boolean,
-      healthSupervisorConfig: HealthSupervisorConfig): HealthSignalBusInternal = {
+      healthSupervisorConfig: HealthSupervisorConfig)(implicit ec: ExecutionContext): HealthSignalBusInternal = {
     val bus = new HealthSignalBusImpl(healthSignalBusConfig, signalStream, startOnInit, healthSupervisorConfig)
 
     if (startOnInit && healthSignalBusConfig.streamingEnabled) {
@@ -50,7 +50,8 @@ object HealthSignalBus {
     bus
   }
 
-  def apply(healthSignalBusConfig: HealthSignalBusConfig, signalStream: HealthSignalStreamProvider, startOnInit: Boolean): HealthSignalBusInternal = {
+  def apply(healthSignalBusConfig: HealthSignalBusConfig, signalStream: HealthSignalStreamProvider, startOnInit: Boolean)(
+      implicit ec: ExecutionContext): HealthSignalBusInternal = {
     val bus = new HealthSignalBusImpl(healthSignalBusConfig, signalStream, startOnInit, HealthSupervisorConfig())
 
     if (startOnInit && healthSignalBusConfig.streamingEnabled) {
@@ -60,11 +61,12 @@ object HealthSignalBus {
     bus
   }
 
-  def apply(signalStream: HealthSignalStreamProvider, healthSupervisorConfig: HealthSupervisorConfig = HealthSupervisorConfig()): HealthSignalBusInternal = {
+  def apply(signalStream: HealthSignalStreamProvider, healthSupervisorConfig: HealthSupervisorConfig = HealthSupervisorConfig())(
+      implicit ec: ExecutionContext): HealthSignalBusInternal = {
     HealthSignalBus(healthSignalBusConfig, signalStream, startStreamOnInit, healthSupervisorConfig)
   }
 
-  def apply(signalStream: HealthSignalStreamProvider): HealthSignalBusInternal = {
+  def apply(signalStream: HealthSignalStreamProvider)(implicit ec: ExecutionContext): HealthSignalBusInternal = {
     HealthSignalBus(healthSignalBusConfig, signalStream, startStreamOnInit, HealthSupervisorConfig())
   }
 }
@@ -77,9 +79,9 @@ trait HealthSignalBusInternal extends HealthSignalBusTrait with LookupClassifica
       monitorRef: Option[StreamMonitoringRef] = None): HealthSignalBusInternal
 }
 
-private class InvokableHealthRegistrationImpl(healthRegistration: HealthRegistration, supervisor: HealthSupervisorTrait, signalBus: HealthSignalBusTrait)
+private class InvokableHealthRegistrationImpl(healthRegistration: HealthRegistration, supervisor: HealthSupervisorTrait, signalBus: HealthSignalBusTrait)(
+    implicit ec: ExecutionContext)
     extends InvokableHealthRegistration {
-  implicit val ec: ExecutionContext = supervisor.actorSystem().dispatcher
 
   override def invoke(): Future[Ack] = {
     supervisor.register(healthRegistration).map(a => a.asInstanceOf[Ack])
@@ -161,7 +163,7 @@ private[surge] class HealthSignalBusImpl(
     config: HealthSignalBusConfig,
     signalStreamSupplier: HealthSignalStreamProvider,
     stopStreamOnUnsubscribe: Boolean,
-    healthSupervisorConfig: HealthSupervisorConfig = HealthSupervisorConfig())
+    healthSupervisorConfig: HealthSupervisorConfig = HealthSupervisorConfig())(implicit ec: ExecutionContext)
     extends HealthSignalBusInternal {
   implicit val actorSystem: ActorSystem =
     ActorSystem.create(name = "healthSignalBusActorSystem", BootstrapSetup().withActorRefProvider(ProviderSelection.local()))

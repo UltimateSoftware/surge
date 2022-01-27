@@ -2,12 +2,14 @@
 
 package docs.command
 
-import java.util.UUID
+import surge.internal.utils.DiagnosticContextFuturePropagation
 
+import java.util.UUID
 import surge.scaladsl.command.SurgeCommand
 
 // #bank_account_engine_class
 object BankAccountEngine {
+  implicit val ec = DiagnosticContextFuturePropagation.global
   lazy val surgeEngine: SurgeCommand[UUID, BankAccount, BankAccountCommand, BankAccountEvent] = {
     val engine = SurgeCommand(BankAccountSurgeModel)
     engine.start()

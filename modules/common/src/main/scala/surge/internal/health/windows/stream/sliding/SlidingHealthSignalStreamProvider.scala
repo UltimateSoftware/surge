@@ -7,6 +7,7 @@ import surge.health.HealthSignalStream
 import surge.health.config.{ HealthSupervisorConfig, WindowingStreamConfig, WindowingStreamSliderConfig }
 import surge.health.matchers.SignalPatternMatcherDefinition
 import surge.internal.health._
+import scala.concurrent.ExecutionContext
 
 /**
  * SlidingHealthSignalStreamProvider is responsible for providing a configured SlidingHealthSignalStream that is properly bound to a HealthSignalBus. A provided
@@ -25,7 +26,7 @@ class SlidingHealthSignalStreamProvider(
     override val actorSystem: ActorSystem,
     override val streamMonitoring: Option[StreamMonitoringRef] = None,
     override val patternMatchers: Seq[SignalPatternMatcherDefinition] = Seq.empty,
-    override val healthSupervisionConfig: HealthSupervisorConfig = HealthSupervisorConfig())
+    override val healthSupervisionConfig: HealthSupervisorConfig = HealthSupervisorConfig())(implicit val ec: ExecutionContext)
     extends HealthSignalStreamProvider {
 
   /**
