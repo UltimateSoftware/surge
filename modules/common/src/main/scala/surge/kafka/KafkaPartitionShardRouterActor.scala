@@ -20,6 +20,7 @@ import surge.internal.tracing.TracedMessage
 import java.time.Instant
 import scala.concurrent.Future
 import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext
 
 object KafkaPartitionShardRouterActor {
   def props[Agg, Command, Event](

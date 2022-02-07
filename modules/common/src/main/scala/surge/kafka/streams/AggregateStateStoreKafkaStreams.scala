@@ -60,7 +60,7 @@ class AggregateStateStoreKafkaStreams(
     signalBus: HealthSignalBusTrait,
     system: ActorSystem,
     metrics: Metrics,
-    config: Config)
+    config: Config)(implicit ec: ExecutionContext)
     extends HealthyComponent
     with Logging {
 
@@ -128,7 +128,7 @@ class AggregateStateStoreKafkaStreams(
     case Success(_) =>
       val registrationResult = signalBus.register(
         control = controllable,
-        componentName = "state-store-kafka-streams",
+        componentName = s"state-store-kafka-streams-$aggregateName",
         shutdownSignalPatterns = shutdownSignalPatterns(),
         restartSignalPatterns = restartSignalPatterns())
 
@@ -143,7 +143,7 @@ class AggregateStateStoreKafkaStreams(
   }
   private def unregistrationCallback(): PartialFunction[Try[Ack], Unit] = {
     case Success(_) =>
-      val unRegistrationResult = signalBus.unregister(control = controllable, componentName = "state-store-kafka-streams")
+      val unRegistrationResult = signalBus.unregister(control = controllable, componentName = s"state-store-kafka-streams-$aggregateName")
 
       unRegistrationResult.onComplete {
         case Failure(exception) =>
@@ -157,12 +157,10 @@ class AggregateStateStoreKafkaStreams(
 
   override val controllable: Controllable = new Controllable {
     override def start(): Future[Ack] = {
-      implicit val ec: ExecutionContext = system.dispatcher
       underlyingActor.ask(KafkaStreamManagerActor.Start).mapTo[Ack].andThen(registrationCallback())
     }
 
     override def restart(): Future[Ack] = {
-      implicit val executionContext: ExecutionContext = system.dispatcher
       for {
         _ <- stop()
         started <- start()
@@ -172,7 +170,6 @@ class AggregateStateStoreKafkaStreams(
     }
 
     override def stop(): Future[Ack] = {
-      implicit val ec: ExecutionContext = system.dispatcher
       underlyingActor.ask(KafkaStreamManagerActor.Stop).mapTo[Ack].andThen(unregistrationCallback())
     }
 

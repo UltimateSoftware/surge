@@ -31,3 +31,7 @@ class DiagnosticContextFuturePropagation(executionContext: ExecutionContext) ext
 
   override def reportFailure(cause: Throwable): Unit = executionContext.reportFailure(cause)
 }
+
+object DiagnosticContextFuturePropagation {
+  val global = new DiagnosticContextFuturePropagation(ExecutionContext.global)
+}

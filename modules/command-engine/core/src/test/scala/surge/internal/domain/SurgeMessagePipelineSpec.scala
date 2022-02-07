@@ -23,6 +23,7 @@ import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.core.SurgePartitionRouterImpl
 import surge.internal.health.StreamMonitoringRef
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
+import surge.internal.utils.DiagnosticContextFuturePropagation
 import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, MockPartitionTracker }
 import surge.metrics.Metrics
 
@@ -34,6 +35,8 @@ trait SurgeMessagePipelineSpecLike extends TestBoundedContext {
   implicit def actorSystem: ActorSystem
 
   def defaultConfig: Config
+
+  implicit val ec = DiagnosticContextFuturePropagation.global
 
   case class TestContext(
       probe: TestProbe,
@@ -190,10 +193,10 @@ class SurgeMessagePipelineSpec
       eventually {
         val registrations = bus.registrations().futureValue
         val registrationNames = registrations.map(_.componentName)
-        registrationNames should contain("surge-message-pipeline")
+        registrationNames should contain(s"surge-message-pipeline-${businessLogic.aggregateName}")
 
-        registrationNames should contain("state-store-kafka-streams")
-        val kStreamsRegistration = registrations.find(r => r.componentName == "state-store-kafka-streams").get
+        registrationNames should contain(s"state-store-kafka-streams-${businessLogic.aggregateName}")
+        val kStreamsRegistration = registrations.find(r => r.componentName == s"state-store-kafka-streams-${businessLogic.aggregateName}").get
         kStreamsRegistration.restartSignalPatterns.map(p => p.pattern()) should contain("kafka.streams.fatal.error")
       }
     }
@@ -207,7 +210,7 @@ class SurgeMessagePipelineSpec
         }
 
         Option(restarted).nonEmpty shouldEqual true
-        restarted.asInstanceOf[ComponentRestarted].componentName shouldEqual "state-store-kafka-streams"
+        restarted.asInstanceOf[ComponentRestarted].componentName shouldEqual s"state-store-kafka-streams-${businessLogic.aggregateName}"
       }
     }
 
@@ -230,8 +233,9 @@ class SurgeMessagePipelineSpec
       // Get running signal bus so we can check registrations
       val bus = pipeline.signalBus
 
+      val componentName = s"surge-message-pipeline-${businessLogic.aggregateName}"
       eventually {
-        whenReady(bus.registrations(matching = Pattern.compile("surge-message-pipeline"))) { registrations =>
+        whenReady(bus.registrations(matching = Pattern.compile(componentName))) { registrations =>
           registrations.size shouldEqual 1
 
           bus.signalWithError(name = "kafka.streams.fatal.retries.exceeded.error", Error("fake shutdown trigger", None)).emit()
@@ -239,7 +243,7 @@ class SurgeMessagePipelineSpec
           // Wait for the surge-message-pipeline to be unregistered on termination.
           eventually {
             whenReady(bus.registrations()) { registrations =>
-              registrations.exists(r => r.componentName == "surge-message-pipeline") shouldEqual false
+              registrations.exists(r => r.componentName == componentName) shouldEqual false
             }
           }
         }

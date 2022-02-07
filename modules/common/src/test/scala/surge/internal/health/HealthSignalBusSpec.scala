@@ -19,6 +19,7 @@ import surge.health.domain._
 import surge.health.{ HealthSignalListener, SignalHandler }
 import surge.internal.health.context.TestHealthSignalStream
 import surge.internal.health.supervisor.HealthSupervisorActorRef
+import scala.concurrent.ExecutionContext.Implicits.global
 
 import scala.concurrent.Future
 import scala.concurrent.duration._

@@ -21,6 +21,7 @@ import surge.health.matchers.{ SideEffect, SignalPatternMatcherDefinition }
 import surge.health.supervisor.Api.{ QueryComponentExists, RestartComponent, ShutdownComponent }
 import surge.internal.health._
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
+import scala.concurrent.ExecutionContext.Implicits.global
 
 import java.lang.management.ManagementFactory
 import java.util.regex.Pattern

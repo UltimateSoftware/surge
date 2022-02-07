@@ -61,12 +61,12 @@ trait KTablePersistenceSupport[Agg, Event] {
       retry: Boolean = false)
       extends Internal
 
-  private def handleInternal(state: ActorState): Receive = {
+  private def handleInternal(state: ActorState)(implicit ec: ExecutionContext): Receive = {
     case msg: PersistenceSuccess   => handle(state, msg)
     case msg: PersistenceFailure   => handleFailedToPersist(state, msg)
     case msg: EventPublishTimedOut => handlePersistenceTimedOut(state, msg)
   }
-  protected def persistingEvents(state: ActorState): Receive = handleInternal(state).orElse(receiveWhilePersistingEvents(state))
+  protected def persistingEvents(state: ActorState)(implicit ec: ExecutionContext): Receive = handleInternal(state).orElse(receiveWhilePersistingEvents(state))
 
   protected def doPublish(
       state: ActorState,
@@ -114,8 +114,7 @@ trait KTablePersistenceSupport[Agg, Event] {
     }
   }
 
-  private def handleFailedToPersist(state: ActorState, eventsFailedToPersist: PersistenceFailure): Unit = {
-    implicit val ec: ExecutionContext = context.dispatcher
+  private def handleFailedToPersist(state: ActorState, eventsFailedToPersist: PersistenceFailure)(implicit ec: ExecutionContext): Unit = {
 
     if (eventsFailedToPersist.numberOfFailures > maxProducerFailureRetries) {
       ktablePersistenceMetrics.eventPublishTimer.recordTime(publishTimeInMillis(eventsFailedToPersist.startTime))
