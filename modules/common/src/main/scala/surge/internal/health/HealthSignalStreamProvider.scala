@@ -13,6 +13,7 @@ import surge.health.{ HealthSignalBusTrait, HealthSignalListener, HealthSignalSt
 import surge.internal.health.supervisor.HealthSupervisorActor
 
 import scala.util.Success
+import scala.concurrent.ExecutionContext
 
 /**
  * StreamMonitoringRef is responsible for forwarding stream processing events to an underlying akka Actor via the provided ActorRef.
@@ -79,6 +80,7 @@ class StreamMonitoringRef(override val actor: ActorRef) extends WindowStreamList
 }
 
 trait HealthSignalStreamProvider {
+  implicit def ec: ExecutionContext
   private lazy val signalBus: HealthSignalBusInternal =
     HealthSignalBus(signalStream = this, healthSupervisorConfig = healthSupervisionConfig)
       .withStreamSupervision(bus => HealthSupervisorActor(bus, actorSystem, healthSupervisionConfig), streamMonitoring)
@@ -120,7 +122,8 @@ class NullHealthSignalStream(bus: HealthSignalBusTrait, override val actorSystem
   override def id(): String = "null-health-signal-stream"
 }
 
-class DisabledHealthSignalStreamProvider(bus: HealthSignalBusTrait, override val actorSystem: ActorSystem) extends HealthSignalStreamProvider {
+class DisabledHealthSignalStreamProvider(bus: HealthSignalBusTrait, override val actorSystem: ActorSystem)(implicit val ec: ExecutionContext)
+    extends HealthSignalStreamProvider {
   private lazy val nullStream: HealthSignalStream = new NullHealthSignalStream(bus, actorSystem)
 
   override def healthSupervisionConfig: HealthSupervisorConfig = HealthSupervisorConfig()

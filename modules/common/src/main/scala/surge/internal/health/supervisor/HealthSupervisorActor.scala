@@ -60,9 +60,10 @@ private class ControllableRemoverImpl(resource: mutable.Map[String, Controllable
   }
 }
 
-class ControlProxyActor(finder: ControllableLookup, remover: ControllableRemover, supervisorActorRef: ActorRef, actorSystem: ActorSystem) extends Actor {
+class ControlProxyActor(finder: ControllableLookup, remover: ControllableRemover, supervisorActorRef: ActorRef, actorSystem: ActorSystem)(
+    implicit ec: ExecutionContext)
+    extends Actor {
   private val log: Logger = LoggerFactory.getLogger(getClass)
-  implicit val ec: ExecutionContext = actorSystem.dispatcher
   implicit val askTimeout: Timeout = TimeoutConfig.HealthSupervision.actorAskTimeout
 
   override def receive: Receive = {

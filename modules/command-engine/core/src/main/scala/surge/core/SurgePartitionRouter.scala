@@ -11,6 +11,7 @@ import surge.internal.health.HealthyComponent
 import surge.internal.persistence.BusinessLogic
 import surge.kafka.{ KafkaProducerTrait, PersistentActorRegionCreator }
 import surge.kafka.streams._
+import scala.concurrent.ExecutionContext
 
 trait SurgePartitionRouter extends HealthyComponent {
   def actorRegion: ActorRef
@@ -26,7 +27,7 @@ object SurgePartitionRouter {
       regionCreator: PersistentActorRegionCreator[String],
       signalBus: HealthSignalBusTrait,
       isAkkaClusterEnabled: Boolean,
-      kafkaProducerOverride: Option[KafkaProducerTrait[String, Array[Byte]]] = None): SurgePartitionRouter = {
+      kafkaProducerOverride: Option[KafkaProducerTrait[String, Array[Byte]]] = None)(implicit ec: ExecutionContext): SurgePartitionRouter = {
     new SurgePartitionRouterImpl(
       config,
       system,

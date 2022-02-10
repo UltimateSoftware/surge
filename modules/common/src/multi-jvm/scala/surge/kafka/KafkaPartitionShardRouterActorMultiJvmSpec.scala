@@ -4,14 +4,15 @@ package surge.kafka
 
 import akka.actor.DeadLetter
 import akka.remote.testconductor.RoleName
-import akka.remote.testkit.{ MultiNodeConfig, MultiNodeSpec, MultiNodeSpecCallbacks }
-import akka.testkit.{ ImplicitSender, TestProbe }
-import com.typesafe.config.{ Config, ConfigFactory }
+import akka.remote.testkit.{MultiNodeConfig, MultiNodeSpec, MultiNodeSpecCallbacks}
+import akka.testkit.{ImplicitSender, TestProbe}
+import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.kafka.common.TopicPartition
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import surge.internal.tracing.TracedMessage
+import surge.internal.utils.DiagnosticContextFuturePropagation
 
 import scala.util.Random
 
@@ -47,6 +48,8 @@ class KafkaPartitionShardRouterActorSpecBase
     with KafkaPartitionShardRouterActorSpecLike {
   import KafkaPartitionShardRouterActorSpecModels._
   import KafkaPartitionShardRouterActorSpecConfig._
+
+  val ec = DiagnosticContextFuturePropagation.global
 
   override def initialParticipants: Int = roles.size
 

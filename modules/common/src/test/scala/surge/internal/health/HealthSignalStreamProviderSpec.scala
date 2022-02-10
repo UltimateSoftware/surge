@@ -14,6 +14,7 @@ import surge.health.matchers.{ SideEffect, SignalPatternMatcherDefinition }
 import surge.health.windows._
 import surge.health.{ HealthSignalStream, SignalType }
 import surge.internal.health.windows.stream.sliding.SlidingHealthSignalStreamProvider
+import scala.concurrent.ExecutionContext.Implicits.global
 
 import java.util.regex.Pattern
 import scala.concurrent.duration._

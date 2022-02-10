@@ -24,6 +24,7 @@ import surge.health.windows._
 import surge.health.{ HealthSignalStream, SignalType }
 import surge.internal.health._
 import surge.internal.health.windows.stream.WindowingHealthSignalStream
+import scala.concurrent.ExecutionContext.Implicits.global
 
 import java.util.regex.Pattern
 import scala.collection.mutable.ArrayBuffer
