@@ -17,6 +17,8 @@ import surge.internal.tracing.NoopTracerFactory
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
+import scala.concurrent.ExecutionContext
+import surge.internal.utils.DiagnosticContextFuturePropagation
 
 object TestActor {
   def props(id: String): Props = Props(new TestActor(id))
@@ -218,7 +220,8 @@ class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with AnyWordSpecLike w
         probe.ref ! Terminated
         ()
       }
-      val shardActor = system.actorOf(Shard.props("testShard", new RegionLogicProvider(() => notifyProbe()), TestActor.idExtractor)(NoopTracerFactory.create()))
+      val shardActor =
+        system.actorOf(Shard.props("testShard", new RegionLogicProvider(() => notifyProbe()), TestActor.idExtractor)(NoopTracerFactory.create()))
       probe.expectNoMessage()
       probe.send(shardActor, PoisonPill)
       probe.expectMsg(Terminated)

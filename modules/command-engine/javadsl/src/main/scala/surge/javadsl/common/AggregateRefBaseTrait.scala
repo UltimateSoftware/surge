@@ -17,8 +17,7 @@ trait AggregateRefBaseTrait[AggId, Agg, Cmd, Event] extends AggregateRefTrait[Ag
   val aggregateId: AggId
   protected val region: ActorRef
   protected val tracer: Tracer
-
-  private implicit val ec: ExecutionContext = ExecutionContext.global
+  protected implicit def ec: ExecutionContext
 
   def getState: CompletionStage[Optional[Agg]] = {
     FutureConverters.toJava(queryState.map(_.asJava))

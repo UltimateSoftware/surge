@@ -42,6 +42,8 @@ trait AsyncAggregateCommandModel[Agg, Cmd, Evt] extends SurgeProcessingModelCore
   def processCommand(aggregate: Optional[Agg], command: Cmd): CompletableFuture[JList[Evt]]
   def handleEvent(aggregate: Optional[Agg], event: Evt): CompletableFuture[Optional[Agg]]
 
+  protected implicit def ec: ExecutionContext
+
   final def toCore: SurgeProcessingModel[Agg, Cmd, Evt] =
     new SurgeProcessingModel[Agg, Cmd, Evt] {
       private def newStateFromEvents(events: Seq[Evt], state: Option[Agg])(implicit ec: ExecutionContext): Future[Optional[Agg]] = {
@@ -58,7 +60,6 @@ trait AsyncAggregateCommandModel[Agg, Cmd, Evt] extends SurgeProcessingModelCore
       // FIXME Does applyEvents make sense any more? In the core model state updates should happen via the handle method now.
       //  We probably still do need something for applying events directly though...
       override def applyAsync(ctx: SurgeContext[Agg, Evt], state: Option[Agg], events: Seq[Evt]): Future[SurgeContext[Agg, Evt]] = {
-        implicit val ec: ExecutionContext = ExecutionContext.global
         newStateFromEvents(events, state).map { newState =>
           ctx.updateState(newState.asScala).reply(state => state)
         }
