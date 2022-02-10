@@ -21,7 +21,7 @@ addSbtPlugin("com.typesafe.sbt" % "sbt-multi-jvm" % "0.4.0")
 addSbtPlugin("com.timushev.sbt" % "sbt-updates" % "0.6.2")
 addSbtPlugin("net.virtual-void" % "sbt-dependency-graph" % "0.10.0-RC1")
 
-addSbtPlugin("de.heikoseeberger" % "sbt-header" % "5.6.0")
+addSbtPlugin("de.heikoseeberger" % "sbt-header" % "5.6.5")
 
 // Docs Site plugins
 addSbtPlugin("com.lightbend.paradox" % "sbt-paradox" % "0.9.2")
