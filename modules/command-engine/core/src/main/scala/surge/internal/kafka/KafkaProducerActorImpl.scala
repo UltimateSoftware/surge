@@ -402,12 +402,12 @@ class KafkaProducerActorImpl(
       }
     } else if (state.pendingWrites.nonEmpty) {
       // Writes grouped by requestId
-      val groupedRequests = state.groupedRequests()
-      groupedRequests.keySet.foreach(requestId => {
-        groupedRequests
-          .get(requestId)
+      val groupedWrites = state.groupedWrites()
+      groupedWrites.keySet.foreach(trackingId => {
+        groupedWrites
+          .get(trackingId)
           .foreach(sender => {
-            val writes = state.pendingWrites.filter(write => write.sender == sender)
+            val writes = state.pendingWrites
             val eventMessages = writes.flatMap(_.publish.eventsToPublish)
             val stateMessages = writes.map(_.publish.state)
 
@@ -428,7 +428,8 @@ class KafkaProducerActorImpl(
             log.debug(s"KafkaProducerActor partition {} writing {} states to Kafka", assignedPartition, stateRecords.length)
             eventsPublishedRate.mark(eventMessages.length)
 
-            doFlushRecords(requestId, writes.map(w => w.sender), state, records)
+            // fix me
+            doFlushRecords(trackingId, writes.map(w => w.sender), state, records)
           })
       })
     }
@@ -621,8 +622,8 @@ private[internal] case class KafkaProducerActorState(
     transactionInProgressSince.map(since => Instant.now.minusMillis(since.toEpochMilli).toEpochMilli).getOrElse(0L)
   }
 
-  def groupedRequests(): Map[UUID, ActorRef] = {
-    pendingWrites.groupBy(w => (w.publish.batchId, w.sender)).map { case (k, _) => k._1 -> k._2 }
+  def groupedWrites(): Map[UUID, Seq[PublishWithSender]] = {
+    pendingWrites.groupBy(w => w.publish.batchId).map { case (k, v) => k -> v }
   }
 
   def inFlightByKey: Map[String, Seq[KafkaRecordMetadata[String]]] = {
