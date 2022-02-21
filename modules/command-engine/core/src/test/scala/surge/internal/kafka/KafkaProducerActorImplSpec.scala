@@ -27,7 +27,7 @@ import surge.health.domain.EmittableHealthSignal
 import surge.internal.akka.cluster.ActorSystemHostAwareness
 import surge.internal.akka.kafka.{ KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor }
 import surge.internal.health.{ HealthCheck, HealthCheckStatus }
-import surge.internal.kafka.KafkaProducerActorImpl.{ KTableProgressUpdate, PublishTrackerStateManager }
+import surge.internal.kafka.KafkaProducerActorImpl.{ KTableProgressUpdate, PublishTrackerStateManager, SenderWithTrackingId }
 import surge.kafka._
 import surge.internal.health.HealthyActor.GetHealth
 import surge.kafka.streams.ExpectedTestException
@@ -358,7 +358,7 @@ class KafkaProducerActorImplSpec
         1.second)
 
       val barRecord1 = KafkaRecordMetadata(Some("bar"), createRecordMeta("testTopic", 0, 101))
-      probe.send(actor, KafkaProducerActorImpl.EventsPublished(requestId, Seq(probe.ref), Seq(barRecord1)))
+      probe.send(actor, KafkaProducerActorImpl.EventsPublished(Seq(SenderWithTrackingId(probe.ref, requestId)), Seq(barRecord1)))
       val isAggregateStateCurrent = KafkaProducerActorImpl.IsAggregateStateCurrent("bar")
       actor.ask(isAggregateStateCurrent).futureValue shouldEqual false
       // Simulate the KTable processing the recently published message
@@ -718,11 +718,12 @@ class KafkaProducerActorImplSpec
 
       val sender = TestProbe().ref
       val dummyState = KafkaProducerActor.MessageToPublish("foo", "foo".getBytes(), new RecordHeaders())
+      val requestId = UUID.randomUUID()
       val publishMsg =
-        KafkaProducerActorImpl.Publish(UUID.randomUUID(), dummyState, Seq(KafkaProducerActor.MessageToPublish("foo", "foo".getBytes(), new RecordHeaders())))
+        KafkaProducerActorImpl.Publish(requestId, dummyState, Seq(KafkaProducerActor.MessageToPublish("foo", "foo".getBytes(), new RecordHeaders())))
 
       val newState = empty.addPendingWrites(sender, publishMsg)
-      newState.pendingWrites should contain only KafkaProducerActorImpl.PublishWithSender(sender, publishMsg)
+      newState.pendingWrites should contain only KafkaProducerActorImpl.PublishWithSender(SenderWithTrackingId(sender, requestId), publishMsg)
 
       val flushedState = newState.flushWrites()
       (flushedState.pendingWrites should have).length(0)
