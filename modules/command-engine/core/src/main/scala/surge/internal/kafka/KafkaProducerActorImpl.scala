@@ -262,7 +262,7 @@ class KafkaProducerActorImpl(
                   context.become(processing(state))
                   // Remove this.  Event is still being processed and has not been published yet.
                   // see doFlushRecords
-                  //context.self ! EventsPublished(msg.batchId, Seq(sender()), Seq.empty)
+                  // context.self ! EventsPublished(msg.batchId, Seq(sender()), Seq.empty)
                 }
               } else {
                 context.become(processing(state.stopTracking(msg)))
