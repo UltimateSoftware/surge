@@ -255,11 +255,14 @@ class KafkaProducerActorImpl(
           case Some(trackerWithExpiry) =>
             if (!trackerWithExpiry.tracker.dataWasPublished()) {
               if (!trackerWithExpiry.expired) {
+                // Avoid duplicating a write that is already pending.
                 if (!publishTrackerStateManager.stateHasPendingWrites(msg.batchId, state)) {
                   context.become(processing(state.addPendingWrites(sender(), msg)))
                 } else {
                   context.become(processing(state))
-                  context.self ! EventsPublished(msg.batchId, Seq(sender()), Seq.empty)
+                  // Remove this.  Event is still being processed and has not been published yet.
+                  // see doFlushRecords
+                  //context.self ! EventsPublished(msg.batchId, Seq(sender()), Seq.empty)
                 }
               } else {
                 context.become(processing(state.stopTracking(msg)))
@@ -428,7 +431,6 @@ class KafkaProducerActorImpl(
             log.debug(s"KafkaProducerActor partition {} writing {} states to Kafka", assignedPartition, stateRecords.length)
             eventsPublishedRate.mark(eventMessages.length)
 
-            // fix me
             doFlushRecords(trackingId, writes.map(w => w.sender), state, records)
           })
       })
