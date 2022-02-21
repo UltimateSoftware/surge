@@ -409,8 +409,8 @@ class KafkaProducerActorImpl(
       groupedWrites.keySet.foreach(trackingId => {
         groupedWrites
           .get(trackingId)
-          .foreach(sender => {
-            val writes = state.pendingWrites
+          .foreach(writes => {
+            // val writes = state.pendingWrites
             val eventMessages = writes.flatMap(_.publish.eventsToPublish)
             val stateMessages = writes.map(_.publish.state)
 
