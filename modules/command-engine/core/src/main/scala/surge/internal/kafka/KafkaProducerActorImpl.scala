@@ -404,7 +404,7 @@ class KafkaProducerActorImpl(
         context.become(processing(newState))
       }
     } else if (state.pendingWrites.nonEmpty) {
-      val groupedWrites = state.groupedWrites[UUID](grouper = (m) => m.publish.batchId)
+      val groupedWrites = state.groupedWrites[UUID](grouper = m => m.publish.batchId)
       // Writes grouped by requestId
       groupedWrites.keySet.foreach(trackingId => {
         groupedWrites
@@ -624,7 +624,7 @@ private[internal] case class KafkaProducerActorState(
   }
 
   def groupedWrites[T](grouper: (PublishWithSender) => T): Map[T, Seq[PublishWithSender]] = {
-    pendingWrites.groupBy[T](grouper).map { case (k, v) => k -> v}
+    pendingWrites.groupBy[T](grouper).map { case (k, v) => k -> v }
   }
 
   def inFlightByKey: Map[String, Seq[KafkaRecordMetadata[String]]] = {
