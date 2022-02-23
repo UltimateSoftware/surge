@@ -47,7 +47,7 @@ object Dependencies extends AutoPlugin {
       val api = "io.opentelemetry" % "opentelemetry-api" % version
       val sdk = "io.opentelemetry" % "opentelemetry-sdk" % OpenTelemetry.version % Test
       val sdkTesting = "io.opentelemetry" % "opentelemetry-sdk-testing" % OpenTelemetry.version % Test
-      val grpcChannel = "io.grpc" % "grpc-netty-shaded" % "1.43.2" % Test
+      val grpcChannel = "io.grpc" % "grpc-netty-shaded" % "1.44.0" % Test
 
       object HoneycombSample {
         val sdk = OpenTelemetry.sdk
@@ -75,7 +75,7 @@ object Dependencies extends AutoPlugin {
     val mockitoCore = "org.mockito" % "mockito-core" % "4.3.1"
     val scalatest = "org.scalatest" %% "scalatest" % "3.2.11" % Test
     val scalatestPlusMockito = "org.scalatestplus" %% "mockito-3-4" % "3.2.10.0" % Test
-    val slf4jApi = "org.slf4j" % "slf4j-api" % "1.7.35"
-    val typesafeConfig = "com.typesafe" % "config" % "1.4.1"
+    val slf4jApi = "org.slf4j" % "slf4j-api" % "1.7.36"
+    val typesafeConfig = "com.typesafe" % "config" % "1.4.2"
   }
 }
