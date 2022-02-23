@@ -150,9 +150,7 @@ object KafkaProducerActor {
 
   case class PublishTrackerWithExpiry(tracker: PublishTracker, expired: Boolean)
 
-  class RetryAwareException(val cause: Throwable, val retry: Boolean = false)
-      extends Throwable
-      with NoSerializationVerificationNeeded
+  class RetryAwareException(val cause: Throwable, val retry: Boolean = false) extends Throwable with NoSerializationVerificationNeeded
 }
 
 /**
