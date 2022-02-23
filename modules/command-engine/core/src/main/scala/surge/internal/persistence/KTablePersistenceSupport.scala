@@ -81,12 +81,7 @@ trait KTablePersistenceSupport[Agg, Event] {
     if (serializedEvents.isEmpty && !didStateChange) {
       Future.successful(PersistenceSuccess(trackingId, state, startTime, context))
     } else {
-      val futureResult = kafkaProducerActor.publish(
-        aggregateId = aggregateId,
-        state = serializedState,
-        events = serializedEvents,
-        currentFailureCount = currentFailureCount,
-        requestId = trackingId)
+      val futureResult = kafkaProducerActor.publish(aggregateId = aggregateId, state = serializedState, events = serializedEvents, requestId = trackingId)
       futureResult
         .map {
           case KafkaProducerActor.PublishSuccess(publishRequestId) => PersistenceSuccess(publishRequestId, state, startTime, context)
