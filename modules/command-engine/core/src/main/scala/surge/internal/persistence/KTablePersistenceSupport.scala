@@ -14,7 +14,7 @@ import surge.metrics.Timer
 
 import java.time.Instant
 import java.util.UUID
-import scala.concurrent.{ Await, ExecutionContext, Future }
+import scala.concurrent.{ ExecutionContext, Future }
 
 trait KTablePersistenceMetrics {
   def eventPublishTimer: Timer
