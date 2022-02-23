@@ -401,7 +401,7 @@ class KafkaProducerActorImplSpec
       val mockPublishTrackerState: PublishTrackerStateManager = mockPublishTrackerStateManager()
       when(mockPublishTrackerState.stateHasPendingWrites(same(trackerId), any[KafkaProducerActorState])).thenReturn(false)
       when(mockPublishTrackerState.tracker(same(trackerId), any[KafkaProducerActorState]))
-        .thenReturn(Some(PublishTrackerWithExpiry(PublishTracker(trackerId, (testAggs1, testEvents1), trackerTimeout), expired = false)))
+        .thenReturn(Some(PublishTrackerWithExpiry(PublishTracker(trackerId, testAggs1, testEvents1, trackerTimeout), expired = false)))
 
       val succeedingPutWithExpiredTracker = testProducerActor(assignedPartition, mockProducerSucceedsPutRecords, mockLagChecker, mockPublishTrackerState)
 
@@ -453,7 +453,7 @@ class KafkaProducerActorImplSpec
       val mockPublishTrackerState: PublishTrackerStateManager = mockPublishTrackerStateManager()
       when(mockPublishTrackerState.stateHasPendingWrites(same(trackerId), any[KafkaProducerActorState])).thenReturn(false)
       when(mockPublishTrackerState.tracker(same(trackerId), any[KafkaProducerActorState]))
-        .thenReturn(Some(PublishTrackerWithExpiry(PublishTracker(trackerId, (testAggs1, testEvents1), trackerTimeout), expired = false)))
+        .thenReturn(Some(PublishTrackerWithExpiry(PublishTracker(trackerId, testAggs1, testEvents1, trackerTimeout), expired = false)))
 
       val succeedingPutWithExpiredTracker = testProducerActor(assignedPartition, mockProducerSucceedsPutRecords, mockLagChecker, mockPublishTrackerState)
 
@@ -479,7 +479,7 @@ class KafkaProducerActorImplSpec
       val mockPublishTrackerState: PublishTrackerStateManager = mockPublishTrackerStateManager()
       when(mockPublishTrackerState.stateHasPendingWrites(same(trackerId), any[KafkaProducerActorState])).thenReturn(true)
       when(mockPublishTrackerState.tracker(same(trackerId), any[KafkaProducerActorState]))
-        .thenReturn(Some(PublishTrackerWithExpiry(PublishTracker(trackerId, (testAggs1, testEvents1), trackerTimeout), expired = true)))
+        .thenReturn(Some(PublishTrackerWithExpiry(PublishTracker(trackerId, testAggs1, testEvents1, trackerTimeout), expired = true)))
 
       val succeedingPutWithExpiredTracker = testProducerActor(assignedPartition, mockProducerSucceedsPutRecords, mockLagChecker, mockPublishTrackerState)
 
@@ -506,7 +506,7 @@ class KafkaProducerActorImplSpec
       when(mockPublishTrackerState.trackerTimeout).thenReturn(trackerTimeout)
       when(mockPublishTrackerState.tracker(any[UUID], any[KafkaProducerActorState]))
         .thenReturn(None)
-        .thenReturn(Some(PublishTrackerWithExpiry(PublishTracker(trackerId, (testAggs1, testEvents1), trackerTimeout), expired = false)))
+        .thenReturn(Some(PublishTrackerWithExpiry(PublishTracker(trackerId, testAggs1, testEvents1, trackerTimeout), expired = false)))
 
       val succeedingPutWithExpiredTracker = testProducerActor(assignedPartition, mockProducerSucceedsPutRecords, mockLagChecker, mockPublishTrackerState)
 

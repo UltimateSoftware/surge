@@ -252,7 +252,7 @@ class KafkaProducerActorImpl(
         val maybeTrackerWithExpiry = publishTrackerStateManager.tracker(msg.batchId, state)
         maybeTrackerWithExpiry match {
           case Some(trackerWithExpiry) =>
-            if (!trackerWithExpiry.tracker.dataWasPublished()) {
+            if (!trackerWithExpiry.tracker.dataWasPublished) {
               if (!trackerWithExpiry.expired) {
                 // Avoid duplicating a write that is already pending.
                 if (!publishTrackerStateManager.stateHasPendingWrites(msg.batchId, state)) {
@@ -622,9 +622,9 @@ private[internal] case class KafkaProducerActorState(
 
   def tracker(id: UUID): Option[PublishTrackerWithExpiry] = {
     trackers
-      .find(t => t.tracker.requestId() == id)
+      .find(t => t.tracker.requestId == id)
       .map(t => {
-        if (t.tracker.startTime().toEpochMilli + t.tracker.ttl().toMillis > Instant.now().toEpochMilli) {
+        if (t.tracker.startTime.toEpochMilli + t.tracker.ttl.toMillis > Instant.now().toEpochMilli) {
           t
         } else {
           PublishTrackerWithExpiry(t.tracker, expired = true)
@@ -645,8 +645,7 @@ private[internal] case class KafkaProducerActorState(
   }
 
   def startTracking(msg: Publish, timeout: FiniteDuration): KafkaProducerActorState = {
-    this
-      .copy(trackers = trackers :+ PublishTrackerWithExpiry(tracker = PublishTracker(msg.batchId, (msg.state, msg.eventsToPublish), timeout), expired = false))
+    this.copy(trackers = trackers :+ PublishTrackerWithExpiry(tracker = PublishTracker(msg.batchId, msg.state, msg.eventsToPublish, timeout), expired = false))
   }
 
   def stopTracking(msg: Publish): KafkaProducerActorState = {
@@ -654,7 +653,7 @@ private[internal] case class KafkaProducerActorState(
   }
 
   def stopTracking(trackingId: UUID): KafkaProducerActorState = {
-    this.copy(trackers = trackers.filterNot(t => t.tracker.requestId() == trackingId))
+    this.copy(trackers = trackers.filterNot(t => t.tracker.requestId == trackingId))
   }
 
   def addInFlight(recordMetadata: Seq[KafkaRecordMetadata[String]]): KafkaProducerActorState = {

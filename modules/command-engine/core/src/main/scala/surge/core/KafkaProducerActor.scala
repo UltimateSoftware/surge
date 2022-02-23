@@ -131,34 +131,22 @@ object KafkaProducerActor {
   case class MessageToPublish(key: String, value: Array[Byte], headers: Headers)
 
   object PublishTracker {
-    def apply(publishTrackingId: UUID, data: (MessageToPublish, Seq[MessageToPublish]), trackerTimeout: FiniteDuration): PublishTracker = {
-      new SurgePublishTracker(publishTrackingId, state = Some(data._1), events = data._2, dataWasPublished = false, ttl = trackerTimeout)
+    def apply(publishTrackingId: UUID, state: MessageToPublish, events: Seq[MessageToPublish], trackerTimeout: FiniteDuration): PublishTracker = {
+      new PublishTracker(publishTrackingId, state = Some(state), events = events, dataWasPublished = false, ttl = trackerTimeout)
     }
 
     def alreadyPublished(publishTrackingId: UUID, trackerTimeout: FiniteDuration): PublishTracker = {
-      new SurgePublishTracker(publishTrackingId, state = None, events = Seq.empty, dataWasPublished = true, ttl = trackerTimeout)
+      new PublishTracker(publishTrackingId, state = None, events = Seq.empty, dataWasPublished = true, ttl = trackerTimeout)
     }
   }
 
-  sealed trait PublishTracker {
-    def requestId(): UUID
-    def dataWasPublished(): Boolean
-
-    def startTime(): Instant
-    def ttl(): FiniteDuration
-
-    def state(): Option[MessageToPublish]
-    def events(): Seq[MessageToPublish]
-  }
-
-  private class SurgePublishTracker(
-      override val requestId: UUID,
-      override val dataWasPublished: Boolean,
-      override val state: Option[MessageToPublish],
-      override val events: Seq[MessageToPublish],
-      override val startTime: Instant = Instant.now(),
-      override val ttl: FiniteDuration = 60.seconds)
-      extends PublishTracker
+  case class PublishTracker(
+      requestId: UUID,
+      dataWasPublished: Boolean,
+      state: Option[MessageToPublish],
+      events: Seq[MessageToPublish],
+      startTime: Instant = Instant.now(),
+      ttl: FiniteDuration = 60.seconds)
 
   case class PublishTrackerWithExpiry(tracker: PublishTracker, expired: Boolean)
 
