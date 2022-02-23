@@ -150,7 +150,7 @@ object KafkaProducerActor {
 
   case class PublishTrackerWithExpiry(tracker: PublishTracker, expired: Boolean)
 
-  class RetryAwareException(val cause: Throwable, val retry: Boolean = false, val currentFailureCount: Int)
+  class RetryAwareException(val cause: Throwable, val retry: Boolean = false)
       extends Throwable
       with NoSerializationVerificationNeeded
 }
@@ -205,7 +205,7 @@ class KafkaProducerActor(
     val request = KafkaProducerActorImpl.Publish(batchId = requestId, eventsToPublish = events, state = state)
 
     (publisherActor.ref ? request).mapTo[KafkaProducerActor.PublishResult].recover { case t =>
-      throw new RetryAwareException(t, retry = true, currentFailureCount = currentFailureCount + 1)
+      throw new RetryAwareException(t, retry = true)
     }
   }
 
