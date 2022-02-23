@@ -150,7 +150,7 @@ object KafkaProducerActor {
 
   case class PublishTrackerWithExpiry(tracker: PublishTracker, expired: Boolean)
 
-  class RetryAwareException(val cause: Throwable, val retry: Boolean = false) extends Throwable with NoSerializationVerificationNeeded
+  class RetryAwareException(val cause: Throwable, val retry: Boolean = false, val currentFailureCount:Int) extends Throwable with NoSerializationVerificationNeeded
 }
 
 /**
@@ -196,13 +196,14 @@ class KafkaProducerActor(
       requestId: UUID,
       aggregateId: String,
       state: KafkaProducerActor.MessageToPublish,
-      events: Seq[KafkaProducerActor.MessageToPublish]): Future[KafkaProducerActor.PublishResult] = {
+      events: Seq[KafkaProducerActor.MessageToPublish],
+      currentFailureCount: Int = 0): Future[KafkaProducerActor.PublishResult] = {
     log.trace(s"Publishing state for {} {}", Seq(aggregateName, state.key): _*)
     implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PublisherActor.publishTimeout)
     val request = KafkaProducerActorImpl.Publish(batchId = requestId, eventsToPublish = events, state = state)
 
     (publisherActor.ref ? request).mapTo[KafkaProducerActor.PublishResult].recover { case t =>
-      throw new RetryAwareException(t, retry = true)
+      throw new RetryAwareException(t, retry = true, currentFailureCount = currentFailureCount + 1)
     }
   }
 
