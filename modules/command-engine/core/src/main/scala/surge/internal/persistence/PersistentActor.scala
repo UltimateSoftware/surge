@@ -156,7 +156,7 @@ class PersistentActor[S, M, E](
       startTime: Instant)
       extends Internal
 
-  private case class EventPublishTimedOut(reason: Throwable, startTime: Instant) extends Internal
+  private case class EventPublishTimedOut(reason: Throwable, startTime: Instant, newState: ActorState) extends Internal
 
   protected case class InternalActorState(stateOpt: Option[S])
 

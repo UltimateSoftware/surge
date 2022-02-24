@@ -58,6 +58,7 @@ trait KTablePersistenceSupport[Agg, Event] {
       events: Seq[KafkaProducerActor.MessageToPublish],
       reason: Throwable,
       startTime: Instant,
+      newState: ActorState,
       retry: Boolean = false)
       extends Internal
 
@@ -93,9 +94,9 @@ trait KTablePersistenceSupport[Agg, Event] {
 
           t match {
             case exception: RetryAwareException =>
-              EventPublishTimedOut(trackingId, aggregateId, context, serializedState, serializedEvents, t, startTime, retry = exception.retry)
+              EventPublishTimedOut(trackingId, aggregateId, context, serializedState, serializedEvents, t, startTime, retry = exception.retry, newState = state)
             case _ =>
-              EventPublishTimedOut(trackingId, aggregateId, context, serializedState, serializedEvents, t, startTime)
+              EventPublishTimedOut(trackingId, aggregateId, context, serializedState, serializedEvents, t, startTime, state)
 
           }
         }
@@ -107,7 +108,7 @@ trait KTablePersistenceSupport[Agg, Event] {
     ktablePersistenceMetrics.eventPublishTimer.recordTime(publishTimeInMillis(msg.startTime))
 
     if (msg.retry) {
-      doPublish(state, msg.context, msg.events, msg.state, currentFailureCount = 0, Instant.now(), didStateChange = true, trackingId = msg.trackingId)
+      doPublish(msg.newState, msg.context, msg.events, msg.state, currentFailureCount = 0, Instant.now(), didStateChange = true, trackingId = msg.trackingId)
         .pipeTo(self)
     } else {
       onPersistenceFailure(state, KafkaPublishTimeoutException(aggregateId, msg.reason))
