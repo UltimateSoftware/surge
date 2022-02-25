@@ -26,6 +26,7 @@ import surge.metrics.{ MetricInfo, Metrics, Rate, Timer }
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.TimeUnit
+import scala.collection.mutable
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.{ Failure, Success, Try }
@@ -372,8 +373,19 @@ class KafkaProducerActorImpl(
     if (eventsPublished.recordMetadata.nonEmpty) {
       val newState = state.addInFlight(eventsPublished.recordMetadata).completeTransaction()
       context.become(processing(newState))
+    } else {
+      val trackersToStop: mutable.Seq[PublishTrackerWithExpiry] = mutable.Seq[PublishTrackerWithExpiry]()
+      eventsPublished.originalSenders.foreach(sender => {
+        trackersToStop :++ state.trackers.find(p => p.tracker.requestId == sender.trackingId).map(found => found)
+      })
+
+      val newState = state.stopTrackers(trackersToStop.toSeq)
+      context.become(processing(newState))
     }
-    eventsPublished.originalSenders.foreach(sender => sender.actorRef ! KafkaProducerActor.PublishSuccess(sender.trackingId))
+
+    eventsPublished.originalSenders.foreach(sender => {
+      sender.actorRef ! KafkaProducerActor.PublishSuccess(sender.trackingId)
+    })
   }
 
   private def handleFailedToPublish(state: KafkaProducerActorState, msg: EventsFailedToPublish): Unit = {
@@ -656,6 +668,11 @@ private[internal] case class KafkaProducerActorState(
 
   def stopTracking(trackingId: UUID): KafkaProducerActorState = {
     this.copy(trackers = trackers.filterNot(t => t.tracker.requestId == trackingId))
+  }
+
+  def stopTrackers(trackersToStop: Seq[PublishTrackerWithExpiry]): KafkaProducerActorState = {
+    val updatedTrackers: Seq[PublishTrackerWithExpiry] = trackers.filterNot(t => trackersToStop.contains(t))
+    this.copy(trackers = updatedTrackers)
   }
 
   def addInFlight(recordMetadata: Seq[KafkaRecordMetadata[String]]): KafkaProducerActorState = {
