@@ -59,6 +59,7 @@ trait KTablePersistenceSupport[Agg, Event] {
       reason: Throwable,
       startTime: Instant,
       newState: ActorState,
+      numberOfFailures: Int = 0,
       retry: Boolean = false)
       extends Internal
 
@@ -103,7 +104,8 @@ trait KTablePersistenceSupport[Agg, Event] {
                 reason = t,
                 startTime = startTime,
                 retry = exception.retry,
-                newState = state)
+                newState = state,
+                numberOfFailures = currentFailureCount)
             case _ =>
               EventPublishTimedOut(
                 trackingId = trackingId,
@@ -113,7 +115,8 @@ trait KTablePersistenceSupport[Agg, Event] {
                 events = serializedEvents,
                 reason = t,
                 startTime = startTime,
-                newState = state)
+                newState = state,
+                numberOfFailures = currentFailureCount)
 
           }
         }
@@ -124,7 +127,7 @@ trait KTablePersistenceSupport[Agg, Event] {
     implicit val ec: ExecutionContext = context.dispatcher
     ktablePersistenceMetrics.eventPublishTimer.recordTime(publishTimeInMillis(msg.startTime))
 
-    if (msg.retry) {
+    if (msg.retry && msg.numberOfFailures < maxProducerFailureRetries) {
       doPublish(msg.newState, msg.context, msg.events, msg.state, currentFailureCount = 0, Instant.now(), didStateChange = true, trackingId = msg.trackingId)
         .pipeTo(self)
     } else {
