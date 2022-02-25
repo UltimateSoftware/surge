@@ -637,8 +637,8 @@ private[internal] case class KafkaProducerActorState(
     trackers
       .find(t => t.tracker.requestId == id)
       .map(t => {
-        if (t.tracker.startTime.toEpochMilli + t.tracker.ttl.toMillis > Instant.now().toEpochMilli) {
-          t
+        if (t.tracker.isActive) {
+          PublishTrackerWithExpiry(t.tracker, expired = false)
         } else {
           PublishTrackerWithExpiry(t.tracker, expired = true)
         }
@@ -666,7 +666,7 @@ private[internal] case class KafkaProducerActorState(
   }
 
   def clearExpiredTrackers(): KafkaProducerActorState = {
-    this.copy(trackers = trackers.filterNot(tracker => tracker.expired))
+    this.copy(trackers = trackers.filter(tracker => tracker.tracker.isActive))
   }
 
   def stopTracking(trackingId: UUID): KafkaProducerActorState = {

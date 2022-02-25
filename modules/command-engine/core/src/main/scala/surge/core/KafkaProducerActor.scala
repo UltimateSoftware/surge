@@ -146,7 +146,12 @@ object KafkaProducerActor {
       state: Option[MessageToPublish],
       events: Seq[MessageToPublish],
       startTime: Instant = Instant.now(),
-      ttl: FiniteDuration = 60.seconds)
+      ttl: FiniteDuration = 60.seconds) {
+
+    def isActive: Boolean = {
+      startTime.toEpochMilli + ttl.toMillis > Instant.now().toEpochMilli
+    }
+  }
 
   case class PublishTrackerWithExpiry(tracker: PublishTracker, expired: Boolean)
 
