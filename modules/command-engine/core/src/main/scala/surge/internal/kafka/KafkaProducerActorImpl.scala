@@ -262,9 +262,11 @@ class KafkaProducerActorImpl(
                 }
               } else {
                 context.become(processing(state.stopTracking(msg)))
-                handleFailedToPublish(state, EventsFailedToPublish(
-                  reason = new RuntimeException(s"PublishTracker expired, not attempting another publish for ${msg.batchId}"),
-                  originalSenders = Seq(SenderWithTrackingId(sender(), msg.batchId))))
+                handleFailedToPublish(
+                  state,
+                  EventsFailedToPublish(
+                    reason = new RuntimeException(s"PublishTracker expired, not attempting another publish for ${msg.batchId}"),
+                    originalSenders = Seq(SenderWithTrackingId(sender(), msg.batchId))))
               }
             } else {
               context.become(processing(state))
