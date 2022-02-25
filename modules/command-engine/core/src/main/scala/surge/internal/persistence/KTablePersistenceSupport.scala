@@ -94,9 +94,26 @@ trait KTablePersistenceSupport[Agg, Event] {
 
           t match {
             case exception: RetryAwareException =>
-              EventPublishTimedOut(trackingId, aggregateId, context, serializedState, serializedEvents, t, startTime, retry = exception.retry, newState = state)
+              EventPublishTimedOut(
+                trackingId = trackingId,
+                aggregateId = aggregateId,
+                context = context,
+                state = serializedState,
+                events = serializedEvents,
+                reason = t,
+                startTime = startTime,
+                retry = exception.retry,
+                newState = state)
             case _ =>
-              EventPublishTimedOut(trackingId, aggregateId, context, serializedState, serializedEvents, t, startTime, state)
+              EventPublishTimedOut(
+                trackingId = trackingId,
+                aggregateId = aggregateId,
+                context = context,
+                state = serializedState,
+                events = serializedEvents,
+                reason = t,
+                startTime = startTime,
+                newState = state)
 
           }
         }
