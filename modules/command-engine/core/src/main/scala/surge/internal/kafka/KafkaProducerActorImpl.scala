@@ -266,7 +266,7 @@ class KafkaProducerActorImpl(
                 if (!publishTrackerStateManager.stateHasPendingWrites(msg.batchId, state)) {
                   context.become(processing(state.addPendingWrites(sender(), msg)))
                 } else {
-                  context.become(processing(state))
+                  context.become(processing(state.updateSenderForPendingWrite(sender(), msg)))
                 }
               } else {
                 context.become(processing(state.stopTracking(msg)))
@@ -631,6 +631,17 @@ private[internal] case class KafkaProducerActorState(
   def addPendingWrites(sender: ActorRef, publish: Publish): KafkaProducerActorState = {
     val newWriteRequest = PublishWithSender(SenderWithTrackingId(sender, publish.batchId), publish)
     this.copy(pendingWrites = pendingWrites :+ newWriteRequest)
+  }
+
+  def updateSenderForPendingWrite(sender: ActorRef, publish: Publish): KafkaProducerActorState = {
+    val newWriteRequest = PublishWithSender(SenderWithTrackingId(sender, publish.batchId), publish)
+    val maybeFound = pendingWrites.find(write => write.publish.batchId == publish.batchId)
+    val index = maybeFound.map(f => pendingWrites.indexOf(f)).getOrElse(-1)
+    if (index != -1) {
+      this.copy(pendingWrites = pendingWrites.updated(index, newWriteRequest))
+    } else {
+      this.copy()
+    }
   }
 
   def tracker(id: UUID): Option[PublishTrackerWithExpiry] = {
