@@ -43,7 +43,7 @@ object KafkaProducerActorImpl {
     }
 
     def stateHasPendingWrites(id: UUID, state: KafkaProducerActorState): Boolean = {
-      state.pendingWrites.exists(p => p.publish.batchId == id)
+      state.hasPendingWrites(id)
     }
   }
 
@@ -654,6 +654,10 @@ private[internal] case class KafkaProducerActorState(
           PublishTrackerWithExpiry(t.tracker, expired = true)
         }
       })
+  }
+
+  def hasPendingWrites(id: UUID): Boolean = {
+    pendingWrites.exists(p => p.publish.batchId == id)
   }
 
   def flushWrites(): KafkaProducerActorState = {

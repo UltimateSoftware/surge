@@ -24,7 +24,6 @@ import java.time.Instant
 import java.util.concurrent.Executors
 import scala.concurrent.duration.{ Duration, FiniteDuration }
 import scala.concurrent.{ ExecutionContext, Future }
-import scala.concurrent.duration._
 
 object PersistentActor {
 

@@ -128,8 +128,15 @@ trait KTablePersistenceSupport[Agg, Event] {
     ktablePersistenceMetrics.eventPublishTimer.recordTime(publishTimeInMillis(msg.startTime))
 
     if (msg.retry && msg.numberOfFailures < maxProducerFailureRetries) {
-      doPublish(msg.newState, msg.context, msg.events, msg.state, currentFailureCount = 0, Instant.now(), didStateChange = true, trackingId = msg.trackingId)
-        .pipeTo(self)
+      doPublish(
+        msg.newState,
+        msg.context,
+        msg.events,
+        msg.state,
+        currentFailureCount = msg.numberOfFailures,
+        Instant.now(),
+        didStateChange = true,
+        trackingId = msg.trackingId).pipeTo(self)
     } else {
       onPersistenceFailure(state, KafkaPublishTimeoutException(aggregateId, msg.reason))
     }
