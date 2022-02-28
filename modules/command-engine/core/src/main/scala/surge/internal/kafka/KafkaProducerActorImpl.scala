@@ -12,15 +12,19 @@ import org.apache.kafka.common.errors.{ AuthorizationException, ProducerFencedEx
 import org.apache.kafka.common.{ IsolationLevel, TopicPartition }
 import org.slf4j.{ Logger, LoggerFactory }
 import surge.core.KafkaProducerActor
+import surge.core.KafkaProducerActor.{ PublishTracker, PublishTrackerWithExpiry }
 import surge.health.{ HealthSignalBusTrait, HealthyPublisher }
 import surge.internal.akka.cluster.ActorHostAwareness
 import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
+import surge.internal.config.TimeoutConfig
 import surge.internal.health.{ HealthCheck, HealthCheckStatus }
 import surge.kafka._
 import surge.internal.health.HealthyActor.GetHealth
+import surge.internal.kafka.KafkaProducerActorImpl.PublishTrackerStateManager
 import surge.metrics.{ MetricInfo, Metrics, Rate, Timer }
 
 import java.time.Instant
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -32,7 +36,20 @@ object KafkaProducerActorImpl {
   val KAFKA_PRODUCER_FENCED_SIGNAL_NAME: String = "kafka.producer.actor.fenced"
 
   sealed trait KafkaProducerActorMessage extends NoSerializationVerificationNeeded
-  case class Publish(state: KafkaProducerActor.MessageToPublish, eventsToPublish: Seq[KafkaProducerActor.MessageToPublish]) extends KafkaProducerActorMessage
+
+  class PublishTrackerStateManager(val trackerTimeout: FiniteDuration = TimeoutConfig.PublisherActor.trackerTimeout) {
+    def tracker(id: UUID, state: KafkaProducerActorState): Option[PublishTrackerWithExpiry] = {
+      state.tracker(id)
+    }
+
+    def stateHasPendingWrites(id: UUID, state: KafkaProducerActorState): Boolean = {
+      state.hasPendingWrites(id)
+    }
+  }
+
+  case class Publish(batchId: UUID, state: KafkaProducerActor.MessageToPublish, eventsToPublish: Seq[KafkaProducerActor.MessageToPublish])
+      extends KafkaProducerActorMessage {}
+
   case class IsAggregateStateCurrent(aggregateId: String) extends KafkaProducerActorMessage
   case object ShutdownProducer extends KafkaProducerActorMessage
 
@@ -50,18 +67,25 @@ object KafkaProducerActorImpl {
           tags = Map("aggregate" -> aggregateName))))
 
   }
+
+  case class SenderWithTrackingId(actorRef: ActorRef, trackingId: UUID)
   case class AggregateStateRates(current: Rate, notCurrent: Rate)
 
   sealed trait InternalMessage extends NoSerializationVerificationNeeded
-  case class EventsPublished(originalSenders: Seq[ActorRef], recordMetadata: Seq[KafkaRecordMetadata[String]]) extends InternalMessage
-  case class EventsFailedToPublish(originalSenders: Seq[ActorRef], reason: Throwable) extends InternalMessage
-  case class AbortTransactionFailed(originalSenders: Seq[ActorRef], abortTransactionException: Throwable, originalException: Throwable) extends InternalMessage
+  case class EventsPublished(originalSenders: Seq[SenderWithTrackingId], recordMetadata: Seq[KafkaRecordMetadata[String]] = Seq.empty) extends InternalMessage
+  case class EventsFailedToPublish(originalSenders: Seq[SenderWithTrackingId], reason: Throwable) extends InternalMessage
+  case class AbortTransactionFailed(originalSenders: Seq[SenderWithTrackingId], abortTransactionException: Throwable, originalException: Throwable)
+      extends InternalMessage
   case object InitTransactions extends InternalMessage
+  case object ClearExpiredTrackers extends InternalMessage
   case object InitTransactionSuccess extends InternalMessage
   case object FailedToInitTransactions extends InternalMessage
   case object FlushMessages extends InternalMessage
   case object CheckKTableProgress extends InternalMessage
-  case class PublishWithSender(sender: ActorRef, publish: Publish) extends InternalMessage
+  case class PublishWithSender(senderWithTrackingId: SenderWithTrackingId, publish: Publish) extends InternalMessage {
+    def sender(): ActorRef = senderWithTrackingId.actorRef
+  }
+
   case class PendingInitialization(actor: ActorRef, key: String, expiration: Instant) extends InternalMessage
   case class KTableProgressUpdate(topicPartition: TopicPartition, lagInfo: LagInfo) extends InternalMessage
   case class ProducerFenced(exception: ProducerFencedException) extends InternalMessage
@@ -76,6 +100,7 @@ class KafkaProducerActorImpl(
     partitionTracker: KafkaConsumerPartitionAssignmentTracker,
     override val signalBus: HealthSignalBusTrait,
     config: Config,
+    publishTrackerStateManager: PublishTrackerStateManager = new PublishTrackerStateManager(TimeoutConfig.PublisherActor.trackerTimeout),
     kafkaProducerOverride: Option[KafkaProducerTrait[String, Array[Byte]]] = None)
     extends Actor
     with ActorHostAwareness
@@ -122,12 +147,16 @@ class KafkaProducerActorImpl(
   private implicit val rates: AggregateStateRates = AggregateStateRates(aggregateName, metrics)
 
   context.system.scheduler.scheduleOnce(10.milliseconds, self, InitTransactions)
+
+  private val clearExpiredTrackersScheduledTask = context.system.scheduler.scheduleAtFixedRate(10.milliseconds, 10.seconds, self, ClearExpiredTrackers)
+
   private val flushMessagesScheduledTask = context.system.scheduler.scheduleWithFixedDelay(flushInterval, flushInterval, self, FlushMessages)
   private val checkKTableLagScheduledTask = context.system.scheduler.scheduleAtFixedRate(ktableCheckInterval, ktableCheckInterval, self, CheckKTableProgress)
 
   override def postStop(): Unit = {
     flushMessagesScheduledTask.cancel()
     checkKTableLagScheduledTask.cancel()
+    clearExpiredTrackersScheduledTask.cancel()
     super.postStop()
   }
 
@@ -169,7 +198,7 @@ class KafkaProducerActorImpl(
     case InitTransactionSuccess => initTransactionsSuccess(lastProgressUpdate)
     case FlushMessages          => log.trace("KafkaProducerActor ignoring FlushMessages message from the uninitialized state")
     case failedToPublish: EventsFailedToPublish =>
-      sender() ! KafkaProducerActor.PublishFailure(failedToPublish.reason)
+      failedToPublish.originalSenders.foreach(sender => sender.actorRef ! KafkaProducerActor.PublishFailure(sender.trackingId, failedToPublish.reason))
     case GetHealth =>
       sender() ! HealthCheck(
         name = "producer-actor",
@@ -180,6 +209,7 @@ class KafkaProducerActorImpl(
     case ShutdownProducer             => stopPublisher()
     case _: Publish                   => stash()
     case _: IsAggregateStateCurrent   => sender().tell(false, self)
+    case ClearExpiredTrackers         => // Ignore and do nothing
   }
 
   private def waitingForKTableIndexing(): Receive = {
@@ -188,13 +218,14 @@ class KafkaProducerActorImpl(
     case FlushMessages             => log.trace("KafkaProducerActor ignoring FlushMessages message from the waitingForKTableIndexing state")
     case ShutdownProducer          => stopPublisher()
     case failedToPublish: EventsFailedToPublish =>
-      sender() ! KafkaProducerActor.PublishFailure(failedToPublish.reason)
+      failedToPublish.originalSenders.foreach(sender => sender.actorRef ! KafkaProducerActor.PublishFailure(sender.trackingId, failedToPublish.reason))
     case GetHealth =>
       sender() ! HealthCheck(
         name = "producer-actor",
         id = assignedTopicPartitionKey,
         status = HealthCheckStatus.UP,
         details = Some(Map("state" -> "waitingForKTableIndexing")))
+    case ClearExpiredTrackers       => // Ignore and do nothing
     case _: Publish                 => stash()
     case _: IsAggregateStateCurrent => sender().tell(false, self)
   }
@@ -203,9 +234,11 @@ class KafkaProducerActorImpl(
     case msg: ProducerFenced => maybeRestartFencedProducer(msg)
     case msg: EventsFailedToPublish =>
       context.become(fenced(state.completeTransaction(), initialFenceTime))
-      msg.originalSenders.foreach(_ ! KafkaProducerActor.PublishFailure(msg.reason))
-    case RestartProducer              => restartPublisher()
-    case ShutdownProducer             => stopPublisher()
+      msg.originalSenders.foreach(sender => sender.actorRef ! KafkaProducerActor.PublishFailure(sender.trackingId, msg.reason))
+    case RestartProducer  => restartPublisher()
+    case ShutdownProducer => stopPublisher()
+    case ClearExpiredTrackers =>
+      context.become(processing(state.clearExpiredTrackers()))
     case CheckKTableProgress          => log.trace("KafkaProducerActor ignoring CheckKTableProgress message from the fenced state")
     case FlushMessages                => log.trace("KafkaProducerActor ignoring FlushMessages message from the fenced state")
     case update: KTableProgressUpdate => context.become(fenced(state.processedUpTo(update), initialFenceTime))
@@ -217,7 +250,9 @@ class KafkaProducerActorImpl(
     case msg: InternalMessage                                  => handleProcessingInternalMessage(msg, state)
     case msg: KafkaProducerActorImpl.KafkaProducerActorMessage => handleProcessingProducerMessage(msg, state)
     case GetHealth                                             => doHealthCheck(state)
-    case ShutdownProducer                                      => stopPublisher()
+    case ClearExpiredTrackers =>
+      context.become(processing(state.clearExpiredTrackers()))
+    case ShutdownProducer => stopPublisher()
     case Status.Failure(e) =>
       log.error(s"Saw unhandled exception in producer for $assignedPartition", e)
   }
@@ -225,7 +260,33 @@ class KafkaProducerActorImpl(
   private def handleProcessingProducerMessage(message: KafkaProducerActorImpl.KafkaProducerActorMessage, state: KafkaProducerActorState): Unit = {
     message match {
       case msg: Publish =>
-        context.become(processing(state.addPendingWrites(sender(), msg)))
+        val maybeTrackerWithExpiry = publishTrackerStateManager.tracker(msg.batchId, state)
+        maybeTrackerWithExpiry match {
+          case Some(trackerWithExpiry) =>
+            if (!trackerWithExpiry.tracker.dataWasPublished) {
+              if (!trackerWithExpiry.expired) {
+                // Avoid duplicating a write that is already pending.
+                if (!publishTrackerStateManager.stateHasPendingWrites(msg.batchId, state)) {
+                  context.become(processing(state.addPendingWrites(sender(), msg)))
+                } else {
+                  context.become(processing(state.updateSenderForPendingWrite(sender(), msg)))
+                }
+              } else {
+                context.become(processing(state.stopTracking(msg)))
+                handleFailedToPublish(
+                  state,
+                  EventsFailedToPublish(
+                    reason = new RuntimeException(s"PublishTracker expired, not attempting another publish for ${msg.batchId}"),
+                    originalSenders = Seq(SenderWithTrackingId(sender(), msg.batchId))))
+              }
+            } else {
+              context.become(processing(state))
+              handle(state, EventsPublished(Seq(SenderWithTrackingId(sender(), msg.batchId))))
+            }
+          case None =>
+            context.become(processing(state.addPendingWrites(sender(), msg).startTracking(msg, publishTrackerStateManager.trackerTimeout)))
+        }
+
       case msg: IsAggregateStateCurrent => handle(state, msg)
       case other                        => unhandled(other)
     }
@@ -233,10 +294,12 @@ class KafkaProducerActorImpl(
 
   private def handleProcessingInternalMessage(message: InternalMessage, state: KafkaProducerActorState): Unit = {
     message match {
-      case CheckKTableProgress         => checkKTableProgress()
-      case msg: KTableProgressUpdate   => context.become(processing(state.processedUpTo(msg)))
-      case msg: EventsPublished        => handle(state, msg)
-      case msg: EventsFailedToPublish  => handleFailedToPublish(state, msg)
+      case CheckKTableProgress       => checkKTableProgress()
+      case msg: KTableProgressUpdate => context.become(processing(state.processedUpTo(msg)))
+      case msg: EventsPublished      => handle(state, msg)
+      case msg: EventsFailedToPublish =>
+        handleFailedToPublish(state, msg)
+
       case FlushMessages               => handleFlushMessages(state)
       case msg: AbortTransactionFailed => handle(msg)
       case msg: ProducerFenced =>
@@ -317,15 +380,20 @@ class KafkaProducerActorImpl(
   }
 
   private def handle(state: KafkaProducerActorState, eventsPublished: EventsPublished): Unit = {
-    val newState = state.addInFlight(eventsPublished.recordMetadata).completeTransaction()
-    context.become(processing(newState))
-    eventsPublished.originalSenders.foreach(_ ! KafkaProducerActor.PublishSuccess)
+    if (eventsPublished.recordMetadata.nonEmpty) {
+      val newState = state.addInFlight(eventsPublished.recordMetadata).completeTransaction()
+      context.become(processing(newState))
+    }
+
+    eventsPublished.originalSenders.foreach(sender => {
+      sender.actorRef ! KafkaProducerActor.PublishSuccess(sender.trackingId)
+    })
   }
 
   private def handleFailedToPublish(state: KafkaProducerActorState, msg: EventsFailedToPublish): Unit = {
     val newState = state.completeTransaction()
     context.become(processing(newState))
-    msg.originalSenders.foreach(_ ! KafkaProducerActor.PublishFailure(msg.reason))
+    msg.originalSenders.foreach(sender => sender.actorRef ! KafkaProducerActor.PublishFailure(sender.trackingId, msg.reason))
   }
 
   private val eventsPublishedRate: Rate = metrics.rate(
@@ -347,6 +415,7 @@ class KafkaProducerActorImpl(
         context.become(processing(newState))
       }
     } else if (state.pendingWrites.nonEmpty) {
+      val senders = state.pendingWrites.map(_.senderWithTrackingId)
       val eventMessages = state.pendingWrites.flatMap(_.publish.eventsToPublish)
       val stateMessages = state.pendingWrites.map(_.publish.state)
 
@@ -366,11 +435,12 @@ class KafkaProducerActorImpl(
       log.debug(s"KafkaProducerActor partition {} writing {} events to Kafka", assignedPartition, eventRecords.length)
       log.debug(s"KafkaProducerActor partition {} writing {} states to Kafka", assignedPartition, stateRecords.length)
       eventsPublishedRate.mark(eventMessages.length)
-      doFlushRecords(state, records)
+
+      doFlushRecords(state, senders, records)
     }
   }
 
-  private def publishRecordsWithTransaction(senders: Seq[ActorRef], records: Seq[ProducerRecord[String, Array[Byte]]]): Future[InternalMessage] = {
+  private def publishRecordsWithTransaction(senders: Seq[SenderWithTrackingId], records: Seq[ProducerRecord[String, Array[Byte]]]): Future[InternalMessage] = {
     kafkaPublisherTimer.timeFuture {
       Try(kafkaPublisher.beginTransaction()) match {
         case Failure(f: ProducerFencedException) =>
@@ -397,14 +467,14 @@ class KafkaProducerActorImpl(
                   case Success(_) =>
                     EventsFailedToPublish(senders, e)
                   case Failure(exception) =>
-                    AbortTransactionFailed(senders, abortTransactionException = exception, originalException = e)
+                    AbortTransactionFailed(originalSenders = senders, abortTransactionException = exception, originalException = e)
                 }
             }
       }
     }
   }
 
-  private def publishSingleRecord(senders: Seq[ActorRef], record: ProducerRecord[String, Array[Byte]]): Future[InternalMessage] = {
+  private def publishSingleRecord(senders: Seq[SenderWithTrackingId], record: ProducerRecord[String, Array[Byte]]): Future[InternalMessage] = {
     kafkaPublisherTimer.timeFuture {
       nonTransactionalStatePublisher
         .putRecord(record)
@@ -419,8 +489,7 @@ class KafkaProducerActorImpl(
     }
   }
 
-  private def doFlushRecords(state: KafkaProducerActorState, records: Seq[ProducerRecord[String, Array[Byte]]]): Unit = {
-    val senders = state.pendingWrites.map(_.sender)
+  private def doFlushRecords(state: KafkaProducerActorState, senders: Seq[SenderWithTrackingId], records: Seq[ProducerRecord[String, Array[Byte]]]): Unit = {
     val futureMsg = if (records.size > 1 || !disableTransactionsExperimental) {
       val fut = publishRecordsWithTransaction(senders, records)
       context.become(processing(state.flushWrites().startTransaction()))
@@ -437,7 +506,7 @@ class KafkaProducerActorImpl(
     log.error(
       s"KafkaProducerActor partition $assignedPartition saw an error aborting transaction, will recreate the producer.",
       abortTransactionFailed.abortTransactionException)
-    abortTransactionFailed.originalSenders.foreach(_ ! KafkaProducerActor.PublishFailure(abortTransactionFailed.originalException))
+    abortTransactionFailed.originalSenders.foreach(s => s.actorRef ! KafkaProducerActor.PublishFailure(s.trackingId, abortTransactionFailed.originalException))
     restartPublisher()
   }
 
@@ -541,6 +610,8 @@ private[internal] case class KafkaProducerActorState(
     inFlight: Seq[KafkaRecordMetadata[String]],
     pendingWrites: Seq[KafkaProducerActorImpl.PublishWithSender],
     transactionInProgressSince: Option[Instant],
+    trackers: Seq[PublishTrackerWithExpiry] = Seq.empty,
+    configuredTrackerTimeout: FiniteDuration = TimeoutConfig.PublisherActor.trackerTimeout,
     lastTransactionInProgressWarningTime: Instant = Instant.ofEpochMilli(0L)) {
 
   import KafkaProducerActorImpl._
@@ -561,8 +632,35 @@ private[internal] case class KafkaProducerActorState(
   }
 
   def addPendingWrites(sender: ActorRef, publish: Publish): KafkaProducerActorState = {
-    val newWriteRequest = PublishWithSender(sender, publish)
+    val newWriteRequest = PublishWithSender(SenderWithTrackingId(sender, publish.batchId), publish)
     this.copy(pendingWrites = pendingWrites :+ newWriteRequest)
+  }
+
+  def updateSenderForPendingWrite(sender: ActorRef, publish: Publish): KafkaProducerActorState = {
+    val newWriteRequest = PublishWithSender(SenderWithTrackingId(sender, publish.batchId), publish)
+    val maybeFound = pendingWrites.find(write => write.publish.batchId == publish.batchId)
+    val index = maybeFound.map(f => pendingWrites.indexOf(f)).getOrElse(-1)
+    if (index != -1) {
+      this.copy(pendingWrites = pendingWrites.updated(index, newWriteRequest))
+    } else {
+      this.copy()
+    }
+  }
+
+  def tracker(id: UUID): Option[PublishTrackerWithExpiry] = {
+    trackers
+      .find(t => t.tracker.requestId == id)
+      .map(t => {
+        if (t.tracker.isActive) {
+          PublishTrackerWithExpiry(t.tracker, expired = false)
+        } else {
+          PublishTrackerWithExpiry(t.tracker, expired = true)
+        }
+      })
+  }
+
+  def hasPendingWrites(id: UUID): Boolean = {
+    pendingWrites.exists(p => p.publish.batchId == id)
   }
 
   def flushWrites(): KafkaProducerActorState = {
@@ -575,6 +673,27 @@ private[internal] case class KafkaProducerActorState(
 
   def completeTransaction(): KafkaProducerActorState = {
     this.copy(transactionInProgressSince = None)
+  }
+
+  def startTracking(msg: Publish, timeout: FiniteDuration): KafkaProducerActorState = {
+    this.copy(trackers = trackers :+ PublishTrackerWithExpiry(tracker = PublishTracker(msg.batchId, msg.state, msg.eventsToPublish, timeout), expired = false))
+  }
+
+  def stopTracking(msg: Publish): KafkaProducerActorState = {
+    this.stopTracking(msg.batchId)
+  }
+
+  def clearExpiredTrackers(): KafkaProducerActorState = {
+    this.copy(trackers = trackers.filter(tracker => tracker.tracker.isActive))
+  }
+
+  def stopTracking(trackingId: UUID): KafkaProducerActorState = {
+    this.copy(trackers = trackers.filterNot(t => t.tracker.requestId == trackingId))
+  }
+
+  def stopTrackers(trackersToStop: Seq[PublishTrackerWithExpiry]): KafkaProducerActorState = {
+    val updatedTrackers: Seq[PublishTrackerWithExpiry] = trackers.filterNot(t => trackersToStop.contains(t))
+    this.copy(trackers = updatedTrackers)
   }
 
   def addInFlight(recordMetadata: Seq[KafkaRecordMetadata[String]]): KafkaProducerActorState = {

@@ -51,6 +51,8 @@ object TimeoutConfig {
   object PublisherActor {
     val publishTimeout: FiniteDuration =
       config.getDuration("surge.producer.publish-timeout", TimeUnit.MILLISECONDS).milliseconds
+    val trackerTimeout: FiniteDuration =
+      config.getDuration("surge.producer.tracker-timeout", TimeUnit.MILLISECONDS).milliseconds
     val aggregateStateCurrentTimeout: FiniteDuration =
       config.getDuration("surge.producer.aggregate-state-current-timeout", TimeUnit.MILLISECONDS).milliseconds
   }

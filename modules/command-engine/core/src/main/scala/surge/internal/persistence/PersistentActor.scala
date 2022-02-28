@@ -155,7 +155,7 @@ class PersistentActor[S, M, E](
       startTime: Instant)
       extends Internal
 
-  private case class EventPublishTimedOut(reason: Throwable, startTime: Instant) extends Internal
+  private case class EventPublishTimedOut(reason: Throwable, startTime: Instant, newState: ActorState) extends Internal
 
   protected case class InternalActorState(stateOpt: Option[S])
 
@@ -382,6 +382,7 @@ class PersistentActor[S, M, E](
     activeSpan.log("Failed to persist events + state")
     activeSpan.error(cause)
     sender() ! ACKError(cause)
+
     context.stop(self)
   }
 }
