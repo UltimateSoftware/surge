@@ -105,7 +105,7 @@ trait KTablePersistenceSupport[Agg, Event] {
                 startTime = startTime,
                 retry = exception.retry,
                 newState = state,
-                numberOfFailures = currentFailureCount)
+                numberOfFailures = currentFailureCount + 1)
             case _ =>
               EventPublishTimedOut(
                 trackingId = trackingId,
@@ -116,7 +116,7 @@ trait KTablePersistenceSupport[Agg, Event] {
                 reason = t,
                 startTime = startTime,
                 newState = state,
-                numberOfFailures = currentFailureCount)
+                numberOfFailures = currentFailureCount + 1)
 
           }
         }

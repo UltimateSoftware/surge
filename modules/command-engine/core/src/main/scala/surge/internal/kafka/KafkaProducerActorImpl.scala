@@ -148,7 +148,7 @@ class KafkaProducerActorImpl(
 
   context.system.scheduler.scheduleOnce(10.milliseconds, self, InitTransactions)
 
-  context.system.scheduler.scheduleAtFixedRate(10.milliseconds, 10.seconds, self, ClearExpiredTrackers)
+  private val clearExpiredTrackersScheduledTask = context.system.scheduler.scheduleAtFixedRate(10.milliseconds, 10.seconds, self, ClearExpiredTrackers)
 
   private val flushMessagesScheduledTask = context.system.scheduler.scheduleWithFixedDelay(flushInterval, flushInterval, self, FlushMessages)
   private val checkKTableLagScheduledTask = context.system.scheduler.scheduleAtFixedRate(ktableCheckInterval, ktableCheckInterval, self, CheckKTableProgress)
@@ -156,6 +156,7 @@ class KafkaProducerActorImpl(
   override def postStop(): Unit = {
     flushMessagesScheduledTask.cancel()
     checkKTableLagScheduledTask.cancel()
+    clearExpiredTrackersScheduledTask.cancel()
     super.postStop()
   }
 
@@ -208,6 +209,7 @@ class KafkaProducerActorImpl(
     case ShutdownProducer             => stopPublisher()
     case _: Publish                   => stash()
     case _: IsAggregateStateCurrent   => sender().tell(false, self)
+    case ClearExpiredTrackers         => // Ignore and do nothing
   }
 
   private def waitingForKTableIndexing(): Receive = {
@@ -223,6 +225,7 @@ class KafkaProducerActorImpl(
         id = assignedTopicPartitionKey,
         status = HealthCheckStatus.UP,
         details = Some(Map("state" -> "waitingForKTableIndexing")))
+    case ClearExpiredTrackers       => // Ignore and do nothing
     case _: Publish                 => stash()
     case _: IsAggregateStateCurrent => sender().tell(false, self)
   }
