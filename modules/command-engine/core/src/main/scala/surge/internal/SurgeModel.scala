@@ -29,13 +29,13 @@ trait SurgeModel[State, Message, Event] extends ProducerActorContext {
 
   private lazy val serializeEventTimer = metrics.timer(
     MetricInfo(
-      name = s"surge.${aggregateName.toLowerCase()}.event-serialization-timer",
+      name = s"surge.aggregate.event-serialization-timer",
       description = "Average time taken in milliseconds to serialize an individual event to bytes before persisting to Kafka",
       tags = Map("aggregate" -> aggregateName)))
 
   private lazy val serializeStateTimer = metrics.timer(
     MetricInfo(
-      name = s"surge.${aggregateName.toLowerCase()}.aggregate-state-serialization-timer",
+      name = s"surge.aggregate.aggregate-state-serialization-timer",
       description = "Average time taken in milliseconds to serialize a new aggregate state to bytes before persisting to Kafka",
       tags = Map("aggregate" -> aggregateName)))
 

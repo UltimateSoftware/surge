@@ -217,7 +217,7 @@ class KafkaProducerActor(
 
   private val isAggregateStateCurrentTimer: Timer = metrics.timer(
     MetricInfo(
-      s"surge.${aggregateName.toLowerCase()}.is-aggregate-current-timer",
+      s"surge.aggregate.is-current-timer",
       "Average time in milliseconds taken to check if a particular aggregate is up to date in the KTable",
       tags = Map("aggregate" -> aggregateName)))
   def isAggregateStateCurrent(aggregateId: String): Future[Boolean] = {
