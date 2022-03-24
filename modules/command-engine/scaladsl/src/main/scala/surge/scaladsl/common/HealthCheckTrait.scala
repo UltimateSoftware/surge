@@ -9,4 +9,5 @@ import scala.concurrent.Future
 
 trait HealthCheckTrait {
   def healthCheck: Future[HealthCheck]
+  def ready: Future[HealthCheck]
 }
