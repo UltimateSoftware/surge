@@ -47,7 +47,7 @@ object Dependencies extends AutoPlugin {
       val api = "io.opentelemetry" % "opentelemetry-api" % version
       val sdk = "io.opentelemetry" % "opentelemetry-sdk" % OpenTelemetry.version % Test
       val sdkTesting = "io.opentelemetry" % "opentelemetry-sdk-testing" % OpenTelemetry.version % Test
-      val grpcChannel = "io.grpc" % "grpc-netty-shaded" % "1.44.0" % Test
+      val grpcChannel = "io.grpc" % "grpc-netty-shaded" % "1.44.1" % Test
 
       object HoneycombSample {
         val sdk = OpenTelemetry.sdk
@@ -66,7 +66,7 @@ object Dependencies extends AutoPlugin {
     }
 
     val akkaHttpPlayJson = "de.heikoseeberger" %% "akka-http-play-json" % "1.38.2"
-    val scalaCollectionCompat = "org.scala-lang.modules" %% "scala-collection-compat" % "2.6.0"
+    val scalaCollectionCompat = "org.scala-lang.modules" %% "scala-collection-compat" % "2.7.0"
     val java8Compat = "org.scala-lang.modules" %% "scala-java8-compat" % "0.9.1"
     val embeddedKafka = "io.github.embeddedkafka" %% "embedded-kafka" % "2.8.1" % Test
     val junit = "junit" % "junit" % "4.13.2" % Test
