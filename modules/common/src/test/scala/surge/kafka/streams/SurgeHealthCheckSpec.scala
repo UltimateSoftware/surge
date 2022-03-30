@@ -13,14 +13,6 @@ class SurgeHealthCheckSpec extends AnyWordSpec with Matchers with PrivateMethodT
 
   val surgeHealthCheck = new SurgeHealthCheck("surge")
 
-  /**
-   * Builds the following tree node11
-   * |____ node21
-   * |____ node31
-   * |____ node32
-   * |____ node22
-   * |____ node33
-   */
   private def buildTree(statusMap: Map[String, String] = Map()): HealthCheck = {
     val node31 = HealthCheck("3.1", "3.1", statusMap.getOrElse("3.1", HealthCheckStatus.UP))
     val node32 = HealthCheck("3.2", "3.2", statusMap.getOrElse("3.2", HealthCheckStatus.UP))
