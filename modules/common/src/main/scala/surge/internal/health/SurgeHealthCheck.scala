@@ -61,7 +61,7 @@ trait HealthyComponent {
    * @return
    *   HealthCheck
    */
-  def ready(): Future[HealthCheck] = Future.successful(HealthCheck(name = "NA", id = "NA", status = HealthCheckStatus.UP))
+  def readiness(): Future[HealthCheck] = Future.successful(HealthCheck(name = "NA", id = "NA", status = HealthCheckStatus.UP))
 
   /**
    * Signals Patterns that will trigger a restart

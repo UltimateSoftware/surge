@@ -61,8 +61,8 @@ private[javadsl] class SurgeEventImpl[AggId, Agg, Evt](
     FutureConverters.toJava(healthCheck().map(_.asJava))
   }
 
-  def getReady: CompletionStage[HealthCheck] = {
-    FutureConverters.toJava(ready().map(_.asJava))
+  def getReadiness: CompletionStage[HealthCheck] = {
+    FutureConverters.toJava(readiness().map(_.asJava))
   }
 
   def aggregateFor(aggregateId: AggId): AggregateRef[Agg, Evt] = {

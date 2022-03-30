@@ -125,7 +125,7 @@ private[surge] final class SurgePartitionRouterImpl(
 
   override def restartSignalPatterns(): Seq[Pattern] = Seq(Pattern.compile("kafka.fatal.error"))
 
-  override def ready(): Future[HealthCheck] = for {
+  override def readiness(): Future[HealthCheck] = for {
     ready <- healthChecks.ready()
     status = if (ready) HealthCheckStatus.UP else HealthCheckStatus.DOWN
   } yield HealthCheck(name = "router-actor", id = s"router-actor-${actorRegion.hashCode}", status)

@@ -7,5 +7,5 @@ import java.util.concurrent.CompletionStage
 
 trait HealthCheckTrait {
   def getHealthCheck: CompletionStage[HealthCheck]
-  def getReady: CompletionStage[HealthCheck]
+  def getReadiness: CompletionStage[HealthCheck]
 }
