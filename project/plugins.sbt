@@ -9,7 +9,7 @@ addSbtPlugin("com.typesafe.sbt" % "sbt-git" % "1.0.2")
 // Static code analysis
 addSbtPlugin("org.scalastyle" %% "scalastyle-sbt-plugin" % "1.0.0")
 
-addSbtPlugin("com.typesafe" % "sbt-mima-plugin" % "1.0.1")
+addSbtPlugin("com.typesafe" % "sbt-mima-plugin" % "1.1.0")
 
 // Test Coverage
 addSbtPlugin("org.scoverage" % "sbt-scoverage" % "1.9.3")
@@ -21,7 +21,7 @@ addSbtPlugin("com.typesafe.sbt" % "sbt-multi-jvm" % "0.4.0")
 addSbtPlugin("com.timushev.sbt" % "sbt-updates" % "0.6.2")
 addSbtPlugin("net.virtual-void" % "sbt-dependency-graph" % "0.10.0-RC1")
 
-addSbtPlugin("de.heikoseeberger" % "sbt-header" % "5.6.5")
+addSbtPlugin("de.heikoseeberger" % "sbt-header" % "5.7.0")
 
 // Docs Site plugins
 addSbtPlugin("com.lightbend.paradox" % "sbt-paradox" % "0.9.2")
