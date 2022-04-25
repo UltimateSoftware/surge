@@ -7,7 +7,7 @@ object Dependencies extends AutoPlugin {
 
     object Akka {
       val version = "2.6.15"
-      val akkaHttpVersion = "10.2.7"
+      val akkaHttpVersion = "10.2.9"
       val alpakkaVersion = "2.1.1"
       val managementVersion = "1.1.3"
 
@@ -47,7 +47,7 @@ object Dependencies extends AutoPlugin {
       val api = "io.opentelemetry" % "opentelemetry-api" % version
       val sdk = "io.opentelemetry" % "opentelemetry-sdk" % OpenTelemetry.version % Test
       val sdkTesting = "io.opentelemetry" % "opentelemetry-sdk-testing" % OpenTelemetry.version % Test
-      val grpcChannel = "io.grpc" % "grpc-netty-shaded" % "1.44.0" % Test
+      val grpcChannel = "io.grpc" % "grpc-netty-shaded" % "1.45.1" % Test
 
       object HoneycombSample {
         val sdk = OpenTelemetry.sdk
@@ -66,14 +66,14 @@ object Dependencies extends AutoPlugin {
     }
 
     val akkaHttpPlayJson = "de.heikoseeberger" %% "akka-http-play-json" % "1.38.2"
-    val scalaCollectionCompat = "org.scala-lang.modules" %% "scala-collection-compat" % "2.6.0"
+    val scalaCollectionCompat = "org.scala-lang.modules" %% "scala-collection-compat" % "2.7.0"
     val java8Compat = "org.scala-lang.modules" %% "scala-java8-compat" % "0.9.1"
     val embeddedKafka = "io.github.embeddedkafka" %% "embedded-kafka" % "2.8.1" % Test
     val junit = "junit" % "junit" % "4.13.2" % Test
-    val logbackForTesting = "ch.qos.logback" % "logback-classic" % "1.2.10" % Test
-    val json4s = "org.json4s" %% "json4s-native" % "4.0.4"
-    val mockitoCore = "org.mockito" % "mockito-core" % "4.4.0"
-    val scalatest = "org.scalatest" %% "scalatest" % "3.2.11" % Test
+    val logbackForTesting = "ch.qos.logback" % "logback-classic" % "1.2.11" % Test
+    val json4s = "org.json4s" %% "json4s-native" % "4.0.5"
+    val mockitoCore = "org.mockito" % "mockito-core" % "4.5.1"
+    val scalatest = "org.scalatest" %% "scalatest" % "3.2.12" % Test
     val scalatestPlusMockito = "org.scalatestplus" %% "mockito-3-4" % "3.2.10.0" % Test
     val slf4jApi = "org.slf4j" % "slf4j-api" % "1.7.36"
     val typesafeConfig = "com.typesafe" % "config" % "1.4.2"

@@ -114,16 +114,9 @@ private[surge] abstract class SurgeMessagePipeline[S, M, E](
       signalBus = signalBus,
       config = config)
 
-    try {
-      system.actorOf(
-        KafkaClusterShardingRebalanceListener
-          .props(stateChangeActor, partitionToKafkaProducerActor, businessLogic.kafka.stateTopic.name, businessLogic.kafka.streamsApplicationId),
-        "kafka-cluster-rebalance-listener")
-    } catch {
-      case e: InvalidActorNameException =>
-        log.error(s"Only single instance of surge engine can be initialized per actor system, error: ${e.getMessage}")
-        throw SurgeInitializationException("Only single instance of surge engine can be initialized per actor system", e)
-    }
+    system.actorOf(
+      KafkaClusterShardingRebalanceListener
+        .props(stateChangeActor, partitionToKafkaProducerActor, businessLogic.kafka.stateTopic.name, businessLogic.kafka.streamsApplicationId))
   }
 
   private def startSignalStream(): Future[Ack] = {
