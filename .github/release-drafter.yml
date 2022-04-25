@@ -8,6 +8,8 @@ categories:
     label: 'enhancement'
   - title: 'Bug Fixes'
     label: 'bug'
+  - title: 'Dependency Updates'
+    label: 'dependency update'
 
 exclude-labels:
   - 'skip-changelog'
@@ -22,3 +24,6 @@ autolabeler:
   - label: 'enhancement'
     branch:
       - '/feature\/.+/'
+  - label: 'dependency update'
+    branch:
+      - '/update\/.+/'
