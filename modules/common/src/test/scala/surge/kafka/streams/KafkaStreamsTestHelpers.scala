@@ -9,7 +9,7 @@ import org.apache.kafka.streams.{ StreamsConfig, Topology, TopologyTestDriver }
 trait KafkaStreamsTestHelpers {
 
   def withTopologyTestDriver(topology: Topology)(testCode: TopologyTestDriver => Any): Unit = {
-    val props = new Properties()
+    val props = new Properties
     props.put(StreamsConfig.APPLICATION_ID_CONFIG, "test")
     props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "test:1234")
 

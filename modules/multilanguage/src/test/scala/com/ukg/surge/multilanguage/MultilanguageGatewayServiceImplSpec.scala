@@ -55,7 +55,7 @@ class MultilanguageGatewayServiceImplSpec
   val aggregateName: String = config.getString("surge-server.aggregate-name")
   val eventsTopicName: String = config.getString("surge-server.events-topic")
   val stateTopicName: String = config.getString("surge-server.state-topic")
-  val testBusinessLogicService = new TestBusinessLogicService()
+  val testBusinessLogicService = new TestBusinessLogicService
   val genericSurgeCommandBusinessLogic = new GenericSurgeCommandBusinessLogic(aggregateName, eventsTopicName, stateTopicName, testBusinessLogicService)
 
   val testSurgeEngine: SurgeCommand[UUID, SurgeState, SurgeCmd, SurgeEvent] = {

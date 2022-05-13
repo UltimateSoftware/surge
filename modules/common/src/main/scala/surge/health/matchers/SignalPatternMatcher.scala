@@ -35,7 +35,7 @@ trait SignalPatternMatcher {
 case class SideEffect(signals: Seq[HealthSignal])
 
 object SideEffectBuilder {
-  def apply(): SideEffectBuilder = new SideEffectBuilderImpl()
+  def apply(): SideEffectBuilder = new SideEffectBuilderImpl
 }
 
 trait SideEffectBuilder {
@@ -46,7 +46,7 @@ trait SideEffectBuilder {
 }
 
 private[health] class SideEffectBuilderImpl extends SideEffectBuilder {
-  private val signals: ArrayBuffer[HealthSignal] = new ArrayBuffer[HealthSignal]()
+  private val signals: ArrayBuffer[HealthSignal] = new ArrayBuffer[HealthSignal]
 
   override def addSideEffect(sideEffect: SideEffect): SideEffectBuilder = {
     sideEffect.signals.foreach(s => signals.append(s))

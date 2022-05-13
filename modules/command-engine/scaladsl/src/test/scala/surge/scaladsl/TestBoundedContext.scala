@@ -140,7 +140,7 @@ trait TestBoundedContext {
   }
 
   val businessLogic: SurgeCommandBusinessLogic[String, State, BaseTestCommand, BaseTestEvent] =
-    new SurgeCommandBusinessLogic[String, State, BaseTestCommand, BaseTestEvent]() {
+    new SurgeCommandBusinessLogic[String, State, BaseTestCommand, BaseTestEvent] {
       val businessLogicTrait: BusinessLogicTrait = new BusinessLogicTrait {}
 
       override def aggregateName: String = "CounterAggregate"

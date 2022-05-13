@@ -116,7 +116,7 @@ class HealthSupervisorActorSpec
 
       val componentName = "testRegistrationControl"
       val stopProbe = TestProbe()
-      val control = new ControllableAdapter() {
+      val control = new ControllableAdapter {
         override def stop(): Future[Ack] = Future {
           stopProbe.ref ! ShutdownComponent(componentName, probe.ref)
           Ack
@@ -179,7 +179,7 @@ class HealthSupervisorActorSpec
 
       val componentName = "boomControl"
       val restartProbe = TestProbe()
-      val control = new ControllableAdapter() {
+      val control = new ControllableAdapter {
         override def restart(): Future[Ack] = Future {
           restartProbe.ref ! RestartComponent(componentName, probe.ref)
           Ack
@@ -201,7 +201,7 @@ class HealthSupervisorActorSpec
       import ctx._
       val ref: HealthSupervisorTrait = bus.supervisor().get
 
-      val control = new ControllableAdapter()
+      val control = new ControllableAdapter
       val message = bus.registration(control, componentName = "boomControl", Seq.empty)
 
       ref.register(message.underlyingRegistration()).futureValue shouldBe an[Ack]
@@ -220,7 +220,7 @@ class HealthSupervisorActorSpec
       import ctx._
       val ref: HealthSupervisorTrait = bus.supervisor().get
 
-      val control = new ControllableAdapter()
+      val control = new ControllableAdapter
       val message = bus.registration(control, componentName = "boomControl", Seq.empty)
 
       ref.register(message.underlyingRegistration()).futureValue shouldBe an[Ack]

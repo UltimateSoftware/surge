@@ -67,7 +67,7 @@ abstract class CustomRocksDBConfigSetter(blockCacheSettings: BlockCacheSettings,
     options.setLevelCompactionDynamicLevelBytes(true)
 
     if (dumpStatistics) {
-      val stats = new Statistics()
+      val stats = new Statistics
       stats.setStatsLevel(StatsLevel.ALL)
       options.setInfoLogLevel(InfoLogLevel.INFO_LEVEL)
       options.setStatistics(stats)

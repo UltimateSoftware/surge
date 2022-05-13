@@ -12,7 +12,7 @@ object WindowStreamListeningActorAdapter {
   def apply(actorSystem: ActorSystem, actorRefOverride: Option[ActorRef] = None): WindowStreamListeningActorRef = {
     // if actorRefOverride not provided; return WindowStreamListeningActorRef with a
     //  default WindowStreamListeningActorAdapter actorRef.
-    val ref: ActorRef = actorRefOverride.getOrElse[ActorRef](actorSystem.actorOf(Props(new WindowStreamListeningActorAdapter())))
+    val ref: ActorRef = actorRefOverride.getOrElse[ActorRef](actorSystem.actorOf(Props(new WindowStreamListeningActorAdapter)))
     WindowStreamListeningActorRef(ref)
   }
 }

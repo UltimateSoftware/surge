@@ -26,8 +26,8 @@ object HealthCheck {
         scalaHealthCheck.isHealthy.getOrElse(false),
         scalaHealthCheck.components
           .map(scalaHealthCheckList => scalaHealthCheckList.map(scalaHealthCheck => scalaHealthCheck.asJava).asJava)
-          .getOrElse(new util.ArrayList()),
-        scalaHealthCheck.details.map(_.asJava).getOrElse(new util.HashMap()))
+          .getOrElse(new util.ArrayList),
+        scalaHealthCheck.details.map(_.asJava).getOrElse(new util.HashMap))
     }
   }
 }

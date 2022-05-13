@@ -71,7 +71,7 @@ private[surge] final class SurgePartitionRouterImpl(
   }
 
   private def initializeKafkaConsumerSettings(groupId: String): ConsumerSettings[String, Array[Byte]] = {
-    val securityRelatedProps = new Properties()
+    val securityRelatedProps = new Properties
     val securityHelper = new KafkaSecurityConfigurationImpl(config)
     securityHelper.configureSecurityProperties(securityRelatedProps)
 

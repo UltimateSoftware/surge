@@ -210,7 +210,7 @@ class HealthSignalBusSpec
   }
 
   private def testSignalHandler(): SignalHandler = {
-    new TestSignalHandler()
+    new TestSignalHandler
   }
 
   private def testListener(bus: HealthSignalBusInternal): HealthSignalListener = {

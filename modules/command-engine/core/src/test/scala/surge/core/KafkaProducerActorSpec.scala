@@ -110,8 +110,8 @@ class KafkaProducerActorSpec
       val producer = producerMock(probe, trackerTimeout = 6.seconds)
 
       val errorWatchProbe = TestProbe()
-      val stateToPublish = KafkaProducerActor.MessageToPublish("test", "test".getBytes(), new RecordHeaders())
-      val eventsToPublish = Seq(KafkaProducerActor.MessageToPublish("test", "test".getBytes(), new RecordHeaders()))
+      val stateToPublish = KafkaProducerActor.MessageToPublish("test", "test".getBytes(), new RecordHeaders)
+      val eventsToPublish = Seq(KafkaProducerActor.MessageToPublish("test", "test".getBytes(), new RecordHeaders))
       val requestId = UUID.randomUUID()
       producer
         .publish(requestId, "test", stateToPublish, eventsToPublish)
@@ -133,8 +133,8 @@ class KafkaProducerActorSpec
       val producer = producerMock(probe, 6.seconds)
 
       val errorWatchProbe = TestProbe()
-      val stateToPublish = KafkaProducerActor.MessageToPublish("test", "test".getBytes(), new RecordHeaders())
-      val eventsToPublish = Seq(KafkaProducerActor.MessageToPublish("test", "test".getBytes(), new RecordHeaders()))
+      val stateToPublish = KafkaProducerActor.MessageToPublish("test", "test".getBytes(), new RecordHeaders)
+      val eventsToPublish = Seq(KafkaProducerActor.MessageToPublish("test", "test".getBytes(), new RecordHeaders))
       val requestId = UUID.randomUUID()
 
       producer.publish(requestId, "test", stateToPublish, eventsToPublish).recover { case e =>

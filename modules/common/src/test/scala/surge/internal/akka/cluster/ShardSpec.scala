@@ -78,7 +78,7 @@ class TestActor(id: String) extends ActorWithTracing {
 
 class ShardSpec extends TestKit(ActorSystem("ShardSpec")) with AnyWordSpecLike with Matchers with MockitoSugar with BeforeAndAfterAll {
   import TestActor._
-  private val shardProps = Shard.props("testShard", new RegionLogicProvider(), TestActor.idExtractor)(NoopTracerFactory.create())
+  private val shardProps = Shard.props("testShard", new RegionLogicProvider, TestActor.idExtractor)(NoopTracerFactory.create())
 
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system, verifySystemShutdown = true)

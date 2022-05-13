@@ -27,7 +27,7 @@ class KafkaConsumerPartitionAssignmentTracker(val underlyingActor: ActorRef) ext
     underlyingActor.ask(HealthyActor.GetHealth)(TimeoutConfig.HealthCheck.actorAskTimeout).mapTo[HealthCheck]
   }
 
-  override val controllable: Controllable = new ControllableAdapter()
+  override val controllable: Controllable = new ControllableAdapter
 }
 
 class KafkaConsumerPartitionAssignmentTrackerWithSelection(val underlyingActor: ActorSelection) {

@@ -29,7 +29,7 @@ class ActorLifecycleManagerActorSpec
       val probe = TestProbe()
       val managed = ActorLifecycleManagerActor.manage(
         system,
-        Props(new Actor() {
+        Props(new Actor {
           override def receive: Receive = { case StopIt =>
             probe.ref ! Stopped()
             context.stop(self)
@@ -46,7 +46,7 @@ class ActorLifecycleManagerActorSpec
       val probe = TestProbe()
       val managed = ActorLifecycleManagerActor.manage(
         system,
-        Props(new Actor() {
+        Props(new Actor {
           override def receive: Receive = { case StopIt =>
             probe.ref ! Stopped()
             context.stop(self)

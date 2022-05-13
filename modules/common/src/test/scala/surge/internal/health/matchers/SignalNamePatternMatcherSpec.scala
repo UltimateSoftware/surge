@@ -37,7 +37,7 @@ class SignalNamePatternMatcherSpec extends AnyWordSpec with Matchers {
     }
   }
 
-  private def sourceFromData(data: Seq[HealthSignal]): HealthSignalSource = new HealthSignalSource() {
+  private def sourceFromData(data: Seq[HealthSignal]): HealthSignalSource = new HealthSignalSource {
     override def signals(): Seq[HealthSignal] = data
 
     override def flush(): Unit = {}

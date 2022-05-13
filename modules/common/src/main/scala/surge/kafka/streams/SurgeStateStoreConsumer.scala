@@ -25,7 +25,7 @@ private[surge] class SurgeStateStoreConsumer(stateTopic: KafkaTopic, val setting
 
   private val persistencePlugin = SurgeKafkaStreamsPersistencePluginLoader.load(config)
 
-  private val topologyProps = new Properties()
+  private val topologyProps = new Properties
   topologyProps.setProperty(StreamsConfig.TOPOLOGY_OPTIMIZATION_CONFIG, StreamsConfig.OPTIMIZE)
 
   log.debug(s"Kafka streams ${settings.storeName} cache memory being used is {} KiB", Math.round(settings.cacheMemory.toFloat / 1024f))
@@ -45,7 +45,7 @@ private[surge] class SurgeStateStoreConsumer(stateTopic: KafkaTopic, val setting
     StreamsConfig.APPLICATION_SERVER_CONFIG -> settings.applicationHostPort.getOrElse(settings.localActorHostPort))
 
   private val ktableStreamProps: Properties = {
-    val p = new Properties()
+    val p = new Properties
     streamsConfig.foreach(propPair => p.put(propPair._1, propPair._2))
     configureSecurityProperties(p)
     p
@@ -57,7 +57,7 @@ private[surge] class SurgeStateStoreConsumer(stateTopic: KafkaTopic, val setting
     val builder: StreamsBuilder = new StreamsBuilder
 
     val aggregateStoreMaterializedBase =
-      Materialized.as[String, Array[Byte]](persistencePlugin.createSupplier(settings.storeName)).withValueSerde(new ByteArraySerde())
+      Materialized.as[String, Array[Byte]](persistencePlugin.createSupplier(settings.storeName)).withValueSerde(new ByteArraySerde)
 
     val aggregateStoreMaterialized = if (!persistencePlugin.enableLogging) {
       aggregateStoreMaterializedBase.withLoggingDisabled()

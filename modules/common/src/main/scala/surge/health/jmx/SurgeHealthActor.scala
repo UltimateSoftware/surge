@@ -106,7 +106,7 @@ class SurgeHealthActor(val supervisorRef: ActorRef) extends ActorWithJMX with Su
   override def registeredComponentNames(): util.List[String] = {
     val list = Await.result(asyncGetHealthRegistry, 30.seconds).toList
 
-    val returnedList = new util.ArrayList[String]()
+    val returnedList = new util.ArrayList[String]
     list.foreach(r => returnedList.add(r.componentName))
 
     returnedList

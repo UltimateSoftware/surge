@@ -35,7 +35,7 @@ object View {
     }
 
     def scalaSeqToJavaList(data: Seq[HealthRegistrationDetailMxView]): java.util.List[HealthRegistrationDetailMxView] = {
-      val list = new util.ArrayList[HealthRegistrationDetailMxView]()
+      val list = new util.ArrayList[HealthRegistrationDetailMxView]
       data.foreach(view => list.add(view))
 
       list

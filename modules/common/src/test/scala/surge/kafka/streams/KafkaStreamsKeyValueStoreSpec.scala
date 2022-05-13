@@ -14,7 +14,7 @@ import org.scalatest.wordspec.AsyncWordSpec
 import org.scalatestplus.mockito.MockitoSugar
 
 class KafkaStreamsKeyValueStoreSpec extends AsyncWordSpec with BeforeAndAfterAll with Matchers with MockitoSugar {
-  private val props = new Properties()
+  private val props = new Properties
   props.put(StreamsConfig.APPLICATION_ID_CONFIG, "unit-test")
   props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "")
   private val context = new MockProcessorContext(props)

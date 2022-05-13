@@ -20,7 +20,7 @@ final case class KafkaRecordMetadata[Key](key: Option[Key], wrapped: RecordMetad
 
 private[surge] object KafkaProducerHelper {
   def producerPropsFromConfig(config: Config, additionalProps: Map[String, String] = Map.empty): Properties = {
-    val props = new Properties()
+    val props = new Properties
     props.put(ProducerConfig.ACKS_CONFIG, config.getString("kafka.publisher.acks"))
     props.put(ProducerConfig.BATCH_SIZE_CONFIG, config.getInt("kafka.publisher.batch-size").toString)
     props.put(ProducerConfig.MAX_REQUEST_SIZE_CONFIG, config.getInt("kafka.publisher.max-request-size").toString)
@@ -158,8 +158,8 @@ object KafkaProducer {
     new KafkaBytesProducer(
       brokers,
       topic,
-      new StringSerializer(),
-      new ByteArraySerializer(),
+      new StringSerializer,
+      new ByteArraySerializer,
       partitioner,
       KafkaProducerHelper.producerPropsFromConfig(config, kafkaConfig))
   }
@@ -173,8 +173,8 @@ object KafkaProducer {
     new KafkaStringProducer(
       brokers,
       topic,
-      new StringSerializer(),
-      new StringSerializer(),
+      new StringSerializer,
+      new StringSerializer,
       partitioner,
       KafkaProducerHelper.producerPropsFromConfig(config, kafkaConfig))
   }
@@ -211,14 +211,14 @@ object KafkaBytesProducer {
     new KafkaBytesProducer(
       brokers,
       topic,
-      new StringSerializer(),
-      new ByteArraySerializer(),
+      new StringSerializer,
+      new ByteArraySerializer,
       partitioner,
       KafkaProducerHelper.producerPropsFromConfig(config, kafkaConfig))
   }
 
   def apply(brokers: Seq[String], topic: KafkaTopicTrait, partitioner: KafkaPartitionerBase[String], producerProps: Properties): KafkaBytesProducer = {
-    new KafkaBytesProducer(brokers, topic, new StringSerializer(), new ByteArraySerializer(), partitioner, producerProps)
+    new KafkaBytesProducer(brokers, topic, new StringSerializer, new ByteArraySerializer, partitioner, producerProps)
   }
 }
 
@@ -245,14 +245,14 @@ object KafkaStringProducer {
     new KafkaStringProducer(
       brokers,
       topic,
-      new StringSerializer(),
-      new StringSerializer(),
+      new StringSerializer,
+      new StringSerializer,
       partitioner,
       KafkaProducerHelper.producerPropsFromConfig(config, kafkaConfig))
   }
 
   def apply(brokers: Seq[String], topic: KafkaTopicTrait, partitioner: KafkaPartitionerBase[String], producerProps: Properties): KafkaStringProducer = {
-    new KafkaStringProducer(brokers, topic, new StringSerializer(), new StringSerializer(), partitioner, producerProps)
+    new KafkaStringProducer(brokers, topic, new StringSerializer, new StringSerializer, partitioner, producerProps)
   }
 }
 

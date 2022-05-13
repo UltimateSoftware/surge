@@ -18,7 +18,7 @@ class ExponentiallyWeightedMovingAverage(weight: Double) extends MetricValueProv
       if (currentEWMA == 0.0) {
         currentEWMA = value
       } else {
-        currentEWMA = (currentEWMA * weight) + (value * (1 - weight))
+        currentEWMA = currentEWMA * weight + value * (1 - weight)
       }
     }
   }

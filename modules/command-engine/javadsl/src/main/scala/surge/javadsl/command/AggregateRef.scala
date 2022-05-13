@@ -77,7 +77,7 @@ final class AggregateRefImpl[AggId, Agg, Cmd, Event](
   private def whenEngineReady[T](numTries: Int = 5, delay: FiniteDuration = 50.millis)(cb: => Future[T]): Future[T] = {
     def loop(num: Int): Future[Unit] = if (num > 0)
       if (getEngineStatus() == SurgeEngineStatus.Starting) for {
-        _ <- Future.successful(log.debug(s"retry attempt ${(numTries - num) + 1}"))
+        _ <- Future.successful(log.debug(s"retry attempt ${numTries - num + 1}"))
         _ <- akka.pattern.after(delay)(Future.unit)
         _ <- loop(num - 1)
       } yield ()

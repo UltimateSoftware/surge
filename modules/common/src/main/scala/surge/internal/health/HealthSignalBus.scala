@@ -217,7 +217,7 @@ private[surge] class HealthSignalBusImpl(
     val monitoring: HealthSignalStreamMonitoringRefWithSupervisionSupport = monitorRef match {
       case Some(m) => HealthSignalStreamMonitoringRefWithSupervisionSupport.from(m)
       case None =>
-        val actor = actorSystem.actorOf(Props(new Actor() {
+        val actor = actorSystem.actorOf(Props(new Actor {
           override def receive: Receive = {
             case HealthRegistrationReceived(registration: RegisterSupervisedComponentRequest) =>
               log.debug("Health Registration received {}", registration)

@@ -165,7 +165,7 @@ class SurgeMessagePipelineSpec
 
       var captured: Option[HealthSignal] = None
       pipeline.signalBus.subscribe(
-        subscriber = new HealthListener() {
+        subscriber = new HealthListener {
           override def id(): String = "pipelineTestSignalListener"
 
           override def handleMessage(message: HealthMessage): Unit = {

@@ -83,11 +83,11 @@ object SignalPatternMatcherRegistry {
         .toSeq
     }.toOption.getOrElse(Seq[matchers.SignalPatternMatcherDefinition]())
 
-    new SignalPatternMatcherRegistry().load(SignalPatternMatcherConfig(defs))
+    new SignalPatternMatcherRegistry.load(SignalPatternMatcherConfig(defs))
   }
 
   def apply(config: SignalPatternMatcherConfig = SignalPatternMatcherConfig(Seq.empty)): SignalPatternMatcherRegistry =
-    new SignalPatternMatcherRegistry().load(config)
+    new SignalPatternMatcherRegistry.load(config)
 }
 
 class SignalPatternMatcherRegistry {

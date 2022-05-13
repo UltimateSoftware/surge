@@ -18,7 +18,7 @@ case class LagInfo(currentOffsetPosition: Long, endOffsetPosition: Long) {
 
 object KafkaAdminClient {
   def apply(config: Config, brokers: Seq[String]): KafkaAdminClient = {
-    val p = new Properties()
+    val p = new Properties
     p.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, brokers.mkString(","))
     new KafkaSecurityConfigurationImpl(config).configureSecurityProperties(p)
     apply(p)
@@ -36,14 +36,14 @@ class KafkaAdminClient(props: Properties) {
     client.listConsumerGroupOffsets(groupName).partitionsToOffsetAndMetadata().get().asScala.toMap
   }
 
-  def endOffsets(partitions: List[TopicPartition], options: ListOffsetsOptions = new ListOffsetsOptions()): Map[TopicPartition, ListOffsetsResultInfo] = {
+  def endOffsets(partitions: List[TopicPartition], options: ListOffsetsOptions = new ListOffsetsOptions): Map[TopicPartition, ListOffsetsResultInfo] = {
     client.listOffsets(partitions.map(tp => tp -> OffsetSpec.latest()).toMap.asJava, options).all().get().asScala.toMap
   }
 
   def consumerLag(
       groupName: String,
       topicPartitions: List[TopicPartition],
-      listOffsetsOptions: ListOffsetsOptions = new ListOffsetsOptions()): Map[TopicPartition, LagInfo] = {
+      listOffsetsOptions: ListOffsetsOptions = new ListOffsetsOptions): Map[TopicPartition, LagInfo] = {
     val cgOffsets = consumerGroupOffsets(groupName)
     val tpEndOffsets = endOffsets(topicPartitions, listOffsetsOptions)
 

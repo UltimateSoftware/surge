@@ -31,7 +31,7 @@ private[kafka] object KafkaPollThread {
 
 private[surge] object KafkaConsumerHelper {
   def consumerPropsFromConfig(config: Config, consumerConfig: UltiKafkaConsumerConfig, additionalProps: Map[String, String] = Map.empty): Properties = {
-    val props = new Properties()
+    val props = new Properties
     props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false.toString)
 
     consumerConfig.kafkaClientProps.foreach(propPair => props.put(propPair._1, propPair._2))

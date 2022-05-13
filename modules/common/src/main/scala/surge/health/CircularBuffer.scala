@@ -5,11 +5,11 @@ import java.util.concurrent.locks.ReentrantReadWriteLock
 
 class CircularBuffer[T](size: Int)(implicit mf: Manifest[T]) {
 
-  private val arr = new scala.collection.mutable.ArrayBuffer[T]()
+  private val arr = new scala.collection.mutable.ArrayBuffer[T]
 
   private var cursor = 0
 
-  val monitor = new ReentrantReadWriteLock()
+  val monitor = new ReentrantReadWriteLock
 
   def push(value: T): Unit = {
     monitor.writeLock().lock()
