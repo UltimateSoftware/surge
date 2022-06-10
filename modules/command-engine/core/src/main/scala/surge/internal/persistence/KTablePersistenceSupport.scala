@@ -46,16 +46,14 @@ trait KTablePersistenceSupport[Agg, Event] {
       context: SurgeContextImpl[Agg, Event],
       reason: Throwable,
       numberOfFailures: Int,
-      serializedEvents: Seq[KafkaProducerActor.MessageToPublish],
-      serializedState: KafkaProducerActor.MessageToPublish,
+      serializedMessages: Seq[KafkaProducerActor.MessageToPublish],
       startTime: Instant)
       extends Internal
   private case class EventPublishTimedOut(
       trackingId: UUID,
       aggregateId: String,
       context: SurgeContextImpl[Agg, Event],
-      state: KafkaProducerActor.MessageToPublish,
-      events: Seq[KafkaProducerActor.MessageToPublish],
+      messages: Seq[KafkaProducerActor.MessageToPublish],
       reason: Throwable,
       startTime: Instant,
       newState: ActorState,
@@ -73,22 +71,21 @@ trait KTablePersistenceSupport[Agg, Event] {
   protected def doPublish(
       state: ActorState,
       context: SurgeContextImpl[Agg, Event],
-      serializedEvents: Seq[KafkaProducerActor.MessageToPublish],
-      serializedState: KafkaProducerActor.MessageToPublish,
+      serializedMessages: Seq[KafkaProducerActor.MessageToPublish],
       currentFailureCount: Int = 0,
       startTime: Instant,
-      didStateChange: Boolean,
+      shouldPublish: Boolean,
       trackingId: UUID = UUID.randomUUID())(implicit ec: ExecutionContext): Future[Any] = {
     log.trace("Publishing messages for {}", aggregateId)
-    if (serializedEvents.isEmpty && !didStateChange) {
+    if (!shouldPublish) {
       Future.successful(PersistenceSuccess(trackingId, state, startTime, context))
     } else {
-      val futureResult = kafkaProducerActor.publish(aggregateId = aggregateId, state = serializedState, events = serializedEvents, requestId = trackingId)
+      val futureResult = kafkaProducerActor.publish(aggregateId = aggregateId, messages = serializedMessages, requestId = trackingId)
       futureResult
         .map {
           case KafkaProducerActor.PublishSuccess(publishRequestId) => PersistenceSuccess(publishRequestId, state, startTime, context)
           case KafkaProducerActor.PublishFailure(publishRequestId, t, _) =>
-            PersistenceFailure(publishRequestId, state, context, t, currentFailureCount + 1, serializedEvents, serializedState, startTime)
+            PersistenceFailure(publishRequestId, state, context, t, currentFailureCount + 1, serializedMessages, startTime)
         }
         .recover { case t =>
           log.error("Failed to publish messages", t)
@@ -99,8 +96,7 @@ trait KTablePersistenceSupport[Agg, Event] {
                 trackingId = trackingId,
                 aggregateId = aggregateId,
                 context = context,
-                state = serializedState,
-                events = serializedEvents,
+                messages = serializedMessages,
                 reason = t,
                 startTime = startTime,
                 retry = exception.retry,
@@ -111,8 +107,7 @@ trait KTablePersistenceSupport[Agg, Event] {
                 trackingId = trackingId,
                 aggregateId = aggregateId,
                 context = context,
-                state = serializedState,
-                events = serializedEvents,
+                messages = serializedMessages,
                 reason = t,
                 startTime = startTime,
                 newState = state,
@@ -131,11 +126,10 @@ trait KTablePersistenceSupport[Agg, Event] {
       doPublish(
         msg.newState,
         msg.context,
-        msg.events,
-        msg.state,
+        msg.messages,
         currentFailureCount = msg.numberOfFailures,
         Instant.now(),
-        didStateChange = true,
+        shouldPublish = true,
         trackingId = msg.trackingId).pipeTo(self)
     } else {
       onPersistenceFailure(state, KafkaPublishTimeoutException(aggregateId, msg.reason))
@@ -154,11 +148,10 @@ trait KTablePersistenceSupport[Agg, Event] {
       doPublish(
         eventsFailedToPersist.newState,
         eventsFailedToPersist.context,
-        eventsFailedToPersist.serializedEvents,
-        eventsFailedToPersist.serializedState,
+        eventsFailedToPersist.serializedMessages,
         eventsFailedToPersist.numberOfFailures,
         eventsFailedToPersist.startTime,
-        didStateChange = true).pipeTo(self)(sender())
+        shouldPublish = true).pipeTo(self)(sender())
     }
   }
 

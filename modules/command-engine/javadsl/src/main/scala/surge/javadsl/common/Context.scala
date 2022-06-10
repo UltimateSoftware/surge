@@ -2,10 +2,10 @@
 
 package surge.javadsl.common
 
+import org.apache.kafka.clients.producer.ProducerRecord
 import surge.internal.domain.SurgeContext
 
-import java.util.Optional
-
+import java.util.{ List => juList, Optional }
 import scala.compat.java8.OptionConverters._
 import scala.jdk.CollectionConverters._
 
@@ -15,7 +15,9 @@ trait ReplyExtractor[State, Reply] {
 
 trait Context[State, Event] {
   def persistEvent(event: Event): Context[State, Event]
-  def persistEvents(events: java.util.List[Event]): Context[State, Event]
+  def persistEvents(events: juList[Event]): Context[State, Event]
+  def persistRecord(record: ProducerRecord[String, Array[Byte]]): Context[State, Event]
+  def persistRecords(records: juList[ProducerRecord[String, Array[Byte]]]): Context[State, Event]
   def updateState(state: Optional[State]): Context[State, Event]
   def reply[Reply](replyExtractor: ReplyExtractor[State, Reply]): Context[State, Event]
   def reject[Rejection](rejection: Rejection): Context[State, Event]
@@ -28,7 +30,10 @@ object Context {
 
 case class ContextImpl[State, Event](private val core: SurgeContext[State, Event]) extends Context[State, Event] {
   override def persistEvent(event: Event): Context[State, Event] = copy(core = core.persistEvent(event))
-  override def persistEvents(events: java.util.List[Event]): Context[State, Event] = copy(core = core.persistEvents(events.asScala.toSeq))
+  override def persistEvents(events: juList[Event]): Context[State, Event] = copy(core = core.persistEvents(events.asScala.toSeq))
+  override def persistRecord(record: ProducerRecord[String, Array[Byte]]): Context[State, Event] = copy(core = core.persistRecord(record))
+  override def persistRecords(records: juList[ProducerRecord[String, Array[Byte]]]): Context[State, Event] =
+    copy(core = core.persistRecords(records.asScala.toSeq))
   override def updateState(state: Optional[State]): Context[State, Event] = copy(core = core.updateState(state.asScala))
   override def reply[Reply](replyExtractor: ReplyExtractor[State, Reply]): Context[State, Event] = {
     val replyWithMessage = { state: Option[State] => replyExtractor.extractReply(state.asJava).asScala }
