@@ -2,10 +2,6 @@
 
 package surge.core
 
-trait SurgeEventReadFormatting[Event] {
-  def readEvent(serialized: SerializedMessage): Event
-}
-
 trait SurgeAggregateReadFormatting[State] {
   def readState(bytes: Array[Byte]): Option[State]
 }
@@ -19,4 +15,3 @@ trait SurgeAggregateWriteFormatting[STATE] {
 }
 
 trait SurgeAggregateFormatting[State] extends SurgeAggregateReadFormatting[State] with SurgeAggregateWriteFormatting[State]
-trait SurgeEventFormatting[Event] extends SurgeEventReadFormatting[Event] with SurgeEventWriteFormatting[Event]
