@@ -300,17 +300,17 @@ class KafkaProducerActorImpl(
       case msg: EventsFailedToPublish =>
         handleFailedToPublish(state, msg)
       case KafkaProducerActorImpl.ClearExpiredTrackers => context.become(processing(state.clearExpiredTrackers()))
-      case FlushMessages               => handleFlushMessages(state)
-      case msg: AbortTransactionFailed => handle(msg)
+      case FlushMessages                               => handleFlushMessages(state)
+      case msg: AbortTransactionFailed                 => handle(msg)
       case msg: ProducerFenced =>
         context.become(fenced(state, Instant.now))
         self ! msg
-      case KafkaProducerActorImpl.InitTransactions => unhandled()
-      case KafkaProducerActorImpl.InitTransactionSuccess => unhandled()
+      case KafkaProducerActorImpl.InitTransactions         => unhandled()
+      case KafkaProducerActorImpl.InitTransactionSuccess   => unhandled()
       case KafkaProducerActorImpl.FailedToInitTransactions => unhandled()
-      case KafkaProducerActorImpl.RestartProducer => unhandled()
-      case msg: PublishWithSender => unhandled(msg)
-      case msg: PendingInitialization => unhandled(msg)
+      case KafkaProducerActorImpl.RestartProducer          => unhandled()
+      case msg: PublishWithSender                          => unhandled(msg)
+      case msg: PendingInitialization                      => unhandled(msg)
 
       case msg: KTableProgressUpdate => unhandled(msg)
 
