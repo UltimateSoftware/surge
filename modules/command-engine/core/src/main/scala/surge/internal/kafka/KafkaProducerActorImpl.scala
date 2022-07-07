@@ -238,7 +238,7 @@ class KafkaProducerActorImpl(
     case RestartProducer  => restartPublisher()
     case ShutdownProducer => stopPublisher()
     case ClearExpiredTrackers =>
-      context.become(processing(state.clearExpiredTrackers()))
+      context.become(fenced(state.clearExpiredTrackers(), initialFenceTime))
     case CheckKTableProgress          => log.trace("KafkaProducerActor ignoring CheckKTableProgress message from the fenced state")
     case FlushMessages                => log.trace("KafkaProducerActor ignoring FlushMessages message from the fenced state")
     case update: KTableProgressUpdate => context.become(fenced(state.processedUpTo(update), initialFenceTime))
@@ -250,8 +250,8 @@ class KafkaProducerActorImpl(
     case msg: InternalMessage                                  => handleProcessingInternalMessage(msg, state)
     case msg: KafkaProducerActorImpl.KafkaProducerActorMessage => handleProcessingProducerMessage(msg, state)
     case GetHealth                                             => doHealthCheck(state)
-    case ClearExpiredTrackers =>
-      context.become(processing(state.clearExpiredTrackers()))
+//    case ClearExpiredTrackers =>
+//      context.become(processing(state.clearExpiredTrackers()))
     case ShutdownProducer => stopPublisher()
     case Status.Failure(e) =>
       log.error(s"Saw unhandled exception in producer for $assignedPartition", e)
@@ -299,12 +299,21 @@ class KafkaProducerActorImpl(
       case msg: EventsPublished      => handle(state, msg)
       case msg: EventsFailedToPublish =>
         handleFailedToPublish(state, msg)
-
+      case KafkaProducerActorImpl.ClearExpiredTrackers => context.become(processing(state.clearExpiredTrackers()))
       case FlushMessages               => handleFlushMessages(state)
       case msg: AbortTransactionFailed => handle(msg)
       case msg: ProducerFenced =>
         context.become(fenced(state, Instant.now))
         self ! msg
+      case KafkaProducerActorImpl.InitTransactions => unhandled()
+      case KafkaProducerActorImpl.InitTransactionSuccess => unhandled()
+      case KafkaProducerActorImpl.FailedToInitTransactions => unhandled()
+      case KafkaProducerActorImpl.RestartProducer => unhandled()
+      case msg: PublishWithSender => unhandled(msg)
+      case msg: PendingInitialization => unhandled(msg)
+
+      case msg: KTableProgressUpdate => unhandled(msg)
+
       case other => unhandled(other)
     }
   }
