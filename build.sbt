@@ -41,6 +41,8 @@ lazy val `surge-common` = (project in file("modules/common"))
       Akka.clusterSharding,
       Akka.kafkaStream,
       Akka.kafkaStreamTestKit,
+      Akka.management,
+      Akka.managementClusterBootstrap,
       Kafka.kafkaClients,
       Kafka.kafkaStreams,
       Kafka.kafkaStreamsScala,
