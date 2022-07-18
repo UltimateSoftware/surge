@@ -77,5 +77,6 @@ object Dependencies extends AutoPlugin {
     val scalatestPlusMockito = "org.scalatestplus" %% "mockito-3-4" % "3.2.10.0" % Test
     val slf4jApi = "org.slf4j" % "slf4j-api" % "1.7.36"
     val typesafeConfig = "com.typesafe" % "config" % "1.4.2"
+    val jsonpath = "com.jayway.jsonpath" % "json-path" % "2.7.0" % Test
   }
 }

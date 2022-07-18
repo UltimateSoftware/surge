@@ -2,34 +2,38 @@
 
 package surge.internal.persistence
 
-import akka.actor.{ ActorRef, ActorSystem, NoSerializationVerificationNeeded, Props, ReceiveTimeout }
+import akka.actor.{ActorRef, ActorSystem, NoSerializationVerificationNeeded, Props, ReceiveTimeout}
 import akka.pattern._
-import akka.serialization.{ SerializationExtension, Serializers }
-import akka.testkit.{ TestKit, TestProbe }
+import akka.serialization.{SerializationExtension, Serializers}
+import akka.testkit.{TestKit, TestProbe}
 import akka.util.Timeout
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.scala.DefaultScalaModule
+import com.jayway.jsonpath.JsonPath
 import com.typesafe.config.ConfigFactory
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.header.internals.RecordHeaders
 import org.mockito.Mockito._
 import org.mockito.invocation.InvocationOnMock
-import org.mockito.{ ArgumentCaptor, ArgumentMatcher, ArgumentMatchers }
+import org.mockito.{ArgumentCaptor, ArgumentMatcher, ArgumentMatchers}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
-import org.scalatest.{ BeforeAndAfterAll, PartialFunctionValues }
+import org.scalatest.{BeforeAndAfterAll, PartialFunctionValues}
 import org.scalatestplus.mockito.MockitoSugar
 import play.api.libs.json.Json
 import surge.akka.cluster.Passivate
-import surge.core.{ KafkaProducerActor, TestBoundedContext }
-import surge.exceptions.{ AggregateInitializationException, KafkaPublishTimeoutException }
+import surge.core.{KafkaProducerActor, TestBoundedContext}
+import surge.exceptions.{AggregateInitializationException, KafkaPublishTimeoutException}
 import surge.internal.kafka.HeadersHelper
-import surge.internal.persistence.PersistentActor.{ ACKError, ApplyEvents, Stop }
+import surge.internal.persistence.PersistentActor.{ACKError, ApplyEvents, Stop}
 import surge.internal.tracing.RoutableMessage
-import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, ExpectedTestException }
+import surge.kafka.streams.{AggregateStateStoreKafkaStreams, ExpectedTestException}
 import surge.metrics.Metrics
 
 import java.util.UUID
 import scala.concurrent.duration._
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.{ExecutionContext, Future}
+import scala.xml.dtd.ValidationException
 
 class IsAtLeastOneElementSeq extends ArgumentMatcher[Seq[KafkaProducerActor.MessageToPublish]] {
   def matches(seq: Seq[KafkaProducerActor.MessageToPublish]): Boolean = seq.nonEmpty
@@ -171,6 +175,18 @@ class PersistentActorSpec
   }
 
   "PersistentActor" should {
+    "Serialize and Deserialize AckError" in {
+      val error = ACKError(new Exception("test-failure"))
+      val mapper = new ObjectMapper().registerModule(DefaultScalaModule)
+      val jsonError = mapper.writeValueAsString(error)
+
+      JsonPath.read[String](jsonError, "$.exceptionType") shouldEqual "java.lang.Exception"
+
+      val deserializedError = mapper.readValue(jsonError, classOf[ACKError])
+
+      deserializedError.exception.getMessage shouldEqual "test-failure"
+    }
+
     "Properly initialize from Kafka streams" in {
       val testContext = TestContext.setupDefault
       import testContext._
