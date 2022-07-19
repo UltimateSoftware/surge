@@ -33,7 +33,6 @@ import surge.metrics.Metrics
 import java.util.UUID
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
-import scala.xml.dtd.ValidationException
 
 class IsAtLeastOneElementSeq extends ArgumentMatcher[Seq[KafkaProducerActor.MessageToPublish]] {
   def matches(seq: Seq[KafkaProducerActor.MessageToPublish]): Boolean = seq.nonEmpty
@@ -175,16 +174,29 @@ class PersistentActorSpec
   }
 
   "PersistentActor" should {
-    "Serialize and Deserialize AckError" in {
+    "Serialize and Deserialize AckError with AkkaSerializers" in {
+      val original = ACKError(new Exception("test-failure"))
+
+      val serialization = SerializationExtension(system)
+
+      val serializer = serialization.findSerializerFor(original)
+
+      val back = serializer.fromBinary(serializer.toBinary(original), classOf[ACKError]).asInstanceOf[ACKError]
+
+      back.exception.getMessage shouldEqual original.exception.getMessage
+    }
+
+    "Serialize and Deserialize AckError with Jackson" in {
       val error = ACKError(new Exception("test-failure"))
+
       val mapper = new ObjectMapper().registerModule(DefaultScalaModule)
-      val jsonError = mapper.writeValueAsString(error)
+        val jsonError = mapper.writeValueAsString(error)
 
-      JsonPath.read[String](jsonError, "$.exceptionType") shouldEqual "java.lang.Exception"
+        JsonPath.read[String](jsonError, "$.exceptionType") shouldEqual "java.lang.Exception"
 
-      val deserializedError = mapper.readValue(jsonError, classOf[ACKError])
+        val deserializedError = mapper.readValue(jsonError, classOf[ACKError])
 
-      deserializedError.exception.getMessage shouldEqual "test-failure"
+        deserializedError.exception.getMessage shouldEqual "test-failure"
     }
 
     "Properly initialize from Kafka streams" in {
