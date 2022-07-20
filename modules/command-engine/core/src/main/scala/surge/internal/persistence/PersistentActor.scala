@@ -5,7 +5,7 @@ package surge.internal.persistence
 import akka.actor.{ NoSerializationVerificationNeeded, Props, ReceiveTimeout, Stash, Status }
 import akka.cluster.sharding.ShardRegion.Passivate
 import akka.pattern.pipe
-import com.fasterxml.jackson.annotation.JsonTypeInfo
+import com.fasterxml.jackson.annotation.{ JsonIgnoreProperties, JsonTypeInfo }
 import com.typesafe.config.{ Config, ConfigFactory }
 import io.opentelemetry.api.trace.Tracer
 import org.slf4j.{ Logger, LoggerFactory }
@@ -53,8 +53,9 @@ object PersistentActor {
       @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "aggregateType", visible = true) aggregateState: Option[S])
       extends ACK
 
+  @JsonIgnoreProperties(ignoreUnknown = true)
   case class ACKError(
-      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "exceptionType", visible = true) exception: Throwable)
+      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.EXTERNAL_PROPERTY, property = "exceptionType", visible = true) exception: Throwable)
       extends ACK
 
   case class ACKRejection[R](
