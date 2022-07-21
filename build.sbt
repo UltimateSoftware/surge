@@ -79,7 +79,8 @@ lazy val `surge-engine-command-core` = (project in file("modules/command-engine/
       embeddedKafka,
       OpenTelemetry.api,
       logbackForTesting,
-      typesafeConfig))
+      typesafeConfig,
+      jsonpath))
   .enablePlugins(MultiJvmPlugin)
   .configs(MultiJvm)
   .dependsOn(`surge-common` % "compile->compile;test->test")

@@ -3,6 +3,8 @@
 package surge.internal
 
 import com.typesafe.config.ConfigFactory
+import org.apache.kafka.clients.producer.ProducerRecord
+import org.apache.kafka.common.TopicPartition
 import org.slf4j.LoggerFactory
 import surge.core.{ KafkaProducerActor, SurgeAggregateReadFormatting, SurgeAggregateWriteFormatting, SurgeEventWriteFormatting }
 import surge.internal.domain.SurgeProcessingModel
@@ -43,23 +45,32 @@ trait SurgeModel[State, Message, Event] extends ProducerActorContext {
     val eventWriteFormatting = eventWriteFormattingOpt.getOrElse {
       throw new IllegalStateException("businessLogic.eventWriteFormattingOpt must not be None")
     }
-    events.map { event =>
-      val serializedMessage = serializeEventTimer.time(eventWriteFormatting.writeEvent(event))
-      log.trace(s"Publishing event for {} {}", Seq(aggregateName, serializedMessage.key): _*)
-      KafkaProducerActor.MessageToPublish(
-        key = serializedMessage.key,
-        value = serializedMessage.value,
-        headers = HeadersHelper.createHeaders(serializedMessage.headers))
-    }
+    kafka.eventsTopicOpt
+      .map { eventsTopic =>
+        events.map { event =>
+          val serializedMessage = serializeEventTimer.time(eventWriteFormatting.writeEvent(event))
+          log.trace(s"Publishing event for {} {}", Seq(aggregateName, serializedMessage.key): _*)
+          KafkaProducerActor.MessageToPublish(
+            // Using null here since we need to add the headers but we don't want to explicitly assign the partition
+            new ProducerRecord(
+              eventsTopic.name,
+              null, // scalastyle:ignore null
+              serializedMessage.key,
+              serializedMessage.value,
+              HeadersHelper.createHeaders(serializedMessage.headers)))
+        }
+      }
+      .getOrElse(Seq.empty)
 
   }(serializationExecutionContext)
 
-  def serializeState(aggregateId: String, stateValueOpt: Option[State]): Future[KafkaProducerActor.MessageToPublish] = Future {
-    val serializedStateOpt = stateValueOpt.map { value =>
-      serializeStateTimer.time(aggregateWriteFormatting.writeState(value))
-    }
-    val stateValue = serializedStateOpt.map(_.value).orNull
-    val stateHeaders = serializedStateOpt.map(ser => HeadersHelper.createHeaders(ser.headers)).orNull
-    KafkaProducerActor.MessageToPublish(aggregateId, stateValue, stateHeaders)
-  }(serializationExecutionContext)
+  def serializeState(aggregateId: String, stateValueOpt: Option[State], assignedPartition: TopicPartition): Future[KafkaProducerActor.MessageToPublish] =
+    Future {
+      val serializedStateOpt = stateValueOpt.map { value =>
+        serializeStateTimer.time(aggregateWriteFormatting.writeState(value))
+      }
+      val stateValue = serializedStateOpt.map(_.value).orNull
+      val stateHeaders = serializedStateOpt.map(ser => HeadersHelper.createHeaders(ser.headers)).orNull
+      KafkaProducerActor.MessageToPublish(new ProducerRecord(kafka.stateTopic.name, assignedPartition.partition(), aggregateId, stateValue, stateHeaders))
+    }(serializationExecutionContext)
 }

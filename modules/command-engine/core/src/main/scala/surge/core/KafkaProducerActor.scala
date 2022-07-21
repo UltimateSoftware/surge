@@ -6,8 +6,8 @@ import akka.actor.{ ActorSystem, NoSerializationVerificationNeeded, PoisonPill, 
 import akka.pattern._
 import akka.util.Timeout
 import com.typesafe.config.Config
+import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.TopicPartition
-import org.apache.kafka.common.header.Headers
 import org.slf4j.LoggerFactory
 import surge.core.KafkaProducerActor.RetryAwareException
 import surge.health.{ HealthSignalBusAware, HealthSignalBusTrait }
@@ -128,23 +128,22 @@ object KafkaProducerActor {
   sealed trait PublishResult extends NoSerializationVerificationNeeded
   case class PublishSuccess(publishRequestId: UUID) extends PublishResult
   case class PublishFailure(publishRequestId: UUID, t: Throwable, retry: Boolean = false) extends PublishResult
-  case class MessageToPublish(key: String, value: Array[Byte], headers: Headers)
+  case class MessageToPublish(record: ProducerRecord[String, Array[Byte]])
 
   object PublishTracker {
-    def apply(publishTrackingId: UUID, state: MessageToPublish, events: Seq[MessageToPublish], trackerTimeout: FiniteDuration): PublishTracker = {
-      new PublishTracker(publishTrackingId, state = Some(state), events = events, dataWasPublished = false, ttl = trackerTimeout)
+    def apply(publishTrackingId: UUID, messages: Seq[MessageToPublish], trackerTimeout: FiniteDuration): PublishTracker = {
+      new PublishTracker(publishTrackingId, messages = messages, dataWasPublished = false, ttl = trackerTimeout)
     }
 
     def alreadyPublished(publishTrackingId: UUID, trackerTimeout: FiniteDuration): PublishTracker = {
-      new PublishTracker(publishTrackingId, state = None, events = Seq.empty, dataWasPublished = true, ttl = trackerTimeout)
+      new PublishTracker(publishTrackingId, messages = Seq.empty, dataWasPublished = true, ttl = trackerTimeout)
     }
   }
 
   case class PublishTracker(
       requestId: UUID,
       dataWasPublished: Boolean,
-      state: Option[MessageToPublish],
-      events: Seq[MessageToPublish],
+      messages: Seq[MessageToPublish],
       startTime: Instant = Instant.now(),
       ttl: FiniteDuration = 60.seconds) {
 
@@ -197,14 +196,10 @@ class KafkaProducerActor(
   private implicit val executionContext: ExecutionContext = ExecutionContext.global
   private val log = LoggerFactory.getLogger(getClass)
 
-  def publish(
-      requestId: UUID,
-      aggregateId: String,
-      state: KafkaProducerActor.MessageToPublish,
-      events: Seq[KafkaProducerActor.MessageToPublish]): Future[KafkaProducerActor.PublishResult] = {
-    log.trace(s"Publishing state for {} {}", Seq(aggregateName, state.key): _*)
+  def publish(requestId: UUID, aggregateId: String, messages: Seq[KafkaProducerActor.MessageToPublish]): Future[KafkaProducerActor.PublishResult] = {
+    log.trace(s"Publishing state for {} {}", Seq(aggregateName, aggregateId): _*)
     implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PublisherActor.publishTimeout)
-    val request = KafkaProducerActorImpl.Publish(batchId = requestId, eventsToPublish = events, state = state)
+    val request = KafkaProducerActorImpl.Publish(batchId = requestId, messagesToPublish = messages)
 
     (publisherActor.ref ? request).mapTo[KafkaProducerActor.PublishResult].recover { case t =>
       throw new RetryAwareException(t, retry = true)

@@ -1,4 +1,5 @@
 // Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
+
 package surge.health
 
 import java.util.concurrent.locks.ReentrantReadWriteLock

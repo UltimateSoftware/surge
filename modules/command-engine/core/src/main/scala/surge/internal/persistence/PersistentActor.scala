@@ -5,7 +5,7 @@ package surge.internal.persistence
 import akka.actor.{ NoSerializationVerificationNeeded, Props, ReceiveTimeout, Stash, Status }
 import akka.cluster.sharding.ShardRegion.Passivate
 import akka.pattern.pipe
-import com.fasterxml.jackson.annotation.JsonTypeInfo
+import com.fasterxml.jackson.annotation.{ JsonIgnoreProperties, JsonTypeInfo }
 import com.typesafe.config.{ Config, ConfigFactory }
 import io.opentelemetry.api.trace.Tracer
 import org.slf4j.{ Logger, LoggerFactory }
@@ -15,7 +15,6 @@ import surge.internal.SurgeModel
 import surge.internal.akka.ActorWithTracing
 import surge.internal.config.{ RetryConfig, TimeoutConfig }
 import surge.internal.domain.{ Callback, SurgeContextImpl, SurgeSideEffect }
-import surge.internal.kafka.HeadersHelper
 import surge.internal.tracing.RoutableMessage
 import surge.kafka.streams.AggregateStateStoreKafkaStreams
 import surge.metrics.{ MetricInfo, Metrics, Timer }
@@ -53,8 +52,9 @@ object PersistentActor {
       @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "aggregateType", visible = true) aggregateState: Option[S])
       extends ACK
 
+  @JsonIgnoreProperties(ignoreUnknown = true)
   case class ACKError(
-      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "exceptionType", visible = true) exception: Throwable)
+      @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.EXTERNAL_PROPERTY, property = "exceptionType", visible = true) exception: Throwable)
       extends ACK
 
   case class ACKRejection[R](
@@ -226,29 +226,24 @@ class PersistentActor[S, M, E](
       .flatMap { result =>
         if (result.isRejected) {
           // FIXME Temporary no-op publish to trigger side effects later
-          doPublish(
-            state,
-            result,
-            Seq.empty,
-            KafkaProducerActor.MessageToPublish("", "".getBytes(), HeadersHelper.createHeaders(Map.empty)),
-            startTime = Instant.now,
-            didStateChange = false)
+          doPublish(state, result, Seq.empty, startTime = Instant.now, shouldPublish = false)
         } else {
           val serializingFut = if (publishStateOnly) {
             Future.successful(Seq.empty)
           } else {
             businessLogic.serializeEvents(result.events)
           }
+          val isSomethingNewToPublish = result.events.nonEmpty || result.records.nonEmpty || (state.stateOpt != result.state)
           for {
-            serializedState <- businessLogic.serializeState(aggregateId, result.state)
+            serializedState <- businessLogic.serializeState(aggregateId, result.state, kafkaProducerActor.assignedPartition)
             serializedEvents <- serializingFut
+            additionalRecords = result.records.map(KafkaProducerActor.MessageToPublish)
             publishResult <- doPublish(
               state.copy(stateOpt = result.state),
               result,
-              serializedEvents,
-              serializedState,
+              serializedEvents ++ additionalRecords :+ serializedState,
               startTime = Instant.now,
-              didStateChange = state.stateOpt != result.state)
+              shouldPublish = isSomethingNewToPublish)
           } yield {
             publishResult
           }
@@ -263,7 +258,7 @@ class PersistentActor[S, M, E](
   def processMessage(state: InternalActorState, ProcessMessage: ProcessMessage[M]): Future[SurgeContextImpl[S, E]] = {
     metrics.messageHandlingTimer
       .timeFuture {
-        businessLogic.model.handle(SurgeContextImpl(sender()), state.stateOpt, ProcessMessage.message)
+        businessLogic.model.handle(SurgeContextImpl(sender(), state = state.stateOpt), state.stateOpt, ProcessMessage.message)
       }
       .mapTo[SurgeContextImpl[S, E]]
   }
@@ -274,14 +269,13 @@ class PersistentActor[S, M, E](
 
     callEventHandler(state, value.events)
       .flatMap { context =>
-        businessLogic.serializeState(aggregateId, context.state).flatMap { serializedState =>
+        businessLogic.serializeState(aggregateId, context.state, kafkaProducerActor.assignedPartition).flatMap { serializedState =>
           doPublish(
             state.copy(stateOpt = context.state),
             context,
-            serializedEvents = Seq.empty,
-            serializedState = serializedState,
+            serializedMessages = Seq(serializedState),
             startTime = Instant.now,
-            didStateChange = state.stateOpt != context.state)
+            shouldPublish = state.stateOpt != context.state)
         }
       }
       .recover { case e =>
@@ -291,7 +285,9 @@ class PersistentActor[S, M, E](
   }
 
   def callEventHandler(state: InternalActorState, evt: Seq[E]): Future[SurgeContextImpl[S, E]] = {
-    metrics.eventHandlingTimer.timeFuture(businessLogic.model.applyAsync(SurgeContextImpl(sender()), state.stateOpt, evt)).mapTo[SurgeContextImpl[S, E]]
+    metrics.eventHandlingTimer
+      .timeFuture(businessLogic.model.applyAsync(SurgeContextImpl(sender(), state = state.stateOpt), state.stateOpt, evt))
+      .mapTo[SurgeContextImpl[S, E]]
   }
 
   private def uninitialized: Receive = {
