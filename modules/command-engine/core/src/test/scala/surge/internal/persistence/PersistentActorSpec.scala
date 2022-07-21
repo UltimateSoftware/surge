@@ -11,11 +11,13 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import com.jayway.jsonpath.JsonPath
 import com.typesafe.config.ConfigFactory
+import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.TopicPartition
-import org.apache.kafka.common.header.internals.RecordHeaders
 import org.mockito.Mockito._
 import org.mockito.invocation.InvocationOnMock
 import org.mockito.{ ArgumentCaptor, ArgumentMatcher, ArgumentMatchers }
+import org.scalatest.concurrent.ScalaFutures
+import org.scalatest.matchers.{ MatchResult, Matcher }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatest.{ BeforeAndAfterAll, PartialFunctionValues }
@@ -24,7 +26,6 @@ import play.api.libs.json.Json
 import surge.akka.cluster.Passivate
 import surge.core.{ KafkaProducerActor, TestBoundedContext }
 import surge.exceptions.{ AggregateInitializationException, KafkaPublishTimeoutException }
-import surge.internal.kafka.HeadersHelper
 import surge.internal.persistence.PersistentActor.{ ACKError, ApplyEvents, Stop }
 import surge.internal.tracing.RoutableMessage
 import surge.kafka.streams.{ AggregateStateStoreKafkaStreams, ExpectedTestException }
@@ -38,6 +39,16 @@ class IsAtLeastOneElementSeq extends ArgumentMatcher[Seq[KafkaProducerActor.Mess
   def matches(seq: Seq[KafkaProducerActor.MessageToPublish]): Boolean = seq.nonEmpty
 }
 
+class ContainsNElementsSeq(expectedElements: Int) extends ArgumentMatcher[Seq[KafkaProducerActor.MessageToPublish]] {
+  def matches(argument: Seq[KafkaProducerActor.MessageToPublish]): Boolean = argument.length == expectedElements
+}
+
+class AllRecordsForTopic(expectedTopic: String) extends ArgumentMatcher[Seq[KafkaProducerActor.MessageToPublish]] {
+  def matches(argument: Seq[KafkaProducerActor.MessageToPublish]): Boolean = {
+    argument.forall(msg => msg.record.topic() == expectedTopic)
+  }
+}
+
 class PersistentActorSpec
     extends TestKit(ActorSystem("PersistentActorSpec"))
     with AnyWordSpecLike
@@ -45,7 +56,8 @@ class PersistentActorSpec
     with BeforeAndAfterAll
     with MockitoSugar
     with TestBoundedContext
-    with PartialFunctionValues {
+    with PartialFunctionValues
+    with ScalaFutures {
   import ArgumentMatchers.{ any, anyString, eq => argEquals }
   import TestBoundedContext._
 
@@ -101,7 +113,7 @@ class PersistentActorSpec
     val mockProducer = mock[KafkaProducerActor]
     when(mockProducer.assignedPartition).thenReturn(new TopicPartition("TestTopic", 1))
     when(mockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.successful(true))
-    when(mockProducer.publish(any[UUID], anyString, any[KafkaProducerActor.MessageToPublish], any[Seq[KafkaProducerActor.MessageToPublish]]))
+    when(mockProducer.publish(any[UUID], anyString, any[Seq[KafkaProducerActor.MessageToPublish]]))
       .thenReturn(Future.successful(KafkaProducerActor.PublishSuccess(UUID.randomUUID())))
 
     mockProducer
@@ -110,12 +122,12 @@ class PersistentActorSpec
   case class Publish(aggregateId: String) extends NoSerializationVerificationNeeded
   private def probeBackedMockProducer(probe: TestProbe): KafkaProducerActor = {
     val mockProducer = mock[KafkaProducerActor]
+    when(mockProducer.assignedPartition).thenReturn(new TopicPartition("TestTopic", 1))
     when(mockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.successful(true))
-    when(mockProducer.publish(any[UUID], anyString, any[KafkaProducerActor.MessageToPublish], any[Seq[KafkaProducerActor.MessageToPublish]])).thenAnswer(
-      (invocation: InvocationOnMock) => {
-        val aggregateId = invocation.getArgument[String](1)
-        (probe.ref ? Publish(aggregateId)).map(_ => KafkaProducerActor.PublishSuccess(UUID.randomUUID()))(ExecutionContext.global)
-      })
+    when(mockProducer.publish(any[UUID], anyString, any[Seq[KafkaProducerActor.MessageToPublish]])).thenAnswer((invocation: InvocationOnMock) => {
+      val aggregateId = invocation.getArgument[String](1)
+      (probe.ref ? Publish(aggregateId)).map(_ => KafkaProducerActor.PublishSuccess(UUID.randomUUID()))(ExecutionContext.global)
+    })
 
     mockProducer
   }
@@ -132,23 +144,28 @@ class PersistentActorSpec
     val expectedState = BusinessLogic.handleEvent(Some(state), expectedEvent)
 
     probe.expectMsg(PersistentActor.ACKSuccess(expectedState))
-    val serializedEvent = businessLogic.eventWriteFormatting.writeEvent(expectedEvent)
-    val serializedAgg = expectedState.map(businessLogic.aggregateWriteFormatting.writeState)
-    val expectedStateSerialized = KafkaProducerActor.MessageToPublish(state.aggregateId, serializedAgg.map(_.value).orNull, new RecordHeaders())
-    val headers = HeadersHelper.createHeaders(serializedEvent.headers)
-    val expectedEventSerialized = KafkaProducerActor.MessageToPublish(serializedEvent.key, serializedEvent.value, headers)
+    val expectedStateSerialized = businessLogic.serializeState(state.aggregateId, expectedState, mockProducer.assignedPartition).futureValue
+    val expectedEventSerialized = businessLogic.serializeEvents(Seq(expectedEvent)).futureValue
 
-    val stateValueCaptor: ArgumentCaptor[KafkaProducerActor.MessageToPublish] = ArgumentCaptor.forClass(classOf[KafkaProducerActor.MessageToPublish])
-    val eventsCaptor: ArgumentCaptor[Seq[KafkaProducerActor.MessageToPublish]] = ArgumentCaptor.forClass(classOf[Seq[KafkaProducerActor.MessageToPublish]])
-    verify(mockProducer).publish(any[UUID], argEquals(state.aggregateId), stateValueCaptor.capture(), eventsCaptor.capture())
+    val messagesCaptor: ArgumentCaptor[Seq[KafkaProducerActor.MessageToPublish]] = ArgumentCaptor.forClass(classOf[Seq[KafkaProducerActor.MessageToPublish]])
+    verify(mockProducer).publish(any[UUID], argEquals(state.aggregateId), messagesCaptor.capture())
 
-    // Need to compare the individual values here since the byte array comparison looks at object references rather than actual bytes
-    stateValueCaptor.getValue.key shouldEqual expectedStateSerialized.key
-    stateValueCaptor.getValue.value shouldEqual expectedStateSerialized.value
+    val publishedMessages = messagesCaptor.getValue
+    (publishedMessages should have).length(2)
 
-    eventsCaptor.getValue.head.key shouldEqual expectedEventSerialized.key
-    eventsCaptor.getValue.head.value shouldEqual expectedEventSerialized.value
-    eventsCaptor.getValue.head.headers shouldEqual expectedEventSerialized.headers
+    def matchKafkaRecord(msg: KafkaProducerActor.MessageToPublish): Matcher[KafkaProducerActor.MessageToPublish] =
+      (left: KafkaProducerActor.MessageToPublish) => {
+        // Need to compare the individual values here since the byte array comparison looks at object references rather than actual bytes
+        val isMatch = left.record.topic() == msg.record.topic() &&
+          left.record.partition() == msg.record.partition() &&
+          left.record.key() == msg.record.key() &&
+          Json.parse(left.record.value()) == Json.parse(msg.record.value()) &&
+          left.record.headers() == msg.record.headers()
+        MatchResult(isMatch, s"$left did not equal $msg", s"$left did equal $msg")
+      }
+
+    exactly(1, publishedMessages) should matchKafkaRecord(expectedStateSerialized)
+    exactly(1, publishedMessages) should matchKafkaRecord(expectedEventSerialized.head)
   }
 
   object TestContext {
@@ -222,11 +239,8 @@ class PersistentActorSpec
 
         probe.expectMsg(PersistentActor.ACKSuccess(Some(baseState)))
 
-        verify(testContext.mockProducer, never()).publish(
-          any[UUID],
-          ArgumentMatchers.eq(testAggregateId),
-          ArgumentMatchers.any[KafkaProducerActor.MessageToPublish](),
-          ArgumentMatchers.eq(Seq[KafkaProducerActor.MessageToPublish]()))
+        verify(testContext.mockProducer, never())
+          .publish(any[UUID], ArgumentMatchers.eq(testAggregateId), ArgumentMatchers.eq(Seq[KafkaProducerActor.MessageToPublish]()))
 
       }
 
@@ -242,11 +256,8 @@ class PersistentActorSpec
 
         probe.expectMsg(PersistentActor.ACKSuccess(Some(baseState)))
 
-        verify(testContext.mockProducer, never()).publish(
-          any[UUID],
-          ArgumentMatchers.eq(testAggregateId),
-          ArgumentMatchers.any[KafkaProducerActor.MessageToPublish](),
-          ArgumentMatchers.eq(Seq[KafkaProducerActor.MessageToPublish]()))
+        verify(testContext.mockProducer, never())
+          .publish(any[UUID], ArgumentMatchers.eq(testAggregateId), ArgumentMatchers.eq(Seq[KafkaProducerActor.MessageToPublish]()))
 
       }
 
@@ -259,7 +270,7 @@ class PersistentActorSpec
         probe.send(actor, testEnvelope)
         probe.expectMsg(PersistentActor.ACKSuccess(Some(baseState)))
 
-        verify(mockProducer, never()).publish(any[UUID], any[String], any[KafkaProducerActor.MessageToPublish], any[Seq[KafkaProducerActor.MessageToPublish]])
+        verify(mockProducer, never()).publish(any[UUID], any[String], any[Seq[KafkaProducerActor.MessageToPublish]])
       }
 
       "Anything when state has not changed and publishStateOnly is false" in {
@@ -274,11 +285,7 @@ class PersistentActorSpec
         probe.send(actor, testEnvelope)
         probe.expectMsg(PersistentActor.ACKSuccess(Some(baseState)))
 
-        verify(mockProducer, never()).publish(
-          any[UUID],
-          ArgumentMatchers.eq(testAggregateId),
-          ArgumentMatchers.any(classOf[KafkaProducerActor.MessageToPublish]),
-          ArgumentMatchers.argThat(new IsAtLeastOneElementSeq()))
+        verify(mockProducer, never()).publish(any[UUID], ArgumentMatchers.eq(testAggregateId), ArgumentMatchers.argThat(new IsAtLeastOneElementSeq()))
       }
     }
 
@@ -297,11 +304,8 @@ class PersistentActorSpec
 
         probe.expectMsg(PersistentActor.ACKSuccess(Some(publishedState)))
 
-        verify(testContext.mockProducer, times(1)).publish(
-          any[UUID],
-          ArgumentMatchers.eq(testAggregateId),
-          ArgumentMatchers.any[KafkaProducerActor.MessageToPublish](),
-          ArgumentMatchers.argThat(new IsAtLeastOneElementSeq()))
+        verify(testContext.mockProducer, times(1))
+          .publish(any[UUID], ArgumentMatchers.eq(testAggregateId), ArgumentMatchers.argThat(new ContainsNElementsSeq(2)))
       }
 
       "Only stateChange when publishStateOnly is true" in {
@@ -318,11 +322,8 @@ class PersistentActorSpec
 
         probe.expectMsg(PersistentActor.ACKSuccess(Some(publishedState)))
 
-        verify(testContext.mockProducer, times(1)).publish(
-          any[UUID],
-          ArgumentMatchers.eq(testAggregateId),
-          ArgumentMatchers.any[KafkaProducerActor.MessageToPublish](),
-          ArgumentMatchers.eq(Seq[KafkaProducerActor.MessageToPublish]()))
+        verify(testContext.mockProducer, times(1))
+          .publish(any[UUID], ArgumentMatchers.eq(testAggregateId), ArgumentMatchers.argThat(new AllRecordsForTopic(businessLogic.kafka.stateTopic.name)))
       }
     }
 
@@ -337,7 +338,7 @@ class PersistentActorSpec
         when(mockProducer.assignedPartition).thenReturn(new TopicPartition("TestTopic", 1))
         when(mockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.successful(false), Future.successful(true))
 
-        when(mockProducer.publish(any[UUID], anyString, any[KafkaProducerActor.MessageToPublish], any[Seq[KafkaProducerActor.MessageToPublish]]))
+        when(mockProducer.publish(any[UUID], anyString, any[Seq[KafkaProducerActor.MessageToPublish]]))
           .thenReturn(Future.successful(KafkaProducerActor.PublishSuccess(UUID.randomUUID())))
 
         val mockStreams = mockKafkaStreams(baseState)
@@ -357,7 +358,7 @@ class PersistentActorSpec
         val mockProducer = mock[KafkaProducerActor]
         when(mockProducer.assignedPartition).thenReturn(new TopicPartition("TestTopic", 1))
         when(mockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.failed(new RuntimeException("This is expected")), Future.successful(true))
-        when(mockProducer.publish(any[UUID], anyString, any[KafkaProducerActor.MessageToPublish], any[Seq[KafkaProducerActor.MessageToPublish]]))
+        when(mockProducer.publish(any[UUID], anyString, any[Seq[KafkaProducerActor.MessageToPublish]]))
           .thenReturn(Future.successful(KafkaProducerActor.PublishSuccess(UUID.randomUUID())))
 
         val mockStreams = mockKafkaStreams(baseState)
@@ -425,7 +426,7 @@ class PersistentActorSpec
       probe.send(actor, testEnvelope)
       probe.expectMsg(PersistentActor.ACKSuccess(Some(baseState)))
 
-      verify(mockProducer, never()).publish(any[UUID], anyString, any[KafkaProducerActor.MessageToPublish], any[Seq[KafkaProducerActor.MessageToPublish]])
+      verify(mockProducer, never()).publish(any[UUID], anyString, any[Seq[KafkaProducerActor.MessageToPublish]])
     }
 
     "handle exceptions from the domain by returning a AckError" in {
@@ -525,20 +526,16 @@ class PersistentActorSpec
       probe.expectMsg(PersistentActor.ACKSuccess(expectedState1))
       probe.expectMsg(PersistentActor.ACKSuccess(expectedState2))
 
-      verify(mockProducer, times(2)).publish(
-        any[UUID],
-        any[String],
-        any[KafkaProducerActor.MessageToPublish],
-        argEquals(Seq[KafkaProducerActor.MessageToPublish]()))
+      verify(mockProducer, times(2)).publish(any[UUID], any[String], ArgumentMatchers.argThat(new AllRecordsForTopic(businessLogic.kafka.stateTopic.name)))
     }
 
     "Crash the actor to force reinitialization if publishing events times out" in {
       val crashingMockProducer = mock[KafkaProducerActor]
       val expectedException = new ExpectedTestException
 
+      when(crashingMockProducer.assignedPartition).thenReturn(new TopicPartition("TestTopic", 1))
       when(crashingMockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.successful(true))
-      when(crashingMockProducer.publish(any[UUID], anyString, any[KafkaProducerActor.MessageToPublish], any[Seq[KafkaProducerActor.MessageToPublish]]))
-        .thenReturn(Future.failed(expectedException))
+      when(crashingMockProducer.publish(any[UUID], anyString, any[Seq[KafkaProducerActor.MessageToPublish]])).thenReturn(Future.failed(expectedException))
 
       val testContext = TestContext.setupDefault(mockProducer = crashingMockProducer)
       import testContext._
@@ -564,8 +561,9 @@ class PersistentActorSpec
     "Wrap and return the error from publishing to Kafka if publishing explicitly fails consistently" in {
       val failingMockProducer = mock[KafkaProducerActor]
       val expectedException = new ExpectedTestException
+      when(failingMockProducer.assignedPartition).thenReturn(new TopicPartition("TestTopic", 1))
       when(failingMockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.successful(true))
-      when(failingMockProducer.publish(any[UUID], anyString, any[KafkaProducerActor.MessageToPublish], any[Seq[KafkaProducerActor.MessageToPublish]]))
+      when(failingMockProducer.publish(any[UUID], anyString, any[Seq[KafkaProducerActor.MessageToPublish]]))
         .thenReturn(Future.successful(KafkaProducerActor.PublishFailure(UUID.randomUUID(), expectedException)))
 
       val testContext = TestContext.setupDefault(mockProducer = failingMockProducer)
@@ -583,8 +581,9 @@ class PersistentActorSpec
     "Retry publishing to Kafka if publishing explicitly fails" in {
       val failingMockProducer = mock[KafkaProducerActor]
       val expectedException = new ExpectedTestException
+      when(failingMockProducer.assignedPartition).thenReturn(new TopicPartition("TestTopic", 1))
       when(failingMockProducer.isAggregateStateCurrent(anyString)).thenReturn(Future.successful(true))
-      when(failingMockProducer.publish(any[UUID], anyString, any[KafkaProducerActor.MessageToPublish], any[Seq[KafkaProducerActor.MessageToPublish]]))
+      when(failingMockProducer.publish(any[UUID], anyString, any[Seq[KafkaProducerActor.MessageToPublish]]))
         .thenReturn(Future.successful(KafkaProducerActor.PublishFailure(UUID.randomUUID(), expectedException)))
         .thenReturn(Future.successful(KafkaProducerActor.PublishSuccess(UUID.randomUUID())))
 

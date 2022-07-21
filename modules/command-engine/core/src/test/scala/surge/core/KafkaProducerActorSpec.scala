@@ -6,6 +6,7 @@ import akka.actor.ActorSystem
 import akka.actor.Status.Failure
 import akka.pattern.AskTimeoutException
 import akka.testkit.{ TestKit, TestProbe }
+import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.header.internals.RecordHeaders
 import org.mockito.Mockito.when
@@ -45,6 +46,8 @@ class KafkaProducerActorSpec
   }
 
   "KafkaProducerActor" should {
+    val testMessage = KafkaProducerActor.MessageToPublish(new ProducerRecord("test", 1, "", "".getBytes()))
+
     def producerMock(testProbe: TestProbe, trackerTimeout: FiniteDuration): KafkaProducerActor = {
       val signalBus: HealthSignalBusTrait = Mockito.mock(classOf[HealthSignalBusTrait])
       val invokable: InvokableHealthRegistration = Mockito.mock(classOf[InvokableHealthRegistration])
@@ -110,11 +113,9 @@ class KafkaProducerActorSpec
       val producer = producerMock(probe, trackerTimeout = 6.seconds)
 
       val errorWatchProbe = TestProbe()
-      val stateToPublish = KafkaProducerActor.MessageToPublish("test", "test".getBytes(), new RecordHeaders())
-      val eventsToPublish = Seq(KafkaProducerActor.MessageToPublish("test", "test".getBytes(), new RecordHeaders()))
       val requestId = UUID.randomUUID()
       producer
-        .publish(requestId, "test", stateToPublish, eventsToPublish)
+        .publish(requestId, "test", Seq(testMessage))
         .map { msg =>
           fail(s"Expected a failed future but received successful future with message [$msg]")
         }
@@ -133,17 +134,14 @@ class KafkaProducerActorSpec
       val producer = producerMock(probe, 6.seconds)
 
       val errorWatchProbe = TestProbe()
-      val stateToPublish = KafkaProducerActor.MessageToPublish("test", "test".getBytes(), new RecordHeaders())
-      val eventsToPublish = Seq(KafkaProducerActor.MessageToPublish("test", "test".getBytes(), new RecordHeaders()))
       val requestId = UUID.randomUUID()
 
-      producer.publish(requestId, "test", stateToPublish, eventsToPublish).recover { case e =>
+      producer.publish(requestId, "test", Seq(testMessage)).recover { case e =>
         errorWatchProbe.ref ! e
       }
 
       probe.expectMsgClass(classOf[KafkaProducerActorImpl.Publish])
       probe.reply(PublishSuccess(UUID.randomUUID()))
-
     }
   }
 }

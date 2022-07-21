@@ -47,8 +47,7 @@ object KafkaProducerActorImpl {
     }
   }
 
-  case class Publish(batchId: UUID, state: KafkaProducerActor.MessageToPublish, eventsToPublish: Seq[KafkaProducerActor.MessageToPublish])
-      extends KafkaProducerActorMessage {}
+  case class Publish(batchId: UUID, messagesToPublish: Seq[KafkaProducerActor.MessageToPublish]) extends KafkaProducerActorMessage
 
   case class IsAggregateStateCurrent(aggregateId: String) extends KafkaProducerActorMessage
   case object ShutdownProducer extends KafkaProducerActorMessage
@@ -407,8 +406,8 @@ class KafkaProducerActorImpl(
 
   private val eventsPublishedRate: Rate = metrics.rate(
     MetricInfo(
-      name = s"surge.aggregate.event-publish-rate",
-      description = "The per-second rate at which this aggregate attempts to publish events to Kafka",
+      name = s"surge.aggregate.message-publish-rate",
+      description = "The per-second rate at which this aggregate attempts to publish messages to Kafka",
       tags = Map("aggregate" -> aggregateName)))
   private def handleFlushMessages(state: KafkaProducerActorState): Unit = {
     if (state.transactionInProgress) {
@@ -425,25 +424,10 @@ class KafkaProducerActorImpl(
       }
     } else if (state.pendingWrites.nonEmpty) {
       val senders = state.pendingWrites.map(_.senderWithTrackingId)
-      val eventMessages = state.pendingWrites.flatMap(_.publish.eventsToPublish)
-      val stateMessages = state.pendingWrites.map(_.publish.state)
+      val records = state.pendingWrites.flatMap(_.publish.messagesToPublish.map(_.record))
 
-      val eventRecords = eventsTopicOpt
-        .map(eventsTopic =>
-          eventMessages.map { eventToPublish =>
-            // Using null here since we need to add the headers but we don't want to explicitly assign the partition
-            new ProducerRecord(eventsTopic.name, null, eventToPublish.key, eventToPublish.value, eventToPublish.headers) // scalastyle:ignore null
-          })
-        .getOrElse(Seq.empty)
-
-      val stateRecords = stateMessages.map { state =>
-        new ProducerRecord(stateTopic.name, assignedPartition.partition(), state.key, state.value, state.headers)
-      }
-      val records = eventRecords ++ stateRecords
-
-      log.debug(s"KafkaProducerActor partition {} writing {} events to Kafka", assignedPartition, eventRecords.length)
-      log.debug(s"KafkaProducerActor partition {} writing {} states to Kafka", assignedPartition, stateRecords.length)
-      eventsPublishedRate.mark(eventMessages.length)
+      log.debug(s"KafkaProducerActor partition {} writing {} messages to Kafka", assignedPartition, records.length)
+      eventsPublishedRate.mark(records.length)
 
       doFlushRecords(state, senders, records)
     }
@@ -685,7 +669,7 @@ private[internal] case class KafkaProducerActorState(
   }
 
   def startTracking(msg: Publish, timeout: FiniteDuration): KafkaProducerActorState = {
-    this.copy(trackers = trackers :+ PublishTrackerWithExpiry(tracker = PublishTracker(msg.batchId, msg.state, msg.eventsToPublish, timeout), expired = false))
+    this.copy(trackers = trackers :+ PublishTrackerWithExpiry(tracker = PublishTracker(msg.batchId, msg.messagesToPublish, timeout), expired = false))
   }
 
   def stopTracking(msg: Publish): KafkaProducerActorState = {

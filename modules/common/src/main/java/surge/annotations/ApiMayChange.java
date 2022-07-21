@@ -1,3 +1,5 @@
+// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
+
 package surge.annotations;
 
 import java.lang.annotation.ElementType;
