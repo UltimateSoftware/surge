@@ -5,7 +5,7 @@ import sbt.Keys._
 
 ThisBuild / scalaVersion := "2.13.8"
 
-ThisBuild / crossScalaVersions := Seq("2.13.8", "2.12.15")
+ThisBuild / crossScalaVersions := Seq("2.13.8", "2.12.16")
 
 ThisBuild / dynverSonatypeSnapshots := true
 
@@ -79,7 +79,8 @@ lazy val `surge-engine-command-core` = (project in file("modules/command-engine/
       embeddedKafka,
       OpenTelemetry.api,
       logbackForTesting,
-      typesafeConfig))
+      typesafeConfig,
+      jsonpath))
   .enablePlugins(MultiJvmPlugin)
   .configs(MultiJvm)
   .dependsOn(`surge-common` % "compile->compile;test->test")

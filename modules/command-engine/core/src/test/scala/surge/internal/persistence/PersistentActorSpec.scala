@@ -7,6 +7,9 @@ import akka.pattern._
 import akka.serialization.{ SerializationExtension, Serializers }
 import akka.testkit.{ TestKit, TestProbe }
 import akka.util.Timeout
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.scala.DefaultScalaModule
+import com.jayway.jsonpath.JsonPath
 import com.typesafe.config.ConfigFactory
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.TopicPartition
@@ -188,6 +191,31 @@ class PersistentActorSpec
   }
 
   "PersistentActor" should {
+    "Serialize and Deserialize AckError with AkkaSerializers" in {
+      val original = ACKError(new Exception("test-failure"))
+
+      val serialization = SerializationExtension(system)
+
+      val serializer = serialization.findSerializerFor(original)
+
+      val back = serializer.fromBinary(serializer.toBinary(original), classOf[ACKError]).asInstanceOf[ACKError]
+
+      back.exception.getMessage shouldEqual original.exception.getMessage
+    }
+
+    "Serialize and Deserialize AckError with Jackson" in {
+      val error = ACKError(new Exception("test-failure"))
+
+      val mapper = new ObjectMapper().registerModule(DefaultScalaModule)
+      val jsonError = mapper.writeValueAsString(error)
+
+      JsonPath.read[String](jsonError, "$.exceptionType") shouldEqual "java.lang.Exception"
+
+      val deserializedError = mapper.readValue(jsonError, classOf[ACKError])
+
+      deserializedError.exception.getMessage shouldEqual "test-failure"
+    }
+
     "Properly initialize from Kafka streams" in {
       val testContext = TestContext.setupDefault
       import testContext._

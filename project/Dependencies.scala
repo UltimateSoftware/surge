@@ -43,11 +43,11 @@ object Dependencies extends AutoPlugin {
 
     object OpenTelemetry {
 
-      val version = "1.9.1"
+      val version = "1.16.0"
       val api = "io.opentelemetry" % "opentelemetry-api" % version
-      val sdk = "io.opentelemetry" % "opentelemetry-sdk" % OpenTelemetry.version % Test
-      val sdkTesting = "io.opentelemetry" % "opentelemetry-sdk-testing" % OpenTelemetry.version % Test
-      val grpcChannel = "io.grpc" % "grpc-netty-shaded" % "1.46.0" % Test
+      val sdk = "io.opentelemetry" % "opentelemetry-sdk" % version % Test
+      val sdkTesting = "io.opentelemetry" % "opentelemetry-sdk-testing" % version % Test
+      val grpcChannel = "io.grpc" % "grpc-netty-shaded" % "1.47.0" % Test
 
       object HoneycombSample {
         val sdk = OpenTelemetry.sdk
@@ -72,10 +72,11 @@ object Dependencies extends AutoPlugin {
     val junit = "junit" % "junit" % "4.13.2" % Test
     val logbackForTesting = "ch.qos.logback" % "logback-classic" % "1.2.11" % Test
     val json4s = "org.json4s" %% "json4s-native" % "4.0.5"
-    val mockitoCore = "org.mockito" % "mockito-core" % "4.5.1"
+    val mockitoCore = "org.mockito" % "mockito-core" % "4.6.1"
     val scalatest = "org.scalatest" %% "scalatest" % "3.2.12" % Test
     val scalatestPlusMockito = "org.scalatestplus" %% "mockito-3-4" % "3.2.10.0" % Test
     val slf4jApi = "org.slf4j" % "slf4j-api" % "1.7.36"
     val typesafeConfig = "com.typesafe" % "config" % "1.4.2"
+    val jsonpath = "com.jayway.jsonpath" % "json-path" % "2.7.0" % Test
   }
 }
