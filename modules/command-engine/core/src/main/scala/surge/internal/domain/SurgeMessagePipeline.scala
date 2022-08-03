@@ -83,7 +83,8 @@ private[surge] abstract class SurgeMessagePipeline[S, M, E](
   protected lazy val actorRouter: SurgePartitionRouter =
     SurgePartitionRouter(config, actorSystem, partitionTracker, businessLogic, kafkaStreamsImpl, cqrsRegionCreator, signalBus, isAkkaClusterEnabled)
 
-  protected val surgeHealthCheck: SurgeHealthCheck = new SurgeHealthCheck(businessLogic.aggregateName, kafkaStreamsImpl, actorRouter)(ExecutionContext.global)
+  protected lazy val surgeHealthCheck: SurgeHealthCheck = new SurgeHealthCheck(businessLogic.aggregateName, kafkaStreamsImpl, actorRouter)(
+    ExecutionContext.global)
 
   override def healthCheck(): Future[HealthCheck] = {
     surgeHealthCheck.healthCheck()
