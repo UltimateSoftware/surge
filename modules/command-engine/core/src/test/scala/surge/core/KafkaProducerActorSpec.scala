@@ -4,15 +4,12 @@ package surge.core
 
 import akka.actor.ActorSystem
 import akka.actor.Status.Failure
-import akka.pattern.AskTimeoutException
 import akka.testkit.{ TestKit, TestProbe }
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.TopicPartition
-import org.apache.kafka.common.header.internals.RecordHeaders
 import org.mockito.Mockito.when
 import org.mockito.{ ArgumentMatchers, Mockito }
 import org.scalatest.BeforeAndAfterAll
-import org.scalatest.concurrent.Eventually.eventually
 import org.scalatest.concurrent.{ PatienceConfiguration, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{ Millis, Seconds, Span }

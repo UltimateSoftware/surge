@@ -9,12 +9,12 @@ import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.{ HttpRequest, HttpResponse }
 import com.typesafe.config.ConfigFactory
 import com.ukg.surge.multilanguage.protobuf._
+import surge.internal.utils.DiagnosticContextFuturePropagation
 import surge.scaladsl.command.SurgeCommand
 
 import java.util.UUID
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.Future
 import scala.language.implicitConversions
-import surge.internal.utils.DiagnosticContextFuturePropagation
 
 class MultilanguageGatewayServer(system: ActorSystem) {
 

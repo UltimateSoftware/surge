@@ -258,7 +258,10 @@ class PersistentActor[S, M, E](
   def processMessage(state: InternalActorState, ProcessMessage: ProcessMessage[M]): Future[SurgeContextImpl[S, E]] = {
     metrics.messageHandlingTimer
       .timeFuture {
-        businessLogic.model.handle(SurgeContextImpl(sender(), state = state.stateOpt), state.stateOpt, ProcessMessage.message)
+        businessLogic.model.handle(
+          SurgeContextImpl(sender(), defaultEventTopicOpt = businessLogic.kafka.eventsTopicOpt, state = state.stateOpt),
+          state.stateOpt,
+          ProcessMessage.message)
       }
       .mapTo[SurgeContextImpl[S, E]]
   }
@@ -286,7 +289,9 @@ class PersistentActor[S, M, E](
 
   def callEventHandler(state: InternalActorState, evt: Seq[E]): Future[SurgeContextImpl[S, E]] = {
     metrics.eventHandlingTimer
-      .timeFuture(businessLogic.model.applyAsync(SurgeContextImpl(sender(), state = state.stateOpt), state.stateOpt, evt))
+      .timeFuture(
+        businessLogic.model
+          .applyAsync(SurgeContextImpl(sender(), defaultEventTopicOpt = businessLogic.kafka.eventsTopicOpt, state = state.stateOpt), state.stateOpt, evt))
       .mapTo[SurgeContextImpl[S, E]]
   }
 

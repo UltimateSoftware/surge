@@ -11,7 +11,6 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import com.jayway.jsonpath.JsonPath
 import com.typesafe.config.ConfigFactory
-import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.TopicPartition
 import org.mockito.Mockito._
 import org.mockito.invocation.InvocationOnMock
@@ -145,7 +144,7 @@ class PersistentActorSpec
 
     probe.expectMsg(PersistentActor.ACKSuccess(expectedState))
     val expectedStateSerialized = businessLogic.serializeState(state.aggregateId, expectedState, mockProducer.assignedPartition).futureValue
-    val expectedEventSerialized = businessLogic.serializeEvents(Seq(expectedEvent)).futureValue
+    val expectedEventSerialized = businessLogic.serializeEvents(Seq(expectedEvent -> businessLogic.kafka.eventsTopic)).futureValue
 
     val messagesCaptor: ArgumentCaptor[Seq[KafkaProducerActor.MessageToPublish]] = ArgumentCaptor.forClass(classOf[Seq[KafkaProducerActor.MessageToPublish]])
     verify(mockProducer).publish(any[UUID], argEquals(state.aggregateId), messagesCaptor.capture())
