@@ -43,7 +43,7 @@ class ScalaSurgeServer[S, E, C](system: ActorSystem, CQRSModel: CQRSModel[S, E, 
 
   def forwardCommand(aggregateId: UUID, cmd: C): Future[Option[S]] = {
     val tryPbCommand = serDeser.serializeCommand(cmd)
-    (for {
+    for {
       pbCmdByteArray <- Future.fromTry(tryPbCommand)
       pbCmd = Command(aggregateId.toString, payload = ByteString.copyFrom(pbCmdByteArray))
       request = ForwardCommandRequest(aggregateId.toString, command = Some(pbCmd))
@@ -52,7 +52,7 @@ class ScalaSurgeServer[S, E, C](system: ActorSystem, CQRSModel: CQRSModel[S, E, 
         case Some(pbState) => Future.fromTry(serDeser.deserializeState(pbState.payload)).map(Some(_))
         case None          => Future.successful(Option.empty[S])
       } if response.isSuccess
-    } yield state)
+    } yield state
   }
 
   def getState(aggregateId: UUID): Future[Option[S]] = {
