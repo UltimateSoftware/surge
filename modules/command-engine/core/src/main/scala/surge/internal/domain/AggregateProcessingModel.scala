@@ -25,6 +25,7 @@ trait SurgeContext[State, Event] {
   def persistEvent(event: Event): SurgeContext[State, Event]
   def persistEvents(events: Seq[Event]): SurgeContext[State, Event]
   def persistToTopic(event: Event, topic: KafkaTopic): SurgeContext[State, Event]
+  def persistToTopics(eventsWithTopics: Seq[(Event, KafkaTopic)]): SurgeContext[State, Event]
   def persistRecord(record: ProducerRecord[String, Array[Byte]]): SurgeContext[State, Event]
   def persistRecords(records: Seq[ProducerRecord[String, Array[Byte]]]): SurgeContext[State, Event]
   def updateState(state: Option[State]): SurgeContext[State, Event]
@@ -38,19 +39,17 @@ case class SurgeContextImpl[State, Event](
     defaultEventTopicOpt: Option[KafkaTopic],
     sideEffects: Seq[SurgeSideEffect[State]] = Seq.empty,
     isRejected: Boolean = false,
-    events: Seq[(Event, KafkaTopic)] = Seq.empty,
+    events: Seq[(Event, Option[KafkaTopic])] = Seq.empty,
     records: Seq[ProducerRecord[String, Array[Byte]]] = Seq.empty)
     extends SurgeContext[State, Event] {
-  override def persistEvent(event: Event): SurgeContextImpl[State, Event] = {
-    val maybeEventAndTopic = defaultEventTopicOpt.map(topic => Seq(event -> topic)).getOrElse(Seq.empty)
-    copy(events = events ++ maybeEventAndTopic)
-  }
-  override def persistEvents(events: Seq[Event]): SurgeContextImpl[State, Event] = {
-    val maybeEventAndTopic = defaultEventTopicOpt.map(topic => events.map(e => e -> topic)).getOrElse(Seq.empty)
-    copy(events = this.events ++ maybeEventAndTopic)
-  }
+  override def persistEvent(event: Event): SurgeContextImpl[State, Event] =
+    copy(events = events :+ event -> defaultEventTopicOpt)
+  override def persistEvents(events: Seq[Event]): SurgeContextImpl[State, Event] =
+    copy(events = this.events ++ events.map(e => e -> defaultEventTopicOpt))
 
-  override def persistToTopic(event: Event, topic: KafkaTopic): SurgeContext[State, Event] = copy(events = this.events :+ event -> topic)
+  override def persistToTopic(event: Event, topic: KafkaTopic): SurgeContext[State, Event] = copy(events = this.events :+ event -> Some(topic))
+  override def persistToTopics(eventsWithTopics: Seq[(Event, KafkaTopic)]): SurgeContext[State, Event] =
+    copy(events = this.events ++ eventsWithTopics.map(tup => tup._1 -> Some(tup._2)))
 
   override def persistRecord(record: ProducerRecord[String, Array[Byte]]): SurgeContextImpl[State, Event] = copy(records = records :+ record)
   override def persistRecords(records: Seq[ProducerRecord[String, Array[Byte]]]): SurgeContextImpl[State, Event] = copy(records = this.records ++ records)

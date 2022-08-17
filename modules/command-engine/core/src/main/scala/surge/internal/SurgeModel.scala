@@ -42,21 +42,23 @@ trait SurgeModel[State, Message, Event] extends ProducerActorContext {
       description = "Average time taken in milliseconds to serialize a new aggregate state to bytes before persisting to Kafka",
       tags = Map("aggregate" -> aggregateName)))
 
-  def serializeEvents(events: Seq[(Event, KafkaTopic)]): Future[Seq[KafkaProducerActor.MessageToPublish]] = Future {
+  def serializeEvents(events: Seq[(Event, Option[KafkaTopic])]): Future[Seq[KafkaProducerActor.MessageToPublish]] = Future {
     val eventWriteFormatting = eventWriteFormattingOpt.getOrElse {
       throw new IllegalStateException("businessLogic.eventWriteFormattingOpt must not be None")
     }
-    events.map { case (event, topic) =>
-      val serializedMessage = serializeEventTimer.time(eventWriteFormatting.writeEvent(event))
-      log.trace(s"Publishing event for {} {}", Seq(aggregateName, serializedMessage.key): _*)
-      KafkaProducerActor.MessageToPublish(
-        // Using null here since we need to add the headers but we don't want to explicitly assign the partition
-        new ProducerRecord(
-          topic.name,
-          null, // scalastyle:ignore null
-          serializedMessage.key,
-          serializedMessage.value,
-          HeadersHelper.createHeaders(serializedMessage.headers)))
+    events.flatMap { case (event, topicOpt) =>
+      topicOpt.map { topic =>
+        val serializedMessage = serializeEventTimer.time(eventWriteFormatting.writeEvent(event))
+        log.trace(s"Publishing event for {} {}", Seq(aggregateName, serializedMessage.key): _*)
+        KafkaProducerActor.MessageToPublish(
+          // Using null here since we need to add the headers but we don't want to explicitly assign the partition
+          new ProducerRecord(
+            topic.name,
+            null, // scalastyle:ignore null
+            serializedMessage.key,
+            serializedMessage.value,
+            HeadersHelper.createHeaders(serializedMessage.headers)))
+      }
     }
   }(serializationExecutionContext)
 

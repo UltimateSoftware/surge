@@ -11,7 +11,6 @@ import org.scalatest.wordspec.AnyWordSpec
 import surge.health.windows.Window
 
 import scala.concurrent.duration._
-import scala.languageFeature.postfixOps
 
 class WindowSpec extends AnyWordSpec with Matchers with Eventually {
   implicit override val patienceConfig: PatienceConfig =
