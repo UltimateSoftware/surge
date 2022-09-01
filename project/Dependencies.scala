@@ -62,7 +62,7 @@ object Dependencies extends AutoPlugin {
     }
 
     object PlayFramework {
-      val json = "com.typesafe.play" %% "play-json" % "2.9.2"
+      val json = "com.typesafe.play" %% "play-json" % "2.9.3"
     }
 
     val akkaHttpPlayJson = "de.heikoseeberger" %% "akka-http-play-json" % "1.38.2"
