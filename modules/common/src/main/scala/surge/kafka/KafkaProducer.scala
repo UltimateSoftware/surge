@@ -8,7 +8,6 @@ import org.apache.kafka.clients.producer._
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.header.Headers
 import org.apache.kafka.common.serialization.{ ByteArraySerializer, Serializer, StringSerializer }
-import surge.internal.kafka.PartitionerHelper
 
 import java.util.Properties
 import scala.concurrent.{ ExecutionContext, Future, Promise }
@@ -52,7 +51,7 @@ trait KafkaProducerHelperCommon[K, V] {
     if (partitionByString.isEmpty) {
       None
     } else {
-      val partitionNumber = PartitionerHelper.partitionForKey(partitionByString, numPartitions)
+      val partitionNumber = partitioner.partitionForKey(partitionByString, numPartitions)
       Some(partitionNumber)
     }
   }
