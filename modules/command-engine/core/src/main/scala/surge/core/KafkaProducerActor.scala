@@ -16,10 +16,10 @@ import surge.internal.akka.kafka.KafkaConsumerPartitionAssignmentTracker
 import surge.internal.config.TimeoutConfig
 import surge.internal.health.{ HealthCheck, HealthCheckStatus, HealthyActor, HealthyComponent }
 import surge.internal.kafka.KafkaProducerActorImpl.ShutdownProducer
-import surge.internal.kafka.{ KTableLagCheckerImpl, KafkaProducerActorImpl, PartitionerHelper }
+import surge.internal.kafka.{ KTableLagCheckerImpl, KafkaProducerActorImpl }
 import surge.internal.persistence.BusinessLogic
 import surge.kafka.streams._
-import surge.kafka.{ KafkaAdminClient, KafkaProducerTrait }
+import surge.kafka.{ KafkaAdminClient, KafkaPartitionProvider, KafkaProducerTrait }
 import surge.metrics.{ MetricInfo, Metrics, Timer }
 
 import java.time.Instant
@@ -113,9 +113,10 @@ object KafkaProducerActor {
       metrics: Metrics,
       businessLogic: BusinessLogic,
       signalBus: HealthSignalBusTrait,
+      partitionProvider: KafkaPartitionProvider,
       numberOfPartitions: Int): String => KafkaProducerActor = (aggregateId: String) => {
 
-    val partitionNumber = PartitionerHelper.partitionForKey(aggregateId, numberOfPartitions)
+    val partitionNumber = partitionProvider.partitionForKey(aggregateId, numberOfPartitions)
     val assignedPartition = new TopicPartition(businessLogic.kafka.stateTopic.name, partitionNumber)
 
     // FIXME This could be an ActorSelection once we drop the old router
