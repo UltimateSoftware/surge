@@ -95,12 +95,14 @@ private[surge] final class SurgePartitionRouterImpl(
       .map(messageExtractor => {
         val classicMessageExtractor = new KafkaShardingClassicMessageExtractor[RoutableMessage](
           kafkaPartitions = messageExtractor.kafkaPartitions,
+          partitionProvider = businessLogic.partitioner,
           entityIdExtractor = (msg: RoutableMessage) => msg.aggregateId)
         val aggregateIdToKafkaProducerActor = KafkaProducerActor.createWithActorSelection(
           actorSystem = system,
           metrics = businessLogic.metrics,
           businessLogic = businessLogic,
           signalBus = signalBus,
+          partitionProvider = businessLogic.partitioner,
           numberOfPartitions = messageExtractor.kafkaPartitions)
 
         val aggregateMetrics = PersistentActor.createMetrics(businessLogic.metrics, businessLogic.aggregateName)

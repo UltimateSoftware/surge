@@ -5,7 +5,7 @@ import sbt.Keys._
 
 ThisBuild / scalaVersion := "2.13.8"
 
-ThisBuild / crossScalaVersions := Seq("2.13.8", "2.12.16")
+ThisBuild / crossScalaVersions := Seq("2.13.8", "2.12.17")
 
 ThisBuild / dynverSonatypeSnapshots := true
 
