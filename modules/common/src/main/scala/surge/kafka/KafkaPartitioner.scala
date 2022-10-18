@@ -2,7 +2,12 @@
 
 package surge.kafka
 
-sealed trait KafkaPartitionerBase[Key] {
+import scala.util.hashing.MurmurHash3
+
+trait KafkaPartitionProvider {
+  def partitionForKey(partitionByString: String, numberOfPartitions: Int): Int = math.abs(MurmurHash3.stringHash(partitionByString) % numberOfPartitions)
+}
+sealed trait KafkaPartitionerBase[Key] extends KafkaPartitionProvider {
   def optionalPartitionBy: Option[Key => String]
 }
 

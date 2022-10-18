@@ -4,9 +4,10 @@ package surge.internal.akka.kafka
 
 import akka.cluster.sharding.ShardRegion
 import akka.cluster.sharding.ShardRegion.MessageExtractor
-import surge.internal.kafka.PartitionerHelper
+import surge.kafka.KafkaPartitionProvider
 
-final class KafkaShardingClassicMessageExtractor[M](val kafkaPartitions: Int, entityIdExtractor: M => String) extends MessageExtractor {
+final class KafkaShardingClassicMessageExtractor[M](val partitionProvider: KafkaPartitionProvider, val kafkaPartitions: Int, entityIdExtractor: M => String)
+    extends MessageExtractor {
   override def entityId(message: Any): String = entityIdExtractor(message.asInstanceOf[M])
 
   override def entityMessage(message: Any): Any = message.asInstanceOf[M]
@@ -16,7 +17,7 @@ final class KafkaShardingClassicMessageExtractor[M](val kafkaPartitions: Int, en
       case ShardRegion.StartEntity(entityId) => entityId
       case _                                 => entityId(message)
     }
-    val partitionNumber = PartitionerHelper.partitionForKey(id, kafkaPartitions)
+    val partitionNumber = partitionProvider.partitionForKey(id, kafkaPartitions)
     partitionNumber.toString
   }
 }
