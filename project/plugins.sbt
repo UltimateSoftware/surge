@@ -12,7 +12,7 @@ addSbtPlugin("org.scalastyle" %% "scalastyle-sbt-plugin" % "1.0.0")
 addSbtPlugin("com.typesafe" % "sbt-mima-plugin" % "1.1.1")
 
 // Test Coverage
-addSbtPlugin("org.scoverage" % "sbt-scoverage" % "1.9.3")
+addSbtPlugin("org.scoverage" % "sbt-scoverage" % "2.0.6")
 
 // Multi-JVM testing
 addSbtPlugin("com.typesafe.sbt" % "sbt-multi-jvm" % "0.4.0")
