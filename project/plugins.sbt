@@ -27,7 +27,7 @@ addSbtPlugin("de.heikoseeberger" % "sbt-header" % "5.7.0")
 addSbtPlugin("com.lightbend.paradox" % "sbt-paradox" % "0.10.2")
 addSbtPlugin("com.lightbend.paradox" % "sbt-paradox-dependencies" % "0.2.2")
 addSbtPlugin("com.typesafe.sbt" % "sbt-site" % "1.4.1")
-addSbtPlugin("com.typesafe.sbt" % "sbt-ghpages" % "0.6.3")
+addSbtPlugin("com.github.sbt" % "sbt-ghpages" % "0.7.0")
 
 addSbtPlugin("com.lightbend.akka.grpc" % "sbt-akka-grpc" % "2.1.4")
 
