@@ -36,7 +36,7 @@ object Dependencies extends AutoPlugin {
       val kafkaVersion = "2.7.2"
 
       val kafkaClients = "org.apache.kafka" % "kafka-clients" % kafkaVersion
-      val kafkaStreams = "org.apache.kafka" % "kafka-streams" % kafkaVersion exclude("org.rocksdb", "rocksdbjni")
+      val kafkaStreams = ("org.apache.kafka" % "kafka-streams" % kafkaVersion).exclude("org.rocksdb", "rocksdbjni")
       val kafkaStreamsScala = "org.apache.kafka" %% "kafka-streams-scala" % kafkaVersion
       val kafkaStreamsTestUtils = "org.apache.kafka" % "kafka-streams-test-utils" % kafkaVersion % Test
 
