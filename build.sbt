@@ -45,6 +45,7 @@ lazy val `surge-common` = (project in file("modules/common"))
       Kafka.kafkaStreams,
       Kafka.kafkaStreamsScala,
       Kafka.kafkaStreamsTestUtils,
+      Kafka.rocksDb,
       OpenTelemetry.api,
       OpenTelemetry.sdk,
       OpenTelemetry.sdkTesting,
