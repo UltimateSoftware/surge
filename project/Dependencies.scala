@@ -6,7 +6,7 @@ object Dependencies extends AutoPlugin {
   object autoImport {
 
     object Akka {
-      val version = "2.7.0"
+      val version = "2.6.20"
       val akkaHttpVersion = "10.2.9"
       val alpakkaVersion = "2.1.1"
       val managementVersion = "1.1.2"
