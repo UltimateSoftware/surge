@@ -74,6 +74,8 @@ lazy val `surge-engine-command-core` = (project in file("modules/command-engine/
       Akka.akkaStreamTestKit,
       Akka.kafkaClusterSharding,
       Akka.clusterSharding,
+      Akka.clusterShardingTyped,
+      Akka.clusterTyped,
       Akka.discovery,
       mockitoCore,
       scalatest,

@@ -13,8 +13,14 @@ object Dependencies extends AutoPlugin {
 
       val kafkaStream = "com.typesafe.akka" %% "akka-stream-kafka" % alpakkaVersion
       val kafkaStreamTestKit = "com.typesafe.akka" %% "akka-stream-kafka-testkit" % alpakkaVersion % Test
-      val kafkaClusterSharding = "com.typesafe.akka" %% "akka-stream-kafka-cluster-sharding" % alpakkaVersion
+      val kafkaClusterSharding = "com.typesafe.akka" %% "akka-stream-kafka-cluster-sharding" % alpakkaVersion excludeAll {
+        ExclusionRule("com.typesafe.akka", "akka-cluster-typed")
+        ExclusionRule("com.typesafe.akka", "akka-cluster-sharding-typed")
+      }
       val clusterSharding = "com.typesafe.akka" %% "akka-cluster-sharding" % version
+      val clusterShardingTyped = "com.typesafe.akka" %% "akka-cluster-sharding-typed" % version
+      val clusterTyped = "com.typesafe.akka" %% "akka-cluster-typed" % version
+
       val management = "com.lightbend.akka.management" %% "akka-management" % managementVersion
       val managementClusterHttp = "com.lightbend.akka.management" %% "akka-management-cluster-http" % managementVersion
       val managementClusterBootstrap = "com.lightbend.akka.management" %% "akka-management-cluster-bootstrap" % managementVersion
