@@ -13,7 +13,7 @@ object Dependencies extends AutoPlugin {
 
       val kafkaStream = "com.typesafe.akka" %% "akka-stream-kafka" % alpakkaVersion
       val kafkaStreamTestKit = "com.typesafe.akka" %% "akka-stream-kafka-testkit" % alpakkaVersion % Test
-      val kafkaClusterSharding = "com.typesafe.akka" %% "akka-stream-kafka-cluster-sharding" % alpakkaVersion excludeAll {
+      val kafkaClusterSharding = ("com.typesafe.akka" %% "akka-stream-kafka-cluster-sharding" % alpakkaVersion).excludeAll {
         ExclusionRule("com.typesafe.akka", "akka-cluster-typed")
         ExclusionRule("com.typesafe.akka", "akka-cluster-sharding-typed")
       }
