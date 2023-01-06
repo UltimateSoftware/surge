@@ -6,7 +6,7 @@ object Dependencies extends AutoPlugin {
   object autoImport {
 
     object Akka {
-      val version = "2.6.15"
+      val version = "2.7.0"
       val akkaHttpVersion = "10.2.9"
       val alpakkaVersion = "2.1.1"
       val managementVersion = "1.1.2"
@@ -33,10 +33,10 @@ object Dependencies extends AutoPlugin {
     }
 
     object Kafka {
-      val kafkaVersion = "2.7.2"
+      val kafkaVersion = "3.2.3"
 
       val kafkaClients = "org.apache.kafka" % "kafka-clients" % kafkaVersion
-      val kafkaStreams = ("org.apache.kafka" % "kafka-streams" % kafkaVersion).exclude("org.rocksdb", "rocksdbjni")
+      val kafkaStreams = ("org.apache.kafka" % "kafka-streams" % kafkaVersion)
       val kafkaStreamsScala = "org.apache.kafka" %% "kafka-streams-scala" % kafkaVersion
       val kafkaStreamsTestUtils = "org.apache.kafka" % "kafka-streams-test-utils" % kafkaVersion % Test
 
@@ -70,7 +70,7 @@ object Dependencies extends AutoPlugin {
     val akkaHttpPlayJson = "de.heikoseeberger" %% "akka-http-play-json" % "1.38.2"
     val scalaCollectionCompat = "org.scala-lang.modules" %% "scala-collection-compat" % "2.8.1"
     val java8Compat = "org.scala-lang.modules" %% "scala-java8-compat" % "0.9.1"
-    val embeddedKafka = "io.github.embeddedkafka" %% "embedded-kafka" % "2.8.1" % Test
+    val embeddedKafka = "io.github.embeddedkafka" %% "embedded-kafka" % "3.3.1" % Test
     val junit = "junit" % "junit" % "4.13.2" % Test
     val logbackForTesting = "ch.qos.logback" % "logback-classic" % "1.4.4" % Test
     val json4s = "org.json4s" %% "json4s-native" % "4.0.5"
