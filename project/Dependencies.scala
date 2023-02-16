@@ -51,7 +51,7 @@ object Dependencies extends AutoPlugin {
 
     object OpenTelemetry {
 
-      val version = "1.16.0"
+      val version = "1.23.1"
       val api = "io.opentelemetry" % "opentelemetry-api" % version
       val sdk = "io.opentelemetry" % "opentelemetry-sdk" % version % Test
       val sdkTesting = "io.opentelemetry" % "opentelemetry-sdk-testing" % version % Test
