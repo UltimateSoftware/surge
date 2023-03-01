@@ -13,7 +13,7 @@ object Dependencies extends AutoPlugin {
 
       val kafkaStream = "com.typesafe.akka" %% "akka-stream-kafka" % alpakkaVersion
       val kafkaStreamTestKit = "com.typesafe.akka" %% "akka-stream-kafka-testkit" % alpakkaVersion % Test
-      val kafkaClusterSharding = ("com.typesafe.akka" %% "akka-stream-kafka-cluster-sharding" % alpakkaVersion)
+      val kafkaClusterSharding = "com.typesafe.akka" %% "akka-stream-kafka-cluster-sharding" % alpakkaVersion
       val clusterSharding = "com.typesafe.akka" %% "akka-cluster-sharding" % version
       val clusterShardingTyped = "com.typesafe.akka" %% "akka-cluster-sharding-typed" % version
       val clusterTyped = "com.typesafe.akka" %% "akka-cluster-typed" % version
