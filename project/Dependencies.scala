@@ -6,17 +6,14 @@ object Dependencies extends AutoPlugin {
   object autoImport {
 
     object Akka {
-      val version = "2.6.20"
+      val version = "2.6.15"
       val akkaHttpVersion = "10.2.9"
       val alpakkaVersion = "2.1.1"
       val managementVersion = "1.1.2"
 
       val kafkaStream = "com.typesafe.akka" %% "akka-stream-kafka" % alpakkaVersion
       val kafkaStreamTestKit = "com.typesafe.akka" %% "akka-stream-kafka-testkit" % alpakkaVersion % Test
-      val kafkaClusterSharding = ("com.typesafe.akka" %% "akka-stream-kafka-cluster-sharding" % alpakkaVersion).excludeAll {
-        ExclusionRule("com.typesafe.akka", "akka-cluster-typed")
-        ExclusionRule("com.typesafe.akka", "akka-cluster-sharding-typed")
-      }
+      val kafkaClusterSharding = ("com.typesafe.akka" %% "akka-stream-kafka-cluster-sharding" % alpakkaVersion)
       val clusterSharding = "com.typesafe.akka" %% "akka-cluster-sharding" % version
       val clusterShardingTyped = "com.typesafe.akka" %% "akka-cluster-sharding-typed" % version
       val clusterTyped = "com.typesafe.akka" %% "akka-cluster-typed" % version
@@ -39,14 +36,13 @@ object Dependencies extends AutoPlugin {
     }
 
     object Kafka {
-      val kafkaVersion = "3.2.3"
+      val kafkaVersion = "2.7.2"
 
       val kafkaClients = "org.apache.kafka" % "kafka-clients" % kafkaVersion
       val kafkaStreams = "org.apache.kafka" % "kafka-streams" % kafkaVersion
       val kafkaStreamsScala = "org.apache.kafka" %% "kafka-streams-scala" % kafkaVersion
       val kafkaStreamsTestUtils = "org.apache.kafka" % "kafka-streams-test-utils" % kafkaVersion % Test
 
-      val rocksDb = "org.rocksdb" % "rocksdbjni" % "6.29.5"
     }
 
     object OpenTelemetry {
@@ -76,7 +72,7 @@ object Dependencies extends AutoPlugin {
     val akkaHttpPlayJson = "de.heikoseeberger" %% "akka-http-play-json" % "1.38.2"
     val scalaCollectionCompat = "org.scala-lang.modules" %% "scala-collection-compat" % "2.8.1"
     val java8Compat = "org.scala-lang.modules" %% "scala-java8-compat" % "0.9.1"
-    val embeddedKafka = "io.github.embeddedkafka" %% "embedded-kafka" % "3.3.1" % Test
+    val embeddedKafka = "io.github.embeddedkafka" %% "embedded-kafka" % "2.8.1" % Test
     val junit = "junit" % "junit" % "4.13.2" % Test
     val logbackForTesting = "ch.qos.logback" % "logback-classic" % "1.4.4" % Test
     val json4s = "org.json4s" %% "json4s-native" % "4.0.5"
