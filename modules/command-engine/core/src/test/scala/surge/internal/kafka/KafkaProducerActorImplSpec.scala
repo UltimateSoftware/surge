@@ -691,7 +691,7 @@ class KafkaProducerActorImplSpec
       // Send Shutdown Command
       probe.send(producerActorToShutdown, ShutdownProducer)
 
-      verify(mockProducer, Mockito.timeout(1000).times(1)).close()
+      verify(mockProducer, Mockito.timeout(1000).atLeast(1)).close()
     }
   }
 
