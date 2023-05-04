@@ -156,6 +156,7 @@ class KafkaProducerActorImpl(
     flushMessagesScheduledTask.cancel()
     checkKTableLagScheduledTask.cancel()
     clearExpiredTrackersScheduledTask.cancel()
+    kafkaPublisher.close()
     super.postStop()
   }
 

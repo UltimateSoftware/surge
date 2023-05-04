@@ -2,32 +2,32 @@
 
 package surge.internal.kafka
 
-import akka.actor.{ ActorRef, ActorSystem, Props }
+import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.pattern.ask
-import akka.testkit.{ TestKit, TestProbe }
+import akka.testkit.{TestKit, TestProbe}
 import akka.util.Timeout
-import com.typesafe.config.{ Config, ConfigFactory, ConfigValueFactory }
-import org.apache.kafka.clients.producer.{ ProducerRecord, RecordMetadata }
+import com.typesafe.config.{Config, ConfigFactory, ConfigValueFactory}
+import org.apache.kafka.clients.producer.{ProducerRecord, RecordMetadata}
 import org.apache.kafka.common.TopicPartition
-import org.apache.kafka.common.errors.{ AuthorizationException, ProducerFencedException }
-import org.apache.kafka.common.header.internals.{ RecordHeader, RecordHeaders }
-import org.mockito.ArgumentMatchers.{ any, same }
+import org.apache.kafka.common.errors.{AuthorizationException, ProducerFencedException}
+import org.apache.kafka.common.header.internals.{RecordHeader, RecordHeaders}
+import org.mockito.ArgumentMatchers.{any, same}
 import org.mockito.Mockito._
-import org.mockito.{ ArgumentMatchers, Mockito }
+import org.mockito.{ArgumentMatchers, Mockito}
 import org.scalatest.BeforeAndAfterAll
-import org.scalatest.concurrent.{ Eventually, PatienceConfiguration, ScalaFutures }
+import org.scalatest.concurrent.{Eventually, PatienceConfiguration, ScalaFutures}
 import org.scalatest.matchers.should.Matchers
-import org.scalatest.time.{ Millis, Seconds, Span }
+import org.scalatest.time.{Millis, Seconds, Span}
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatestplus.mockito.MockitoSugar
-import surge.core.KafkaProducerActor.{ PublishFailure, PublishResult, PublishSuccess, PublishTracker, PublishTrackerWithExpiry }
-import surge.core.{ KafkaProducerActor, TestBoundedContext }
+import surge.core.KafkaProducerActor.{PublishFailure, PublishResult, PublishSuccess, PublishTracker, PublishTrackerWithExpiry}
+import surge.core.{KafkaProducerActor, TestBoundedContext}
 import surge.health.HealthSignalBusTrait
 import surge.health.domain.EmittableHealthSignal
 import surge.internal.akka.cluster.ActorSystemHostAwareness
-import surge.internal.akka.kafka.{ KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor }
-import surge.internal.health.{ HealthCheck, HealthCheckStatus }
-import surge.internal.kafka.KafkaProducerActorImpl.{ KTableProgressUpdate, PublishTrackerStateManager, SenderWithTrackingId }
+import surge.internal.akka.kafka.{KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor}
+import surge.internal.health.{HealthCheck, HealthCheckStatus}
+import surge.internal.kafka.KafkaProducerActorImpl.{KTableProgressUpdate, PublishTrackerStateManager, SenderWithTrackingId, ShutdownProducer}
 import surge.kafka._
 import surge.internal.health.HealthyActor.GetHealth
 import surge.kafka.streams.ExpectedTestException
@@ -36,7 +36,7 @@ import surge.metrics.Metrics
 import java.time.Instant
 import java.util.UUID
 import scala.concurrent.duration._
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.control.NoStackTrace
 
 class KafkaProducerActorImplSpec
@@ -677,6 +677,22 @@ class KafkaProducerActorImplSpec
       probe.send(fencedOnCommit, KafkaProducerActorImpl.FlushMessages)
       probe.expectMsgClass(classOf[PublishSuccess])
       verify(mockProducerFenceOnCommit).putRecords(records(testMessages2))
+    }
+
+    "Close Kafka Producer on Shutdown" in {
+      val probe = TestProbe()
+      val mockPartitionTracker = mock[KafkaConsumerPartitionAssignmentTracker]
+      val mockProducer = mock[GenericKafkaProducer[String, Array[Byte]]]
+
+      val mockLagChecker = mockKTableLagChecker(assignedPartition, 100L, 100L)
+      val producerActorToShutdown =
+        testProducerActor(assignedPartition, mockProducer, mockLagChecker, new PublishTrackerStateManager(), mockPartitionTracker)
+
+
+      // Send Shutdown Command
+      probe.send(producerActorToShutdown, ShutdownProducer)
+
+      verify(mockProducer, Mockito.timeout(1000).times(1)).close()
     }
   }
 
