@@ -1,4 +1,4 @@
-// Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>
+// Copyright © 2017-2023 UKG Inc. <https://www.ukg.com>
 
 package surge.internal.health.windows.actor
 

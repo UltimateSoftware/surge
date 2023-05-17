@@ -8,7 +8,7 @@ import sbt._
 object Settings extends AutoPlugin {
   object autoImport {}
   private val headerSettings = Seq(
-    headerLicense := Some(HeaderLicense.Custom("Copyright © 2017-2021 UKG Inc. <https://www.ukg.com>")),
+    headerLicense := Some(HeaderLicense.Custom("Copyright © 2017-2023 UKG Inc. <https://www.ukg.com>")),
     headerMappings := headerMappings.value ++ Seq(
       HeaderFileType.scala -> HeaderCommentStyle.cppStyleLineComment,
       HeaderFileType.java -> HeaderCommentStyle.cppStyleLineComment,
