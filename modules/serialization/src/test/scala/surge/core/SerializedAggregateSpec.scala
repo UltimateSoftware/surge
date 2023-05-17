@@ -23,4 +23,3 @@ class SerializedAggregateSpec extends AnyWordSpec {
     message.headers.get("key") shouldEqual Some("value")
   }
 }
-

@@ -9,8 +9,8 @@ import surge.health.SignalType
 class SnapshotHealthSignalSourceSpec extends AnyWordSpec {
 
   "Not flush" in {
-    val snapshot = new SnapshotHealthSignalSource(data = Seq(HealthSignal("testTopic", "testSignal", SignalType.TRACE,
-      Trace("desc", None, None), Map.empty[String, String], None)))
+    val snapshot = new SnapshotHealthSignalSource(
+      data = Seq(HealthSignal("testTopic", "testSignal", SignalType.TRACE, Trace("desc", None, None), Map.empty[String, String], None)))
 
     snapshot.flush()
 

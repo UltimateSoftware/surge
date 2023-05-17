@@ -5,7 +5,7 @@ package surge.internal.health.windows
 import org.mockito.Mockito.mock
 import org.scalatest.matchers.should.Matchers.convertToAnyShouldWrapper
 import org.scalatest.wordspec.AnyWordSpec
-import surge.health.windows.{Window, WindowPaused}
+import surge.health.windows.{ Window, WindowPaused }
 
 class WindowPausedSpec extends AnyWordSpec {
 
