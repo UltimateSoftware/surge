@@ -20,6 +20,8 @@ class WindowSliderSpec extends AnyWordSpec with Matchers {
         .copy(data = Seq(mock(classOf[HealthSignal]), mock(classOf[HealthSignal]), mock(classOf[HealthSignal])))
       val slider: WindowSlider = WindowSlider(slideAmount = 1, bufferSize = 0)
 
+      slider.buffer() shouldEqual 0
+
       val maybeNext = slider.advance(window)
       maybeNext.nonEmpty shouldEqual true
 
