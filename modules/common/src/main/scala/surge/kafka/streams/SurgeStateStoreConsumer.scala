@@ -31,6 +31,7 @@ private[surge] class SurgeStateStoreConsumer(stateTopic: KafkaTopic, val setting
   log.debug(s"Kafka streams ${settings.storeName} cache memory being used is {} KiB", Math.round(settings.cacheMemory.toFloat / 1024f))
 
   private val streamsConfig: Map[String, String] = Map(
+    "restore.consumer.max.poll.records" -> settings.restoreConsumerMaxPollRecords.toString,
     StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG -> settings.cacheMemory.toString,
     StreamsConfig.BOOTSTRAP_SERVERS_CONFIG -> settings.brokers.mkString(","),
     StreamsConfig.APPLICATION_ID_CONFIG -> settings.applicationId,
@@ -96,6 +97,7 @@ case class SurgeAggregateStoreSettings(
     stateDirectory: String,
     clearStateOnStartup: Boolean,
     enableMetrics: Boolean,
+    restoreConsumerMaxPollRecords: Int,
     applicationHostPort: Option[String],
     localActorHostPort: String)
 object SurgeAggregateStoreSettings {
@@ -115,9 +117,11 @@ object SurgeAggregateStoreSettings {
     val stateDirectory = config.getString("kafka.streams.state-dir")
     val clearStateOnStartup = config.getBoolean("kafka.streams.wipe-state-on-start")
     val enableMetrics = config.getBoolean("surge.kafka-streams.enable-kafka-metrics")
+    val restoreConsumerMaxPollRecords = config.getInt("surge.kafka-streams.restore-consumer-max-poll-records")
     val localActorProviderHostPort = config.getString("surge.local-actor-provider.host-port")
 
     SurgeAggregateStoreSettings(
+      restoreConsumerMaxPollRecords = restoreConsumerMaxPollRecords,
       storeName = aggregateStateStoreName,
       brokers = brokers,
       applicationId = applicationId,
