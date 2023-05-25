@@ -76,35 +76,17 @@ object PersistentActor {
   private[internal] def createMetrics(metrics: Metrics, aggregateName: String): MetricsQuiver = {
     MetricsQuiver(
       stateInitializationTimer = metrics.timer(
-        MetricInfo(
-          name = s"surge.aggregate.actor-state-initialization-timer",
-          description = "Average time in milliseconds taken to load aggregate state from the KTable",
-          tags = Map("aggregate" -> aggregateName))),
+        Metrics.SURGE_AGGREGATE_ACTOR_STATE_INITIALIZATION_TIMER.withTags(Map("aggregate" -> aggregateName))),
       aggregateDeserializationTimer = metrics.timer(
-        MetricInfo(
-          name = s"surge.aggregate.state-deserialization-timer",
-          description = "Average time taken in milliseconds to deserialize aggregate state after the bytes are read from the KTable",
-          tags = Map("aggregate" -> aggregateName))),
+        Metrics.SURGE_AGGREGATE_STATE_DESERIALIZATION_TIMER.withTags(Map("aggregate" -> aggregateName))),
       commandHandlingTimer = metrics.timer(
-        MetricInfo(
-          name = s"surge.aggregate.command-handling-timer",
-          description = "Average time taken in milliseconds for the business logic 'processCommand' function to process a command",
-          tags = Map("aggregate" -> aggregateName))),
+        Metrics.SURGE_AGGREGATE_COMMAND_HANDLING_TIMER.withTags(Map("aggregate" -> aggregateName))),
       messageHandlingTimer = metrics.timer(
-        MetricInfo(
-          name = s"surge.aggregate.command-handling-timer",
-          description = "Average time taken in milliseconds for the business logic 'processCommand' function to process a message",
-          tags = Map("aggregate" -> aggregateName))),
+        Metrics.SURGE_AGGREGATE_MESSAGE_HANDLING_TIMER.withTags(Map("aggregate" -> aggregateName))),
       eventHandlingTimer = metrics.timer(
-        MetricInfo(
-          name = s"surge.aggregate.event-handling-timer",
-          description = "Average time taken in milliseconds for the business logic 'handleEvent' function to handle an event",
-          tags = Map("aggregate" -> aggregateName))),
+        Metrics.SURGE_AGGREGATE_EVENT_HANDLING_TIMER.withTags(Map("aggregate" -> aggregateName))),
       eventPublishTimer = metrics.timer(
-        MetricInfo(
-          name = s"surge.aggregate.event-publish-timer",
-          description = "Average time taken in milliseconds to persist all generated events plus an updated state to Kafka",
-          tags = Map("aggregate" -> aggregateName))))
+        Metrics.SURGE_AGGREGATE_EVENT_PUBLISH_TIMER.withTags(Map("aggregate" -> aggregateName))))
 
   }
 

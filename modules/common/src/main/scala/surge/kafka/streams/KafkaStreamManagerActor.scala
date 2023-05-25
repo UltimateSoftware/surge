@@ -42,10 +42,7 @@ class KafkaStreamManagerActor(surgeConsumer: SurgeStateStoreConsumer, partitionT
   import context.dispatcher
 
   private val getAggregateBytesTimer = metrics.timer(
-    MetricInfo(
-      name = s"surge.state-store.get-aggregate-state-timer",
-      description = "The time taken to fetch aggregate state from the KTable",
-      tags = Map("storeName" -> surgeConsumer.storeName)))
+    Metrics.SURGE_STATE_STORE_GET_AGGREGATE_STATE_TIMER.withTags(Map("storeName" -> surgeConsumer.storeName)))
 
   private var lastConsumerSeen: Option[KafkaStreams] = None
 
