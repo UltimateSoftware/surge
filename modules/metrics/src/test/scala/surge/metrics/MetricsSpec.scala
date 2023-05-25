@@ -100,7 +100,7 @@ class MetricsSpec extends AnyWordSpec with Matchers with MockitoSugar {
     }
 
     "Have MetricInfo prepared that matches names" in {
-      Metrics.surgeMetricInfo.keySet.size shouldEqual 20
+      Metrics.surgeMetricInfo.keySet.size shouldEqual 21
 
       Metrics.surgeMetricInfo.keySet.foreach(name => {
         Metrics.surgeMetricInfo(name).name shouldEqual name
