@@ -54,10 +54,8 @@ object KafkaProducerActorImpl {
 
   object AggregateStateRates {
     def apply(aggregateName: String, metrics: Metrics): AggregateStateRates = AggregateStateRates(
-      current = metrics.rate(
-        Metrics.SURGE_AGGREGATE_STATE_CURRENT_RATE.withTags(Map("aggregate" -> aggregateName))),
-      notCurrent = metrics.rate(
-        Metrics.SURGE_AGGREGATE_STATE_NOT_CURRENT_RATE.withTags(Map("aggregate" -> aggregateName))))
+      current = metrics.rate(Metrics.SURGE_AGGREGATE_STATE_CURRENT_RATE.withTags(Map("aggregate" -> aggregateName))),
+      notCurrent = metrics.rate(Metrics.SURGE_AGGREGATE_STATE_NOT_CURRENT_RATE.withTags(Map("aggregate" -> aggregateName))))
 
   }
 
@@ -132,8 +130,7 @@ class KafkaProducerActorImpl(
   private val nonTransactionalStatePublisher =
     kafkaProducerOverride.getOrElse(KafkaProducer.bytesProducer(config, brokers, stateTopic, partitioner = partitioner))
 
-  private val kafkaPublisherTimer: Timer = metrics.timer(
-    Metrics.SURGE_AGGREGATE_KAFKA_WRITE_TIMER.withTags(Map("aggregate" -> aggregateName)))
+  private val kafkaPublisherTimer: Timer = metrics.timer(Metrics.SURGE_AGGREGATE_KAFKA_WRITE_TIMER.withTags(Map("aggregate" -> aggregateName)))
   private implicit val rates: AggregateStateRates = AggregateStateRates(aggregateName, metrics)
 
   context.system.scheduler.scheduleOnce(10.milliseconds, self, InitTransactions)
@@ -395,8 +392,7 @@ class KafkaProducerActorImpl(
     msg.originalSenders.foreach(sender => sender.actorRef ! KafkaProducerActor.PublishFailure(sender.trackingId, msg.reason))
   }
 
-  private val eventsPublishedRate: Rate = metrics.rate(
-    Metrics.SURGE_AGGREGATE_MESSAGE_PUBLISH_RATE.withTags(Map("aggregate" -> aggregateName)))
+  private val eventsPublishedRate: Rate = metrics.rate(Metrics.SURGE_AGGREGATE_MESSAGE_PUBLISH_RATE.withTags(Map("aggregate" -> aggregateName)))
 
   private def handleFlushMessages(state: KafkaProducerActorState): Unit = {
     if (state.transactionInProgress) {

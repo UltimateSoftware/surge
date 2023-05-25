@@ -38,18 +38,15 @@ object Metrics {
     SURGE_GRPC_GET_AGGREGATE_STATE_TIMER.name -> SURGE_GRPC_GET_AGGREGATE_STATE_TIMER,
     SURGE_EVENT_DESERIALIZATION_TIMER.name -> SURGE_EVENT_DESERIALIZATION_TIMER,
     SURGE_EVENT_SHOULD_PARSE_MESSAGE_TIMER.name -> SURGE_EVENT_SHOULD_PARSE_MESSAGE_TIMER,
-    SURGE_EVENT_HANDLER_EXCEPTION_RATE.name -> SURGE_EVENT_HANDLER_EXCEPTION_RATE
-  )
+    SURGE_EVENT_HANDLER_EXCEPTION_RATE.name -> SURGE_EVENT_HANDLER_EXCEPTION_RATE)
 
   val SURGE_EVENT_HANDLER_EXCEPTION_RATE: MetricInfo =
     MetricInfo(name = "surge.event.handler.exception.rate", description = "Rate of exceptions caught while handling an event")
-  val SURGE_STATE_STORE_GET_AGGREGATE_STATE_TIMER: MetricInfo = MetricInfo(
-    name = s"surge.state-store.get-aggregate-state-timer",
-    description = "The time taken to fetch aggregate state from the KTable")
+  val SURGE_STATE_STORE_GET_AGGREGATE_STATE_TIMER: MetricInfo =
+    MetricInfo(name = s"surge.state-store.get-aggregate-state-timer", description = "The time taken to fetch aggregate state from the KTable")
 
-  val SURGE_AGGREGATE_IS_CURRENT_TIMER: MetricInfo = MetricInfo(
-    s"surge.aggregate.is-current-timer",
-    "Average time in milliseconds taken to check if a particular aggregate is up to date in the KTable")
+  val SURGE_AGGREGATE_IS_CURRENT_TIMER: MetricInfo =
+    MetricInfo(s"surge.aggregate.is-current-timer", "Average time in milliseconds taken to check if a particular aggregate is up to date in the KTable")
 
   val SURGE_AGGREGATE_EVENT_SERIALIZATION_TIMER: MetricInfo = MetricInfo(
     name = s"surge.aggregate.event-serialization-timer",
@@ -83,13 +80,11 @@ object Metrics {
     name = s"surge.aggregate.state-deserialization-timer",
     description = "Average time taken in milliseconds to deserialize aggregate state after the bytes are read from the KTable")
 
-  val SURGE_EVENT_DESERIALIZATION_TIMER: MetricInfo = MetricInfo(
-    name = s"surge.event.deserialization-timer",
-    description = "The average time (in ms) taken to deserialize events")
+  val SURGE_EVENT_DESERIALIZATION_TIMER: MetricInfo =
+    MetricInfo(name = s"surge.event.deserialization-timer", description = "The average time (in ms) taken to deserialize events")
 
-  val SURGE_EVENT_SHOULD_PARSE_MESSAGE_TIMER: MetricInfo = MetricInfo(
-    name = s"surge.event.should-parse-message-timer",
-    description = "The average time (in ms) taken by the shouldParseMessage function")
+  val SURGE_EVENT_SHOULD_PARSE_MESSAGE_TIMER: MetricInfo =
+    MetricInfo(name = s"surge.event.should-parse-message-timer", description = "The average time (in ms) taken by the shouldParseMessage function")
 
   val SURGE_AGGREGATE_COMMAND_HANDLING_TIMER: MetricInfo = MetricInfo(
     name = s"surge.aggregate.command-handling-timer",

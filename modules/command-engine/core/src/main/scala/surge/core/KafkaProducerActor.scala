@@ -211,8 +211,7 @@ class KafkaProducerActor(
     publisherActor.ref ! PoisonPill
   }
 
-  private val isAggregateStateCurrentTimer: Timer = metrics.timer(
-    Metrics.SURGE_AGGREGATE_IS_CURRENT_TIMER.withTags(Map("aggregate" -> aggregateName)))
+  private val isAggregateStateCurrentTimer: Timer = metrics.timer(Metrics.SURGE_AGGREGATE_IS_CURRENT_TIMER.withTags(Map("aggregate" -> aggregateName)))
 
   def isAggregateStateCurrent(aggregateId: String): Future[Boolean] = {
     implicit val askTimeout: Timeout = Timeout(TimeoutConfig.PublisherActor.aggregateStateCurrentTimeout)

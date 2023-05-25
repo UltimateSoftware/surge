@@ -75,18 +75,12 @@ object PersistentActor {
 
   private[internal] def createMetrics(metrics: Metrics, aggregateName: String): MetricsQuiver = {
     MetricsQuiver(
-      stateInitializationTimer = metrics.timer(
-        Metrics.SURGE_AGGREGATE_ACTOR_STATE_INITIALIZATION_TIMER.withTags(Map("aggregate" -> aggregateName))),
-      aggregateDeserializationTimer = metrics.timer(
-        Metrics.SURGE_AGGREGATE_STATE_DESERIALIZATION_TIMER.withTags(Map("aggregate" -> aggregateName))),
-      commandHandlingTimer = metrics.timer(
-        Metrics.SURGE_AGGREGATE_COMMAND_HANDLING_TIMER.withTags(Map("aggregate" -> aggregateName))),
-      messageHandlingTimer = metrics.timer(
-        Metrics.SURGE_AGGREGATE_MESSAGE_HANDLING_TIMER.withTags(Map("aggregate" -> aggregateName))),
-      eventHandlingTimer = metrics.timer(
-        Metrics.SURGE_AGGREGATE_EVENT_HANDLING_TIMER.withTags(Map("aggregate" -> aggregateName))),
-      eventPublishTimer = metrics.timer(
-        Metrics.SURGE_AGGREGATE_EVENT_PUBLISH_TIMER.withTags(Map("aggregate" -> aggregateName))))
+      stateInitializationTimer = metrics.timer(Metrics.SURGE_AGGREGATE_ACTOR_STATE_INITIALIZATION_TIMER.withTags(Map("aggregate" -> aggregateName))),
+      aggregateDeserializationTimer = metrics.timer(Metrics.SURGE_AGGREGATE_STATE_DESERIALIZATION_TIMER.withTags(Map("aggregate" -> aggregateName))),
+      commandHandlingTimer = metrics.timer(Metrics.SURGE_AGGREGATE_COMMAND_HANDLING_TIMER.withTags(Map("aggregate" -> aggregateName))),
+      messageHandlingTimer = metrics.timer(Metrics.SURGE_AGGREGATE_MESSAGE_HANDLING_TIMER.withTags(Map("aggregate" -> aggregateName))),
+      eventHandlingTimer = metrics.timer(Metrics.SURGE_AGGREGATE_EVENT_HANDLING_TIMER.withTags(Map("aggregate" -> aggregateName))),
+      eventPublishTimer = metrics.timer(Metrics.SURGE_AGGREGATE_EVENT_PUBLISH_TIMER.withTags(Map("aggregate" -> aggregateName))))
 
   }
 
