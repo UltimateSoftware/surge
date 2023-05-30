@@ -24,7 +24,7 @@ class MultilanguageGatewayServiceImpl(surgeEngine: SurgeCommand[UUID, SurgeState
 
   private val metric: Metrics = Metrics.globalMetricRegistry
   private val forwardCommandTimerMetric: Timer =
-    metric.timer(MetricInfo("surge.grpc.forward-command-timer", "The time taken by gRPC forwardCommand to forward the command to the aggregate"))
+    metric.timer(Metrics.SURGE_GRPC_FORWARD_COMMAND_TIMER)
 
   override def forwardCommand(in: ForwardCommandRequest): Future[ForwardCommandReply] = forwardCommandTimerMetric.timeFuture {
     in.command match {
@@ -56,7 +56,7 @@ class MultilanguageGatewayServiceImpl(surgeEngine: SurgeCommand[UUID, SurgeState
   }
 
   private val getAggregateStateTimerMetric: Timer =
-    metric.timer(MetricInfo("surge.grpc.get-aggregate-state-timer", "The time taken by gRPC getState to get the state of the aggregate"))
+    metric.timer(Metrics.SURGE_GRPC_GET_AGGREGATE_STATE_TIMER)
 
   override def getState(in: GetStateRequest): Future[GetStateReply] = getAggregateStateTimerMetric.timeFuture {
     logger.info(s"Business app asking for state of aggregate with id ${in.aggregateId}!")

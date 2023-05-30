@@ -99,6 +99,14 @@ class MetricsSpec extends AnyWordSpec with Matchers with MockitoSugar {
       metrics.metricHtml should include(sensorMax.description)
     }
 
+    "Have MetricInfo prepared that matches names" in {
+      Metrics.surgeMetricInfo.keySet.size shouldEqual 21
+
+      Metrics.surgeMetricInfo.keySet.foreach(name => {
+        Metrics.surgeMetricInfo(name).name shouldEqual name
+      })
+    }
+
     def setupMockKafkaMetricListener(metrics: Metrics): KafkaMetricListener = {
       val mockKafkaMetricListener = mock[KafkaMetricListener]
       doNothing().when(mockKafkaMetricListener).onMetricsRegistered(anyString, any(classOf[KafkaMetricListener.KafkaMetricSupplier]))

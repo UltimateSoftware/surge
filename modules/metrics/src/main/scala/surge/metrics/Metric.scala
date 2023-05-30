@@ -20,7 +20,11 @@ trait MetricValueProvider {
  * @param tags
  *   Additional key/value attributes to associate to the metric
  */
-case class MetricInfo(name: String, description: String, tags: Map[String, String] = Map.empty)
+case class MetricInfo(name: String, description: String, tags: Map[String, String] = Map.empty) {
+  def withTags(tags: Map[String, String]): MetricInfo = {
+    copy(tags = tags)
+  }
+}
 
 case class MetricValue(name: String, tags: Map[String, String], value: Double)
 case class MetricDescription(name: String, description: String, tags: Map[String, String], recordingLevel: RecordingLevel)

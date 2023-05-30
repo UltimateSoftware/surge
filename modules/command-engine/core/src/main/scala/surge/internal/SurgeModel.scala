@@ -11,7 +11,7 @@ import surge.internal.domain.SurgeProcessingModel
 import surge.internal.kafka.{ HeadersHelper, ProducerActorContext }
 import surge.internal.utils.DiagnosticContextFuturePropagation
 import surge.kafka.KafkaTopic
-import surge.metrics.MetricInfo
+import surge.metrics.{ MetricInfo, Metrics }
 
 import java.util.concurrent.Executors
 import scala.concurrent.{ ExecutionContext, Future }
@@ -30,17 +30,9 @@ trait SurgeModel[State, Message, Event] extends ProducerActorContext {
   private val serializationExecutionContext: ExecutionContext = new DiagnosticContextFuturePropagation(
     ExecutionContext.fromExecutor(Executors.newFixedThreadPool(serializationThreadPoolSize)))
 
-  private lazy val serializeEventTimer = metrics.timer(
-    MetricInfo(
-      name = s"surge.aggregate.event-serialization-timer",
-      description = "Average time taken in milliseconds to serialize an individual event to bytes before persisting to Kafka",
-      tags = Map("aggregate" -> aggregateName)))
+  private lazy val serializeEventTimer = metrics.timer(Metrics.SURGE_AGGREGATE_EVENT_SERIALIZATION_TIMER.withTags(Map("aggregate" -> aggregateName)))
 
-  private lazy val serializeStateTimer = metrics.timer(
-    MetricInfo(
-      name = s"surge.aggregate.aggregate-state-serialization-timer",
-      description = "Average time taken in milliseconds to serialize a new aggregate state to bytes before persisting to Kafka",
-      tags = Map("aggregate" -> aggregateName)))
+  private lazy val serializeStateTimer = metrics.timer(Metrics.SURGE_AGGREGATE_AGGREGATE_STATE_SERIALIZATION_TIMER.withTags(Map("aggregate" -> aggregateName)))
 
   def serializeEvents(events: Seq[(Event, Option[KafkaTopic])]): Future[Seq[KafkaProducerActor.MessageToPublish]] = Future {
     val eventWriteFormatting = eventWriteFormattingOpt.getOrElse {
