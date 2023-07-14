@@ -20,6 +20,7 @@ object KafkaAdminClient {
   def apply(config: Config, brokers: Seq[String]): KafkaAdminClient = {
     val p = new Properties()
     p.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, brokers.mkString(","))
+    p.put(ConsumerConfig.DEFAULT_API_TIMEOUT_MS_CONFIG, config.getInt("kafka.default.api.timeout.ms"))
     new KafkaSecurityConfigurationImpl(config).configureSecurityProperties(p)
     apply(p)
   }
