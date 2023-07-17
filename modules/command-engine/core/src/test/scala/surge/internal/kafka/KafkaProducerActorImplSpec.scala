@@ -27,7 +27,7 @@ import surge.health.domain.EmittableHealthSignal
 import surge.internal.akka.cluster.ActorSystemHostAwareness
 import surge.internal.akka.kafka.{ KafkaConsumerPartitionAssignmentTracker, KafkaConsumerStateTrackingActor }
 import surge.internal.health.{ HealthCheck, HealthCheckStatus }
-import surge.internal.kafka.KafkaProducerActorImpl.{ KTableProgressUpdate, PublishTrackerStateManager, SenderWithTrackingId }
+import surge.internal.kafka.KafkaProducerActorImpl.{ KTableProgressUpdate, PublishTrackerStateManager, SenderWithTrackingId, ShutdownProducer }
 import surge.kafka._
 import surge.internal.health.HealthyActor.GetHealth
 import surge.kafka.streams.ExpectedTestException
@@ -677,6 +677,21 @@ class KafkaProducerActorImplSpec
       probe.send(fencedOnCommit, KafkaProducerActorImpl.FlushMessages)
       probe.expectMsgClass(classOf[PublishSuccess])
       verify(mockProducerFenceOnCommit).putRecords(records(testMessages2))
+    }
+
+    "Close Kafka Producer on Shutdown" in {
+      val probe = TestProbe()
+      val mockPartitionTracker = mock[KafkaConsumerPartitionAssignmentTracker]
+      val mockProducer = mock[GenericKafkaProducer[String, Array[Byte]]]
+
+      val mockLagChecker = mockKTableLagChecker(assignedPartition, 100L, 100L)
+      val producerActorToShutdown =
+        testProducerActor(assignedPartition, mockProducer, mockLagChecker, new PublishTrackerStateManager(), mockPartitionTracker)
+
+      // Send Shutdown Command
+      probe.send(producerActorToShutdown, ShutdownProducer)
+
+      verify(mockProducer, Mockito.timeout(1000).atLeast(1)).close()
     }
   }
 
