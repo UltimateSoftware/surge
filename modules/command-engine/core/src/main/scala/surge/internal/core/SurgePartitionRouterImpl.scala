@@ -29,7 +29,8 @@ import java.util.regex.Pattern
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{ Await, ExecutionContext, Future }
 import scala.jdk.CollectionConverters._
-import scala.languageFeature.postfixOps
+import akka.management.HealthCheckSettings
+import akka.management.scaladsl.HealthChecks
 
 private[surge] final class SurgePartitionRouterImpl(
     config: Config,
@@ -44,6 +45,10 @@ private[surge] final class SurgePartitionRouterImpl(
     extends SurgePartitionRouter
     with HealthyComponent {
   private val log = LoggerFactory.getLogger(getClass)
+
+  private val settings: HealthCheckSettings = HealthCheckSettings(system.settings.config.getConfig("akka.management.health-checks"))
+
+  private val healthChecks = HealthChecks(system.asInstanceOf[ExtendedActorSystem], settings)
 
   override val actorRegion: ActorRef = {
     if (isAkkaClusterEnabled) {
@@ -121,6 +126,11 @@ private[surge] final class SurgePartitionRouterImpl(
   }
 
   override def restartSignalPatterns(): Seq[Pattern] = Seq(Pattern.compile("kafka.fatal.error"))
+
+  override def readiness(): Future[HealthCheck] = for {
+    ready <- healthChecks.ready()
+    status = if (ready) HealthCheckStatus.UP else HealthCheckStatus.DOWN
+  } yield HealthCheck(name = "router-actor", id = s"router-actor-${actorRegion.hashCode}", status)
 
   override def healthCheck(): Future[HealthCheck] = {
     if (isAkkaClusterEnabled) {

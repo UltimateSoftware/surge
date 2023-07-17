@@ -9,7 +9,7 @@ object Dependencies extends AutoPlugin {
       val version = "2.6.20"
       val akkaHttpVersion = "10.2.9"
       val alpakkaVersion = "2.1.1"
-      val managementVersion = "1.1.2"
+      val managementVersion = "1.1.3"
 
       val kafkaStream = "com.typesafe.akka" %% "akka-stream-kafka" % alpakkaVersion
       val kafkaStreamTestKit = "com.typesafe.akka" %% "akka-stream-kafka-testkit" % alpakkaVersion % Test
