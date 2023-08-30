@@ -1,7 +1,7 @@
 // Copyright © 2017-2020 UKG Inc. <https://www.ukg.com>
 
 // Scala code formatting
-addSbtPlugin("org.scalameta" % "sbt-scalafmt" % "2.4.6")
+addSbtPlugin("org.scalameta" % "sbt-scalafmt" % "2.5.1")
 
 // Git Commands - Access to Git repo information
 addSbtPlugin("com.typesafe.sbt" % "sbt-git" % "1.0.2")
