@@ -46,7 +46,7 @@ object Dependencies extends AutoPlugin {
       val kafkaStreamsScala = "org.apache.kafka" %% "kafka-streams-scala" % kafkaVersion
       val kafkaStreamsTestUtils = "org.apache.kafka" % "kafka-streams-test-utils" % kafkaVersion % Test
 
-      val rocksDb = "org.rocksdb" % "rocksdbjni" % "6.29.5"
+      val rocksDb = "org.rocksdb" % "rocksdbjni" % "8.3.3"
     }
 
     object OpenTelemetry {
