@@ -15,7 +15,7 @@ addSbtPlugin("com.typesafe" % "sbt-mima-plugin" % "1.1.1")
 addSbtPlugin("org.scoverage" % "sbt-scoverage" % "1.9.3")
 
 // Multi-JVM testing
-addSbtPlugin("com.typesafe.sbt" % "sbt-multi-jvm" % "0.4.0")
+addSbtPlugin("com.github.sbt" % "sbt-multi-jvm" % "0.6.0")
 
 // Dependency helper plugins
 addSbtPlugin("com.timushev.sbt" % "sbt-updates" % "0.6.4")
