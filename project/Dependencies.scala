@@ -81,7 +81,7 @@ object Dependencies extends AutoPlugin {
     val logbackForTesting = "ch.qos.logback" % "logback-classic" % "1.4.4" % Test
     val json4s = "org.json4s" %% "json4s-native" % "4.0.5"
     val mockitoCore = "org.mockito" % "mockito-core" % "4.7.0"
-    val scalatest = "org.scalatest" %% "scalatest" % "3.2.13" % Test
+    val scalatest = "org.scalatest" %% "scalatest" % "3.2.18" % Test
     val scalatestPlusMockito = "org.scalatestplus" %% "mockito-3-4" % "3.2.10.0" % Test
     val slf4jApi = "org.slf4j" % "slf4j-api" % "1.7.36"
     val typesafeConfig = "com.typesafe" % "config" % "1.4.2"
